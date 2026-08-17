@@ -147,9 +147,16 @@ def render_value(field: LabelField, value: object) -> str:
 def _require_finite_number(value: object, *, context: str) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise ValueError(f"{context} requires a real number, got {value!r}")
-    if not math.isfinite(value):
-        raise ValueError(f"{context} requires a finite number, got {value!r}")
-    return float(value)
+    try:
+        # An int too large to represent as a float (e.g. 10**400) makes
+        # math.isfinite/float() itself raise OverflowError rather than
+        # returning False — the docstring only promises ValueError, so
+        # this must be caught and re-raised as one, not left to leak.
+        if not math.isfinite(value):
+            raise ValueError(f"{context} requires a finite number, got {value!r}")
+        return float(value)
+    except OverflowError as e:
+        raise ValueError(f"{context} requires a finite number, got {value!r}") from e
 
 
 def _format_numeral(format_spec: str, value: object) -> str:
