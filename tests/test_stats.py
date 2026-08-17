@@ -96,7 +96,29 @@ def test_interpolate_rejects_extreme_but_finite_x_span_instead_of_overflowing(me
 
 def test_interpolate_rejects_too_many_points() -> None:
     with pytest.raises(ValueError, match="too many points"):
-        interpolate(list(range(300)), list(range(300)))
+        interpolate([float(i) for i in range(2500)], [float(i) for i in range(2500)], method="cubic")
+
+
+def test_interpolate_lagrange_has_a_much_stricter_point_cap() -> None:
+    """lagrange is O(n^2 * precision) and numerically unstable past a small point count,
+    so it gets a much lower cap than the other 4 (O(n)) methods — a point count that's
+    fine for cubic/hermite should still be rejected for lagrange specifically."""
+    x = [float(i) for i in range(100)]
+    y = [float(i % 3) for i in range(100)]
+    interpolate(x, y, method="cubic", precision=10)  # under _MAX_POINTS: fine
+    with pytest.raises(ValueError, match="lagrange"):
+        interpolate(x, y, method="lagrange", precision=10)
+
+
+@pytest.mark.parametrize("method", ("cubic", "hermite"))
+def test_interpolate_rejects_extreme_but_finite_y_span_instead_of_overflowing(method: str) -> None:
+    """Regression: the x-span finiteness check alone isn't enough — cubic's spline
+    coefficients and hermite's finite-difference tangents both compute differences of
+    y-values (e.g. (y[i+1]-y[i-1])/h), which can overflow to inf even when x[-1]-x[0]
+    and every individual y value are finite (e.g. y jumping between -1e308 and 1e308).
+    The final output is validated for finiteness to catch this and any similar path."""
+    with pytest.raises(ValueError, match="non-finite"):
+        interpolate([0.0, 0.5, 1.0], [-1e308, 0.0, 1e308], method=method, precision=5)
 
 
 def test_interpolate_rejects_non_numeric_coordinates() -> None:
@@ -157,6 +179,14 @@ def test_histogram_bins_rejects_non_numeric_values() -> None:
         histogram_bins([1.0, "a", 3.0])  # type: ignore[list-item]
 
 
+def test_histogram_bins_rejects_extreme_but_finite_span_instead_of_overflowing() -> None:
+    """Regression: -1e308 and 1e308 are each individually finite, but their span
+    (max - min) overflows to inf when numpy computes the bin range internally, which
+    otherwise surfaces as numpy's own confusing internal error instead of a clear one."""
+    with pytest.raises(ValueError, match="span"):
+        histogram_bins([-1e308, 1e308])
+
+
 # --- box_stats ---------------------------------------------------------
 
 
@@ -209,6 +239,28 @@ def test_box_stats_all_identical_values_degenerates_cleanly(mode: str) -> None:
     assert stats.median == stats.q1 == stats.q3 == 5.0
     assert stats.whisker_low == stats.whisker_high == 5.0
     assert stats.outliers == []
+
+
+@pytest.mark.parametrize("mode", ("extremes", "1.5IQR", "stdev", "pstdev"))
+def test_box_stats_rejects_extreme_but_finite_values_that_would_overflow_linear_quartiles(mode: str) -> None:
+    """Regression: round-1's fix only validated the whiskers for finiteness, but
+    q1/q3 can independently overflow through the linear-interpolation percentile
+    formula (sorted[lower] + fraction * (sorted[upper] - sorted[lower])) even though
+    every individual input value (-1e308, 1e308) is finite on its own. (tukey uses a
+    different hinge algorithm that doesn't overflow on this particular 2-value input —
+    see test_box_stats_rejects_extreme_but_finite_values_that_would_overflow_tukey_hinges
+    for a dataset that does trigger tukey's own overflow path.)"""
+    with pytest.raises(ValueError, match="finite"):
+        box_stats([-1e308, 1e308], mode=mode)
+
+
+def test_box_stats_rejects_extreme_but_finite_values_that_would_overflow_tukey_hinges() -> None:
+    """Regression: tukey's hinges (median of each half) overflow when a half's own two
+    middle elements sum past float max — e.g. the lower half [-1e308, -1e308] averages
+    to -inf via (-1e308 + -1e308) / 2. This dataset doesn't overflow the other 4 modes'
+    linear-percentile formula (see the sibling test above), so it needs its own case."""
+    with pytest.raises(ValueError, match="finite"):
+        box_stats([-1e308, -1e308, 1e308, 1e308], mode="tukey")
 
 
 def test_box_stats_rejects_extreme_but_finite_values_that_would_overflow_stdev() -> None:

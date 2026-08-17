@@ -18,9 +18,12 @@ def histogram_bins(values: list[float], bins: str | int = "auto") -> list[float]
 
     Raises:
         ValueError: if ``values`` is empty or contains a non-numeric/non-finite value,
-            if ``bins`` isn't a ``str``/``int`` or an int ``bins`` exceeds
-            :data:`_MAX_BINS`, or if ``bins`` isn't a value numpy accepts (surfaces
-            numpy's own error message in that case).
+            if ``values``' span (``max(values) - min(values)``) isn't finite (individually
+            finite values, e.g. ``-1e308`` and ``1e308``, can still overflow when numpy
+            computes the range internally — surfacing as a confusing internal numpy error
+            if not caught here first), if ``bins`` isn't a ``str``/``int`` or an int
+            ``bins`` exceeds :data:`_MAX_BINS`, or if ``bins`` isn't a value numpy accepts
+            (surfaces numpy's own error message in that case).
     """
     if not values:
         raise ValueError("values must not be empty")
@@ -35,5 +38,8 @@ def histogram_bins(values: list[float], bins: str | int = "auto") -> list[float]
             raise ValueError(f"values must be numbers, got {value!r}") from error
         if not finite:
             raise ValueError(f"cannot bin a non-finite value: {value!r}")
+    span = max(values) - min(values)
+    if not math.isfinite(span):
+        raise ValueError(f"values span (max - min = {span!r}) must be finite")
     edges = np.histogram_bin_edges(values, bins=bins)
     return edges.tolist()

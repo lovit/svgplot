@@ -19,12 +19,17 @@ _MAX_PRECISION = 10_000
 ``precision=10**9`` from exhausting memory/CPU, matching the spirit of
 ``_MAX_CUBEHELIX_MAGNITUDE``/``_MAX_SPEC_LENGTH`` elsewhere in this package."""
 
-_MAX_POINTS = 200
-"""Sane upper bound on input point count. Without this, ``lagrange`` is both an
-O(n^2 * precision) CPU-DoS vector (n=2000, precision=1000 takes ~2 minutes) and
-numerically meaningless well before that (Runge's phenomenon makes it diverge
-past roughly this many points anyway) — so one shared cap across all 5 methods
-is simpler than a per-method cap and costs nothing for legitimate chart data."""
+_MAX_POINTS = 2_000
+"""Sane upper bound on input point count for the 4 non-``lagrange`` methods (all O(n) or
+O(n log n) in the point count) — generous enough for real chart data (e.g. a daily
+time series spanning several years) while still bounding memory/CPU for a single call."""
+
+_MAX_LAGRANGE_POINTS = 50
+"""Much stricter cap for ``lagrange`` specifically: it's an O(n^2 * precision) CPU-DoS
+vector (n=2000, precision=1000 takes ~2 minutes; even n=200 with a large precision takes
+several seconds) AND numerically meaningless well before that (Runge's phenomenon makes
+it diverge past roughly this many points anyway) — so this cap costs nothing for a method
+that's only ever practical on a handful of points."""
 
 
 @dataclass(frozen=True)
@@ -44,10 +49,14 @@ def interpolate(x: list[float], y: list[float], method: str = "cubic", precision
     Raises:
         ValueError: if ``method`` isn't one of :data:`METHODS`, if ``precision`` is out of
             range, if ``x``/``y`` differ in length, have fewer than 2 or more than
-            :data:`_MAX_POINTS` points, contain a non-numeric or non-finite coordinate, if
-            ``x`` isn't strictly increasing, or if ``x``'s span (``x[-1] - x[0]``) isn't
-            finite (a span overflow would otherwise silently propagate ``nan``/``inf``
-            into every output point instead of raising).
+            :data:`_MAX_POINTS` points (or, for ``method="lagrange"`` specifically, more
+            than the much stricter :data:`_MAX_LAGRANGE_POINTS`), contain a non-numeric or
+            non-finite coordinate, if ``x`` isn't strictly increasing, if ``x``'s span
+            (``x[-1] - x[0]``) isn't finite, or if the interpolated output itself contains
+            a non-finite value —
+            individually-finite ``x``/``y`` coordinates can still make an intermediate
+            spline/DFT computation overflow (e.g. a finite-but-extreme ``y`` difference),
+            so the final output is validated too rather than only the raw inputs.
     """
     if method not in METHODS:
         raise ValueError(f"unknown interpolation method: {method!r} (available: {METHODS})")
@@ -59,6 +68,10 @@ def interpolate(x: list[float], y: list[float], method: str = "cubic", precision
         raise ValueError(f"need at least 2 points to interpolate, got {len(x)}")
     if len(x) > _MAX_POINTS:
         raise ValueError(f"too many points to interpolate ({len(x)}), max {_MAX_POINTS}")
+    if method == "lagrange" and len(x) > _MAX_LAGRANGE_POINTS:
+        raise ValueError(
+            f"too many points for lagrange interpolation ({len(x)}), max {_MAX_LAGRANGE_POINTS} (see _MAX_LAGRANGE_POINTS docstring)"
+        )
     for value in (*x, *y):
         try:
             finite = math.isfinite(value)
@@ -73,14 +86,23 @@ def interpolate(x: list[float], y: list[float], method: str = "cubic", precision
         raise ValueError(f"x range (x[-1] - x[0] = {x[-1] - x[0]!r}) must be finite")
 
     if method == "quadratic":
-        return _quadratic(x, y, precision)
-    if method == "cubic":
-        return _cubic(x, y, precision)
-    if method == "hermite":
-        return _hermite(x, y, precision)
-    if method == "lagrange":
-        return _lagrange(x, y, precision)
-    return _trigonometric(x, y, precision)
+        result = _quadratic(x, y, precision)
+    elif method == "cubic":
+        result = _cubic(x, y, precision)
+    elif method == "hermite":
+        result = _hermite(x, y, precision)
+    elif method == "lagrange":
+        result = _lagrange(x, y, precision)
+    else:
+        result = _trigonometric(x, y, precision)
+
+    for value in (*result.x, *result.y):
+        if not math.isfinite(value):
+            raise ValueError(
+                f"interpolation produced a non-finite value: {value!r} — the input "
+                "coordinates likely span too extreme a range for this method's arithmetic"
+            )
+    return result
 
 
 def _linspace(start: float, stop: float, n: int) -> list[float]:

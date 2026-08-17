@@ -57,8 +57,10 @@ def box_stats(values: list[float], mode: str = "1.5IQR") -> BoxStats:
 
     Raises:
         ValueError: if ``values`` is empty, ``mode`` isn't one of :data:`MODES`, any
-            value isn't a finite number, or the ``stdev``/``pstdev`` computation itself
-            overflows on extreme-but-finite input.
+            value isn't a finite number, or any of the computed median/quartiles/whiskers
+            themselves overflow on extreme-but-finite input (individually-finite values
+            can still produce a non-finite percentile/hinge/stdev result — validated on
+            the final computed fields, not just the raw inputs).
     """
     if not values:
         raise ValueError("values must not be empty")
@@ -106,6 +108,16 @@ def box_stats(values: list[float], mode: str = "1.5IQR") -> BoxStats:
             raise ValueError(f"cannot compute {mode} box stats: {error}") from error
         outliers = [v for v in sorted_values if v < whisker_low or v > whisker_high]
 
-    if not (math.isfinite(whisker_low) and math.isfinite(whisker_high)):
-        raise ValueError(f"box stats whiskers must be finite, got low={whisker_low!r} high={whisker_high!r}")
+    for field_name, field_value in (
+        ("median", median),
+        ("q1", q1),
+        ("q3", q3),
+        ("whisker_low", whisker_low),
+        ("whisker_high", whisker_high),
+    ):
+        if not math.isfinite(field_value):
+            raise ValueError(
+                f"box stats {field_name} must be finite, got {field_value!r} "
+                "(the input values likely span too extreme a range for percentile/hinge arithmetic)"
+            )
     return BoxStats(median=median, q1=q1, q3=q3, whisker_low=whisker_low, whisker_high=whisker_high, outliers=outliers)
