@@ -6,7 +6,7 @@ size=/style= are 2차 additions planned for this same file
 
 from __future__ import annotations
 
-from svgplot.data.ingest import _column_length, _extract_columns
+from svgplot.data._columns import column_length, extract_columns
 
 
 def _is_missing(value: object) -> bool:
@@ -43,23 +43,19 @@ def extract_channels(
     if not channels:
         raise ValueError("at least one of hue/col/row must be given")
 
-    columns = _extract_columns(data)
+    columns = extract_columns(data)
     for channel_name, column_name in channels:
         if column_name not in columns:
             raise KeyError(f"{channel_name} column not found in data: {column_name!r}")
-    length = _column_length(columns)
+    length = column_length(columns)
 
     groups: dict[object, dict[str, list]] = {}
     for index in range(length):
-        key_parts = []
-        for _, column_name in channels:
-            value = columns[column_name][index]
-            if _is_missing(value):
-                break
-            key_parts.append(value)
-        else:
-            key = key_parts[0] if len(key_parts) == 1 else tuple(key_parts)
-            group = groups.setdefault(key, {name: [] for name in columns})
-            for name, values in columns.items():
-                group[name].append(values[index])
+        key_parts = [columns[column_name][index] for _, column_name in channels]
+        if any(_is_missing(value) for value in key_parts):
+            continue  # missing channel value -> no well-defined group, drop the row
+        key = key_parts[0] if len(key_parts) == 1 else tuple(key_parts)
+        group = groups.setdefault(key, {name: [] for name in columns})
+        for name, values in columns.items():
+            group[name].append(values[index])
     return groups

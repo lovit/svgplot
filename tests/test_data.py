@@ -91,6 +91,34 @@ def test_ingest_longform_preserves_missing_values_without_dropping_rows() -> Non
     assert len(data) == 3
 
 
+def test_ingest_longform_raises_for_empty_dict() -> None:
+    with pytest.raises(KeyError, match="x"):
+        ingest_longform({}, x="x")
+
+
+def test_ingest_longform_raises_for_empty_list() -> None:
+    with pytest.raises(KeyError, match="x"):
+        ingest_longform([], x="x")
+
+
+def test_ingest_longform_x_and_y_may_be_the_same_column() -> None:
+    data = ingest_longform({"x": [1, 2, 3]}, x="x", y="x")
+
+    assert data.x == data.y == "x"
+
+
+def test_ingest_longform_list_of_records_uses_first_records_keys_as_schema() -> None:
+    """A key missing from the first record is dropped even if later records have it;
+    a key present in the first record but missing later becomes None — documented
+    asymmetric behavior of data._columns.extract_columns, not a crash.
+    """
+    key_added_later = ingest_longform([{"x": 1}, {"x": 2, "y": 5}], x="x")
+    assert key_added_later.columns == {"x": [1, 2]}
+
+    key_missing_later = ingest_longform([{"x": 1, "y": 3}, {"x": 2}], x="x", y="y")
+    assert key_missing_later.columns == {"x": [1, 2], "y": [3, None]}
+
+
 # ---------------------------------------------------------------------------
 # extract_channels
 # ---------------------------------------------------------------------------
@@ -138,6 +166,25 @@ def test_extract_channels_drops_rows_with_missing_channel_value() -> None:
     assert groups["a"]["x"] == [1]
 
 
+def test_extract_channels_hue_col_row_combination_uses_three_tuple_keys() -> None:
+    data = {
+        "x": [1, 2, 3, 4],
+        "group": ["a", "a", "b", "b"],
+        "col": ["left", "right", "left", "right"],
+        "row": ["top", "top", "bottom", "bottom"],
+    }
+
+    groups = extract_channels(data, hue="group", col="col", row="row")
+
+    assert set(groups.keys()) == {
+        ("a", "left", "top"),
+        ("a", "right", "top"),
+        ("b", "left", "bottom"),
+        ("b", "right", "bottom"),
+    }
+    assert groups[("a", "left", "top")]["x"] == [1]
+
+
 def test_extract_channels_requires_at_least_one_channel() -> None:
     with pytest.raises(ValueError, match="at least one"):
         extract_channels({"x": [1, 2]})
@@ -146,6 +193,16 @@ def test_extract_channels_requires_at_least_one_channel() -> None:
 def test_extract_channels_raises_for_unknown_channel_column() -> None:
     with pytest.raises(KeyError, match="hue"):
         extract_channels({"x": [1, 2]}, hue="missing")
+
+
+def test_extract_channels_raises_for_unsupported_data_type() -> None:
+    with pytest.raises(TypeError, match="unsupported data type"):
+        extract_channels(42, hue="group")
+
+
+def test_extract_channels_on_empty_data_raises_for_missing_channel_column() -> None:
+    with pytest.raises(KeyError, match="hue"):
+        extract_channels([], hue="group")
 
 
 # ---------------------------------------------------------------------------
@@ -177,3 +234,8 @@ def test_attach_metadata_allows_individual_none_entries() -> None:
 def test_attach_metadata_raises_for_length_mismatch() -> None:
     with pytest.raises(ValueError, match="length"):
         attach_metadata([1, 2, 3], [{"label": "only one"}])
+
+
+def test_attach_metadata_empty_values_returns_empty_list() -> None:
+    assert attach_metadata([], None) == []
+    assert attach_metadata([], []) == []
