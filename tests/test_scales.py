@@ -273,6 +273,33 @@ def test_make_ticks_tiny_magnitude_domain_produces_distinct_ticks() -> None:
     assert len(set(ticks)) > 1
 
 
+def test_make_ticks_dedups_ticks_that_collapse_to_the_same_float_at_extreme_magnitude() -> None:
+    """Regression: at a magnitude where step < that magnitude's float precision (ULP),
+    distinct tick indices used to round to the same float and appear as repeated ticks.
+    """
+    scale = LinearScale(domain=(1e16, 1e16 + 2.0), range_=(0, 100))
+
+    ticks = make_ticks(scale, count=5)
+
+    assert len(ticks) == len(set(ticks))
+
+
+@pytest.mark.parametrize(
+    ("domain_min", "domain_max", "count"),
+    [
+        (-1.7976931348623157e308, 1.7976931348623157e308, 5),  # domain span itself overflows
+        (0.0, 1.7976931348623157e308, 1),  # nice_step's magnitude*nice overflows
+        (1e-323, 6e-323, 5),  # subnormal domain underflows the step computation to 0
+    ],
+)
+def test_make_ticks_normalizes_extreme_magnitude_failures_to_value_error(domain_min, domain_max, count) -> None:
+    """Regression: these used to leak raw OverflowError/ZeroDivisionError instead of ValueError."""
+    scale = LinearScale(domain=(domain_min, domain_max), range_=(0, 100))
+
+    with pytest.raises(ValueError):
+        make_ticks(scale, count=count)
+
+
 def test_make_ticks_categorical_returns_all_categories_in_order() -> None:
     scale = CategoricalScale(["a", "b", "c"], range_=(0, 300))
 

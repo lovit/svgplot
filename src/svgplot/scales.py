@@ -100,11 +100,24 @@ class TimeScale:
 
 
 def _nice_step(rough_step: float) -> float:
-    """Round a step size up to a "nice" 1/2/5 * 10^n value (classic nice-number tick algorithm)."""
+    """Round a step size up to a "nice" 1/2/5 * 10^n value (classic nice-number tick algorithm).
+
+    Raises:
+        ValueError: if ``rough_step``'s magnitude is so extreme (near float's
+            min/max representable range) that computing a step would overflow,
+            underflow to zero, or otherwise fail — this normalizes what would
+            otherwise be a raw ``OverflowError``/``ZeroDivisionError``.
+    """
     if rough_step <= 0:
         return 1.0
-    magnitude = 10 ** math.floor(math.log10(rough_step))
-    residual = rough_step / magnitude
+    try:
+        # 10.0 (float), not 10 (int): `10 ** non_negative_int` is a Python int, and an
+        # int this large can later overflow converting *back* to float with a confusing
+        # "int too large to convert to float" instead of a clean, expected ValueError.
+        magnitude = 10.0 ** math.floor(math.log10(rough_step))
+        residual = rough_step / magnitude
+    except (OverflowError, ZeroDivisionError, ValueError) as error:
+        raise ValueError(f"cannot compute a tick step for rough_step={rough_step!r}") from error
     if residual < 1.5:
         nice = 1
     elif residual < 3:
@@ -113,7 +126,8 @@ def _nice_step(rough_step: float) -> float:
         nice = 5
     else:
         nice = 10
-    return nice * magnitude
+    step = nice * magnitude
+    return _require_finite(step, "tick step")
 
 
 def _round_tick(value: float, step: float) -> float:
@@ -142,18 +156,29 @@ def _nice_linear_ticks(domain_min: float, domain_max: float, count: int) -> list
     low, high = sorted((domain_min, domain_max))
     if low == high:
         return [low]
-    step = _nice_step((high - low) / max(count, 1))
+    span = _require_finite(high - low, "domain span")
+    step = _nice_step(span / max(count, 1))
     start_index = math.ceil(low / step)
     end_index = math.floor((high + step * 1e-9) / step)
     end_index = max(end_index, start_index)
-    return [_round_tick((start_index + offset) * step, step) for offset in range(end_index - start_index + 1)]
+    ticks = [_round_tick((start_index + offset) * step, step) for offset in range(end_index - start_index + 1)]
+    # At extreme domain magnitudes, step can be smaller than that magnitude's float
+    # precision (ULP), making distinct tick indices round to the same float — dedup
+    # while preserving order rather than showing repeated tick labels.
+    return list(dict.fromkeys(ticks))
 
 
-def make_ticks(scale: object, count: int = 5) -> list[object]:
+Scale = LinearScale | CategoricalScale | TimeScale
+
+
+def make_ticks(scale: Scale, count: int = 5) -> list[float] | list[str] | list[datetime]:
     """Generate "nice" tick positions for the given scale (no text-width measurement).
 
     ``CategoricalScale`` returns every category, in order — categorical axes
-    show all labels rather than a sampled subset.
+    show all labels rather than a sampled subset. ``count`` is a request, not a
+    guarantee: the actual number returned can be slightly more or fewer (nice
+    round steps rarely divide a domain into exactly ``count`` pieces), and may
+    be smaller still after removing duplicate ticks at extreme magnitudes.
 
     Raises:
         TypeError: if ``scale`` isn't a ``LinearScale``, ``CategoricalScale``, or ``TimeScale``.
