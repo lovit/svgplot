@@ -9,7 +9,6 @@
 
 <선택: footer>
 Closes #<issue-number>
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 ```
 
 ### Type 표
@@ -108,16 +107,14 @@ diff 를 읽고 변경사항을 **의도 단위**로 분류한다.
 
 ```bash
 git add <관련 파일>
-git commit -m "<type>(<scope>): <한국어 설명>
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+git commit -m "<type>(<scope>): <한국어 설명>"
 ```
 
 복수 의도인 경우 각 commit 을 순차적으로 stage + commit 한다.
 
 ### 주의사항
 
-- `Co-Authored-By` 는 항상 포함한다
+- `Co-Authored-By` 는 붙이지 않는다
 - BREAKING CHANGE 가 있으면 type 에 `!` + footer 에 `BREAKING CHANGE:` 설명
 - 스테이지된 변경이 없으면 무엇을 stage 할지 사용자에게 안내한다
 

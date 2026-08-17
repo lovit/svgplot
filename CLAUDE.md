@@ -24,7 +24,7 @@ markdown 문서에 박아넣을, 심미성 있고 수정이 쉬운 정적 SVG �
 - type: `feat` / `fix` / `refactor` / `docs` / `test` / `chore` / `style` / `perf`
 - **한 commit = 한 의도** — 리팩터링과 기능 추가를 섞지 않는다
 - subject 는 한국어 50자 이내, 마침표 없음
-- 자동 부착: `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`
+- `Co-Authored-By`는 붙이지 않는다
 - 자세한 예시: @.claude/rules/branch.md
 
 ## 브랜치/PR 규칙
