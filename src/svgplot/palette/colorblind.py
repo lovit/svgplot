@@ -23,9 +23,11 @@ DEFAULT_PALETTE: list[str] = [
 imports this rather than keeping its own copy.
 """
 
-BLOCKED_PALETTES: set[str] = {"jet", "rainbow", "hsv"}
+BLOCKED_PALETTES: frozenset[str] = frozenset({"jet", "rainbow", "hsv"})
 """Palette/colormap names rejected outright rather than silently accepted — all
 perceptually non-uniform (misleading apparent magnitude jumps) and not colorblind-safe.
+Immutable so a caller can't accidentally (or deliberately) defeat the block by mutating
+this set in place.
 """
 
 _COLORBLIND_SAFE_PALETTE_NAMES: frozenset[str] = frozenset({"colorblind"})

@@ -20,10 +20,12 @@ def qualitative(name: str, n: int) -> list[str]:
     flatly repeating) is a 2차 refinement, docs/research/12-aesthetics.md §2.
 
     Raises:
-        ValueError: if ``name`` is in :data:`svgplot.palette.colorblind.BLOCKED_PALETTES`,
-            or if ``n`` is negative.
+        ValueError: if ``name`` isn't a string, is in
+            :data:`svgplot.palette.colorblind.BLOCKED_PALETTES`, or if ``n`` is negative.
         KeyError: if ``name`` isn't a registered qualitative palette.
     """
+    if not isinstance(name, str):
+        raise ValueError(f"palette name must be a string, got {name!r}")
     if name in BLOCKED_PALETTES:
         raise ValueError(
             f"palette {name!r} is blocked (perceptually non-uniform / not colorblind-safe); "

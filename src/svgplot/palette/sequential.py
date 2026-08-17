@@ -29,10 +29,12 @@ def sequential(name: str, n: int) -> list[str]:
     """Return ``n`` colors sampled from the named sequential colormap.
 
     Raises:
-        ValueError: if ``name`` is in :data:`svgplot.palette.colorblind.BLOCKED_PALETTES`,
-            or if ``n`` is negative.
+        ValueError: if ``name`` isn't a string, is in
+            :data:`svgplot.palette.colorblind.BLOCKED_PALETTES`, or if ``n`` is negative.
         KeyError: if ``name`` isn't a registered sequential colormap.
     """
+    if not isinstance(name, str):
+        raise ValueError(f"palette name must be a string, got {name!r}")
     if name in BLOCKED_PALETTES:
         raise ValueError(f"palette {name!r} is blocked (perceptually non-uniform); use one of {sorted(SEQUENTIAL_PALETTES)}")
     if name not in SEQUENTIAL_PALETTES:
@@ -74,14 +76,27 @@ def blend_sequence(hex_a: str, hex_b: str, n: int) -> list[str]:
 def cubehelix_sequence(n: int, *, start: float = 0.5, rot: float = -1.5, gamma: float = 1.0, hue: float = 1.0) -> list[str]:
     """Generate ``n`` colors along Green (2011)'s cubehelix color scheme — a
     perceptually-monotonic-lightness rainbow ramp (the ``ch:`` mini-language spec).
+
+    Raises:
+        ValueError: if ``start``/``rot``/``gamma``/``hue`` isn't finite — an
+            overflowed (``inf``) or invalid (``nan``) parameter would otherwise
+            propagate into ``math.cos``/``math.sin`` (raising an unrelated-looking
+            ``math domain error``) or into the final clamped hex encoding
+            (raising ``OverflowError``, which isn't this function's documented
+            exception type).
     """
     if n <= 0:
         return []
+    for param_name, value in (("start", start), ("rot", rot), ("gamma", gamma), ("hue", hue)):
+        if not math.isfinite(value):
+            raise ValueError(f"cubehelix {param_name} must be finite, got {value!r}")
     dark, light = 0.15, 0.85
     steps = max(n - 1, 1)
     colors = []
     for index in range(n):
         x = dark + (index / steps) * (light - dark)
+        # Green (2011) Table 1's fixed RGB rotation-matrix coefficients — not
+        # tunable parameters, just this color scheme's defining constants.
         lam = x**gamma
         phi = 2 * math.pi * (start / 3 + rot * x)
         amplitude = hue * lam * (1 - lam) / 2

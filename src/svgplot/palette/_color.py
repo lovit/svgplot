@@ -7,6 +7,7 @@ Private/internal — not re-exported from ``svgplot.palette``.
 
 from __future__ import annotations
 
+import math
 import re
 
 # Anchored explicitly (not relying on fullmatch alone) so this stays strict even if a
@@ -27,7 +28,17 @@ def hex_to_rgb01(hex_color: str) -> tuple[float, float, float]:
 
 
 def rgb01_to_hex(rgb: tuple[float, float, float]) -> str:
-    """Format 0-1 RGB channels back into a ``#rrggbb`` hex color, clamped to range."""
+    """Format 0-1 RGB channels back into a ``#rrggbb`` hex color, clamped to range.
+
+    Raises:
+        ValueError: if any channel isn't finite (``nan``/``inf``) — the clamp
+            below only bounds *finite* values; ``round()`` raises its own
+            (undocumented-here) exception for non-finite input, which this
+            turns into a clear, consistent error instead.
+    """
+    for channel in rgb:
+        if not math.isfinite(channel):
+            raise ValueError(f"cannot format a non-finite color channel: {channel!r}")
     return "#" + "".join(f"{max(0, min(255, round(channel * 255))):02x}" for channel in rgb)
 
 

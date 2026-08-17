@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from svgplot.palette import (
@@ -9,11 +11,14 @@ from svgplot.palette import (
     DEFAULT_PALETTE,
     QUALITATIVE_PALETTES,
     SEQUENTIAL_PALETTES,
+    diverging,
     is_colorblind_safe,
     parse_palette_spec,
     qualitative,
     sequential,
 )
+from svgplot.palette._color import rgb01_to_hex
+from svgplot.palette.sequential import blend_sequence, cubehelix_sequence
 
 # ---------------------------------------------------------------------------
 # colorblind.py — DEFAULT_PALETTE / BLOCKED_PALETTES / is_colorblind_safe
@@ -232,3 +237,117 @@ def test_parse_bare_blocked_name_raises() -> None:
 def test_parse_bare_unknown_name_raises() -> None:
     with pytest.raises(KeyError):
         parse_palette_spec("totally-unknown-palette")
+
+
+def test_parse_bare_name_that_collides_with_a_reserved_prefix_still_falls_back() -> None:
+    """Regression: "dark" (no colon) used to be misrouted to the dark: prefix handler
+    (str.partition on a colon-less string still fills `prefix` with the whole string),
+    making the registered "dark" qualitative palette unreachable through this entry point.
+    """
+    assert parse_palette_spec("dark") == qualitative("dark", 6)
+
+
+def test_parse_bare_name_matching_a_reserved_prefix_but_unregistered_raises_key_error() -> None:
+    """ "light" isn't a registered qualitative palette, but the point is it must fail
+    via the qualitative-name fallback (KeyError), not get misrouted to the light:
+    prefix handler and fail on a missing hex argument (ValueError) instead.
+    """
+    with pytest.raises(KeyError):
+        parse_palette_spec("light")
+
+
+def test_parse_light_spec_with_extra_colon_is_rejected() -> None:
+    with pytest.raises(ValueError, match="light:"):
+        parse_palette_spec("light:#3366cc:extra")
+
+
+def test_parse_cubehelix_spec_allows_whitespace_around_commas() -> None:
+    assert parse_palette_spec("ch: s=.25 , r=-.5 ") == parse_palette_spec("ch:s=.25,r=-.5")
+
+
+def test_parse_cubehelix_spec_rejects_duplicate_keyword_parameter() -> None:
+    with pytest.raises(ValueError, match="more than once"):
+        parse_palette_spec("ch:s=.1,s=.2")
+
+
+def test_parse_cubehelix_spec_positional_fills_slot_not_claimed_by_keyword() -> None:
+    """Regression: a positional token used to always fill 'start' first regardless of
+    which slots a preceding keyword token had already claimed, silently overwriting
+    an explicitly-given value (e.g. "ch:s=0.5,0.3" used to discard the 0.3 into
+    `start`, clobbering the explicit s=0.5, instead of filling the remaining `rot`).
+    """
+    assert parse_palette_spec("ch:s=0.5,0.3") == parse_palette_spec("ch:s=0.5,r=0.3")
+
+
+def test_parse_cubehelix_spec_rejects_positional_after_both_slots_already_claimed() -> None:
+    """Once both start/rot are claimed by keyword tokens, a further positional token
+    has nowhere left to go — this used to instead silently overwrite `start` with 3.
+    """
+    with pytest.raises(ValueError, match="too many positional"):
+        parse_palette_spec("ch:s=1,r=2,3")
+
+
+def test_parse_cubehelix_spec_rejects_overflowed_parameter() -> None:
+    with pytest.raises(ValueError):
+        parse_palette_spec("ch:s=" + "9" * 300)
+
+
+def test_parse_spec_rejects_non_string() -> None:
+    with pytest.raises(ValueError, match="string"):
+        parse_palette_spec(None)  # type: ignore[arg-type]
+
+
+def test_parse_spec_rejects_implausibly_long_input() -> None:
+    with pytest.raises(ValueError, match="too long"):
+        parse_palette_spec("ch:s=" + "9" * 100_000)
+
+
+def test_parse_cubehelix_regex_does_not_exhibit_catastrophic_backtracking() -> None:
+    """Regression: the value pattern's dot placement made a long run of digits
+    followed by one invalid character take O(n^2) to reject (~21s for 100KB input);
+    it must now reject in well under a second (the length cap alone should catch
+    this, but this pins the underlying regex fix too via a still-under-the-cap input).
+    """
+    start_time = time.monotonic()
+    with pytest.raises(ValueError):
+        parse_palette_spec("ch:s=" + "9" * 200 + "x")
+    assert time.monotonic() - start_time < 1.0
+
+
+def test_cubehelix_sequence_rejects_non_finite_parameters() -> None:
+    with pytest.raises(ValueError, match="finite"):
+        cubehelix_sequence(6, hue=float("inf"))
+    with pytest.raises(ValueError, match="finite"):
+        cubehelix_sequence(6, gamma=float("nan"))
+
+
+def test_qualitative_rejects_non_string_name() -> None:
+    with pytest.raises(ValueError, match="string"):
+        qualitative(["colorblind"], 3)  # type: ignore[arg-type]
+
+
+def test_sequential_rejects_non_string_name() -> None:
+    with pytest.raises(ValueError, match="string"):
+        sequential(["blues"], 3)  # type: ignore[arg-type]
+
+
+def test_blocked_palettes_is_immutable() -> None:
+    with pytest.raises(AttributeError):
+        BLOCKED_PALETTES.add("colorblind")  # type: ignore[attr-defined]
+
+
+def test_rgb01_to_hex_rejects_non_finite_channel() -> None:
+    with pytest.raises(ValueError, match="finite"):
+        rgb01_to_hex((float("nan"), 0.5, 0.5))
+    with pytest.raises(ValueError, match="finite"):
+        rgb01_to_hex((0.5, float("inf"), 0.5))
+
+
+def test_blend_sequence_and_cubehelix_sequence_handle_n_equals_one() -> None:
+    assert blend_sequence("#3366cc", "#cc3366", 1) == ["#3366cc"]
+    assert len(cubehelix_sequence(1)) == 1
+
+
+def test_diverging_is_still_an_unimplemented_stub() -> None:
+    with pytest.raises(NotImplementedError):
+        diverging("RdBu", 5)
