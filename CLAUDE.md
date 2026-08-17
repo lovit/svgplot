@@ -60,7 +60,7 @@ CI와 동일하게 확인: `mise run check`
 | `/open-pr` | PR 생성 |
 | `/sync-main` | main 동기화 + 현재 브랜치 rebase |
 | `/worktree-clean` | 머지 완료된 worktree/브랜치 정리 |
-| `/goal [milestone]` | 마일스톤(또는 전체 열린 이슈)을 순회하며 이슈별로 start-issue→구현→commit→review→open-pr→(게이트 통과 시)자동 머지까지 진행 |
+| `/goal <milestone>` | 지정한 마일스톤(인자 필수, "전체 열린 이슈" 모드 없음)을 순회하며 이슈별로 start-issue→구현→commit→review→open-pr→(게이트 통과 시)자동 머지까지 진행 |
 
 ## PR 리뷰 Sub-agents
 
