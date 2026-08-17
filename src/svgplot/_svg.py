@@ -41,6 +41,7 @@ SVG_NS = "http://www.w3.org/2000/svg"
 _NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*(:[A-Za-z_][A-Za-z0-9_.-]*)?$")
 _INVALID_XML_CHAR_RE = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 _BLOCKED_ATTRIBUTE_LOCAL_NAMES = frozenset({"style"})
+_TEXT_BEARING_TAGS = frozenset({"text", "tspan", "title", "desc", "textPath"})
 
 
 def _validate_name(name: str, kind: str) -> str:
@@ -152,15 +153,25 @@ class SvgDocument:
         self,
         parent: ET.Element | None,
         text: str,
+        *,
         tag: str = "text",
         attrib: dict[str, str | int | float] | None = None,
         classes: list[str] | None = None,
     ) -> ET.Element:
         """Create a ``<{tag}>`` node (default ``<text>``, an SVG mark) whose content is
         ``text`` (escaped at serialization time). Also used for other text-bearing
-        elements like ``<title>``/``<desc>`` (see ``accessibility.py``) — ``tag`` goes
-        through the same name validation as :meth:`add_node`.
+        elements like ``<title>``/``<desc>`` (see ``accessibility.py``) — ``tag`` is
+        restricted to a fixed allow-list of text-bearing SVG elements (not the general
+        tag-name validation :meth:`add_node` uses): unlike attribute values, text
+        *content* has no further escaping once inside an element, so allowing an
+        arbitrary tag here would let ``<script>``/``<style>`` carry attacker-influenced
+        content straight through — the value-escaping ElementTree does still applies,
+        but it's meaningless for those two elements' semantics. ``tag`` is keyword-only
+        so a caller can never accidentally pass a positional ``attrib``/``classes``
+        argument that lands in this slot instead.
         """
+        if tag not in _TEXT_BEARING_TAGS:
+            raise ValueError(f"add_text only supports text-bearing tags {sorted(_TEXT_BEARING_TAGS)}, got {tag!r}")
         validated_text = _validate_text(text, "text content")
         node = self.add_node(parent, tag, attrib=attrib, classes=classes)
         node.text = validated_text
@@ -172,10 +183,27 @@ class SvgDocument:
         ``add_node``'s ``attrib`` only covers attributes set at creation time;
         this covers the other case — attaching an attribute to a node created
         earlier (or the root, which always exists before any ``add_node`` call).
-        Goes through the same name/value validation as node creation.
+        Goes through the same name/value validation as node creation. For
+        ``key="class"`` specifically, the value is split on whitespace and each
+        resulting class name is validated the same way ``add_node``'s ``classes=``
+        validates each list entry (rejecting empty or XML-invalid class names) —
+        unlike ``add_node``, a space-separated multi-class string here is the
+        *correct* way to set several classes at once (it's the final attribute
+        value, not a list of atomic entries), so it's accepted, not rejected.
+
+        This does not otherwise restrict *which* attribute can be set (e.g. nothing
+        stops overwriting ``xmlns``/``width``/``viewBox`` with an arbitrary value) —
+        callers are responsible for only touching attributes they mean to.
         """
         _validate_name(key, "attribute")
-        node.set(key, _validate_text(str(value), "attribute value"))
+        text_value = _validate_text(str(value), "attribute value")
+        if key == "class":
+            class_names = text_value.split()
+            if not class_names:
+                raise ValueError(f"invalid CSS class attribute value: {value!r}")
+            for class_name in class_names:
+                _validate_class_name(class_name)
+        node.set(key, text_value)
 
     def semantic_class(self, prefix: str) -> str:
         """Return a semantic, incrementing class name like ``series-1`` — never a random hash."""
