@@ -288,12 +288,22 @@ def test_parse_cubehelix_spec_rejects_positional_after_both_slots_already_claime
 
 
 def test_parse_cubehelix_spec_rejects_implausibly_long_input_via_length_cap() -> None:
-    """This specific input is caught by the spec-length cap before parsing ever starts
-    (a genuine parameter-magnitude overflow needs many more digits than the cap allows —
-    see test_cubehelix_sequence_rejects_out_of_range_parameters for that path instead).
+    """This specific input is caught by the spec-length cap before parsing ever starts.
+    See test_parse_cubehelix_spec_rejects_short_string_with_out_of_range_magnitude for a
+    short-but-large-magnitude value that reaches the magnitude check instead.
     """
     with pytest.raises(ValueError, match="too long"):
         parse_palette_spec("ch:s=" + "9" * 300)
+
+
+def test_parse_cubehelix_spec_rejects_short_string_with_out_of_range_magnitude() -> None:
+    """Regression: the spec-length cap (256 chars) bounds the STRING, not the parsed
+    float's magnitude — a short numeric string like "9999999" (7 chars) sails past the
+    length cap but is still large enough to have triggered the round-2 overflow bug this
+    end-to-end path now must reject via cubehelix_sequence's own magnitude check.
+    """
+    with pytest.raises(ValueError, match="start"):
+        parse_palette_spec("ch:s=9999999")
 
 
 def test_parse_spec_rejects_non_string() -> None:
@@ -372,6 +382,16 @@ def test_cubehelix_sequence_rejects_out_of_range_parameters() -> None:
         cubehelix_sequence(6, gamma=0)
     with pytest.raises(ValueError, match="start"):
         cubehelix_sequence(6, start=1e308, rot=1e308)
+
+
+def test_cubehelix_sequence_handles_large_in_range_gamma_via_underflow_not_error() -> None:
+    """gamma at the top of the allowed range (1e6) doesn't overflow x**gamma for
+    x in [0.15, 0.85] — it underflows to 0.0 instead, which is safe, not an error.
+    This pins that the "safe" side of the magnitude boundary actually produces valid
+    output rather than silently misbehaving (round-2 only checked the "rejected" side).
+    """
+    colors = cubehelix_sequence(6, gamma=1e6)
+    assert colors == ["#000000"] * 6
 
 
 def test_is_colorblind_safe_returns_false_for_non_string_instead_of_raising() -> None:
