@@ -16,7 +16,9 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dependencies = []
+dependencies = [
+    "numpy>=2.5.2",
+]
 
 [project.optional-dependencies]
 # PNG export (svgplot.output.png). Pinned >=2.7.0: earlier versions are affected
