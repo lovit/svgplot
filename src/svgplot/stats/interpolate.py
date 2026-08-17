@@ -19,6 +19,13 @@ _MAX_PRECISION = 10_000
 ``precision=10**9`` from exhausting memory/CPU, matching the spirit of
 ``_MAX_CUBEHELIX_MAGNITUDE``/``_MAX_SPEC_LENGTH`` elsewhere in this package."""
 
+_MAX_POINTS = 200
+"""Sane upper bound on input point count. Without this, ``lagrange`` is both an
+O(n^2 * precision) CPU-DoS vector (n=2000, precision=1000 takes ~2 minutes) and
+numerically meaningless well before that (Runge's phenomenon makes it diverge
+past roughly this many points anyway) — so one shared cap across all 5 methods
+is simpler than a per-method cap and costs nothing for legitimate chart data."""
+
 
 @dataclass(frozen=True)
 class InterpolatedCurve:
@@ -36,23 +43,34 @@ def interpolate(x: list[float], y: list[float], method: str = "cubic", precision
 
     Raises:
         ValueError: if ``method`` isn't one of :data:`METHODS`, if ``precision`` is out of
-            range, if ``x``/``y`` differ in length or have fewer than 2 points, if ``x``
-            isn't strictly increasing, or if any coordinate isn't finite.
+            range, if ``x``/``y`` differ in length, have fewer than 2 or more than
+            :data:`_MAX_POINTS` points, contain a non-numeric or non-finite coordinate, if
+            ``x`` isn't strictly increasing, or if ``x``'s span (``x[-1] - x[0]``) isn't
+            finite (a span overflow would otherwise silently propagate ``nan``/``inf``
+            into every output point instead of raising).
     """
     if method not in METHODS:
         raise ValueError(f"unknown interpolation method: {method!r} (available: {METHODS})")
-    if not isinstance(precision, int) or precision < 2 or precision > _MAX_PRECISION:
+    if not isinstance(precision, int) or isinstance(precision, bool) or precision < 2 or precision > _MAX_PRECISION:
         raise ValueError(f"precision must be an int in [2, {_MAX_PRECISION}], got {precision!r}")
     if len(x) != len(y):
         raise ValueError(f"x and y must have the same length, got {len(x)} and {len(y)}")
     if len(x) < 2:
         raise ValueError(f"need at least 2 points to interpolate, got {len(x)}")
+    if len(x) > _MAX_POINTS:
+        raise ValueError(f"too many points to interpolate ({len(x)}), max {_MAX_POINTS}")
     for value in (*x, *y):
-        if not math.isfinite(value):
+        try:
+            finite = math.isfinite(value)
+        except TypeError as error:
+            raise ValueError(f"x/y coordinates must be numbers, got {value!r}") from error
+        if not finite:
             raise ValueError(f"cannot interpolate a non-finite coordinate: {value!r}")
     for previous, current in pairwise(x):
         if current <= previous:
             raise ValueError("x must be strictly increasing")
+    if not math.isfinite(x[-1] - x[0]):
+        raise ValueError(f"x range (x[-1] - x[0] = {x[-1] - x[0]!r}) must be finite")
 
     if method == "quadratic":
         return _quadratic(x, y, precision)

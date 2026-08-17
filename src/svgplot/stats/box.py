@@ -56,15 +56,20 @@ def box_stats(values: list[float], mode: str = "1.5IQR") -> BoxStats:
     """Compute median/quartiles/whiskers/outliers for a box plot.
 
     Raises:
-        ValueError: if ``values`` is empty, ``mode`` isn't one of :data:`MODES`, or any
-            value isn't finite.
+        ValueError: if ``values`` is empty, ``mode`` isn't one of :data:`MODES`, any
+            value isn't a finite number, or the ``stdev``/``pstdev`` computation itself
+            overflows on extreme-but-finite input.
     """
     if not values:
         raise ValueError("values must not be empty")
     if mode not in MODES:
         raise ValueError(f"unknown box mode: {mode!r} (available: {MODES})")
     for value in values:
-        if not math.isfinite(value):
+        try:
+            finite = math.isfinite(value)
+        except TypeError as error:
+            raise ValueError(f"box_stats values must be numbers, got {value!r}") from error
+        if not finite:
             raise ValueError(f"cannot compute box stats with a non-finite value: {value!r}")
 
     sorted_values = sorted(values)
@@ -77,9 +82,8 @@ def box_stats(values: list[float], mode: str = "1.5IQR") -> BoxStats:
         q3 = _percentile_linear(sorted_values, 0.75)
 
     if mode == "extremes":
-        return BoxStats(median=median, q1=q1, q3=q3, whisker_low=sorted_values[0], whisker_high=sorted_values[-1], outliers=[])
-
-    if mode in ("1.5IQR", "tukey"):
+        whisker_low, whisker_high, outliers = sorted_values[0], sorted_values[-1], []
+    elif mode in ("1.5IQR", "tukey"):
         iqr = q3 - q1
         lower_fence = q1 - 1.5 * iqr
         upper_fence = q3 + 1.5 * iqr
@@ -87,17 +91,21 @@ def box_stats(values: list[float], mode: str = "1.5IQR") -> BoxStats:
         outliers = [v for v in sorted_values if v < lower_fence or v > upper_fence]
         whisker_low = min(inside) if inside else median
         whisker_high = max(inside) if inside else median
-        return BoxStats(median=median, q1=q1, q3=q3, whisker_low=whisker_low, whisker_high=whisker_high, outliers=outliers)
+    else:  # stdev / pstdev
+        try:
+            mean = statistics.fmean(sorted_values)
+            if len(sorted_values) == 1:
+                spread = 0.0
+            elif mode == "stdev":
+                spread = statistics.stdev(sorted_values)
+            else:
+                spread = statistics.pstdev(sorted_values)
+            whisker_low = mean - spread
+            whisker_high = mean + spread
+        except (OverflowError, statistics.StatisticsError) as error:
+            raise ValueError(f"cannot compute {mode} box stats: {error}") from error
+        outliers = [v for v in sorted_values if v < whisker_low or v > whisker_high]
 
-    # stdev / pstdev
-    mean = statistics.fmean(sorted_values)
-    if len(sorted_values) == 1:
-        spread = 0.0
-    elif mode == "stdev":
-        spread = statistics.stdev(sorted_values)
-    else:
-        spread = statistics.pstdev(sorted_values)
-    whisker_low = mean - spread
-    whisker_high = mean + spread
-    outliers = [v for v in sorted_values if v < whisker_low or v > whisker_high]
+    if not (math.isfinite(whisker_low) and math.isfinite(whisker_high)):
+        raise ValueError(f"box stats whiskers must be finite, got low={whisker_low!r} high={whisker_high!r}")
     return BoxStats(median=median, q1=q1, q3=q3, whisker_low=whisker_low, whisker_high=whisker_high, outliers=outliers)

@@ -85,6 +85,25 @@ def test_interpolate_handles_extreme_but_finite_coordinates_without_overflow() -
         assert all(math.isfinite(v) for v in curve.y)
 
 
+@pytest.mark.parametrize("method", METHODS)
+def test_interpolate_rejects_extreme_but_finite_x_span_instead_of_overflowing(method: str) -> None:
+    """Regression: individual x/y coordinates being finite isn't enough — x[-1]-x[0]
+    itself can overflow to inf (e.g. -1e308 to 1e308), silently corrupting every
+    output point with nan/inf via _linspace's step calculation instead of raising."""
+    with pytest.raises(ValueError, match="finite"):
+        interpolate([-1e308, 0.0, 1e308], [0.0, 1.0, 0.0], method=method, precision=10)
+
+
+def test_interpolate_rejects_too_many_points() -> None:
+    with pytest.raises(ValueError, match="too many points"):
+        interpolate(list(range(300)), list(range(300)))
+
+
+def test_interpolate_rejects_non_numeric_coordinates() -> None:
+    with pytest.raises(ValueError, match="numbers"):
+        interpolate([0.0, "a"], [0.0, 1.0])  # type: ignore[list-item]
+
+
 # --- histogram_bins --------------------------------------------------------
 
 
@@ -119,6 +138,25 @@ def test_histogram_bins_rejects_invalid_bins_spec() -> None:
         histogram_bins([1.0, 2.0, 3.0], bins="not-a-real-strategy")
 
 
+def test_histogram_bins_rejects_excessive_bin_count() -> None:
+    """Regression: an unbounded int `bins` (e.g. 10**8) returns ~800MB of edges from
+    a single call — a memory-exhaustion DoS."""
+    with pytest.raises(ValueError, match="10000|10_000"):
+        histogram_bins([1.0, 2.0, 3.0], bins=10**8)
+
+
+def test_histogram_bins_rejects_non_str_int_bins() -> None:
+    """Regression: a list `bins` silently passed straight through to numpy and got
+    treated as explicit bin edges instead of being rejected by our own type contract."""
+    with pytest.raises(ValueError, match="string or int"):
+        histogram_bins([1.0, 2.0, 3.0], bins=[0, 1, 2])  # type: ignore[arg-type]
+
+
+def test_histogram_bins_rejects_non_numeric_values() -> None:
+    with pytest.raises(ValueError, match="numbers"):
+        histogram_bins([1.0, "a", 3.0])  # type: ignore[list-item]
+
+
 # --- box_stats ---------------------------------------------------------
 
 
@@ -151,11 +189,41 @@ def test_box_stats_tukey_uses_hinge_quartiles_and_flags_outlier() -> None:
 
 
 def test_box_stats_stdev_and_pstdev_differ_for_the_same_data() -> None:
+    """Concrete expected values (computed via statistics.stdev/pstdev on
+    DATA_WITH_OUTLIER: mean=13.7778, stdev=32.3565, pstdev=30.5060) rather than a
+    relative comparison, so a mean/mode-swap regression can't slip through."""
     stdev_stats = box_stats(DATA_WITH_OUTLIER, mode="stdev")
+    assert stdev_stats.whisker_low == pytest.approx(-18.578743, abs=1e-5)
+    assert stdev_stats.whisker_high == pytest.approx(46.134299, abs=1e-5)
+    assert stdev_stats.outliers == [100.0]
+
     pstdev_stats = box_stats(DATA_WITH_OUTLIER, mode="pstdev")
-    assert stdev_stats.whisker_high != pstdev_stats.whisker_high
-    assert 100.0 in stdev_stats.outliers
-    assert 100.0 in pstdev_stats.outliers
+    assert pstdev_stats.whisker_low == pytest.approx(-16.728243, abs=1e-5)
+    assert pstdev_stats.whisker_high == pytest.approx(44.283798, abs=1e-5)
+    assert pstdev_stats.outliers == [100.0]
+
+
+@pytest.mark.parametrize("mode", BOX_MODES)
+def test_box_stats_all_identical_values_degenerates_cleanly(mode: str) -> None:
+    stats = box_stats([5.0] * 5, mode=mode)
+    assert stats.median == stats.q1 == stats.q3 == 5.0
+    assert stats.whisker_low == stats.whisker_high == 5.0
+    assert stats.outliers == []
+
+
+def test_box_stats_rejects_extreme_but_finite_values_that_would_overflow_stdev() -> None:
+    """Regression: statistics.stdev/pstdev raises a raw OverflowError on finite-but-huge
+    input (fsum's internal overflow) instead of the ValueError this module documents."""
+    values = [1e308, 1e308, 1e308, -1e308, -1e308, -1e308]
+    with pytest.raises(ValueError, match="stdev"):
+        box_stats(values, mode="stdev")
+    with pytest.raises(ValueError, match="pstdev"):
+        box_stats(values, mode="pstdev")
+
+
+def test_box_stats_rejects_non_numeric_values() -> None:
+    with pytest.raises(ValueError, match="numbers"):
+        box_stats([1.0, "a", 3.0])  # type: ignore[list-item]
 
 
 def test_box_stats_single_value_does_not_crash_for_any_mode() -> None:
