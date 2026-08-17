@@ -155,6 +155,17 @@ def test_numeral_rejects_non_numeric_value() -> None:
         render_value(field, "not a number")
 
 
+def test_numeral_rejects_int_too_large_to_convert_to_float() -> None:
+    """An int with no float representation makes math.isfinite/float() raise
+    OverflowError, not return False — post-merge security review: this leaked
+    as a raw OverflowError instead of the ValueError render_value's docstring
+    promises, which could crash an unsuspecting caller on untrusted data.
+    """
+    (field,) = LabelSpec.parse([("x", "@x{0.00}")])
+    with pytest.raises(ValueError, match="finite"):
+        render_value(field, 10**400)
+
+
 # ---------------------------------------------------------------------------
 # render_value — datetime scheme
 # ---------------------------------------------------------------------------
@@ -332,6 +343,34 @@ def test_render_table_escapes_html_in_html_output() -> None:
     result = render_table(data, spec, format="html")
     assert "<script>" not in result
     assert "&lt;script&gt;" in result
+
+
+def test_render_table_escapes_html_in_markdown_label() -> None:
+    """The display label is just as much user input as a cell value — a label
+    containing HTML metacharacters must come out escaped in the header row too,
+    not just data cells (post-merge security review: this was untested).
+    """
+    spec = LabelSpec.parse([("<script>alert(1)</script>", "@name{%s}")])
+    data = {"name": ["ok"]}
+    result = render_table(data, spec, format="markdown")
+    assert "<script>" not in result
+    assert "&lt;script&gt;" in result
+
+
+def test_render_table_escapes_html_in_html_label() -> None:
+    spec = LabelSpec.parse([("<script>alert(1)</script>", "@name{%s}")])
+    data = {"name": ["ok"]}
+    result = render_table(data, spec, format="html")
+    assert "<script>" not in result
+    assert "&lt;script&gt;" in result
+
+
+def test_render_table_escapes_pipe_in_markdown_label() -> None:
+    spec = LabelSpec.parse([("a|b", "@name{%s}")])
+    data = {"name": ["ok"]}
+    result = render_table(data, spec, format="markdown")
+    lines = result.splitlines()
+    assert lines[0] == "| a\\|b |"
 
 
 def test_render_table_escapes_pipe_in_markdown_cell() -> None:
