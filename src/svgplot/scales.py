@@ -159,7 +159,10 @@ def _nice_linear_ticks(domain_min: float, domain_max: float, count: int) -> list
     span = _require_finite(high - low, "domain span")
     step = _nice_step(span / max(count, 1))
     start_index = math.ceil(low / step)
-    end_index = math.floor((high + step * 1e-9) / step)
+    # Algebraically (high + step*1e-9) / step, but computed this way so the
+    # intermediate high + step*1e-9 never overflows for a high near float's max
+    # (step*1e-9 would push it to inf even though high/step itself is fine).
+    end_index = math.floor(high / step + 1e-9)
     end_index = max(end_index, start_index)
     ticks = [_round_tick((start_index + offset) * step, step) for offset in range(end_index - start_index + 1)]
     # At extreme domain magnitudes, step can be smaller than that magnitude's float
@@ -191,7 +194,10 @@ def make_ticks(scale: Scale, count: int = 5) -> list[float] | list[str] | list[d
     if isinstance(scale, TimeScale):
         domain_min, domain_max = scale.domain
         numeric_ticks = _nice_linear_ticks(domain_min.timestamp(), domain_max.timestamp(), count)
-        return [datetime.fromtimestamp(tick) for tick in numeric_ticks]
+        # datetime only has microsecond resolution, so distinct numeric ticks (already
+        # deduped above) can still collapse to the same datetime once truncated — dedup
+        # again after conversion.
+        return list(dict.fromkeys(datetime.fromtimestamp(tick) for tick in numeric_ticks))
     if isinstance(scale, LinearScale):
         domain_min, domain_max = scale.domain
         return _nice_linear_ticks(domain_min, domain_max, count)

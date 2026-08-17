@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import signal
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -292,12 +293,42 @@ def test_make_ticks_dedups_ticks_that_collapse_to_the_same_float_at_extreme_magn
         (1e-323, 6e-323, 5),  # subnormal domain underflows the step computation to 0
     ],
 )
-def test_make_ticks_normalizes_extreme_magnitude_failures_to_value_error(domain_min, domain_max, count) -> None:
+def test_make_ticks_normalizes_extreme_magnitude_failures_to_value_error(
+    domain_min: float, domain_max: float, count: int
+) -> None:
     """Regression: these used to leak raw OverflowError/ZeroDivisionError instead of ValueError."""
     scale = LinearScale(domain=(domain_min, domain_max), range_=(0, 100))
 
     with pytest.raises(ValueError):
         make_ticks(scale, count=count)
+
+
+@pytest.mark.parametrize("count", [1, 2, 3, 5, 10])
+def test_make_ticks_near_max_float_domain_never_leaks_raw_overflow_error(count: int) -> None:
+    """Regression: `high + step*1e-9` could itself overflow to inf for a high near float's
+    max even when span/step individually stayed finite — only reachable at some counts
+    (not count=1, which fails earlier in _nice_step), so this is parametrized broadly.
+    """
+    scale = LinearScale(domain=(0.0, 1.7976931348623157e308), range_=(0, 100))
+
+    try:
+        ticks = make_ticks(scale, count=count)
+    except ValueError:
+        return  # a clean ValueError (e.g. non-finite step) is an acceptable outcome
+    assert all(math.isfinite(tick) for tick in ticks)
+
+
+def test_make_ticks_time_dedups_after_datetime_truncation() -> None:
+    """Regression: numeric ticks were deduped before converting to datetime, but datetime's
+    microsecond resolution could still collapse distinct numeric ticks afterward.
+    """
+    start = datetime(2024, 1, 1)
+    end = start + timedelta(microseconds=3)
+    scale = TimeScale(domain=(start, end), range_=(0, 100))
+
+    ticks = make_ticks(scale, count=5)
+
+    assert len(ticks) == len(set(ticks))
 
 
 def test_make_ticks_categorical_returns_all_categories_in_order() -> None:
