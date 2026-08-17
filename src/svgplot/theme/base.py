@@ -3,6 +3,20 @@
 Immutable value object: rendering never mutates global state (unlike
 matplotlib rcParams or seaborn's ``set_theme``). Passed explicitly to every
 render call.
+
+Security note (forward-looking — no render path consumes ``Theme`` yet): every
+color/text field here is a plain, unvalidated ``str`` — this is a trusted value
+object (built by the developer, e.g. via ``PRESETS``/``parametric_theme``), not
+untrusted input. Whoever wires ``Theme`` into rendering must insert these
+values through ``_svg.py``'s validated API (``add_node``/``add_text``/
+``set_attribute``), never via raw string concatenation — see ``_svg.py``'s own
+"escape chokepoint" docstring. That covers XML-structural safety, but **not**
+CSS syntax: `_svg.py`'s validation rejects the `style=` attribute and inline
+event handlers, but if a future renderer emits a `<style>` block (CSS text,
+not an XML attribute) built by directly interpolating these color strings, XML
+escaping alone doesn't stop `}`/`;`/`@import`/`url(...)` from breaking out of a
+CSS rule — a value bound for a `<style>` block needs its own CSS-literal
+validation, not just this module's implicit trust.
 """
 
 from __future__ import annotations
@@ -75,5 +89,7 @@ class Theme:
     legend_position: str = "right"
 
     def __post_init__(self) -> None:
-        if isinstance(self.palette, list):
-            object.__setattr__(self, "palette", tuple(self.palette))
+        palette = tuple(self.palette) if isinstance(self.palette, list) else self.palette
+        if not palette:
+            raise ValueError("palette must not be empty")
+        object.__setattr__(self, "palette", palette)
