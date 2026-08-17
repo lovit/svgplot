@@ -91,3 +91,22 @@ def test_add_accessibility_invalid_title_also_leaves_document_untouched() -> Non
         add_accessibility(document, title="bad\x00title")
 
     assert "role=" not in document.to_string()
+
+
+def test_add_accessibility_called_twice_overwrites_attributes_but_appends_elements() -> None:
+    """Documented, accepted behavior — add_accessibility is meant to be called once
+    per document. role/aria-label are attributes (set_attribute overwrites), while
+    title/desc are appended child elements (add_text always creates a new one).
+    """
+    document = SvgDocument()
+
+    add_accessibility(document, title="First")
+    add_accessibility(document, title="Second")
+
+    output = document.to_string()
+    assert output.count("<title>") == 2
+    assert "<title>First</title>" in output
+    assert "<title>Second</title>" in output
+    assert output.count('aria-label="') == 1
+    assert 'aria-label="Second"' in output
+    assert output.count('aria-label="') == 1
