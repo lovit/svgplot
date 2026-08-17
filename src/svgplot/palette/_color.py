@@ -30,16 +30,20 @@ def hex_to_rgb01(hex_color: str) -> tuple[float, float, float]:
 def rgb01_to_hex(rgb: tuple[float, float, float]) -> str:
     """Format 0-1 RGB channels back into a ``#rrggbb`` hex color, clamped to range.
 
+    Clamping happens *before* scaling by 255 (not after ``round()``), so a
+    channel far outside [0, 1] but still finite (e.g. ``1e306``, from an
+    extreme-but-finite generator parameter elsewhere in this package) can
+    never make ``channel * 255`` itself overflow to ``inf`` — clamping only
+    the already-multiplied, already-rounded value would leave exactly that
+    gap open.
+
     Raises:
-        ValueError: if any channel isn't finite (``nan``/``inf``) — the clamp
-            below only bounds *finite* values; ``round()`` raises its own
-            (undocumented-here) exception for non-finite input, which this
-            turns into a clear, consistent error instead.
+        ValueError: if any channel isn't finite (``nan``/``inf``).
     """
     for channel in rgb:
         if not math.isfinite(channel):
             raise ValueError(f"cannot format a non-finite color channel: {channel!r}")
-    return "#" + "".join(f"{max(0, min(255, round(channel * 255))):02x}" for channel in rgb)
+    return "#" + "".join(f"{round(max(0.0, min(1.0, channel)) * 255):02x}" for channel in rgb)
 
 
 def normalize_hex_color(hex_color: str) -> str:

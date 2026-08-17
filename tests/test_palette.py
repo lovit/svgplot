@@ -287,8 +287,12 @@ def test_parse_cubehelix_spec_rejects_positional_after_both_slots_already_claime
         parse_palette_spec("ch:s=1,r=2,3")
 
 
-def test_parse_cubehelix_spec_rejects_overflowed_parameter() -> None:
-    with pytest.raises(ValueError):
+def test_parse_cubehelix_spec_rejects_implausibly_long_input_via_length_cap() -> None:
+    """This specific input is caught by the spec-length cap before parsing ever starts
+    (a genuine parameter-magnitude overflow needs many more digits than the cap allows —
+    see test_cubehelix_sequence_rejects_out_of_range_parameters for that path instead).
+    """
+    with pytest.raises(ValueError, match="too long"):
         parse_palette_spec("ch:s=" + "9" * 300)
 
 
@@ -341,6 +345,37 @@ def test_rgb01_to_hex_rejects_non_finite_channel() -> None:
         rgb01_to_hex((float("nan"), 0.5, 0.5))
     with pytest.raises(ValueError, match="finite"):
         rgb01_to_hex((0.5, float("inf"), 0.5))
+
+
+def test_rgb01_to_hex_clamps_extreme_but_finite_channels_instead_of_overflowing() -> None:
+    """Regression: clamping happened after round(channel * 255) — the multiplication
+    itself could overflow to inf for a finite-but-huge channel (e.g. 1e306), raising a
+    raw OverflowError. Clamping before the multiplication closes that gap structurally.
+    """
+    assert rgb01_to_hex((1e306, 0.0, 0.0)) == "#ff0000"
+    assert rgb01_to_hex((-1e306, 0.0, 0.0)) == "#000000"
+
+
+def test_cubehelix_sequence_rejects_out_of_range_parameters() -> None:
+    """A merely-finite start/rot/gamma/hue isn't automatically safe: gamma feeds
+    x**gamma (can overflow for large negative exponents even with finite x), and
+    start/rot feed a sum inside math.cos/math.sin (that sum can itself overflow to
+    inf even with both addends finite, then math.cos(inf) raises its own unrelated
+    "math domain error"). These used to leak OverflowError/an opaque ValueError;
+    now they're all rejected with a message naming the actual out-of-range parameter.
+    """
+    with pytest.raises(ValueError, match="hue"):
+        cubehelix_sequence(6, hue=1e308)
+    with pytest.raises(ValueError, match="gamma"):
+        cubehelix_sequence(6, gamma=-1e308)
+    with pytest.raises(ValueError, match="gamma"):
+        cubehelix_sequence(6, gamma=0)
+    with pytest.raises(ValueError, match="start"):
+        cubehelix_sequence(6, start=1e308, rot=1e308)
+
+
+def test_is_colorblind_safe_returns_false_for_non_string_instead_of_raising() -> None:
+    assert is_colorblind_safe(["colorblind"]) is False  # type: ignore[arg-type]
 
 
 def test_blend_sequence_and_cubehelix_sequence_handle_n_equals_one() -> None:

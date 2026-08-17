@@ -14,6 +14,14 @@ import math
 from svgplot.palette._color import hex_to_rgb01, rgb01_to_hex
 from svgplot.palette.colorblind import BLOCKED_PALETTES
 
+_MAX_CUBEHELIX_MAGNITUDE = 1e6
+"""Sane upper bound on cubehelix's start/rot/gamma/hue — conventional values are
+all well under 10, so this is generous headroom, not a real usage limit. It exists
+purely to keep the trig/exponent math inside cubehelix_sequence's loop from ever
+overflowing (see that function's docstring for exactly which computations that
+protects), not because a legitimate parameter would ever approach it.
+"""
+
 SEQUENTIAL_PALETTES: dict[str, str] = {
     "blues": "#08519c",
     "greens": "#238b45",
@@ -78,18 +86,27 @@ def cubehelix_sequence(n: int, *, start: float = 0.5, rot: float = -1.5, gamma: 
     perceptually-monotonic-lightness rainbow ramp (the ``ch:`` mini-language spec).
 
     Raises:
-        ValueError: if ``start``/``rot``/``gamma``/``hue`` isn't finite — an
-            overflowed (``inf``) or invalid (``nan``) parameter would otherwise
-            propagate into ``math.cos``/``math.sin`` (raising an unrelated-looking
-            ``math domain error``) or into the final clamped hex encoding
-            (raising ``OverflowError``, which isn't this function's documented
-            exception type).
+        ValueError: if ``start``/``rot``/``hue`` isn't finite or exceeds a sane
+            magnitude, or if ``gamma`` isn't a finite positive number exceeding
+            a sane magnitude. A merely-finite-but-extreme parameter isn't
+            enough to guarantee safety on its own: ``gamma`` feeds ``x**gamma``,
+            which can overflow for large negative exponents even with a finite
+            ``x``; ``start``/``rot`` feed a sum inside ``math.cos``/``math.sin``,
+            which can itself overflow to ``inf`` even with both addends finite
+            (``math.cos(inf)`` then raises its own unrelated-looking
+            ``math domain error``). Bounding the inputs' magnitude up front
+            keeps every downstream computation safely finite instead of trying
+            to catch each way that could go wrong after the fact.
     """
     if n <= 0:
         return []
-    for param_name, value in (("start", start), ("rot", rot), ("gamma", gamma), ("hue", hue)):
-        if not math.isfinite(value):
-            raise ValueError(f"cubehelix {param_name} must be finite, got {value!r}")
+    if not math.isfinite(gamma) or gamma <= 0 or gamma > _MAX_CUBEHELIX_MAGNITUDE:
+        raise ValueError(f"cubehelix gamma must be a finite positive number up to {_MAX_CUBEHELIX_MAGNITUDE:g}, got {gamma!r}")
+    for param_name, value in (("start", start), ("rot", rot), ("hue", hue)):
+        if not math.isfinite(value) or abs(value) > _MAX_CUBEHELIX_MAGNITUDE:
+            raise ValueError(
+                f"cubehelix {param_name} must be finite with magnitude up to {_MAX_CUBEHELIX_MAGNITUDE:g}, got {value!r}"
+            )
     dark, light = 0.15, 0.85
     steps = max(n - 1, 1)
     colors = []

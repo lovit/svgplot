@@ -34,5 +34,13 @@ _COLORBLIND_SAFE_PALETTE_NAMES: frozenset[str] = frozenset({"colorblind"})
 
 
 def is_colorblind_safe(name: str) -> bool:
-    """Report whether the named palette is known to be colorblind-safe."""
-    return name in _COLORBLIND_SAFE_PALETTE_NAMES
+    """Report whether the named palette is known to be colorblind-safe.
+
+    A predicate, not a validator — a non-string ``name`` (e.g. an unhashable
+    list) answers ``False`` rather than raising, unlike :func:`qualitative
+    <svgplot.palette.qualitative.qualitative>`/:func:`sequential
+    <svgplot.palette.sequential.sequential>`, which do real work with ``name``
+    and so reject bad input outright instead of quietly answering a question
+    about it.
+    """
+    return isinstance(name, str) and name in _COLORBLIND_SAFE_PALETTE_NAMES
