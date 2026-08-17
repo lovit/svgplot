@@ -12,8 +12,12 @@ escapes independently via the stdlib's ``html.escape`` instead — every cell
 value AND every spec-supplied display label goes through it, in both the
 HTML and the markdown renderer (GitHub-flavored markdown still renders
 inline HTML, so an unescaped ``<script>`` in a markdown cell is exploitable
-too). Markdown output additionally escapes the literal ``|`` column
-separator so a value can't break the table structure.
+too). Markdown output additionally neutralizes GFM table-structure syntax: a
+literal backslash is doubled first (so it can't combine with characters this
+function inserts later to form an unintended escape), a literal ``|`` column
+separator is then backslash-escaped, and a literal newline (which would
+otherwise terminate the row early and desynchronize the table) is collapsed
+to a space — that order matters, see :func:`_escape_markdown_cell`.
 """
 
 from __future__ import annotations
@@ -27,6 +31,11 @@ TABLE_FORMATS = ("markdown", "html")
 
 
 def _escape_markdown_cell(text: str) -> str:
+    # Order matters: double existing backslashes BEFORE inserting the "\|" escape below,
+    # so a user-supplied "\" can never combine with our inserted "\" to change meaning;
+    # collapse newlines (round-2 security review: a raw "\n" splits the table row).
+    text = text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+    text = text.replace("\\", "\\\\")
     return html.escape(text, quote=True).replace("|", "\\|")
 
 

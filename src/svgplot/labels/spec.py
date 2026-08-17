@@ -14,9 +14,14 @@ from __future__ import annotations
 import datetime
 import math
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 FORMAT_SCHEMES = ("numeral", "datetime", "printf")
+
+# Defense in depth against a pathological format spec (e.g. width/precision digits
+# many characters long) — no legitimate spec in this mini-language needs to be long.
+_MAX_FORMAT_SPEC_LENGTH = 128
 
 # strftime directive letters this package understands (stdlib's common subset) — used to
 # disambiguate a "%"-based format spec as datetime rather than printf.
@@ -37,7 +42,10 @@ _NUMERAL_RE = re.compile(r"^(?P<currency>\$)?(?P<int_part>0(?:,0)?)(?:\.(?P<deci
 
 # printf scheme: whitelist a single numeric/string conversion (plus literal "%%"), never
 # delegate the raw user-supplied spec to `%`/`.format()` unvalidated — see module docstring.
-_PRINTF_DIRECTIVE_RE = re.compile(r"%(?:%|\d*d|\d*s|\d*x|\.\d+f|\d*f)")
+# Width/precision digit counts are capped at 3 (i.e. up to 999) — uncapped `\d*`/`\d+` would
+# let a spec like "%99999999d" pass the whitelist and then have Python's `%` operator build a
+# 100MB+ string from a single value, amplified further per table row (round-2 security review).
+_PRINTF_DIRECTIVE_RE = re.compile(r"%(?:%|\d{0,3}d|\d{0,3}s|\d{0,3}x|\.\d{1,3}f|\d{0,3}f)")
 
 
 @dataclass(frozen=True)
@@ -51,6 +59,16 @@ class LabelField:
 
 
 def _classify_scheme(format_spec: str) -> str:
+    """Classify a "@field{format_spec}"'s inner spec as numeral/datetime/printf.
+
+    Not ``%``-prefixed -> numeral. ``%``-prefixed -> datetime only if it contains
+    at least one *unambiguous* strftime directive (e.g. ``Y``/``m``/``H``); ``d``/
+    ``s``/``x``/``f``/``%`` are valid in both strftime and this module's printf
+    whitelist, so a spec built only from those (e.g. bare ``%d``) is treated as
+    printf rather than datetime.
+    """
+    if len(format_spec) > _MAX_FORMAT_SPEC_LENGTH:
+        raise ValueError(f"format spec is too long ({len(format_spec)} chars, max {_MAX_FORMAT_SPEC_LENGTH})")
     if format_spec == "safe":
         raise ValueError("'{safe}' (raw HTML escape bypass) is intentionally not supported")
     if not format_spec:
@@ -87,17 +105,21 @@ class LabelSpec:
     def parse(cls, spec: list[tuple[str, str]]) -> LabelSpec:
         """Parse ``[("label", "@field{format}"), ...]`` into a :class:`LabelSpec`.
 
+        Only this list-of-tuples form is supported — issue #11's Acceptance
+        Criteria only calls for this shape, so a single-string mini-language
+        alternative is intentionally out of scope rather than half-implemented.
+
         Raises:
             ValueError: if ``spec`` is empty, or any entry doesn't parse cleanly
-                (missing ``@``/braces, empty field name, or the intentionally
-                unsupported ``{safe}`` scheme).
+                (missing ``@``/braces, empty field name, an implausibly long
+                format spec, or the intentionally unsupported ``{safe}`` scheme).
         """
         return cls(spec)
 
     def __len__(self) -> int:
         return len(self.fields)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[LabelField]:
         return iter(self.fields)
 
 
@@ -105,11 +127,16 @@ def render_value(field: LabelField, value: object) -> str:
     """Format ``value`` per ``field.scheme``/``field.format_spec``.
 
     Raises:
-        ValueError: if the format spec (already validated at parse time to
-            belong to this scheme) can't actually format ``value`` — e.g. a
-            numeral/printf-numeric spec fed a non-finite or non-numeric value,
-            or a datetime spec fed something that isn't a ``date``/``datetime``.
+        ValueError: if ``value`` is ``None`` (this package never silently
+            renders a missing value as e.g. the string ``"None"`` — substitute
+            or skip missing values upstream before calling this), or if the
+            format spec (already validated at parse time to belong to this
+            scheme) can't actually format ``value`` — e.g. a numeral/printf-
+            numeric spec fed a non-finite or non-numeric value, or a datetime
+            spec fed something that isn't a ``date``/``datetime``.
     """
+    if value is None:
+        raise ValueError(f"cannot render a missing value for field {field.field!r} — substitute or skip it upstream")
     if field.scheme == "numeral":
         return _format_numeral(field.format_spec, value)
     if field.scheme == "datetime":
@@ -168,7 +195,10 @@ def _format_printf(format_spec: str, value: object) -> str:
     conversion = real_directives[0]
     kind = conversion[-1]
     if kind == "s":
-        payload: object = str(value)
+        # "".join(...) forces a genuine plain str even if `value` is a str subclass
+        # with a custom __rmod__/__str__ — str(value) alone can preserve the subclass,
+        # which would let a hijacked __rmod__ intercept the `%` formatting below.
+        payload: object = "".join(str(value))
     elif kind == "f":
         payload = _require_finite_number(value, context="printf numeric format")
     else:
