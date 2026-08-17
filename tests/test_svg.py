@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET
+
 import pytest
 
 from svgplot._svg import SvgDocument, _format_number
@@ -119,6 +121,13 @@ def test_format_number_rejects_non_finite_values(bad_value: float) -> None:
         _format_number(bad_value)
 
 
+def test_format_number_normalizes_uncoercible_input_to_value_error() -> None:
+    with pytest.raises(ValueError, match="cannot format value"):
+        _format_number(None)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="cannot format value"):
+        _format_number("not-a-number")  # type: ignore[arg-type]
+
+
 def test_add_node_rejects_invalid_tag_name() -> None:
     doc = SvgDocument()
 
@@ -136,7 +145,7 @@ def test_add_node_rejects_invalid_attribute_name() -> None:
 def test_add_text_rejects_xml_invalid_control_characters() -> None:
     doc = SvgDocument()
 
-    with pytest.raises(ValueError, match="XML 1.0"):
+    with pytest.raises(ValueError, match=r"XML 1\.0"):
         doc.add_text(None, "label\x00evil")
 
 
@@ -145,6 +154,80 @@ def test_add_node_rejects_class_name_containing_whitespace() -> None:
 
     with pytest.raises(ValueError, match="class"):
         doc.add_node(None, "g", classes=["evil hidden"])
+
+
+def test_add_node_rejects_class_name_with_control_characters() -> None:
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match=r"XML 1\.0"):
+        doc.add_node(None, "g", classes=["bar\x00evil"])
+
+
+def test_add_node_rejects_tag_name_with_trailing_newline() -> None:
+    """re.match + '$' allows a trailing newline; fullmatch is required to actually reject it."""
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match="tag"):
+        doc.add_node(None, "g\n")
+
+
+def test_add_node_rejects_style_and_event_handler_attribute_names() -> None:
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match="style/event handlers"):
+        doc.add_node(None, "rect", attrib={"style": "fill:red"})
+    with pytest.raises(ValueError, match="style/event handlers"):
+        doc.add_node(None, "rect", attrib={"onclick": "alert(1)"})
+
+
+def test_add_node_accepts_namespaced_attribute_name() -> None:
+    doc = SvgDocument()
+    doc.add_node(None, "use", attrib={"xlink:href": "#icon"})
+
+    output = doc.to_string()
+
+    assert 'xlink:href="#icon"' in output
+
+
+def test_add_node_rejects_non_ascii_tag_name() -> None:
+    """The name regex must stay ASCII-only or a non-well-formed document can slip through."""
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match="tag"):
+        doc.add_node(None, "a²")
+
+
+def test_failed_validation_leaves_no_orphan_node_in_tree() -> None:
+    doc = SvgDocument()
+    group = doc.add_node(None, "g")
+
+    with pytest.raises(ValueError):
+        doc.add_node(group, "rect", attrib={"onclick": "alert(1)"})
+    with pytest.raises(ValueError):
+        doc.add_text(group, "bad\x00text")
+
+    assert list(group) == []
+
+
+def test_add_node_attribute_value_not_pre_formatted_is_passed_through_verbatim() -> None:
+    """Documents the contract: add_node does not call _format_number for callers."""
+    doc = SvgDocument()
+    doc.add_node(None, "circle", attrib={"cx": 0.1 + 0.2})
+
+    output = doc.to_string()
+
+    assert 'cx="0.30000000000000004"' in output
+
+
+def test_to_string_round_trips_through_xml_parser_and_utf8_encoding() -> None:
+    doc = SvgDocument()
+    doc.add_text(None, 'a\nb\tc"d<e&f')
+    doc.add_node(None, "rect", classes=["series-1"], attrib={"data-label": 'quote" and <tag>'})
+
+    for pretty in (True, False):
+        output = doc.to_string(pretty=pretty)
+        ET.fromstring(output)  # raises ParseError if not well-formed
+        output.encode("utf-8")  # raises UnicodeEncodeError on stray surrogates
 
 
 def test_add_node_classes_overrides_class_key_in_attrib() -> None:
