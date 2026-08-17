@@ -22,7 +22,10 @@ CONTEXTS: dict[str, float] = {
 }
 """Named scale factors (seaborn precedent) applied to font sizes and line/marker/tick weight."""
 
-_HEX_COLOR_RE = re.compile(r"#[0-9A-Fa-f]{6}")
+# Anchored explicitly (not relying on fullmatch alone) so this stays strict even if a
+# future refactor swaps .fullmatch() for .match()/.search() — matching _svg.py's
+# _NAME_RE belt-and-braces style.
+_HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 # An achromatic seed (black/white/gray) has no hue to rotate around — and, at
 # lightness 0 or 1, no room for a rotated hue to show up either (HLS forces
@@ -66,7 +69,7 @@ def _hex_to_rgb01(hex_color: str) -> tuple[float, float, float]:
     digits — not the more permissive syntax Python's own ``int(x, 16)`` would accept)
     into 0-1 RGB channels.
     """
-    if not _HEX_COLOR_RE.fullmatch(hex_color):
+    if not isinstance(hex_color, str) or not _HEX_COLOR_RE.fullmatch(hex_color):
         raise ValueError(f"expected a 6-digit hex color like '#1a2b3c', got {hex_color!r}")
     r, g, b = (int(hex_color[i : i + 2], 16) / 255 for i in (1, 3, 5))
     return r, g, b
