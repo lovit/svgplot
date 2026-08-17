@@ -8,7 +8,9 @@ in this same file when it's added.
 
 from __future__ import annotations
 
+from svgplot._svg import SvgDocument
 
-def add_accessibility(svg_root: object, title: str, desc: str | None = None) -> None:
+
+def add_accessibility(document: SvgDocument, title: str, desc: str | None = None) -> None:
     """Attach role/aria/title/desc to an SVG document's root node."""
     raise NotImplementedError

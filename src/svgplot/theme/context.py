@@ -1,4 +1,4 @@
-"""stylexcontext separation and parametric (seed-color) themes.
+"""style x context separation and parametric (seed-color) themes.
 
 context scales font/line-width the way seaborn's paper/notebook/talk/poster
 does, but as a pure function (no rcParams mutation) — see

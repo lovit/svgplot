@@ -1,4 +1,4 @@
-"""Theme: stylexcontext schema, built-in presets, parametric (seed-color) themes."""
+"""Theme: style x context schema, built-in presets, parametric (seed-color) themes."""
 
 from __future__ import annotations
 

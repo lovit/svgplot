@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from svgplot._svg import SvgDocument
 
-def to_string(document: object, *, pretty: bool = True) -> str:
+
+def to_string(document: SvgDocument, *, pretty: bool = True) -> str:
     """Serialize an SvgDocument to an SVG string."""
     raise NotImplementedError
 
 
-def save_svg(document: object, path: str, *, pretty: bool = True) -> None:
+def save_svg(document: SvgDocument, path: str, *, pretty: bool = True) -> None:
     """Write an SvgDocument to a .svg file."""
     raise NotImplementedError

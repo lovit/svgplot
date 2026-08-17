@@ -9,11 +9,13 @@ but the returned Chart can still be customized and always composes with
 
 from __future__ import annotations
 
+from svgplot._svg import SvgDocument
+
 
 class Chart:
     """A single rendered chart, backed by one SVG document."""
 
-    def __init__(self, svg_document: object) -> None:
+    def __init__(self, svg_document: SvgDocument) -> None:
         raise NotImplementedError
 
     def set_title(self, title: str) -> Chart:

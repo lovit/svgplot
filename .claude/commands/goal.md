@@ -3,6 +3,8 @@ description: 지정된 마일스톤(또는 전체 열린 이슈)을 순회하며
 allowed-tools:
   - Bash
   - Read
+  - Edit
+  - Write
   - Task
 argument-hint: [milestone-name]
 ---
@@ -18,7 +20,7 @@ argument-hint: [milestone-name]
 후속 이슈가 앞 이슈의 병합 결과(이미 채워진 모듈)에 의존하는 경우가 많으므로 반드시 순차로 처리한다. 각 이슈에 대해:
 
 1. worktree 생성 (`.claude/rules/branch.md`의 브랜치 규칙: `feature/{n}`, `../svgplot-worktrees/feature/{n}`, 분기점은 `origin/main`)
-2. 이슈 body의 Acceptance Criteria를 구현 — 필요한 테스트도 함께 작성
+2. 이슈 body의 Acceptance Criteria를 `Edit`/`Write`로 직접 구현(sub-agent에 위임하지 않는다) — 필요한 테스트도 함께 작성
 3. `.claude/rules/branch.md`의 **Commit 실행 절차**를 따라 의미 단위로 커밋
 4. `gh pr create`로 PR 생성 (`Closes #n` 필수, `.github/PULL_REQUEST_TEMPLATE.md` 형식)
 5. `.claude/rules/review-policy.md`에 따라 4개 sub-agent(code-quality/issue-goal/security/test-coverage)를 병렬 실행해 리뷰
