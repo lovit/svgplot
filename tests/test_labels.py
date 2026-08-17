@@ -40,6 +40,29 @@ def test_parse_classifies_numeral_datetime_printf_schemes() -> None:
     assert printf_field.scheme == "printf"
 
 
+def test_classify_scheme_mixed_unambiguous_and_ambiguous_directives_is_datetime() -> None:
+    """ "%Y%d" mixes an unambiguous strftime-only directive (Y) with an ambiguous one
+    (d, which also looks like printf's %d) — the presence of Y should be enough to
+    classify the whole spec as datetime.
+    """
+    (field,) = LabelSpec.parse([("x", "@x{%Y%d}")])
+    assert field.scheme == "datetime"
+
+
+def test_classify_scheme_only_ambiguous_directives_is_printf() -> None:
+    """ "%d%x" combines two letters that are BOTH valid strftime directives (day,
+    locale-date) AND valid printf conversions (decimal, hex) — with no unambiguous
+    strftime directive present, this must fall through to printf, not datetime.
+    """
+    (field,) = LabelSpec.parse([("x", "@x{%d%x}")])
+    assert field.scheme == "printf"
+
+
+def test_parse_rejects_implausibly_long_format_spec() -> None:
+    with pytest.raises(ValueError, match="too long"):
+        LabelSpec.parse([("x", "@x{" + "0" * 200 + "}")])
+
+
 def test_parse_rejects_empty_spec() -> None:
     with pytest.raises(ValueError, match="non-empty"):
         LabelSpec.parse([])
@@ -105,6 +128,17 @@ def test_numeral_si_abbreviation() -> None:
     (field,) = LabelSpec.parse([("x", "@x{0.0a}")])
     assert render_value(field, 1234) == "1.2k"
     assert render_value(field, 3_400_000) == "3.4M"
+
+
+def test_numeral_si_abbreviation_negative_puts_sign_before_magnitude() -> None:
+    (field,) = LabelSpec.parse([("x", "@x{0.0a}")])
+    assert render_value(field, -1234) == "-1.2k"
+
+
+def test_numeral_si_abbreviation_below_threshold_has_no_suffix() -> None:
+    (field,) = LabelSpec.parse([("x", "@x{0.0a}")])
+    assert render_value(field, 0) == "0.0"
+    assert render_value(field, 42) == "42.0"
 
 
 def test_numeral_rejects_non_finite_value() -> None:
@@ -186,12 +220,65 @@ def test_printf_rejects_non_finite_numeric_value() -> None:
         render_value(field, float("inf"))
 
 
+def test_printf_rejects_oversized_width_precision() -> None:
+    """A short-but-huge width/precision digit string (e.g. 8 digits) would otherwise
+    pass an uncapped whitelist and let Python's % operator build a 100MB+ string from
+    a single value — the digit-count cap must reject it before that ever happens.
+    """
+    (width_field,) = LabelSpec.parse([("x", "@x{%99999999d}")])
+    (precision_field,) = LabelSpec.parse([("x", "@x{%.99999999f}")])
+    with pytest.raises(ValueError, match="printf"):
+        render_value(width_field, 1)
+    with pytest.raises(ValueError, match="printf"):
+        render_value(precision_field, 1.0)
+
+
+def test_render_value_rejects_none_for_every_scheme() -> None:
+    numeral, datetime_field, printf_field = LabelSpec.parse([("a", "@a{0.00}"), ("b", "@b{%Y-%m-%d}"), ("c", "@c{%s}")])
+    for field in (numeral, datetime_field, printf_field):
+        with pytest.raises(ValueError, match="missing"):
+            render_value(field, None)
+
+
 # ---------------------------------------------------------------------------
 # render_table
 # ---------------------------------------------------------------------------
 
 
 _SPEC = LabelSpec.parse([("Name", "@name{%s}"), ("Score", "@score{0.0}")])
+
+
+class _FakeDataFrame:
+    """Duck-types the pandas.DataFrame surface (``.columns`` + ``__getitem__``) that
+    ``data._columns.extract_columns`` relies on — mirrors ``tests/test_data.py``'s fixture.
+    """
+
+    def __init__(self, data: dict[str, list]) -> None:
+        self._data = data
+
+    @property
+    def columns(self) -> list[str]:
+        return list(self._data.keys())
+
+    def __getitem__(self, key: str) -> list:
+        return self._data[key]
+
+
+def test_render_table_from_dataframe_like_object() -> None:
+    data = _FakeDataFrame({"name": ["Ann", "Bo"], "score": [91.2, 77.5]})
+    result = render_table(data, _SPEC, format="markdown")
+    lines = result.splitlines()
+    assert lines[2] == "| Ann | 91.2 |"
+    assert lines[3] == "| Bo | 77.5 |"
+
+
+def test_render_table_raises_on_missing_value() -> None:
+    """render_table propagates render_value's ValueError for a None cell rather than
+    silently rendering "None" or crashing with an unrelated error.
+    """
+    data = {"name": ["Ann", None], "score": [91.2, 77.5]}
+    with pytest.raises(ValueError, match="missing"):
+        render_table(data, _SPEC, format="markdown")
 
 
 def test_render_table_markdown_from_dict_of_columns() -> None:
@@ -253,6 +340,41 @@ def test_render_table_escapes_pipe_in_markdown_cell() -> None:
     result = render_table(data, spec, format="markdown")
     lines = result.splitlines()
     assert lines[2] == "| a\\|b |"
+
+
+def _gfm_unescape_backslash_and_pipe(text: str) -> str:
+    """Reverse GFM's backslash-escaping for "\\" and "|" only, to check a round-trip
+    (mirrors what a markdown renderer does: "\\\\" -> one "\\", "\\|" -> one "|").
+    """
+    placeholder = "\0"
+    return text.replace("\\|", placeholder).replace("\\\\", "\\").replace(placeholder, "|")
+
+
+def test_render_table_escapes_backslash_before_pipe_in_markdown_cell() -> None:
+    """A value already containing "\\|" must not let its backslash combine with the
+    escaping this function inserts to produce a literal "|" that splits the cell —
+    round-2 security review: the naive fix (escape "|" alone) is exploitable this way.
+    A correct renderer must round-trip back to the original value.
+    """
+    spec = LabelSpec.parse([("Name", "@name{%s}")])
+    data = {"name": ["a\\|b"]}
+    result = render_table(data, spec, format="markdown")
+    lines = result.splitlines()
+    assert len(lines) == 3  # the embedded "|" didn't split the row into extra cells
+    cell = lines[2].removeprefix("| ").removesuffix(" |")
+    assert _gfm_unescape_backslash_and_pipe(cell) == "a\\|b"
+
+
+def test_render_table_collapses_newline_in_markdown_cell() -> None:
+    """A raw newline in a cell value would otherwise terminate the GFM table row
+    early, desynchronizing every row after it — must not appear literally in output.
+    """
+    spec = LabelSpec.parse([("Name", "@name{%s}")])
+    data = {"name": ["line1\nline2"]}
+    result = render_table(data, spec, format="markdown")
+    lines = result.splitlines()
+    assert len(lines) == 3
+    assert "line1" in lines[2] and "line2" in lines[2]
 
 
 def test_table_formats_constant() -> None:
