@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from svgplot._svg import SvgDocument
 from svgplot.accessibility import add_accessibility
 
@@ -56,3 +58,36 @@ def test_add_accessibility_does_not_disturb_existing_marks() -> None:
     assert "<circle" in output
     assert 'class="series-1"' in output
     assert 'role="img"' in output
+
+
+@pytest.mark.parametrize("title", ["", "   "])
+def test_add_accessibility_rejects_empty_title(title: str) -> None:
+    document = SvgDocument()
+
+    with pytest.raises(ValueError, match="empty"):
+        add_accessibility(document, title=title)
+
+
+def test_add_accessibility_rejected_call_leaves_document_untouched() -> None:
+    """A rejected call must never leave role="img" set with no matching aria-label/
+    title/desc — that's worse for accessibility than not calling this at all.
+    """
+    document = SvgDocument()
+
+    with pytest.raises(ValueError):
+        add_accessibility(document, title="Good Title", desc="bad\x00desc")
+
+    output = document.to_string()
+    assert "role=" not in output
+    assert "aria-label=" not in output
+    assert "<title>" not in output
+    assert "<desc>" not in output
+
+
+def test_add_accessibility_invalid_title_also_leaves_document_untouched() -> None:
+    document = SvgDocument()
+
+    with pytest.raises(ValueError):
+        add_accessibility(document, title="bad\x00title")
+
+    assert "role=" not in document.to_string()

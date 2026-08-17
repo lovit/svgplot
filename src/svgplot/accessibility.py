@@ -32,9 +32,39 @@ def add_accessibility(document: SvgDocument, title: str, desc: str | None = None
     reasonable fallback (e.g. ``"Chart"``) when the user hasn't set one via
     ``set_title()``. ``desc`` defaults to a short generic sentence mentioning
     ``title`` when omitted.
+
+    Meant to be called once per document. Calling it again on the same
+    document adds a second ``<title>``/``<desc>`` (ARIA readers still see only
+    the latest ``aria-label``, since that's an attribute, not an appended
+    element) — this isn't guarded against, since ``Chart`` is expected to call
+    it exactly once per render.
+
+    Raises:
+        ValueError: if ``title`` is empty/whitespace-only (an empty
+            ``aria-label``/``<title>`` is worse than none — assistive tech
+            reads the ``role="img"`` with no usable name at all), or if
+            ``title``/``desc`` contain characters XML 1.0 forbids. Validated
+            *before* touching ``document``, so a rejected call never leaves it
+            with a ``role``/``aria-label`` but no matching ``<title>``/``<desc>``.
     """
+    if not title.strip():
+        raise ValueError(f"title must not be empty: {title!r}")
     resolved_desc = desc if desc is not None else f'A chart titled "{title}".'
+    _validate_accessibility_text(title, resolved_desc)
+
     document.set_attribute(document.root, "role", "img")
     document.set_attribute(document.root, "aria-label", title)
     document.add_text(None, title, tag="title")
     document.add_text(None, resolved_desc, tag="desc")
+
+
+def _validate_accessibility_text(title: str, desc: str) -> None:
+    """Raise ``ValueError`` if ``title``/``desc`` would be rejected, without
+    mutating the real document — checked on a throwaway one instead, since
+    ``SvgDocument``'s validation lives behind its public API, not exposed for
+    direct reuse (this module isn't the escape chokepoint; ``_svg.py`` is).
+    """
+    scratch = SvgDocument()
+    scratch.set_attribute(scratch.root, "aria-label", title)
+    scratch.add_text(None, title, tag="title")
+    scratch.add_text(None, desc, tag="desc")
