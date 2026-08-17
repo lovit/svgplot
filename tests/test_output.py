@@ -46,6 +46,19 @@ def test_save_svg_compact_writes_single_line(tmp_path: Path) -> None:
     assert "\n" not in content
 
 
+def test_save_svg_overwrites_existing_file(tmp_path: Path) -> None:
+    path = tmp_path / "chart.svg"
+    save_svg(_sample_document(), str(path))
+
+    other_document = SvgDocument(width=50, height=50)
+    other_document.add_node(None, "rect", classes=["bar-1"])
+    save_svg(other_document, str(path))
+
+    content = path.read_text(encoding="utf-8")
+    assert "<circle" not in content
+    assert "<rect" in content
+
+
 def test_repr_svg_is_compact_and_matches_document_output() -> None:
     document = _sample_document()
 
@@ -53,23 +66,16 @@ def test_repr_svg_is_compact_and_matches_document_output() -> None:
     assert "\n" not in repr_svg(document)
 
 
-def test_to_png_without_cairosvg_installed_raises_import_error_with_install_hint(tmp_path: Path) -> None:
-    try:
-        import cairosvg  # noqa: F401
-    except ImportError:
-        pass
-    else:
-        pytest.skip("cairosvg is installed in this environment; the missing-dependency path isn't exercised")
-
+def test_to_png_without_cairosvg_installed_raises_import_error_with_install_hint(
+    cairosvg_unavailable: None, tmp_path: Path
+) -> None:
     document = _sample_document()
 
     with pytest.raises(ImportError, match="png"):
         to_png(document, str(tmp_path / "chart.png"))
 
 
-def test_to_png_writes_file_when_cairosvg_available(tmp_path: Path) -> None:
-    pytest.importorskip("cairosvg")
-
+def test_to_png_writes_file_when_cairosvg_available(require_cairosvg: None, tmp_path: Path) -> None:
     document = _sample_document()
     path = tmp_path / "chart.png"
 

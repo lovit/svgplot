@@ -20,7 +20,7 @@ from pathlib import Path
 from svgplot._svg import SvgDocument
 from svgplot.output.jupyter import repr_svg
 from svgplot.output.png import to_png
-from svgplot.output.svg import save_svg, to_string as _to_string
+from svgplot.output.svg import save_svg, to_string
 
 
 class Chart:
@@ -43,11 +43,19 @@ class Chart:
 
     def to_string(self, *, pretty: bool = True) -> str:
         """Serialize to an SVG string. See svgplot.output.svg."""
-        return _to_string(self._svg_document, pretty=pretty)
+        return to_string(self._svg_document, pretty=pretty)
 
     def save(self, path: str) -> None:
         """Write the chart to a file. Dispatches on ``path``'s extension: ``.svg`` (see
         svgplot.output.svg) or ``.png`` (see svgplot.output.png, requires the ``png`` extra).
+
+        ``path`` is a filesystem path chosen by the caller — this is a library
+        function, not a web endpoint. Callers embedding user-supplied filenames
+        (e.g. in a web service) are responsible for validating/resolving them.
+
+        Raises:
+            ValueError: if ``path``'s extension is neither ``.svg`` nor ``.png``.
+            ImportError: if the extension is ``.png`` and the ``png`` extra isn't installed.
         """
         suffix = Path(path).suffix.lower()
         if suffix == ".svg":
