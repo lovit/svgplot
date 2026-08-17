@@ -152,14 +152,30 @@ class SvgDocument:
         self,
         parent: ET.Element | None,
         text: str,
+        tag: str = "text",
         attrib: dict[str, str | int | float] | None = None,
         classes: list[str] | None = None,
     ) -> ET.Element:
-        """Create a ``<text>`` node whose content is ``text`` (escaped at serialization time)."""
+        """Create a ``<{tag}>`` node (default ``<text>``, an SVG mark) whose content is
+        ``text`` (escaped at serialization time). Also used for other text-bearing
+        elements like ``<title>``/``<desc>`` (see ``accessibility.py``) — ``tag`` goes
+        through the same name validation as :meth:`add_node`.
+        """
         validated_text = _validate_text(text, "text content")
-        node = self.add_node(parent, "text", attrib=attrib, classes=classes)
+        node = self.add_node(parent, tag, attrib=attrib, classes=classes)
         node.text = validated_text
         return node
+
+    def set_attribute(self, node: ET.Element, key: str, value: str | int | float) -> None:
+        """Set a validated attribute on an already-existing node (e.g. the document root).
+
+        ``add_node``'s ``attrib`` only covers attributes set at creation time;
+        this covers the other case — attaching an attribute to a node created
+        earlier (or the root, which always exists before any ``add_node`` call).
+        Goes through the same name/value validation as node creation.
+        """
+        _validate_name(key, "attribute")
+        node.set(key, _validate_text(str(value), "attribute value"))
 
     def semantic_class(self, prefix: str) -> str:
         """Return a semantic, incrementing class name like ``series-1`` — never a random hash."""

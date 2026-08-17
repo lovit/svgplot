@@ -247,3 +247,57 @@ def test_zero_and_negative_dimensions_serialize_without_error() -> None:
 
     assert 'viewBox="0 0 0 0"' in zero.to_string()
     assert 'viewBox="0 0 -10 5"' in negative.to_string()
+
+
+def test_add_text_accepts_custom_tag() -> None:
+    doc = SvgDocument()
+    doc.add_text(None, "My Chart", tag="title")
+
+    output = doc.to_string()
+
+    assert "<title>My Chart</title>" in output
+
+
+def test_add_text_default_tag_is_still_text() -> None:
+    doc = SvgDocument()
+    doc.add_text(None, "label")
+
+    assert "<text>label</text>" in doc.to_string()
+
+
+def test_add_text_custom_tag_is_validated() -> None:
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match="tag"):
+        doc.add_text(None, "hi", tag="bad tag")
+
+
+def test_set_attribute_sets_validated_attribute_on_existing_node() -> None:
+    doc = SvgDocument()
+    doc.set_attribute(doc.root, "aria-label", "My Chart")
+
+    assert 'aria-label="My Chart"' in doc.to_string()
+
+
+def test_set_attribute_escapes_value() -> None:
+    doc = SvgDocument()
+    doc.set_attribute(doc.root, "aria-label", 'quote" and <tag>')
+
+    output = doc.to_string()
+
+    assert "&quot;" in output
+    assert "&lt;tag&gt;" in output
+
+
+def test_set_attribute_rejects_invalid_attribute_name() -> None:
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match="attribute"):
+        doc.set_attribute(doc.root, "onclick", "alert(1)")
+
+
+def test_set_attribute_rejects_control_characters_in_value() -> None:
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match=r"XML 1\.0"):
+        doc.set_attribute(doc.root, "aria-label", "bad\x00value")
