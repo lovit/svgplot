@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from svgplot.data.ingest import ingest_longform
+from svgplot.data.ingest import LongFormData, ingest_longform
 from svgplot.data.metadata import attach_metadata
 from svgplot.data.semantic import extract_channels
 
-__all__ = ["attach_metadata", "extract_channels", "ingest_longform"]
+__all__ = ["LongFormData", "attach_metadata", "extract_channels", "ingest_longform"]
