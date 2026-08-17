@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from svgplot._svg import SvgDocument
 
 
 def to_string(document: SvgDocument, *, pretty: bool = True) -> str:
     """Serialize an SvgDocument to an SVG string."""
-    raise NotImplementedError
+    return document.to_string(pretty=pretty)
 
 
 def save_svg(document: SvgDocument, path: str, *, pretty: bool = True) -> None:
@@ -17,4 +19,4 @@ def save_svg(document: SvgDocument, path: str, *, pretty: bool = True) -> None:
     function, not a web endpoint. Callers embedding user-supplied filenames
     (e.g. in a web service) are responsible for validating/resolving them.
     """
-    raise NotImplementedError
+    Path(path).write_text(to_string(document, pretty=pretty), encoding="utf-8")
