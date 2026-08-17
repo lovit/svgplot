@@ -247,3 +247,123 @@ def test_zero_and_negative_dimensions_serialize_without_error() -> None:
 
     assert 'viewBox="0 0 0 0"' in zero.to_string()
     assert 'viewBox="0 0 -10 5"' in negative.to_string()
+
+
+def test_add_text_accepts_custom_tag() -> None:
+    doc = SvgDocument()
+    doc.add_text(None, "My Chart", tag="title")
+
+    output = doc.to_string()
+
+    assert "<title>My Chart</title>" in output
+
+
+def test_add_text_default_tag_is_still_text() -> None:
+    doc = SvgDocument()
+    doc.add_text(None, "label")
+
+    assert "<text>label</text>" in doc.to_string()
+
+
+def test_add_text_custom_tag_is_validated() -> None:
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match="tag"):
+        doc.add_text(None, "hi", tag="bad tag")
+
+
+def test_set_attribute_sets_validated_attribute_on_existing_node() -> None:
+    doc = SvgDocument()
+    doc.set_attribute(doc.root, "aria-label", "My Chart")
+
+    assert 'aria-label="My Chart"' in doc.to_string()
+
+
+def test_set_attribute_escapes_value() -> None:
+    doc = SvgDocument()
+    doc.set_attribute(doc.root, "aria-label", 'quote" and <tag>')
+
+    output = doc.to_string()
+
+    assert "&quot;" in output
+    assert "&lt;tag&gt;" in output
+
+
+def test_set_attribute_rejects_invalid_attribute_name() -> None:
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match="attribute"):
+        doc.set_attribute(doc.root, "onclick", "alert(1)")
+
+
+def test_set_attribute_rejects_control_characters_in_value() -> None:
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match=r"XML 1\.0"):
+        doc.set_attribute(doc.root, "aria-label", "bad\x00value")
+
+
+def test_set_attribute_works_on_non_root_node() -> None:
+    doc = SvgDocument()
+    circle = doc.add_node(None, "circle")
+
+    doc.set_attribute(circle, "aria-hidden", "true")
+
+    assert 'aria-hidden="true"' in doc.to_string()
+
+
+def test_set_attribute_overwrite_uses_latest_value() -> None:
+    doc = SvgDocument()
+    doc.set_attribute(doc.root, "aria-label", "First")
+    doc.set_attribute(doc.root, "aria-label", "Second")
+
+    output = doc.to_string()
+
+    assert 'aria-label="Second"' in output
+    assert "First" not in output
+
+
+def test_set_attribute_class_accepts_space_separated_multiple_classes() -> None:
+    """Unlike add_node's classes=[...] (a list of atomic entries), this is the final
+    attribute value, so a space-separated string legitimately sets several classes.
+    """
+    doc = SvgDocument()
+    node = doc.add_node(None, "g")
+
+    doc.set_attribute(node, "class", "series-1 highlighted")
+
+    assert 'class="series-1 highlighted"' in doc.to_string()
+
+
+def test_set_attribute_class_rejects_empty_value() -> None:
+    doc = SvgDocument()
+    node = doc.add_node(None, "g")
+
+    with pytest.raises(ValueError, match="class"):
+        doc.set_attribute(node, "class", "")
+
+
+def test_set_attribute_class_rejects_control_character_in_a_class_token() -> None:
+    doc = SvgDocument()
+    node = doc.add_node(None, "g")
+
+    with pytest.raises(ValueError, match=r"XML 1\.0"):
+        doc.set_attribute(node, "class", "a\x00b")
+
+
+def test_add_text_rejects_script_and_style_tags() -> None:
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match="text-bearing tags"):
+        doc.add_text(None, "fetch('//evil/')", tag="script")
+    with pytest.raises(ValueError, match="text-bearing tags"):
+        doc.add_text(None, "@import url('//evil/x.css')", tag="style")
+
+
+@pytest.mark.parametrize("tag", ["text", "tspan", "title", "desc", "textPath"])
+def test_add_text_allows_every_text_bearing_tag(tag: str) -> None:
+    doc = SvgDocument()
+
+    doc.add_text(None, "hi", tag=tag)
+
+    assert f"<{tag}>hi</{tag}>" in doc.to_string()
