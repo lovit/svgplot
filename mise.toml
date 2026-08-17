@@ -1,0 +1,27 @@
+[tools]
+python = "3.12"
+
+[env]
+PYTHONDONTWRITEBYTECODE = "1"
+# 로컬 전용 값/비밀값은 mise.local.toml(.gitignore 대상)에 [env] 테이블로 추가한다.
+# .env 파일이 생기면 `_.file = ".env"` 를 여기 추가해 mise가 자동 로드하게 한다.
+
+[tasks.install]
+description = "Sync all dependency groups via uv, install prek git hooks"
+run = """
+uv sync --all-groups
+uv run prek install
+uv run prek install --hook-type commit-msg
+"""
+
+[tasks.lint]
+description = "Run prek across all files"
+run = "uv run prek run --all-files"
+
+[tasks.test]
+description = "Run the test suite"
+run = "uv run pytest"
+
+[tasks.check]
+description = "Everything CI runs, locally"
+depends = ["lint", "test"]
