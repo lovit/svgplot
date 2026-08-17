@@ -16,7 +16,9 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dependencies = []
+dependencies = [
+    "numpy>=2.5.2",
+]
 
 [project.urls]
 Homepage = "https://github.com/lovit/svgplot"
