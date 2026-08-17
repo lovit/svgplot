@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git worktree*)",
+      "Bash(git fetch*)",
+      "Bash(git merge*)",
+      "Bash(git rebase*)",
+      "Bash(git stash*)",
+      "Bash(git remote*)",
+      "Bash(git rev-parse*)",
       "Bash(gh issue *)",
       "Bash(gh pr view *)",
       "Bash(gh pr list *)",
@@ -15,7 +27,6 @@
       "Bash(ls *)",
       "Bash(rg *)",
       "Bash(find *)",
-      "Bash(cat *)",
       "Bash(echo *)",
       "Bash(mkdir *)"
     ],
@@ -23,12 +34,28 @@
       "Bash(rm -rf /*)",
       "Bash(git push --force *)",
       "Bash(git push -f *)",
+      "Bash(git -c *)",
+      "Bash(git config *)",
+      "Bash(git clone*)",
+      "Bash(*--upload-pack=*)",
+      "Bash(*--receive-pack=*)",
+      "Bash(*--exec=*)",
       "Bash(gh repo delete *)",
+      "Bash(*.ssh*)",
+      "Bash(*credentials*)",
+      "Bash(*secret*)",
+      "Bash(*.env*)",
+      "Bash(*.netrc*)",
+      "Bash(*.aws*)",
+      "Bash(*.config/gh*)",
       "Read(.env)",
       "Read(.env.*)",
       "Read(**/credentials*)",
       "Read(**/secrets*)",
-      "Read(**/.ssh/*)"
+      "Read(**/.ssh/*)",
+      "Read(**/.netrc)",
+      "Read(**/.aws/*)",
+      "Read(**/.config/gh/*)"
     ]
   }
 }

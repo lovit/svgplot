@@ -1,13 +1,11 @@
 {
   "_comment": "이 파일을 .claude/settings.local.json 으로 복사해 개인 로컬 설정을 추가하세요. (gitignore 됨)",
+  "_comment_auth": "GH_TOKEN을 여기 평문으로 넣지 마세요. 대신 `gh auth login`으로 OS 키체인에 인증하거나, 부득이 PAT를 쓴다면 이 레포 전용 fine-grained token(contents:write, pull_requests:write만, 만료 짧게)을 셸 환경변수로 export하세요.",
   "permissions": {
     "allow": [
       "Bash(gh pr create *)",
       "Bash(gh pr merge *)",
       "Bash(git push *)"
     ]
-  },
-  "env": {
-    "GH_TOKEN": "ghp_your_token_here"
   }
 }
