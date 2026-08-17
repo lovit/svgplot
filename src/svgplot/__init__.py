@@ -16,7 +16,7 @@ from svgplot.charts import (
     scatterplot,
 )
 from svgplot.layout import add_caption, apply_size, column, facet, grid, row
-from svgplot.theme import PRESETS, Theme, parametric_theme
+from svgplot.theme import PRESETS, Theme, apply_context, parametric_theme
 
 __version__ = "0.1.0"
 
@@ -27,6 +27,7 @@ __all__ = [
     "Theme",
     "__version__",
     "add_caption",
+    "apply_context",
     "apply_size",
     "areaplot",
     "barplot",
