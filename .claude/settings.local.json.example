@@ -1,0 +1,13 @@
+{
+  "_comment": "이 파일을 .claude/settings.local.json 으로 복사해 개인 로컬 설정을 추가하세요. (gitignore 됨)",
+  "permissions": {
+    "allow": [
+      "Bash(gh pr create *)",
+      "Bash(gh pr merge *)",
+      "Bash(git push *)"
+    ]
+  },
+  "env": {
+    "GH_TOKEN": "ghp_your_token_here"
+  }
+}

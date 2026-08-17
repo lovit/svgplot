@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(gh issue *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr list *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh pr comment *)",
+      "Bash(uv *)",
+      "Bash(mise *)",
+      "Bash(prek run *)",
+      "Bash(pytest *)",
+      "Bash(ls *)",
+      "Bash(rg *)",
+      "Bash(find *)",
+      "Bash(cat *)",
+      "Bash(echo *)",
+      "Bash(mkdir *)"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(gh repo delete *)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/credentials*)",
+      "Read(**/secrets*)",
+      "Read(**/.ssh/*)"
+    ]
+  }
+}

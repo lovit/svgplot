@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# uv (uv.lock 과 .python-version 은 커밋)
+.uv/
+
+# mise (mise.toml 은 커밋, 로컬 전용 override 는 제외)
+mise.local.toml
+
+# Build
+dist/
+build/
+*.egg-info/
+*.egg
+wheels/
+pip-wheel-metadata/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Type checkers / lint cache
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.dmypy.json
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE / editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Claude Code (로컬 전용 설정은 gitignore)
+.claude/settings.local.json
+.claude/CLAUDE.local.md
+CLAUDE.local.md
+
+# Worktree (sibling 위치 권장이지만 혹시 repo 안에 생길 경우 대비)
+*-worktrees/
+
+# Logs
+*.log
+logs/

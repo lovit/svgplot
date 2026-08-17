@@ -1,0 +1,39 @@
+# 줄바꿈 통일 (LF)
+* text=auto eol=lf
+
+# Python
+*.py    text eol=lf
+*.pyi   text eol=lf
+
+# Config
+*.toml  text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.json  text eol=lf
+*.ini   text eol=lf
+*.cfg   text eol=lf
+
+# Docs
+*.md    text eol=lf
+*.txt   text eol=lf
+*.rst   text eol=lf
+
+# Shell
+*.sh    text eol=lf
+
+# Binary — diff 비활성화
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.tar   binary
+*.whl   binary
+
+# Linguist (GitHub 언어 통계)
+docs/          linguist-documentation
+*.md           linguist-documentation
+.claude/       linguist-documentation
