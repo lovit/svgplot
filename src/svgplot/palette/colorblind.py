@@ -8,13 +8,39 @@ seaborn's ``"jet" -> ValueError`` precedent.
 
 from __future__ import annotations
 
-DEFAULT_PALETTE: list[str] = []
-"""The default qualitative palette used when no palette is specified. Must be colorblind-safe."""
+DEFAULT_PALETTE: list[str] = [
+    "#E69F00",
+    "#56B4E9",
+    "#009E73",
+    "#F0E442",
+    "#0072B2",
+    "#D55E00",
+    "#CC79A7",
+    "#000000",
+]
+"""The default qualitative palette used when no palette is specified. Must be colorblind-safe
+(Okabe & Ito, 2008) — also the canonical form of this palette in the package: ``theme.base.Theme``
+imports this rather than keeping its own copy.
+"""
 
-BLOCKED_PALETTES: set[str] = {"jet"}
-"""Palette/colormap names rejected outright rather than silently accepted."""
+BLOCKED_PALETTES: frozenset[str] = frozenset({"jet", "rainbow", "hsv"})
+"""Palette/colormap names rejected outright rather than silently accepted — all
+perceptually non-uniform (misleading apparent magnitude jumps) and not colorblind-safe.
+Immutable so a caller can't accidentally (or deliberately) defeat the block by mutating
+this set in place.
+"""
+
+_COLORBLIND_SAFE_PALETTE_NAMES: frozenset[str] = frozenset({"colorblind"})
 
 
 def is_colorblind_safe(name: str) -> bool:
-    """Report whether the named palette is known to be colorblind-safe."""
-    raise NotImplementedError
+    """Report whether the named palette is known to be colorblind-safe.
+
+    A predicate, not a validator — a non-string ``name`` (e.g. an unhashable
+    list) answers ``False`` rather than raising, unlike :func:`qualitative
+    <svgplot.palette.qualitative.qualitative>`/:func:`sequential
+    <svgplot.palette.sequential.sequential>`, which do real work with ``name``
+    and so reject bad input outright instead of quietly answering a question
+    about it.
+    """
+    return isinstance(name, str) and name in _COLORBLIND_SAFE_PALETTE_NAMES

@@ -23,19 +23,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Colorblind-safe (Okabe-Ito) default palette — see docs/research/12-aesthetics.md §2/§4.
-# Duplicated here (rather than imported from palette.colorblind) because that module
-# isn't implemented yet; a future issue can point both at one shared constant.
-_OKABE_ITO_PALETTE: tuple[str, ...] = (
-    "#E69F00",
-    "#56B4E9",
-    "#009E73",
-    "#F0E442",
-    "#0072B2",
-    "#D55E00",
-    "#CC79A7",
-    "#000000",
-)
+from svgplot.palette.colorblind import DEFAULT_PALETTE
+
+# Snapshot as an immutable tuple at import time: DEFAULT_PALETTE is a plain (mutable)
+# list in palette.colorblind, and a dataclass field default is evaluated once at class
+# definition — using the list directly would make Theme()'s default palette vulnerable
+# to later in-place mutation of the shared list.
+_DEFAULT_PALETTE: tuple[str, ...] = tuple(DEFAULT_PALETTE)
 
 
 @dataclass(frozen=True)
@@ -56,7 +50,7 @@ class Theme:
     background: str = "#ffffff"
     foreground: str = "#111111"
     # palette — colorblind-safe by default (docs/research/12-aesthetics.md §2)
-    palette: tuple[str, ...] = _OKABE_ITO_PALETTE
+    palette: tuple[str, ...] = _DEFAULT_PALETTE
     # grid (가이드선)
     grid_color: str = "#e0e0e0"
     grid_width: float = 1.0
