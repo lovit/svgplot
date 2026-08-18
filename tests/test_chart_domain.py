@@ -19,13 +19,14 @@ def test_the_union_takes_the_outermost_bounds_of_each_axis() -> None:
     assert merged.y == (1.0, 6.0)
 
 
-def test_a_panel_that_recorded_nothing_does_not_drag_an_axis_to_zero() -> None:
+@pytest.mark.parametrize("axis", ["x", "y"])
+def test_a_panel_that_recorded_nothing_does_not_drag_an_axis_to_zero(axis: str) -> None:
     """An empty panel in a facet grid records no domain. Treating that as ``(0, 0)`` would
-    pull every shared axis down to include zero, which silently rescales the panels that
-    did have data."""
-    merged = union([Domains(x=(100.0, 200.0)), Domains(), Domains(x=(150.0, 250.0))])
+    pull every shared axis down to include zero, which silently rescales the panels that did
+    have data. Both axes: the y branch is separate code and was not covered."""
+    merged = union([Domains(**{axis: (100.0, 200.0)}), Domains(), Domains(**{axis: (150.0, 250.0)})])
 
-    assert merged.x == (100.0, 250.0)
+    assert getattr(merged, axis) == (100.0, 250.0)
 
 
 def test_axes_are_unioned_independently() -> None:

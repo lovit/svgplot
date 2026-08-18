@@ -329,3 +329,28 @@ def test_box_stats_rejects_unknown_mode() -> None:
 def test_box_stats_rejects_non_finite_values() -> None:
     with pytest.raises(ValueError, match="finite"):
         box_stats([1.0, float("nan"), 3.0])
+
+
+def test_histogram_bins_over_a_stated_range_ignores_the_values_extremes() -> None:
+    """Two charts binned separately land their boundaries in different places, so a "count
+    of 3" covers a different amount of data in each -- which is the comparison a shared axis
+    promises and would otherwise not deliver."""
+    edges = histogram_bins([1.0, 2.0, 3.0, 4.0], bins=4, bin_range=(1.0, 92.0))
+
+    assert edges == [1.0, 23.75, 46.5, 69.25, 92.0]
+    assert histogram_bins([1.0, 2.0, 3.0, 4.0], bins=4) == [1.0, 1.75, 2.5, 3.25, 4.0]
+
+
+def test_two_samples_binned_over_one_range_get_identical_edges() -> None:
+    """The property the range exists for, stated directly."""
+    span = (0.0, 100.0)
+
+    assert histogram_bins([1.0, 2.0], bins=5, bin_range=span) == histogram_bins([90.0, 99.0], bins=5, bin_range=span)
+
+
+@pytest.mark.parametrize("bad", [(5.0, 5.0), (5.0, 1.0), (float("nan"), 1.0), (0.0, float("inf"))])
+def test_histogram_bins_rejects_a_degenerate_or_non_finite_range(bad: tuple[float, float]) -> None:
+    """numpy accepts a reversed range and returns edges that run backwards, which draws bars
+    at negative widths rather than failing."""
+    with pytest.raises(ValueError, match="bin_range must be an increasing pair"):
+        histogram_bins([1.0, 2.0], bins=4, bin_range=bad)

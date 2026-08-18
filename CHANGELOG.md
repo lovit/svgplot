@@ -62,6 +62,14 @@
 
 - 캔버스 도입부가 `charts/_layout.new_canvas()` 하나로 모였다 — 15개 차트가 같은 여섯 줄을 반복하고 마진만 달랐다. 함수 단위 중복도 정리했다: `_label_anchor`/`_ANCHOR_EPSILON`은 `charts/_polar.py`(각도 기하가 그 모듈의 자기규정이고, radar·gauge 둘 다 이미 import 한다), `_format_value_label`은 `charts/_layout.format_value_label`(값 라벨은 극좌표 개념이 아니다), `(30.0, 180.0, 30.0, 30.0)`은 `MARGIN_WITH_SIDE_LEGEND`. 16종 차트 출력이 **바이트 단위로 동일**하다(`sparkline` 은 자기 캔버스 크기를 쓰므로 이 헬퍼를 부르지 않는 15종에 들지 않지만, 출력 동일성은 함께 확인했다).
 
+### Changed
+
+- **`facet`의 패널이 기본적으로 축을 공유한다**(`sharex=`/`sharey=`로 끌 수 있다). 공유하지 않으면 두 패널의 선이 같은 높이에 그려지는데 하나는 3, 다른 하나는 300이고 그 사실이 지면 어디에도 적히지 않는다 — 축을 확인하지 않는 독자는 조용히 잘못 읽는다. seaborn `FacetGrid`도 둘 다 `True`가 기본이다. 공유는 **세 번** 렌더하는 비용을 치르며(600행 6패널에서 2.4~2.8배 실측 — 측정마다 폭이 있다), 합칠 것이 없으면 건너뛴다.
+- 직교축 차트 10종이 `xlim=`/`ylim=`를, 카테고리 축 차트 3종이 `categories=`를 받는다. 도메인을 넓히는 것이 아니라 **대체**한다.
+- `stats.binning.histogram_bins(bin_range=)` — 값의 극단이 아니라 지정한 범위로 bin 경계를 잡는다. 축만 공유하고 bin 을 공유하지 않으면 막대 폭이 달라지고 "count 3"이 패널마다 다른 양을 뜻한다.
+
+**아직 공유되지 않는 것**(패널마다 다르게 읽힌다): `hue=` 그룹 색, `heatmap`의 행·열 범주와 값→색 스케일, `radarplot`/`gaugeplot`의 반지름.
+
 ### Fixed
 
 - `add_caption`이 캡션 텍스트를 검증하기 *전에* 캔버스를 키워, 거부된 캡션이 도판을 영구히 늘리고 재시도마다 또 늘리던 문제.
