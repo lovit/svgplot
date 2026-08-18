@@ -105,16 +105,18 @@ def _resolve_bounds(values: list[float], vmin: float | None, vmax: float | None)
     """
     low = _require_finite_bound(vmin, field="vmin") if vmin is not None else min(0.0, *values)
     high = _require_finite_bound(vmax, field="vmax") if vmax is not None else max(values)
-    if not math.isfinite(high - low):
-        # Each bound can be finite while the span is not. Left alone, LinearScale rejects
-        # it with a message about a domain span, naming neither argument -- the same reason
-        # the value check above does not defer to format_coord.
-        raise ValueError(f"gauge range is too wide to measure: vmax - vmin overflows for vmin={low!r}, vmax={high!r}")
     if low >= high:
         raise ValueError(
             f"gauge range must be non-empty and increasing, got vmin={low!r} >= vmax={high!r}"
             + ("; pass vmax= explicitly" if vmax is None else "")
         )
+    # After the ordering check, so an inverted pair whose span also overflows is reported
+    # as inverted -- which is what the caller actually has to fix.
+    if not math.isfinite(high - low):
+        # Each bound can be finite while the span is not. Left alone, LinearScale rejects
+        # it with a message about a domain span, naming neither argument -- the same reason
+        # the value check above does not defer to format_coord.
+        raise ValueError(f"gauge range is too wide to measure: vmax - vmin overflows for vmin={low!r}, vmax={high!r}")
     return low, high
 
 
