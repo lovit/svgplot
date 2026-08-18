@@ -142,6 +142,16 @@ def _render_box(
     cap_half_width: float,
     corner_radius: float,
 ) -> None:
+    """Draw one category's box, median line, whisker stems and caps.
+
+    Known quirk (not a defect here): in the ``stdev``/``pstdev`` modes a whisker is
+    ``mean ± 1 SD``, which is unrelated to the quartiles, so ``whisker_high`` can land
+    *below* ``q3`` (e.g. ``pstdev([9.62, 63.39, 9.45, 55.94, 0.51])`` gives ``q3=55.94``
+    but ``whisker_high=54.13``). The stem is then drawn backwards, into the box, with its
+    cap inside the box body. That follows directly from ``box_stats``' ±1 SD semantics
+    rather than from anything this renderer does, so it is left as-is; clamping the stems
+    to the box would misrepresent the statistic.
+    """
     center = x_scale.center(category)
     left, right = center - box_half_width, center + box_half_width
     cap_left, cap_right = center - cap_half_width, center + cap_half_width
