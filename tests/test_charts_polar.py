@@ -188,3 +188,30 @@ def test_arc_path_spanning_a_full_turn_falls_back_to_two_arcs() -> None:
     min_x, min_y, max_x, max_y = _path_bbox(path)
     assert max_x - min_x == pytest.approx(2 * R, abs=0.1)
     assert max_y - min_y == pytest.approx(2 * R, abs=0.1)
+
+
+@pytest.mark.parametrize("inner_r", [0.0, 40.0])
+def test_ring_path_reverse_sweep_traces_the_same_sector_the_other_way(inner_r: float) -> None:
+    """`end_angle` below `start_angle` must follow the sign, exactly as `arc_path` does.
+    With the sweep-flag pinned clockwise, a reverse-ordered pair silently traced the
+    sector the long way round — a trap worth closing now that radar and gauge share
+    this helper. Forward and reverse must touch the same two endpoints and differ only
+    in sweep direction.
+    """
+    forward = ring_path(100.0, 100.0, 80.0, inner_r, 0.0, math.pi / 2)
+    reverse = ring_path(100.0, 100.0, 80.0, inner_r, math.pi / 2, 0.0)
+
+    assert forward != reverse
+    # Same endpoints, opposite sweep flags on the outer arc.
+    assert _sweep_flags(forward)[0] == 1
+    assert _sweep_flags(reverse)[0] == 0
+    assert sorted(_endpoints(forward)) == sorted(_endpoints(reverse))
+
+
+def _sweep_flags(path: str) -> list[int]:
+    """The sweep-flag of every `A` command, in order (it is the 5th arc parameter)."""
+    return [int(m.split()[4]) for m in re.findall(r"A [^A-Za-z]+", path)]
+
+
+def _endpoints(path: str) -> list[tuple[float, float]]:
+    return [(round(float(x), 6), round(float(y), 6)) for x, y in re.findall(r"([\d.-]+),([\d.-]+)", path)]

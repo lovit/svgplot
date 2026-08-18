@@ -54,9 +54,9 @@ def _circle_loop(cx: float, cy: float, r: float) -> str:
     and end points coincide is dropped entirely by the renderer (SVG spec F.6.2), so
     sweeping straight back to the start point silently yields half a circle.
     """
-    return f"M {format_coord(cx - r)},{format_coord(cy)} " + " ".join(
-        f"A {format_coord(r)},{format_coord(r)} 0 1 1 {format_coord(x)},{format_coord(y)}"
-        for x, y in (polar_point(cx, cy, r, 0.0), polar_point(cx, cy, r, math.pi))
+    return (
+        f"M {format_coord(cx - r)},{format_coord(cy)} "
+        f"A {format_coord(r)},{format_coord(r)} 0 1 1 {format_coord(cx - r)},{format_coord(cy)}"
     )
 
 
@@ -80,25 +80,37 @@ def ring_path(cx: float, cy: float, outer_r: float, inner_r: float, start_angle:
     backward, closed. A donut built from these needs ``fill-rule="evenodd"`` on the
     element so the hole reads as a hole.
 
+    ``end_angle`` below ``start_angle`` sweeps the other way, exactly as
+    :func:`arc_path` does — the outer arc's sweep-flag follows the sign and the inner
+    arc mirrors it. Without that the flags would be pinned clockwise and a
+    reverse-ordered pair would silently trace the sector the long way round, which is
+    a trap worth closing now that radar and gauge share this.
+
     For a sweep of a full turn use :func:`full_ring_path` instead; a single ``A``
     covering 360 degrees would start and end at the same point and be dropped
     entirely (SVG spec F.6.2, see :func:`_circle_loop`).
     """
-    large_arc = _large_arc_flag(end_angle - start_angle)
+    sweep = end_angle - start_angle
+    large_arc = _large_arc_flag(sweep)
+    outer_sweep = 1 if sweep >= 0 else 0
+    inner_sweep = 1 - outer_sweep
     x1, y1 = polar_point(cx, cy, outer_r, start_angle)
     x2, y2 = polar_point(cx, cy, outer_r, end_angle)
     if inner_r <= 0:
         return (
             f"M {format_coord(cx)},{format_coord(cy)} L {format_coord(x1)},{format_coord(y1)} "
-            f"A {format_coord(outer_r)},{format_coord(outer_r)} 0 {large_arc} 1 {format_coord(x2)},{format_coord(y2)} Z"
+            f"A {format_coord(outer_r)},{format_coord(outer_r)} 0 {large_arc} {outer_sweep} "
+            f"{format_coord(x2)},{format_coord(y2)} Z"
         )
     ix1, iy1 = polar_point(cx, cy, inner_r, start_angle)
     ix2, iy2 = polar_point(cx, cy, inner_r, end_angle)
     return (
         f"M {format_coord(x1)},{format_coord(y1)} "
-        f"A {format_coord(outer_r)},{format_coord(outer_r)} 0 {large_arc} 1 {format_coord(x2)},{format_coord(y2)} "
+        f"A {format_coord(outer_r)},{format_coord(outer_r)} 0 {large_arc} {outer_sweep} "
+        f"{format_coord(x2)},{format_coord(y2)} "
         f"L {format_coord(ix2)},{format_coord(iy2)} "
-        f"A {format_coord(inner_r)},{format_coord(inner_r)} 0 {large_arc} 0 {format_coord(ix1)},{format_coord(iy1)} Z"
+        f"A {format_coord(inner_r)},{format_coord(inner_r)} 0 {large_arc} {inner_sweep} "
+        f"{format_coord(ix1)},{format_coord(iy1)} Z"
     )
 
 
