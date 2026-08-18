@@ -25,9 +25,15 @@ from __future__ import annotations
 import html
 
 from svgplot.data._columns import column_length, extract_columns
-from svgplot.labels.spec import LabelSpec, render_value
+from svgplot.data._missing import is_missing
+from svgplot.labels.spec import LabelField, LabelSpec, render_value
 
 TABLE_FORMATS = ("markdown", "html")
+
+MISSING_TEXT = "—"
+"""What a chart-driven table shows for a cell the chart never consulted (an em dash, the
+conventional "no value here" mark in printed tables). Only used when a caller opts in via
+``render_table(missing=...)``."""
 
 
 def _escape_markdown_cell(text: str) -> str:
@@ -39,7 +45,7 @@ def _escape_markdown_cell(text: str) -> str:
     return html.escape(text, quote=True).replace("|", "\\|")
 
 
-def render_table(data: object, spec: LabelSpec, format: str = "markdown") -> str:
+def render_table(data: object, spec: LabelSpec, format: str = "markdown", *, missing: str | None = None) -> str:
     """Render ``spec`` applied to ``data`` as a footnote-style table (pygal's ``render_table`` precedent).
 
     Args:
@@ -47,6 +53,12 @@ def render_table(data: object, spec: LabelSpec, format: str = "markdown") -> str
             or a list of dict records (same shapes ``data.ingest_longform`` accepts).
         spec: which fields to include as columns, and how to format each.
         format: ``"markdown"`` (GitHub-flavored table) or ``"html"`` (a ``<table>`` element).
+        missing: what to show for a missing cell instead of raising. ``None`` -- the
+            default -- keeps :func:`~svgplot.labels.spec.render_value`'s refusal to invent
+            a rendering for a value that isn't there, which is the right behaviour when a
+            caller hands this function a table's worth of data directly. Chart-driven
+            tables pass :data:`MISSING_TEXT`, because they have already decided which rows
+            to keep and a column the chart never consulted may legitimately have holes.
 
     Raises:
         ValueError: if ``format`` isn't one of :data:`TABLE_FORMATS`.
@@ -61,8 +73,16 @@ def render_table(data: object, spec: LabelSpec, format: str = "markdown") -> str
             raise KeyError(f"field not found in data: {field.field!r}")
     row_count = column_length(columns)
 
+    def cell(field: LabelField, value: object) -> str:
+        # The substitute is produced *here*, upstream of both renderers, so it flows
+        # through the same html.escape/markdown-neutralising path every other cell does.
+        # Injecting it after escaping would make `missing=` an escaping bypass.
+        if missing is not None and is_missing(value):
+            return missing
+        return render_value(field, value)
+
     headers = [field.label for field in spec]
-    rows = [[render_value(field, columns[field.field][row_index]) for field in spec] for row_index in range(row_count)]
+    rows = [[cell(field, columns[field.field][row_index]) for field in spec] for row_index in range(row_count)]
 
     if format == "html":
         return _render_html(headers, rows)
