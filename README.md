@@ -21,7 +21,7 @@ data = {
 }
 ```
 
-### 차트 타입 7종
+### 차트 타입
 
 ```python
 # 선 그래프 — hue=로 시리즈 분리, interpolate=로 보간(quadratic/cubic/hermite/lagrange/trigonometric)
@@ -44,6 +44,24 @@ sp.pieplot(data, values="sales", labels="region", inner_radius=0.5).save("pie.sv
 
 # 박스플롯 — mode는 extremes / 1.5IQR / tukey / stdev / pstdev
 sp.boxplot(data, x="region", y="sales", mode="1.5IQR").save("box.svg")
+```
+
+### 분포와 회귀
+
+```python
+# 경험적 누적분포 — stat="proportion"|"count", complementary=True면 생존함수
+sp.ecdfplot(data, x="sales", hue="region").save("ecdf.svg")
+
+# 커널 밀도 — bandwidth는 "scott"|"silverman" 또는 수치, fill=True면 축까지 채움
+# hue 그룹은 하나의 x 그리드를 공유하므로 곡선끼리 직접 비교된다
+sp.kdeplot(data, x="sales", hue="region", fill=True).save("kde.svg")
+
+# 바이올린 — boxplot과 같은 시그니처. inner="box"면 사분위 상자와 중앙값을 겹친다
+# 모든 카테고리가 하나의 y 도메인과 하나의 peak을 공유해 폭이 비교 가능하다
+sp.violinplot(data, x="region", y="sales", inner="box").save("violin.svg")
+
+# 선형 회귀 — ci는 신뢰수준(None이면 대역 없이 선만), seed로 부트스트랩이 재현된다
+sp.regplot(data, x="day", y="sales", ci=0.95, seed=0).save("reg.svg")
 ```
 
 ### 여러 차트를 하나의 도판으로
@@ -89,7 +107,19 @@ chart = sp.apply_size(sp.lineplot(data, x="day", y="sales"), "responsive")  # vi
 markup = chart.to_string()      # SVG 문자열 (pretty-print)
 chart.save("chart.svg")          # 파일로 저장
 chart.save("chart.png")          # PNG는 optional dep: uv add "svgplot[png]"
+chart.save("chart.md")           # 인라인 SVG + (info= 있으면) 각주 표
 ```
+
+`info=`를 주면 차트가 실제로 그린 행만 담은 표가 `.md` 출력에 함께 실린다. 1행 = 1마크인 `lineplot`/`scatterplot`/`pieplot`이 대상이다 — 집계하는 차트(`bar`/`area`/`box`/`hist`) 옆에 원본 행 표를 붙이면 마크와 모순되기 때문이다.
+
+```python
+chart = sp.lineplot(data, x="day", y="sales",
+                    info=[("날짜", "@day{0,0}"), ("매출", "@sales{0,0}")])
+chart.save("chart.md")
+markdown = chart.to_markdown()
+```
+
+GitHub는 렌더된 markdown에서 인라인 SVG를 제거하므로 github.com에서는 표만 보인다. MkDocs·Sphinx·VS Code 미리보기에서는 도판과 표가 함께 렌더된다.
 
 ## 부트스트랩
 
