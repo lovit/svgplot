@@ -411,6 +411,9 @@ def test_add_text_allows_every_text_bearing_tag(tag: str) -> None:
     ("raw", "expected"),
     [
         ("a\n\nb", "a b"),
+        ("a\x85b", "a b"),
+        ("a\u2028\u2029b", "a b"),
+        ("a\n\x85\u2028b", "a b"),
         ("a\nb", "a b"),
         ("a\r\n\r\nb", "a b"),
         ("a\rb", "a b"),
@@ -430,6 +433,31 @@ def test_a_newline_run_in_text_content_becomes_one_space(raw: str, expected: str
     assert f"<text>{expected}</text>" in doc.to_string()
 
 
+def test_the_folded_set_matches_what_splitlines_calls_a_line_ending() -> None:
+    """The two definitions have to be the same set. ``output/markdown``'s blank-line guard
+    counts lines with ``splitlines``, so folding a narrower set leaves a label that passes
+    the fold and then has its own chart refused when it is saved as markdown."""
+    doc = SvgDocument()
+
+    for character in "\r\n\x85\u2028\u2029":
+        assert len(f"a{character}b".splitlines()) == 2, f"{character!r} is not a line ending"
+    doc.add_text(None, "a\r\n\x85\u2028\u2029b", tag="text")
+
+    assert "<text>a b</text>" in doc.to_string()
+
+
+@pytest.mark.parametrize("raw", ["a  b", "a\tb", "a \t b", "  a  "])
+def test_only_line_endings_are_folded_not_whitespace_in_general(raw: str) -> None:
+    """Widening the pattern to ``\\s+`` would also collapse runs of spaces and tabs, which
+    is data the caller wrote and nothing in the markdown problem asks to be touched. The
+    fold exists to stop a *line* from ending, not to normalise spacing."""
+    doc = SvgDocument()
+
+    doc.add_text(None, raw, tag="text")
+
+    assert f"<text>{raw}</text>" in doc.to_string()
+
+
 def test_a_style_block_keeps_its_line_breaks() -> None:
     """One CSS rule per line is what makes a nine-line hand edit possible, and it is the
     one text-bearing tag whose content this package writes itself rather than accepting
@@ -441,10 +469,11 @@ def test_a_style_block_keeps_its_line_breaks() -> None:
     assert ".a { fill: red; }\n.b { fill: blue; }" in doc.to_string()
 
 
-def test_the_style_exemption_still_cannot_produce_a_blank_line() -> None:
-    """The exemption is safe only because rule text never contains one. If a caller ever
-    passes a blank line through it, the markdown block breaks exactly as before -- so this
-    records the obligation rather than pretending the exemption is unconditional."""
+def test_the_style_exemption_can_still_produce_a_blank_line_if_a_caller_supplies_one() -> None:
+    """The exemption is safe only because rule text never contains one -- no sanctioned
+    ``<style>`` producer joins an empty rule. This records that obligation rather than
+    pretending the exemption is unconditional: the assertion below is that the hole is
+    real, not that it is closed."""
     doc = SvgDocument()
 
     doc.add_text(None, ".a { fill: red; }\n\n.b { fill: blue; }", tag="style")
@@ -454,14 +483,25 @@ def test_the_style_exemption_still_cannot_produce_a_blank_line() -> None:
 
 @pytest.mark.parametrize("bad", ["a\x0b\nb", "a\n\x0cb", "\n\x00\n", "a\r\x1fb"])
 def test_folding_never_launders_an_xml_forbidden_character(bad: str) -> None:
-    """The fold and the validity check are order-independent -- ``\r`` and ``\n`` are legal
-    XML, which is exactly why ``_validate_text`` passes them through, so folding can neither
-    remove a forbidden character nor create one. What must not change is that a forbidden
-    character *next to* a line break is still rejected, whichever runs first."""
+    """Neither order can change the *verdict* -- every folded character is legal XML, and
+    the fold inserts a space rather than deleting, so it can neither remove a forbidden
+    character nor join two into a new one. The orders are not fully interchangeable though:
+    validating first is what makes the error quote the string the caller actually passed
+    (``'a\\n\\x00\\nb'``) rather than the folded one (``'a \\x00 b'``), which is pinned
+    below."""
     doc = SvgDocument()
 
     with pytest.raises(ValueError, match="not allowed in XML 1.0"):
         doc.add_text(None, bad)
+
+
+def test_the_rejection_message_quotes_what_the_caller_passed() -> None:
+    """Folding before validating would report ``'a \\x00 b'`` -- a string the caller never
+    wrote, sending them looking for a space that is not in their data."""
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match=r"'a\\n\\x00\\nb'"):
+        doc.add_text(None, "a\n\x00\nb")
 
 
 def test_a_text_node_of_only_newlines_does_not_vanish() -> None:
@@ -474,14 +514,28 @@ def test_a_text_node_of_only_newlines_does_not_vanish() -> None:
     assert "<text> </text>" in doc.to_string()
 
 
-def test_attribute_values_were_never_the_problem() -> None:
-    """``xml.etree`` already escapes a newline in an attribute value to ``&#10;``, which
-    occupies no line of its own -- so the fold deliberately does not touch them, and this
-    pins the assumption that makes that safe."""
+@pytest.mark.parametrize("raw", ["a\n\nb", "a\r\rb", "a\x85\x85b", "a\u2028\u2029b"])
+def test_attribute_values_are_folded_too(raw: str) -> None:
+    """``xml.etree`` escapes ``\r`` and ``\n`` in an attribute value, so those never took a
+    line of their own -- but it says nothing about NEL or the Unicode separators, which
+    reach the file literally and do. Assuming the escaping covered all of them is what let
+    an ``aria-label`` carrying one still split the document."""
     doc = SvgDocument()
 
-    doc.add_node(None, "rect", attrib={"data-note": "a\n\nb"})
+    doc.add_node(None, "rect", attrib={"data-note": raw})
     output = doc.to_string()
 
-    assert "&#10;&#10;" in output
-    assert "\n\n" not in output
+    assert 'data-note="a b"' in output
+    assert not any(line.strip() == "" for line in output.splitlines())
+
+
+def test_a_title_reads_the_same_in_both_places_it_is_written() -> None:
+    """A title reaches ``aria-label`` (an attribute) and ``<title>`` (text content). Folding
+    only one of them left the two disagreeing about what the caller wrote."""
+    doc = SvgDocument()
+    doc.set_attribute(doc.root, "aria-label", "a\n\nb")
+    doc.add_text(None, "a\n\nb", tag="title")
+    output = doc.to_string()
+
+    assert 'aria-label="a b"' in output
+    assert "<title>a b</title>" in output

@@ -139,6 +139,31 @@ def test_a_document_with_no_blank_line_passes_the_guard() -> None:
     assert _reject_blank_lines("<svg>\n  <text>a b</text>\n</svg>") is None
 
 
+def test_to_markdown_actually_runs_the_guard_over_what_it_serialized() -> None:
+    """Retargeting the tests above at ``_reject_blank_lines`` proved the guard works but
+    stopped proving it is *called*: deleting the call from ``to_markdown`` left the whole
+    suite green. ``<style>`` is the one tag whose line breaks survive the fold, so a
+    hand-built document with an empty rule in it is the only way left to reach the guard --
+    which makes it exactly the right material for pinning the wiring."""
+    document = _document()
+    document.add_text(None, ".a { fill: red; }\n\n.b { fill: blue; }", tag="style")
+
+    with pytest.raises(ValueError, match="blank line"):
+        to_markdown(document)
+
+
+def test_save_markdown_runs_the_guard_before_writing_anything(tmp_path: Path) -> None:
+    """``save_markdown`` is the entry point a caller actually reaches, and a file left
+    half-written before the refusal would be worse than either outcome."""
+    document = _document()
+    document.add_text(None, ".a { fill: red; }\n\n.b { fill: blue; }", tag="style")
+    target = tmp_path / "chart.md"
+
+    with pytest.raises(ValueError, match="blank line"):
+        save_markdown(document, None, str(target))
+    assert not target.exists()
+
+
 def test_a_label_with_newlines_no_longer_reaches_the_guard_at_all() -> None:
     """The real fix for the risk this guard was written around: the newlines are gone
     before serialization, so the markdown output is produced rather than refused."""

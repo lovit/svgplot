@@ -18,10 +18,15 @@ import svgplot as sp
 import svgplot.charts as charts
 from svgplot.chart.base import Chart
 
-# A label carrying a blank line, a lone newline, and a Windows line ending, in every string
-# channel a chart accepts: category values, hue values, and the legend labels of the charts
-# that take their own labels column.
-POISON = "before\n\nafter\rtail\r\nend"
+# A label carrying every line ending Python recognises, in blank-line and lone forms, for
+# every string channel a chart accepts: category values, hue values, and the legend labels
+# of the charts that take their own labels column.
+#
+# NEL and the Unicode separators are here because the blank-line guard counts lines with
+# ``str.splitlines``, which treats all five as line endings. CommonMark does not -- so those
+# three never actually broke an HTML block -- but a fold narrower than the guard left a
+# label that passed the fold and then had its own chart refused by ``save("chart.md")``.
+POISON = "before\n\nafter\rtail\r\nend\x85\x85nel\u2028\u2028ls\u2029\u2029ps"
 
 DATA = {
     "day": [1, 2, 3, 4, 1, 2, 3, 4],
@@ -42,9 +47,11 @@ CHARTS: dict[str, Callable[[], Chart]] = {
     "ecdfplot": lambda: sp.ecdfplot(DATA, x="value", hue="group"),
     "kdeplot": lambda: sp.kdeplot(DATA, x="value", hue="group"),
     "violinplot": lambda: sp.violinplot(DATA, x="group", y="value"),
-    "regplot": lambda: sp.regplot(DATA, x="day", y="value", seed=0),
+    # regplot and sparkline take no string channel at all, so the poison can only reach
+    # them through the title -- without which their rows here would assert nothing.
+    "regplot": lambda: sp.regplot(DATA, x="day", y="value", seed=0).set_title(POISON),
     "treemap": lambda: sp.treemap(DATA, values="value", labels="category"),
-    "sparkline": lambda: sp.sparkline(DATA, y="value"),
+    "sparkline": lambda: sp.sparkline(DATA, y="value").set_title(POISON),
 }
 
 
@@ -80,7 +87,7 @@ def test_the_poison_actually_reaches_the_output() -> None:
     label, and the file would be checking nothing at all."""
     svg = CHARTS["barplot"]().to_string()
 
-    assert "before after tail end" in svg
+    assert "before after tail end nel ls ps" in svg
 
 
 def test_a_composition_of_poisoned_charts_is_clean_too() -> None:
