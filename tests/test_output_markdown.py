@@ -9,7 +9,7 @@ import svgplot.chart.base as sp_chart_module
 from svgplot._svg import SvgDocument
 from svgplot.charts.bar import barplot
 from svgplot.layout import row
-from svgplot.output.markdown import MARKDOWN_SUFFIXES, save_markdown, to_markdown
+from svgplot.output.markdown import MARKDOWN_SUFFIXES, _reject_blank_lines, save_markdown, to_markdown
 
 DATA = {"x": ["a", "b", "c"], "y": [1.0, 2.0, 3.0]}
 TABLE = "| X | Y |\n| --- | --- |\n| a | 1.0 |"
@@ -97,54 +97,91 @@ def test_the_table_is_not_followed_by_stray_blank_lines() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_a_blank_line_inside_the_svg_is_refused() -> None:
-    """The measured risk this format exists around. ``xml.etree`` escapes ``<`` and ``&``
-    in a text node but passes newlines through, so a label containing a blank line ends
-    the HTML block mid-document and the rest of the SVG is parsed as markdown."""
-    document = _document()
-    document.add_text(None, "first\n\nsecond", attrib={"x": "1", "y": "1"})
+def test_the_guard_refuses_a_blank_line_and_names_the_cause() -> None:
+    """``_svg`` now folds newlines out of text content, so no chart can reach this guard.
+    It stays as the last line of defence -- a future ``add_text`` caller with a new
+    multi-line tag, or a document assembled by hand -- and is exercised directly rather
+    than through a chart, because going through a chart would now silently test nothing."""
+    svg = '<svg xmlns="http://www.w3.org/2000/svg">\n  <text>first\n\nsecond</text>\n</svg>'
 
     with pytest.raises(ValueError, match="blank line"):
-        to_markdown(document)
+        _reject_blank_lines(svg)
 
 
-def test_the_refusal_names_the_cause() -> None:
+def test_the_refusal_points_at_the_data_rather_than_the_serializer() -> None:
     """The fix is in the caller's data, so the message has to point there rather than
     reporting an opaque serialization failure."""
-    document = _document()
-    document.add_text(None, "a\n\nb", attrib={"x": "1", "y": "1"})
+    svg = "<svg>\n  <text>a\n\nb</text>\n</svg>"
 
     with pytest.raises(ValueError, match="newline inside a label or title"):
-        to_markdown(document)
+        _reject_blank_lines(svg)
 
 
 def test_the_refusal_reports_the_offending_line_number() -> None:
     """The line number is the whole diagnostic value of the message -- without it the
     caller is told only that a blank line exists somewhere in a few hundred lines."""
-    document = _document()
-    document.add_text(None, "a\n\nb", attrib={"x": "1", "y": "1"})
+    svg = "<svg>\n  <text>a\n\nb</text>\n</svg>"
 
-    with pytest.raises(ValueError, match=r"line 4\b"):
-        to_markdown(document)
+    with pytest.raises(ValueError, match=r"line 3\b"):
+        _reject_blank_lines(svg)
+
+
+def test_the_guard_counts_lines_the_way_the_fold_does() -> None:
+    """The Critical this file's fix was written around came from the fold and the guard
+    disagreeing about what ends a line. Pinning the fold's side alone left the other half
+    free to drift: swapping ``splitlines()`` for ``split("\\n")`` here lets a NEL-separated
+    blank line straight through, and nothing else notices."""
+    with pytest.raises(ValueError, match="blank line"):
+        _reject_blank_lines("<svg>\n  <style>.a { fill: red; }\x85\x85.b { fill: blue; }</style>\n</svg>")
+    with pytest.raises(ValueError, match="blank line"):
+        _reject_blank_lines("<svg>\n  <style>.a {}\u2028\u2028.b {}</style>\n</svg>")
 
 
 def test_a_whitespace_only_line_counts_as_blank() -> None:
     """CommonMark ends an HTML block on a line containing only whitespace, not just on an
     empty one, so checking ``line == ""`` would let the break through."""
+    with pytest.raises(ValueError, match="blank line"):
+        _reject_blank_lines("<svg>\n  <text>a\n   \nb</text>\n</svg>")
+
+
+def test_a_document_with_no_blank_line_passes_the_guard() -> None:
+    """Otherwise the three tests above would pass against a guard that rejected
+    everything."""
+    assert _reject_blank_lines("<svg>\n  <text>a b</text>\n</svg>") is None
+
+
+def test_to_markdown_actually_runs_the_guard_over_what_it_serialized() -> None:
+    """Retargeting the tests above at ``_reject_blank_lines`` proved the guard works but
+    stopped proving it is *called*: deleting the call from ``to_markdown`` left the whole
+    suite green. ``<style>`` is the one tag whose line breaks survive the fold, so a
+    hand-built document with an empty rule in it is the only way left to reach the guard --
+    which makes it exactly the right material for pinning the wiring."""
     document = _document()
-    document.add_text(None, "a\n   \nb", attrib={"x": "1", "y": "1"})
+    document.add_text(None, ".a { fill: red; }\n\n.b { fill: blue; }", tag="style")
 
     with pytest.raises(ValueError, match="blank line"):
         to_markdown(document)
 
 
-def test_a_single_newline_in_a_label_is_allowed() -> None:
-    """One newline doesn't produce a blank line, so it doesn't break the block -- refusing
-    it would reject legitimate multi-line labels."""
+def test_save_markdown_runs_the_guard_before_writing_anything(tmp_path: Path) -> None:
+    """``save_markdown`` is the entry point a caller actually reaches, and a file left
+    half-written before the refusal would be worse than either outcome."""
     document = _document()
-    document.add_text(None, "first\nsecond", attrib={"x": "1", "y": "1"})
+    document.add_text(None, ".a { fill: red; }\n\n.b { fill: blue; }", tag="style")
+    target = tmp_path / "chart.md"
 
-    assert "first\nsecond" in to_markdown(document)
+    with pytest.raises(ValueError, match="blank line"):
+        save_markdown(document, None, str(target))
+    assert not target.exists()
+
+
+def test_a_label_with_newlines_no_longer_reaches_the_guard_at_all() -> None:
+    """The real fix for the risk this guard was written around: the newlines are gone
+    before serialization, so the markdown output is produced rather than refused."""
+    document = _document()
+    document.add_text(None, "first\n\nsecond", attrib={"x": "1", "y": "1"})
+
+    assert ">first second<" in to_markdown(document)
 
 
 # ---------------------------------------------------------------------------
@@ -231,15 +268,19 @@ def test_save_markdown_pins_the_encoding_and_line_endings(monkeypatch: pytest.Mo
     assert captured["newline"] == "\n"
 
 
-def test_a_crlf_label_cannot_produce_a_blank_line_on_disk(tmp_path: Path) -> None:
-    """The end-to-end companion to the check above, on platforms where it can be observed."""
+def test_the_newlines_that_survive_the_fold_are_written_as_lf(tmp_path: Path) -> None:
+    """The end-to-end companion to the check above. It used to feed a CRLF *label*, which
+    stopped meaning anything once ``_svg`` began folding those out before serialization --
+    the file was clean whatever ``newline=`` did. ``<style>`` is now the only text whose
+    line breaks reach disk, so it is the only material left that can observe the setting."""
     document = _document()
-    document.add_text(None, "row1\r\nrow2", attrib={"x": "1", "y": "1"})
+    document.add_text(None, ".a { fill: red; }\n.b { fill: blue; }", tag="style")
     path = tmp_path / "chart.md"
     save_markdown(document, None, str(path))
 
     raw = path.read_bytes()
-    assert b"\r\n\r\n" not in raw
+    assert b".a { fill: red; }\n.b { fill: blue; }" in raw
+    assert b"\r" not in raw
     assert b"\n\n" not in raw
 
 

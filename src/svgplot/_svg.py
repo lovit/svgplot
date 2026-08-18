@@ -50,6 +50,12 @@ Any *new* ``<style>`` producer must independently validate every value it
 interpolates before calling ``add_text``, and be added to this list — the
 list is the only record of which code carries that obligation.
 
+``<style>`` carries a *second* obligation, added with the newline fold
+(issue #89): it is the one text-bearing tag whose line breaks are preserved
+(see ``_MULTILINE_TEXT_TAGS``), so its producer must also never emit a blank
+line. All three above satisfy it structurally — none joins an empty rule —
+but a producer that interpolated caller text would have to fold it itself.
+
 Security note (issue #12 review): ``"script"`` is rejected by ``add_node``
 itself (``_BLOCKED_TAGS``), not merely omitted from ``add_text``'s allow-list
 — a node created via ``add_node(parent, "script")`` followed by setting
@@ -81,6 +87,30 @@ _NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*(:[A-Za-z_][A-Za-z0-9_.-]*)?$")
 _INVALID_XML_CHAR_RE = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 _BLOCKED_ATTRIBUTE_LOCAL_NAMES = frozenset({"style"})
 _TEXT_BEARING_TAGS = frozenset({"text", "tspan", "title", "desc", "textPath", "style"})
+
+_NEWLINE_RUN_RE = re.compile("[\r\n\x85\u2028\u2029]+")
+r"""Every line ending that can reach this function.
+
+The set to match is ``str.splitlines``', not CommonMark's. CommonMark ends a line only on
+``\r``/``\n``, so NEL and the Unicode separators never break an HTML block -- but
+``output/markdown``'s blank-line guard counts lines with ``splitlines``, and so does anyone
+eyeballing the file. Folding a narrower set than the guard checks leaves a label that
+passes the fold and then has its own chart refused by ``save("chart.md")``, which is worse
+than the rendering bug this exists to fix.
+
+**This is five characters short of that set, and deliberately so.** ``splitlines`` also
+ends a line on ``\x0b``, ``\x0c``, ``\x1c``, ``\x1d`` and ``\x1e`` -- every one of which
+``_INVALID_XML_CHAR_RE`` rejects before folding is ever reached, since XML 1.0 forbids
+them outright. Listing them here would be five branches no input can take. The invariant
+that makes the omission safe is *validation runs first*, and
+``test_folding_never_launders_an_xml_forbidden_character`` is what holds it: widen this
+pattern to the full ``splitlines`` set and nothing changes, which has been measured."""
+
+_MULTILINE_TEXT_TAGS = frozenset({"style"})
+"""Text-bearing tags whose newlines are kept. Only ``<style>``: its content is a list of
+CSS rules this package generates itself (never user text), and one rule per line is what
+makes a nine-line hand edit possible -- the whole point of the CSS-class contract. It
+cannot introduce a blank line either, since no rule is ever empty."""
 # Enforced in add_node itself (not just add_text's allow-list) so no code path —
 # not even one that bypasses add_text by setting .text directly on an add_node
 # result — can ever attach a <script> element to the tree. This package emits no JS.
@@ -107,6 +137,40 @@ def _validate_text(value: str, kind: str) -> str:
     if _INVALID_XML_CHAR_RE.search(value):
         raise ValueError(f"{kind} contains characters not allowed in XML 1.0: {value!r}")
     return value
+
+
+def _fold_newlines(value: str) -> str:
+    """Collapse every run of line breaks in text content to one space.
+
+    Nothing here is about XML: a newline inside a text node is perfectly legal, and
+    ``_validate_text`` rightly lets it through. It is about where this package's output
+    goes. An SVG meant to be pasted into a markdown document is an HTML block, and
+    CommonMark ends a type-7 HTML block at the **first blank line** -- so a label
+    containing ``"\\n\\n"`` splits the document there and everything after it, the rest of
+    the chart's own source included, is parsed as markdown prose and shown to the reader as
+    text. Python-Markdown does not even need the blank line: it has no ``svg`` in its
+    block-level tag list, so any multi-line ``<svg>`` becomes a paragraph with ``<br/>``
+    inserted mid-element.
+
+    Folding rather than rejecting, because a newline is not an error the caller can be
+    expected to have meant something by: **no renderer draws it as a line break.** Current
+    browsers apply CSS ``white-space: normal``, which turns each run into a single space --
+    exactly what this does, so for them the rendered result is byte-for-byte what it was and
+    only the source is fixed. SVG 1.1's own rule discarded newlines instead of spacing
+    them, so a strict 1.1 renderer would draw ``"a\nb"`` as ``ab`` where this gives
+    ``a b``; a one-space difference from a rule no shipping renderer follows.
+
+    A genuine multi-line label needs ``<tspan>`` elements with explicit ``dy``; this
+    package has no font metrics and so does not offer one.
+
+    Applied to attribute *values* as well, for two reasons. ``xml.etree`` escapes ``\r``
+    and ``\n`` there as ``&#13;``/``&#10;``, but it has nothing to say about NEL or the
+    Unicode separators, which land in the output literally and take a line of their own --
+    so an ``aria-label`` carrying one still splits the file. And folding both places keeps
+    a title's two renderings, ``aria-label`` and ``<title>``, from disagreeing about what
+    the caller wrote.
+    """
+    return _NEWLINE_RUN_RE.sub(" ", value)
 
 
 def _validate_class_name(class_name: str) -> str:
@@ -188,7 +252,7 @@ class SvgDocument:
         if attrib:
             for key, value in attrib.items():
                 _validate_name(key, "attribute")
-                validated_attrib.append((key, _validate_text(str(value), "attribute value")))
+                validated_attrib.append((key, _fold_newlines(_validate_text(str(value), "attribute value"))))
         joined_classes = None
         if classes:
             for class_name in classes:
@@ -231,10 +295,16 @@ class SvgDocument:
         XML-structural safety, not CSS-semantic safety, for ``<style>`` content.
         ``tag`` is keyword-only so a caller can never accidentally pass a positional
         ``attrib``/``classes`` argument that lands in this slot instead.
+
+        Line breaks in ``text`` are folded to single spaces for every tag except
+        ``<style>`` — see :func:`_fold_newlines` for why that is an output-context fix
+        rather than an XML one, and :data:`_MULTILINE_TEXT_TAGS` for the exemption.
         """
         if tag not in _TEXT_BEARING_TAGS:
             raise ValueError(f"add_text only supports text-bearing tags {sorted(_TEXT_BEARING_TAGS)}, got {tag!r}")
         validated_text = _validate_text(text, "text content")
+        if tag not in _MULTILINE_TEXT_TAGS:
+            validated_text = _fold_newlines(validated_text)
         node = self.add_node(parent, tag, attrib=attrib, classes=classes)
         node.text = validated_text
         return node
@@ -258,7 +328,7 @@ class SvgDocument:
         callers are responsible for only touching attributes they mean to.
         """
         _validate_name(key, "attribute")
-        text_value = _validate_text(str(value), "attribute value")
+        text_value = _fold_newlines(_validate_text(str(value), "attribute value"))
         if key == "class":
             class_names = text_value.split()
             if not class_names:
