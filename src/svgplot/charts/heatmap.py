@@ -44,9 +44,9 @@ from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.palette._color import hex_to_rgb01
-from svgplot.palette.diverging import diverging
+from svgplot.palette.diverging import DIVERGING_PALETTES, diverging
 from svgplot.palette.normalize import Normalize
-from svgplot.palette.sequential import sequential
+from svgplot.palette.sequential import SEQUENTIAL_PALETTES, sequential
 from svgplot.scales import CategoricalScale
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
@@ -162,7 +162,8 @@ def heatmap(
     Values are quantised into :data:`LEVELS` colour steps -- see this module's docstring
     for why that is not a continuous ramp. ``center=`` switches to a diverging colormap
     normalised about that value, so the middle level means "at the centre" rather than
-    "halfway between the extremes".
+    "halfway between the extremes" -- which means ``center=`` and ``cmap=`` have to be set
+    together: ``cmap``'s default is sequential.
 
     A cell with no row is left **empty**, not drawn as zero: a hole and a zero look
     nothing alike to a reader, and conflating them invents data.
@@ -176,12 +177,14 @@ def heatmap(
             the warning carries the cell count, an estimated size, and the one mitigation.
 
     Raises:
-        KeyError: if ``x``/``y``/``values`` isn't a column in ``data``, or if ``theme`` is a
-            string that isn't a registered preset name.
+        KeyError: if ``x``/``y``/``values`` isn't a column in ``data``, if ``theme`` is a
+            string that isn't a registered preset name, or (via ``palette``) if ``cmap`` is
+            in neither colormap registry.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
         ValueError: if ``data`` has no rows, if no row has all three channels, if two rows
-            name the same cell, or (via ``palette``) if ``cmap`` isn't a registered
-            colormap for the mode in use.
+            name the same cell, or if ``cmap`` and ``center`` disagree -- a diverging
+            colormap needs a ``center`` to diverge about, and a ``center`` needs a diverging
+            colormap. The two registries are disjoint, so exactly one pairing is valid.
     """
     resolved_theme = resolve_theme(theme)
     longform = ingest_longform(data, x, y)
@@ -201,7 +204,7 @@ def heatmap(
 
     magnitudes = list(cells.values())
     normalize = Normalize.from_values(magnitudes, center=center)
-    colors = diverging(cmap, LEVELS) if center is not None else sequential(cmap, LEVELS)
+    colors = _colormap(cmap, center=center)
 
     document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
     area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND)
@@ -296,6 +299,43 @@ def _composited(color: str, *, over: str, opacity: float) -> str:
     front, back = hex_to_rgb01(color), hex_to_rgb01(over)
     blended = (front[index] * opacity + back[index] * (1.0 - opacity) for index in range(3))
     return "#" + "".join(f"{round(channel * 255):02x}" for channel in blended)
+
+
+def _colormap(cmap: str, *, center: float | None) -> list[str]:
+    """The :data:`LEVELS` colours for this chart, from whichever registry ``center`` selects.
+
+    ``cmap`` and ``center`` are two arguments that have to agree, and the registries are
+    disjoint -- so getting the pair wrong is the likeliest mistake here, and the palette
+    functions cannot name it: each sees only its own half and reports the caller's perfectly
+    valid colormap as an unknown one. **Both directions already failed**, just unhelpfully:
+    ``center=1.0`` with the default ``cmap="blues"`` raised ``KeyError: unknown diverging
+    palette: 'blues'``, which names the wrong thing twice (it is not unknown, and the key is
+    not what the caller got wrong), and a diverging map without a ``center`` raised the
+    mirror image from the sequential registry. Neither ever rendered, so this changes the
+    error rather than the behaviour.
+
+    The reverse direction is refused rather than allowed because allowing it would mean
+    routing a diverging map through the sequential path, which puts its pale midpoint at the
+    middle of the *data range* instead of at a value the caller chose -- a centre that is
+    not there. Measured on data spanning 1..6, the neutral ``#f7f7f7`` level would cover
+    3.22..3.78, straddling the range's midpoint of 3.5.
+
+    Raises:
+        ValueError: if ``cmap`` names a colormap from the other registry, i.e. if a
+            diverging map is used without ``center=`` or a sequential map with it.
+        KeyError: (via ``palette``) if ``cmap`` is in neither registry.
+    """
+    if center is None and cmap in DIVERGING_PALETTES:
+        raise ValueError(
+            f"cmap={cmap!r} is a diverging colormap, which needs a center= to diverge about; "
+            f"pass center=, or use a sequential colormap ({', '.join(sorted(SEQUENTIAL_PALETTES))})"
+        )
+    if center is not None and cmap in SEQUENTIAL_PALETTES:
+        raise ValueError(
+            f"center= needs a diverging colormap, but cmap={cmap!r} is sequential; "
+            f"pass one of {', '.join(sorted(DIVERGING_PALETTES))}, or drop center="
+        )
+    return diverging(cmap, LEVELS) if center is not None else sequential(cmap, LEVELS)
 
 
 def _readable_ink(background: str) -> str:
