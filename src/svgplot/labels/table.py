@@ -36,13 +36,28 @@ conventional "no value here" mark in printed tables). Only used when a caller op
 ``render_table(missing=...)``."""
 
 
+def _collapse_newlines(text: str) -> str:
+    """Flatten a cell onto one line, for *both* output formats.
+
+    A raw newline splits a GFM table row and desynchronises the table (round-2 security
+    review). The HTML renderer needs the same treatment for a different reason: a blank
+    line inside a cell ends the surrounding CommonMark HTML block, so the rest of the
+    ``<table>`` markup spills into the document as markdown. Both tables are meant to sit
+    beside markdown-embedded SVG, so neither can carry a line break through.
+    """
+    return text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+
+
 def _escape_markdown_cell(text: str) -> str:
     # Order matters: double existing backslashes BEFORE inserting the "\|" escape below,
-    # so a user-supplied "\" can never combine with our inserted "\" to change meaning;
-    # collapse newlines (round-2 security review: a raw "\n" splits the table row).
-    text = text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+    # so a user-supplied "\" can never combine with our inserted "\" to change meaning.
+    text = _collapse_newlines(text)
     text = text.replace("\\", "\\\\")
     return html.escape(text, quote=True).replace("|", "\\|")
+
+
+def _escape_html_cell(text: str) -> str:
+    return html.escape(_collapse_newlines(text), quote=True)
 
 
 def render_table(data: object, spec: LabelSpec, format: str = "markdown", *, missing: str | None = None) -> str:
@@ -61,11 +76,16 @@ def render_table(data: object, spec: LabelSpec, format: str = "markdown", *, mis
             to keep and a column the chart never consulted may legitimately have holes.
 
     Raises:
-        ValueError: if ``format`` isn't one of :data:`TABLE_FORMATS`.
+        ValueError: if ``format`` isn't one of :data:`TABLE_FORMATS`, or if ``missing``
+            is neither a string nor ``None``.
         KeyError: if a field named in ``spec`` isn't a column in ``data``.
     """
     if format not in TABLE_FORMATS:
         raise ValueError(f"unsupported table format: {format!r} (expected one of {TABLE_FORMATS})")
+    # Caught here rather than surfacing as an AttributeError from inside an escaper,
+    # matching how ``format`` above is rejected.
+    if missing is not None and not isinstance(missing, str):
+        raise ValueError(f"missing must be a string or None, got {missing!r}")
 
     columns = extract_columns(data)
     for field in spec:
@@ -90,10 +110,8 @@ def render_table(data: object, spec: LabelSpec, format: str = "markdown", *, mis
 
 
 def _render_html(headers: list[str], rows: list[list[str]]) -> str:
-    head_cells = "".join(f"<th>{html.escape(header, quote=True)}</th>" for header in headers)
-    body_rows = "".join(
-        "<tr>" + "".join(f"<td>{html.escape(cell, quote=True)}</td>" for cell in row) + "</tr>" for row in rows
-    )
+    head_cells = "".join(f"<th>{_escape_html_cell(header)}</th>" for header in headers)
+    body_rows = "".join("<tr>" + "".join(f"<td>{_escape_html_cell(cell)}</td>" for cell in row) + "</tr>" for row in rows)
     return f"<table><thead><tr>{head_cells}</tr></thead><tbody>{body_rows}</tbody></table>"
 
 
