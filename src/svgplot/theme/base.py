@@ -21,6 +21,7 @@ validation, not just this module's implicit trust.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from svgplot.palette.colorblind import DEFAULT_PALETTE
@@ -66,6 +67,16 @@ class Theme:
     line_width: float = 2.0
     marker_size: float = 5.0
     opacity: float = 1.0
+    # Filled marks (bars/areas/pie slices) get an *additional* opacity factor on top of
+    # `opacity`, because they occlude rather than merely overlap: an unstacked multi-hue
+    # area chart draws series in sorted-label order, unrelated to value magnitude, so a
+    # fully opaque later series can hide an earlier one entirely (issue #45). The two
+    # multiply — `opacity` stays the whole-mark knob applying to stroked and filled marks
+    # alike, `fill_opacity` narrows to fills only — so a theme opts out of translucency
+    # with `fill_opacity=1.0` without disturbing stroke marks. 0.75 follows seaborn's
+    # convention for overlapping distributions: 25% bleed-through reads clearly as
+    # "something is underneath" while a lone fill still looks solid rather than washed out.
+    fill_opacity: float = 0.75
     corner_radius: float = 0.0
     # fonts — one family, size per element (docs/research/12-aesthetics.md §3,
     # the "8-set" font structure collapsed into theme fields instead of pygal's
@@ -87,3 +98,10 @@ class Theme:
         if not palette:
             raise ValueError("palette must not be empty")
         object.__setattr__(self, "palette", palette)
+        # Validated here rather than left to theme.css's format_coord: an out-of-range
+        # (but finite) value like 5.0 would sail past that check and emit nonsense CSS,
+        # and the failure would surface at render time far from the Theme that caused it.
+        if not isinstance(self.fill_opacity, int | float) or isinstance(self.fill_opacity, bool):
+            raise ValueError(f"fill_opacity must be a real number, got {self.fill_opacity!r}")
+        if not math.isfinite(self.fill_opacity) or not 0.0 <= self.fill_opacity <= 1.0:
+            raise ValueError(f"fill_opacity must be a finite number in [0, 1], got {self.fill_opacity!r}")

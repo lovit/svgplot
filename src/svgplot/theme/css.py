@@ -22,7 +22,9 @@ of how trusted the caller believes ``Theme`` to be:
   enough to contain ``{``/``}``/``;``/``:``/``/``).
 - Numeric style fields (widths/sizes/opacity) are coerced through
   ``charts._layout.format_coord``, which rejects non-finite/non-numeric
-  values before they can reach CSS text.
+  values before they can reach CSS text. That includes the derived
+  ``opacity * fill_opacity`` product used by filled marks, so a bad factor
+  can't reach the ``<style>`` block by arriving through the multiplication.
 """
 
 from __future__ import annotations
@@ -85,6 +87,10 @@ def render_theme_style(document: SvgDocument, theme: Theme, series_classes: list
     future scatter/line-with-markers chart); ``"fill"`` (solid marks like bars/areas/
     pie slices) sets ``fill``/leaves ``stroke: none`` and emits no separate marker
     rule, since a fill-based mark has no meaningful separate "marker" companion.
+    Filled marks are also emitted at ``theme.opacity * theme.fill_opacity`` rather than
+    ``theme.opacity`` alone, so overlapping fills stay mutually visible by default —
+    see :attr:`Theme.fill_opacity <svgplot.theme.base.Theme>` for why fills need that
+    and strokes don't.
 
     Meant to be called once per document, after all data marks/axes/legend have been
     added (order doesn't matter for correctness — CSS class rules apply regardless of
@@ -110,6 +116,9 @@ def render_theme_style(document: SvgDocument, theme: Theme, series_classes: list
     spine_width = format_coord(theme.spine_width)
     line_width = format_coord(theme.line_width)
     opacity = format_coord(theme.opacity)
+    # Filled marks occlude each other, so they carry an extra factor (see Theme.fill_opacity).
+    # Multiplied, not substituted, so theme.opacity still dims every mark type uniformly.
+    fill_opacity = format_coord(theme.opacity * theme.fill_opacity)
     tick_label_size = format_coord(theme.tick_label_font_size)
     legend_size = format_coord(theme.legend_font_size)
 
@@ -136,6 +145,6 @@ def render_theme_style(document: SvgDocument, theme: Theme, series_classes: list
             rules.append(f".{class_name} {{ stroke: {color}; fill: none; stroke-width: {line_width}; opacity: {opacity}; }}")
             rules.append(f".{class_name}-marker {{ fill: {color}; stroke: none; }}")
         else:
-            rules.append(f".{class_name} {{ fill: {color}; stroke: none; opacity: {opacity}; }}")
+            rules.append(f".{class_name} {{ fill: {color}; stroke: none; opacity: {fill_opacity}; }}")
 
     document.add_text(None, "\n".join(rules), tag="style")
