@@ -39,6 +39,18 @@ footing as a standard deviation (for a normal sample, IQR ~= 1.349 * sd)."""
 _INV_SQRT_TAU = 1.0 / math.sqrt(2.0 * math.pi)
 
 
+def _kernel(x: float, centre: float, width: float) -> float:
+    """One standard-normal kernel.
+
+    ``z * z`` saturates to ``inf`` rather than raising, and ``math.exp`` of a large
+    negative argument returns 0.0 (it only raises going the other way), so a grid point
+    arbitrarily far from ``centre`` contributes the ~0 density it mathematically has
+    without any clamping.
+    """
+    z = (x - centre) / width
+    return math.exp(-0.5 * z * z)
+
+
 @dataclass(frozen=True)
 class KdeCurve:
     """A density curve evaluated on a regular grid.
@@ -69,14 +81,30 @@ def _require_finite_values(values: list[float]) -> list[float]:
         numbers.append(number)
     if len(numbers) < 2:
         raise ValueError("kde needs at least 2 values to estimate a spread, got 1")
+    # Each value is finite, but their *span* need not be: -1e308..1e308 overflows to inf,
+    # and every downstream difference then produces nan. ``binning``/``interpolate`` guard
+    # the same way, and ``quantile`` documents avoiding this exact difference form.
+    span = max(numbers) - min(numbers)
+    if not math.isfinite(span):
+        raise ValueError(f"kde value range (max - min = {span!r}) must be finite")
     return numbers
 
 
 def _standard_deviation(numbers: list[float]) -> float:
-    """Sample standard deviation (Bessel-corrected), matching what both rules assume."""
+    """Sample standard deviation (Bessel-corrected), matching what both rules assume.
+
+    Deviations are scaled by the largest of them before squaring. Squaring directly
+    overflows to ``OverflowError`` for a sample spanning ~1e200, and underflows to a false
+    zero -- reported as "zero variance" -- below ~1e-165; both are reachable from inputs
+    that pass every other check.
+    """
     mean = math.fsum(numbers) / len(numbers)
-    variance = math.fsum((number - mean) ** 2 for number in numbers) / (len(numbers) - 1)
-    return math.sqrt(variance)
+    deviations = [number - mean for number in numbers]
+    largest = max(abs(deviation) for deviation in deviations)
+    if largest == 0.0:
+        return 0.0
+    scaled = math.fsum((deviation / largest) ** 2 for deviation in deviations) / (len(numbers) - 1)
+    return largest * math.sqrt(scaled)
 
 
 def _rule_bandwidth(rule: str, numbers: list[float]) -> float:
@@ -135,17 +163,20 @@ def kde(values: list[float], *, bandwidth: float | str = "scott", grid: int = 20
 
     Raises:
         ValueError: if ``values`` is empty, holds a non-number or non-finite value, has
-            fewer than 2 or more than :data:`_MAX_POINTS` entries, or has zero variance
-            while a named rule is in use; if ``bandwidth`` is an unknown rule name or a
-            non-positive/non-finite number; if ``grid`` is below 2 or above
-            :data:`_MAX_GRID`; or if ``cut`` is negative or non-finite.
+            fewer than 2 or more than :data:`_MAX_POINTS` entries, spans a non-finite
+            range, or has zero variance while a named rule is in use; if ``bandwidth`` is
+            an unknown rule name or a non-positive/non-finite number; if ``grid`` isn't an
+            int in ``[2, _MAX_GRID]``; if ``cut`` is negative or non-finite; or if the
+            estimate itself comes out non-finite because the inputs span too extreme a
+            range. Nothing else escapes -- in particular the arithmetic never surfaces a
+            bare ``OverflowError``.
     """
     numbers = _require_finite_values(values)
 
-    if grid < 2:
-        raise ValueError(f"grid must be at least 2 to span a range, got {grid}")
-    if grid > _MAX_GRID:
-        raise ValueError(f"grid must be at most {_MAX_GRID}, got {grid}")
+    # Same shape as ``interpolate``'s ``precision`` check: a float grid would otherwise
+    # reach ``range()`` and surface as a TypeError this function never promises.
+    if not isinstance(grid, int) or isinstance(grid, bool) or grid < 2 or grid > _MAX_GRID:
+        raise ValueError(f"grid must be an int in [2, {_MAX_GRID}], got {grid!r}")
 
     try:
         extension = float(cut)
@@ -165,6 +196,16 @@ def kde(values: list[float], *, bandwidth: float | str = "scott", grid: int = 20
 
     # Normalising once outside the loop keeps the inner sum to an exp() per value.
     norm = _INV_SQRT_TAU / (len(numbers) * width)
-    ys = [norm * math.fsum(math.exp(-0.5 * ((x - number) / width) ** 2) for number in numbers) for x in xs]
+    ys = [norm * math.fsum(_kernel(x, number, width) for number in numbers) for x in xs]
+
+    # ``interpolate`` ends the same way: extreme-but-legal inputs can still push the
+    # arithmetic out of range, and a non-finite coordinate would otherwise be written
+    # straight into an SVG path.
+    for value in (*xs, *ys):
+        if not math.isfinite(value):
+            raise ValueError(
+                f"kde produced a non-finite value: {value!r} — the values, bandwidth or "
+                "cut likely span too extreme a range for this estimator's arithmetic"
+            )
 
     return KdeCurve(x=xs, y=ys, bandwidth=width)
