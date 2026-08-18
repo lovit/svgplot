@@ -111,7 +111,7 @@ chart.save("chart.png")          # PNG는 optional dep: uv add "svgplot[png]"
 chart.save("chart.md")           # 인라인 SVG + (info= 있으면) 각주 표
 ```
 
-`info=`를 주면 차트가 실제로 그린 행만 담은 표가 `.md` 출력에 함께 실린다. 1행 = 1마크인 `lineplot`/`scatterplot`/`pieplot`이 대상이다 — 집계하는 차트(`bar`/`area`/`box`/`hist`) 옆에 원본 행 표를 붙이면 마크와 모순되기 때문이다.
+`info=`를 주면 차트가 실제로 그린 행만 담은 표가 `.md` 출력에 함께 실린다. 1행 = 1마크인 `lineplot`/`scatterplot`/`pieplot`이 대상이다 — 여러 행을 하나의 마크로 접는 차트(`bar`는 같은 카테고리의 마지막 행이 이기고, `area`는 합산하며, `box`/`hist`는 버킷에 넣는다) 옆에 원본 행 표를 붙이면 표와 그림이 서로 다른 말을 하게 된다.
 
 ```python
 chart = sp.lineplot(data, x="day", y="sales",
