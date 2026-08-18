@@ -27,7 +27,7 @@ _MARGIN_WITH_LEGEND = (30.0, 160.0, 50.0, 60.0)  # top, right, bottom, left
 _MARGIN_WITHOUT_LEGEND = (30.0, 40.0, 50.0, 60.0)
 _LEGEND_X_OFFSET = 20.0  # past the plot area's right edge
 _SIZE_LEGEND_GAP = 24.0  # vertical gap between the hue legend and the size legend
-_SIZE_LEGEND_ROW_HEIGHT = 22.0
+_SIZE_LEGEND_ROW_PADDING = 8.0  # vertical breathing room between size-legend rows
 _SIZE_LEGEND_LABEL_GAP = 6.0
 
 # A point's radius ranges from 0.5x to 2.5x the theme's base marker size when size=
@@ -85,9 +85,13 @@ def _render_size_legend(
     """
     low, high = min(size_values), max(size_values)
     samples = sorted({low, (low + high) / 2, high})
-    for index, sample in enumerate(samples):
-        row_y = y + index * _SIZE_LEGEND_ROW_HEIGHT
+    # Rows advance by each sample's own diameter (plus padding), not a fixed height:
+    # the largest sample's radius scales with theme.marker_size, so a fixed row height
+    # lets big markers overlap the row above at perfectly ordinary theme settings.
+    row_y = y
+    for sample in samples:
         radius = radius_of(sample)
+        row_y += radius
         document.add_node(
             None,
             "circle",
@@ -104,6 +108,7 @@ def _render_size_legend(
             },
             classes=["legend-text"],
         )
+        row_y += radius + _SIZE_LEGEND_ROW_PADDING
 
 
 def scatterplot(
