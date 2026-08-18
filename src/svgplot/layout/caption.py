@@ -27,6 +27,12 @@ def add_caption(composition: Composition, text: str, location: str = "below") ->
     Mutates ``composition`` in place and returns it, matching
     :meth:`svgplot.chart.base.Chart.set_title`'s chaining convention.
 
+    Also adopts ``text`` as the composition's accessible name unless one was already
+    set explicitly — a caption *is* the figure's name, so announcing the generic
+    default while a visible caption reads "Figure 3. Quarterly revenue" would be
+    strictly worse. An explicit :meth:`~svgplot.chart.composition.Composition.set_title`
+    always wins.
+
     Raises:
         ValueError: if ``location`` isn't ``"above"`` or ``"below"``, or if ``text``
             is empty/whitespace-only (an empty caption band is just dead space).
@@ -59,4 +65,6 @@ def add_caption(composition: Composition, text: str, location: str = "below") ->
         attrib={"x": format_coord(width / 2), "y": format_coord(caption_y), "text-anchor": "middle"},
         classes=[_CAPTION_CLASS],
     )
+    if not composition._title:
+        composition.set_title(text)
     return composition

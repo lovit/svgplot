@@ -4,7 +4,8 @@ import re
 
 import pytest
 
-from svgplot.chart.composition import CAPTION_HEIGHT, TITLE_HEIGHT, Composition, chart_document
+from svgplot.chart.base import Chart
+from svgplot.chart.composition import CAPTION_HEIGHT, TITLE_HEIGHT, Composition, chart_document, composition_document
 from svgplot.charts.line import lineplot
 from svgplot.layout.caption import add_caption
 from svgplot.layout.grid import column, grid, row
@@ -468,3 +469,88 @@ def test_compose_restores_viewbox_for_a_fixed_sized_child() -> None:
     nested = re.findall(r"<svg ([^>]*\bx=[^>]*)>", svg)
     assert nested, "expected nested child <svg> elements"
     assert all("viewBox" in attrs for attrs in nested)
+
+
+# ---------------------------------------------------------------------------
+# accessibility (issue #55)
+# ---------------------------------------------------------------------------
+
+
+def test_composition_carries_accessibility_defaults_without_any_setup() -> None:
+    svg = row([make_chart(), make_chart()]).to_string()
+
+    assert 'role="img"' in svg
+    assert f'aria-label="{Composition.DEFAULT_TITLE}"' in svg
+    assert f"<title>{Composition.DEFAULT_TITLE}</title>" in svg
+    assert "<desc>" in svg
+
+
+def test_composition_children_do_not_carry_their_own_accessibility() -> None:
+    """A composed figure must announce one name, not one per panel. Children are
+    nested from chart_document() — the charts' raw documents, before Chart's own
+    accessibility pass — so exactly one role/title/desc should exist in the output.
+    """
+    svg = grid([[make_chart(), make_chart()], [make_chart(), None]]).to_string()
+
+    assert svg.count('role="img"') == 1
+    assert svg.count("<title>") == 1
+    assert svg.count("<desc>") == 1
+
+
+def test_composition_default_name_differs_from_a_single_charts() -> None:
+    """A screen-reader user should be able to tell a multi-panel figure from a single
+    chart without exploring it."""
+    assert Composition.DEFAULT_TITLE != Chart.DEFAULT_TITLE
+
+
+def test_add_caption_becomes_the_accessible_name() -> None:
+    """A caption is the figure's name — announcing the generic default while a visible
+    caption reads "Figure 3. ..." would be strictly worse."""
+    composition = add_caption(row([make_chart(), make_chart()]), "Figure 3. Quarterly revenue")
+
+    svg = composition.to_string()
+    assert 'aria-label="Figure 3. Quarterly revenue"' in svg
+    assert "<title>Figure 3. Quarterly revenue</title>" in svg
+
+
+def test_an_explicit_set_title_wins_over_a_later_caption() -> None:
+    composition = row([make_chart(), make_chart()]).set_title("Explicit name")
+
+    add_caption(composition, "Some caption")
+
+    assert 'aria-label="Explicit name"' in composition.to_string()
+
+
+def test_repeated_composition_renders_do_not_stack_title_and_desc() -> None:
+    composition = row([make_chart(), make_chart()])
+
+    composition.to_string()
+    composition._repr_svg_()
+    svg = composition.to_string()
+
+    assert svg.count("<title>") == 1
+    assert svg.count("<desc>") == 1
+
+
+def test_composition_rendering_leaves_its_own_document_untouched() -> None:
+    composition = row([make_chart(), make_chart()])
+
+    composition.to_string()
+
+    assert "<title>" not in composition_document(composition).to_string()
+
+
+def test_a_blank_composition_title_falls_back_to_the_default() -> None:
+    svg = row([make_chart(), make_chart()]).set_title("   ").to_string()
+
+    assert f'aria-label="{Composition.DEFAULT_TITLE}"' in svg
+
+
+def test_saved_composition_file_also_carries_accessibility(tmp_path) -> None:
+    target = tmp_path / "figure.svg"
+
+    row([make_chart(), make_chart()]).set_title("Saved figure").save(str(target))
+
+    written = target.read_text(encoding="utf-8")
+    assert 'role="img"' in written
+    assert "<title>Saved figure</title>" in written
