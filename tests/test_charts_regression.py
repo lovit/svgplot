@@ -7,6 +7,8 @@ import pytest
 
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, plot_area
 from svgplot.charts.regression import regplot
+from svgplot.scales import LinearScale
+from svgplot.stats.regression import confidence_band, fit_curve
 
 AREA = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITHOUT_LEGEND)
 
@@ -18,6 +20,17 @@ def _noisy_line(n: int = 60, *, seed: int = 7) -> dict[str, list[float]]:
     generator = random.Random(seed)
     xs = [generator.uniform(0.0, 10.0) for _ in range(n)]
     return {"x": xs, "y": [2.0 * value + 1.0 + generator.gauss(0.0, 2.0) for value in xs]}
+
+
+def _xy(data: dict[str, list[float]]) -> tuple[list[float], list[float]]:
+    return data["x"], data["y"]
+
+
+def _band_widths(svg: str) -> list[float]:
+    (band,) = _paths(svg, "regression-band")
+    upper = [y for _, y in band[:100]]
+    lower = [y for _, y in reversed(band[100:])]
+    return [low - up for up, low in zip(upper, lower, strict=True)]
 
 
 def _paths(svg: str, css_class: str) -> list[list[tuple[float, float]]]:
@@ -261,3 +274,140 @@ def test_rows_missing_either_channel_are_dropped() -> None:
     data["y"] = [*data["y"][:19], 5.0]
 
     assert regplot(data, x="x", y="y").to_string().count('class="series-1 scatter-point"') == 19
+
+
+# ---------------------------------------------------------------------------
+# the ci=None path shares its geometry with the ci path
+# ---------------------------------------------------------------------------
+
+
+def test_the_fit_line_is_identical_with_and_without_a_band() -> None:
+    """Both paths take the line from ``stats.regression``'s own grid helper, so an edit to
+    either must move both. Before that sharing, ``ci=None`` rebuilt the grid by hand and a
+    fit that dropped its intercept passed the whole suite."""
+    data = _noisy_line()
+    with_band = _raw_path(regplot(data, x="x", y="y").to_string(), "regression-line")
+    without = _raw_path(regplot(data, x="x", y="y", ci=None).to_string(), "regression-line")
+
+    assert with_band == without
+
+
+def test_the_ci_none_line_carries_the_full_grid() -> None:
+    (line,) = _paths(regplot(_noisy_line(), x="x", y="y", ci=None).to_string(), "regression-line")
+
+    assert len(line) == 100
+    assert line[0][0] == pytest.approx(AREA.left)
+    assert line[-1][0] == pytest.approx(AREA.right)
+
+
+def test_the_grid_spans_the_data_even_when_the_input_is_unsorted() -> None:
+    """The grid runs ``min(x)..max(x)``, not ``x[0]..x[-1]`` -- rows arrive in input order,
+    and assuming they are sorted silently truncates the line."""
+    ordered = {"x": [1.0, 2.0, 3.0, 4.0, 5.0], "y": [2.0, 4.1, 5.9, 8.2, 9.8]}
+    shuffled = {"x": [3.0, 5.0, 1.0, 4.0, 2.0], "y": [5.9, 9.8, 2.0, 8.2, 4.1]}
+
+    assert _raw_path(regplot(ordered, x="x", y="y", ci=None).to_string(), "regression-line") == _raw_path(
+        regplot(shuffled, x="x", y="y", ci=None).to_string(), "regression-line"
+    )
+
+
+def test_ci_none_does_not_run_the_bootstrap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The docstring promises the work is skipped, not just the drawing. Only replacing the
+    bootstrap with something that explodes can show that."""
+    import svgplot.charts.regression as module
+
+    def explode(*args: object, **kwargs: object) -> None:
+        raise AssertionError("confidence_band must not be called when ci is None")
+
+    monkeypatch.setattr(module, "confidence_band", explode)
+
+    assert regplot(_noisy_line(), x="x", y="y", ci=None).to_string()
+
+
+def test_ci_none_leaves_the_band_channels_unaliased() -> None:
+    """Three names for one list is a trap for whoever first edits band coordinates in
+    place; the fit path hands back independent copies."""
+    band = fit_curve(*_xy(_noisy_line()), grid=10)
+
+    assert band.lower is not band.upper
+    assert band.lower is not band.y
+
+
+# ---------------------------------------------------------------------------
+# the bootstrap's parameters actually reach it
+# ---------------------------------------------------------------------------
+
+
+def test_more_resamples_change_the_band() -> None:
+    """Forwarding ``n_boot`` is not enough -- a silently clamped value passes every
+    "did it raise" check while narrowing the band by half."""
+    narrow = _band_widths(regplot(_noisy_line(), x="x", y="y", n_boot=10).to_string())
+    wide = _band_widths(regplot(_noisy_line(), x="x", y="y", n_boot=1000).to_string())
+
+    assert max(narrow) != pytest.approx(max(wide), rel=0.02)
+
+
+def test_the_seed_reaches_the_bootstrap_unchanged() -> None:
+    """ "same seed matches, different seeds differ" is satisfied by any injective mapping,
+    so an offset seed survives it. Comparing against ``stats.regression`` directly does
+    not."""
+    data = _noisy_line()
+    expected = confidence_band(data["x"], data["y"], level=0.95, n_boot=1000, seed=3, grid=100)
+    (band,) = _paths(regplot(data, x="x", y="y", seed=3).to_string(), "regression-band")
+
+    y_scale = LinearScale(
+        (min([*expected.lower, *expected.upper, *data["y"]]), max([*expected.lower, *expected.upper, *data["y"]])),
+        (AREA.bottom, AREA.top),
+    )
+    drawn_upper = [y for _, y in band[:100]]
+
+    assert drawn_upper == pytest.approx([y_scale(value) for value in expected.upper], abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# theme wiring
+# ---------------------------------------------------------------------------
+
+
+def test_the_series_style_keeps_both_a_stroke_and_a_translucent_fill() -> None:
+    """One series class carries the band, the line and the points. A plain ``"fill"`` style
+    emits ``stroke: none``, which erases the fit line entirely."""
+    rule = next(
+        line.strip()
+        for line in regplot(_noisy_line(), x="x", y="y").to_string().splitlines()
+        if line.strip().startswith(".series-1 {")
+    )
+
+    assert "stroke: #" in rule
+    assert "fill-opacity" in rule
+    assert "stroke: none" not in rule
+
+
+def test_the_marker_radius_comes_from_the_theme() -> None:
+    from svgplot.theme.base import Theme
+
+    default = Theme()
+    radii = set(re.findall(r'<circle[^>]*r="([\d.]+)"', regplot(_noisy_line(n=10), x="x", y="y").to_string()))
+
+    assert radii == {str(int(default.marker_size)) if default.marker_size.is_integer() else str(default.marker_size)}
+
+
+@pytest.mark.parametrize(("theme", "expected"), [(None, 4.0), ("minimal", 0.0)])
+def test_tick_length_comes_from_the_theme(theme: str | None, expected: float) -> None:
+    """Measured off the drawn tick, not inferred from the two themes differing: a hardcoded
+    length also makes them differ, just at the wrong size. ``minimal`` asks for 0."""
+    kwargs = {} if theme is None else {"theme": theme}
+    svg = regplot(_noisy_line(n=10), x="x", y="y", ci=None, **kwargs).to_string()
+    tick = next(tag for tag in re.findall(r"<line\b[^>]*/>", svg) if "tick-line" in tag)
+    ends = dict(_ATTR_RE.findall(tick))
+
+    assert abs(float(ends["y2"]) - float(ends["y1"])) == pytest.approx(expected)
+
+
+def test_points_are_drawn_in_input_order() -> None:
+    """The docstring says input order; sorting would silently reorder the emitted marks."""
+    data = {"x": [3.0, 1.0, 2.0, 5.0, 4.0], "y": [6.0, 2.0, 4.0, 10.0, 8.0]}
+    svg = regplot(data, x="x", y="y", ci=None).to_string()
+    centres = [float(match) for match in re.findall(r'<circle[^>]*cx="(-?[\d.]+)"', svg)]
+
+    assert centres != sorted(centres)
