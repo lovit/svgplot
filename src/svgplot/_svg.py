@@ -89,14 +89,22 @@ _BLOCKED_ATTRIBUTE_LOCAL_NAMES = frozenset({"style"})
 _TEXT_BEARING_TAGS = frozenset({"text", "tspan", "title", "desc", "textPath", "style"})
 
 _NEWLINE_RUN_RE = re.compile("[\r\n\x85\u2028\u2029]+")
-r"""Every character Python's ``str.splitlines`` treats as ending a line.
+r"""Every line ending that can reach this function.
 
-Matching that definition rather than CommonMark's is the point. CommonMark ends a line only
-on ``\r``/``\n``, so NEL and the Unicode separators do not break an HTML block -- but
-``output/markdown``'s blank-line guard uses ``splitlines``, and so does anyone eyeballing
-the file. Folding a narrower set than the guard checks leaves a label that passes the fold
-and then makes ``save("chart.md")`` refuse the chart outright, which is worse than the
-rendering bug this exists to fix."""
+The set to match is ``str.splitlines``', not CommonMark's. CommonMark ends a line only on
+``\r``/``\n``, so NEL and the Unicode separators never break an HTML block -- but
+``output/markdown``'s blank-line guard counts lines with ``splitlines``, and so does anyone
+eyeballing the file. Folding a narrower set than the guard checks leaves a label that
+passes the fold and then has its own chart refused by ``save("chart.md")``, which is worse
+than the rendering bug this exists to fix.
+
+**This is five characters short of that set, and deliberately so.** ``splitlines`` also
+ends a line on ``\x0b``, ``\x0c``, ``\x1c``, ``\x1d`` and ``\x1e`` -- every one of which
+``_INVALID_XML_CHAR_RE`` rejects before folding is ever reached, since XML 1.0 forbids
+them outright. Listing them here would be five branches no input can take. The invariant
+that makes the omission safe is *validation runs first*, and
+``test_folding_never_launders_an_xml_forbidden_character`` is what holds it: widen this
+pattern to the full ``splitlines`` set and nothing changes, which has been measured."""
 
 _MULTILINE_TEXT_TAGS = frozenset({"style"})
 """Text-bearing tags whose newlines are kept. Only ``<style>``: its content is a list of
