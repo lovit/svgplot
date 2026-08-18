@@ -37,7 +37,14 @@ def _percentile_linear(sorted_values: list[float], q: float) -> float:
     if lower == upper:
         return sorted_values[lower]
     fraction = rank - lower
-    return sorted_values[lower] + fraction * (sorted_values[upper] - sorted_values[lower])
+    # Weighted form rather than `lo + f*(up-lo)`: the latter forms the difference
+    # up-lo, which overflows to inf when the data spans (say) -1e308..1e308 even
+    # though the percentile itself is perfectly representable (-5e307), tripping
+    # box_stats' finiteness guard on a result that was never actually non-finite.
+    # Weighting each endpoint separately never forms a value larger than the
+    # endpoints themselves. It is also exact at both f=0 and f=1, where the
+    # difference form is only exact at f=0.
+    return sorted_values[lower] * (1.0 - fraction) + sorted_values[upper] * fraction
 
 
 def _tukey_hinges(sorted_values: list[float]) -> tuple[float, float]:
