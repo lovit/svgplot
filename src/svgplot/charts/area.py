@@ -29,16 +29,22 @@ _LEGEND_X_OFFSET = 20.0  # past the plot area's right edge
 
 
 def _series_points(columns: dict[str, list], x: str, y: str) -> list[tuple[float, float]]:
-    """Drop rows with a missing x or y value, then sort by x (mirrors
-    ``charts/line.py``'s ``_series_points`` — no datetime x support here, this
-    issue's AC doesn't call for it).
+    """Drop rows with a missing x or y value, sum any rows sharing an x, then sort
+    by x (mirrors ``charts/line.py``'s ``_series_points`` — no datetime x support
+    here, this issue's AC doesn't call for it).
+
+    An area is a function of x: exactly one filled height per x. Rows sharing an x
+    are therefore summed into one point rather than kept as separate vertices, and
+    the aggregation happens here so the stacked and unstacked paths — which both
+    build on this — can never disagree about what a repeated x means.
     """
-    points = [
-        (float(xv), float(yv))
-        for xv, yv in zip(columns[x], columns[y], strict=True)
-        if xv is not None and yv is not None and not (isinstance(yv, float) and yv != yv)
-    ]
-    return sorted(points, key=lambda point: point[0])
+    totals: dict[float, float] = {}
+    for xv, yv in zip(columns[x], columns[y], strict=True):
+        if xv is None or yv is None or (isinstance(yv, float) and yv != yv):
+            continue
+        key = float(xv)
+        totals[key] = totals.get(key, 0.0) + float(yv)
+    return sorted(totals.items())
 
 
 def _closed_path_data(xs: list[float], ys: list[float], baseline_y: float) -> str:
@@ -92,6 +98,11 @@ def areaplot(
     that group's contribution to the stack. ``stacked=True`` without ``hue=``
     has nothing to stack and renders as a single plain area.
 
+    Rows sharing an x within one series are **summed** into a single point — an
+    area has one filled height per x, so two records at the same x contribute
+    their combined value there. This holds identically in stacked and unstacked
+    mode.
+
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
             is a string that isn't a registered preset name.
@@ -126,6 +137,8 @@ def areaplot(
         x_union = sorted(set(all_x))
         cumulative = [0.0] * len(x_union)
         for label, points in series_points:
+            # Safe as a dict: _series_points already collapsed repeated x values,
+            # so nothing here can be silently overwritten.
             lookup = dict(points)
             values = [lookup.get(xv, 0.0) for xv in x_union]
             bottoms = list(cumulative)
