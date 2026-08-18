@@ -50,6 +50,9 @@ CHARTS: dict[str, Callable[[], Chart]] = {
     # regplot and sparkline take no string channel at all, so the poison can only reach
     # them through the title -- without which their rows here would assert nothing.
     "regplot": lambda: sp.regplot(DATA, x="day", y="value", seed=0).set_title(POISON),
+    "heatmap": lambda: sp.heatmap(DATA, x="day", y="group", values="value", annot=True),
+    "radarplot": lambda: sp.radarplot(DATA, x="category", y="value", hue="group"),
+    "gaugeplot": lambda: sp.gaugeplot(DATA, value="value", labels="category"),
     "treemap": lambda: sp.treemap(DATA, values="value", labels="category"),
     "sparkline": lambda: sp.sparkline(DATA, y="value").set_title(POISON),
 }
@@ -69,6 +72,9 @@ def test_no_chart_can_be_made_to_emit_a_blank_line(name: str) -> None:
 
     assert "\n\n" not in svg
     assert not any(line.strip() == "" for line in svg.splitlines())
+    # ...and the poison really did reach this chart, so the two lines above are checking a
+    # document that had something to fold rather than one the label never entered.
+    assert "before after tail end nel ls ps" in svg, "poison never reached the output"
 
 
 @pytest.mark.parametrize("name", sorted(CHARTS), ids=sorted(CHARTS))
@@ -82,20 +88,14 @@ def test_no_chart_leaves_a_stray_line_break_inside_an_element(name: str) -> None
         assert not stripped or stripped.startswith("<") or stripped.startswith(".") or stripped.startswith("?")
 
 
-def test_the_poison_actually_reaches_the_output() -> None:
-    """Otherwise every test above would pass against a chart that silently dropped the
-    label, and the file would be checking nothing at all."""
-    svg = CHARTS["barplot"]().to_string()
-
-    assert "before after tail end nel ls ps" in svg
-
-
 def test_a_composition_of_poisoned_charts_is_clean_too() -> None:
     """Composition re-serializes its children through its own document, so it is a second
     path to the same output and needs its own check."""
-    composition = sp.row([CHARTS["barplot"](), CHARTS["lineplot"]()])
+    svg = sp.row([CHARTS["barplot"](), CHARTS["lineplot"]()]).to_string()
 
-    assert "\n\n" not in composition.to_string()
+    # The same standard the per-chart tests use: a whitespace-only line ends a CommonMark
+    # HTML block just as an empty one does, so checking for "\n\n" alone is the weaker bar.
+    assert not any(line.strip() == "" for line in svg.splitlines())
 
 
 def test_a_poisoned_title_and_caption_survive_too() -> None:
@@ -104,8 +104,8 @@ def test_a_poisoned_title_and_caption_survive_too() -> None:
     chart = CHARTS["barplot"]().set_title(POISON)
     captioned = sp.add_caption(sp.row([chart]), POISON)
 
-    assert "\n\n" not in chart.to_string()
-    assert "\n\n" not in captioned.to_string()
+    for svg in (chart.to_string(), captioned.to_string()):
+        assert not any(line.strip() == "" for line in svg.splitlines())
 
 
 def test_the_markdown_output_of_a_poisoned_chart_is_produced_rather_than_refused() -> None:

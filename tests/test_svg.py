@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
-from svgplot._svg import SvgDocument, _format_number
+from svgplot._svg import _NEWLINE_RUN_RE, SvgDocument, _format_number
 
 
 def test_add_node_and_text_appear_in_output() -> None:
@@ -433,15 +433,29 @@ def test_a_newline_run_in_text_content_becomes_one_space(raw: str, expected: str
     assert f"<text>{expected}</text>" in doc.to_string()
 
 
-def test_the_folded_set_matches_what_splitlines_calls_a_line_ending() -> None:
-    """The two definitions have to be the same set. ``output/markdown``'s blank-line guard
-    counts lines with ``splitlines``, so folding a narrower set leaves a label that passes
-    the fold and then has its own chart refused when it is saved as markdown."""
-    doc = SvgDocument()
+def test_every_line_ending_that_can_reach_add_text_is_folded() -> None:
+    """``output/markdown``'s blank-line guard counts lines with ``splitlines``, so anything
+    that guard calls a line ending has to be folded -- **or rejected before it gets here**.
 
-    for character in "\r\n\x85\u2028\u2029":
-        assert len(f"a{character}b".splitlines()) == 2, f"{character!r} is not a line ending"
-    doc.add_text(None, "a\r\n\x85\u2028\u2029b", tag="text")
+    The two sets are not equal and the docstring says so: ``splitlines`` also ends a line on
+    five control characters XML 1.0 forbids, which ``_validate_text`` refuses first. This
+    computes the difference rather than restating the pattern, so widening ``splitlines``'
+    own definition, or narrowing the XML one, fails here instead of silently reopening the
+    hole that made ``save("chart.md")`` refuse a chart."""
+    line_endings = {chr(code) for code in range(0x11000) if len(f"a{chr(code)}b".splitlines()) == 2}
+    folded = {character for character in line_endings if _NEWLINE_RUN_RE.fullmatch(character)}
+
+    assert folded, "nothing is folded at all"
+    # Each half of the partition, and the partition itself. Everything not folded must be
+    # refused before folding could matter...
+    for character in line_endings - folded:
+        with pytest.raises(ValueError, match="not allowed in XML 1.0"):
+            SvgDocument().add_text(None, f"a{character}b")
+    # ...and everything folded must be XML-legal, or the pattern lists a branch no input
+    # can reach. That is why widening this to the whole `splitlines` set fails here even
+    # though it changes no output: the five extra characters are already unreachable.
+    doc = SvgDocument()
+    doc.add_text(None, "a" + "".join(sorted(folded)) + "b", tag="text")
 
     assert "<text>a b</text>" in doc.to_string()
 
@@ -483,12 +497,17 @@ def test_the_style_exemption_can_still_produce_a_blank_line_if_a_caller_supplies
 
 @pytest.mark.parametrize("bad", ["a\x0b\nb", "a\n\x0cb", "\n\x00\n", "a\r\x1fb"])
 def test_folding_never_launders_an_xml_forbidden_character(bad: str) -> None:
-    """Neither order can change the *verdict* -- every folded character is legal XML, and
-    the fold inserts a space rather than deleting, so it can neither remove a forbidden
-    character nor join two into a new one. The orders are not fully interchangeable though:
-    validating first is what makes the error quote the string the caller actually passed
-    (``'a\\n\\x00\\nb'``) rather than the folded one (``'a \\x00 b'``), which is pinned
-    below."""
+    """Two jobs, and the second is the one that matters.
+
+    Neither order can change the *verdict* -- every folded character is legal XML, and the
+    fold inserts a space rather than deleting, so it can neither remove a forbidden
+    character nor join two into a new one. What this actually holds is the invariant that
+    lets ``_NEWLINE_RUN_RE`` be five characters shorter than ``splitlines``' line-ending
+    set: those five are XML-forbidden, so validation must keep running first and keep
+    rejecting them. Narrow ``_INVALID_XML_CHAR_RE`` and this fails.
+
+    (The orders are not fully interchangeable either: validating first is what makes the
+    error quote the string the caller passed, which is pinned separately below.)"""
     doc = SvgDocument()
 
     with pytest.raises(ValueError, match="not allowed in XML 1.0"):
@@ -502,6 +521,17 @@ def test_the_rejection_message_quotes_what_the_caller_passed() -> None:
 
     with pytest.raises(ValueError, match=r"'a\\n\\x00\\nb'"):
         doc.add_text(None, "a\n\x00\nb")
+
+
+def test_an_attribute_rejection_quotes_the_caller_s_string_too() -> None:
+    """Attribute values are folded through a second and third call site, and the ordering
+    there was left unpinned -- both could fold first and report a value nobody wrote."""
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match=r"'a\\n\\x00\\nb'"):
+        doc.add_node(None, "rect", attrib={"data-note": "a\n\x00\nb"})
+    with pytest.raises(ValueError, match=r"'a\\n\\x00\\nb'"):
+        doc.set_attribute(doc.root, "aria-label", "a\n\x00\nb")
 
 
 def test_a_text_node_of_only_newlines_does_not_vanish() -> None:

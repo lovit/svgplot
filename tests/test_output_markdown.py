@@ -126,6 +126,17 @@ def test_the_refusal_reports_the_offending_line_number() -> None:
         _reject_blank_lines(svg)
 
 
+def test_the_guard_counts_lines_the_way_the_fold_does() -> None:
+    """The Critical this file's fix was written around came from the fold and the guard
+    disagreeing about what ends a line. Pinning the fold's side alone left the other half
+    free to drift: swapping ``splitlines()`` for ``split("\\n")`` here lets a NEL-separated
+    blank line straight through, and nothing else notices."""
+    with pytest.raises(ValueError, match="blank line"):
+        _reject_blank_lines("<svg>\n  <style>.a { fill: red; }\x85\x85.b { fill: blue; }</style>\n</svg>")
+    with pytest.raises(ValueError, match="blank line"):
+        _reject_blank_lines("<svg>\n  <style>.a {}\u2028\u2028.b {}</style>\n</svg>")
+
+
 def test_a_whitespace_only_line_counts_as_blank() -> None:
     """CommonMark ends an HTML block on a line containing only whitespace, not just on an
     empty one, so checking ``line == ""`` would let the break through."""
@@ -257,15 +268,19 @@ def test_save_markdown_pins_the_encoding_and_line_endings(monkeypatch: pytest.Mo
     assert captured["newline"] == "\n"
 
 
-def test_a_crlf_label_cannot_produce_a_blank_line_on_disk(tmp_path: Path) -> None:
-    """The end-to-end companion to the check above, on platforms where it can be observed."""
+def test_the_newlines_that_survive_the_fold_are_written_as_lf(tmp_path: Path) -> None:
+    """The end-to-end companion to the check above. It used to feed a CRLF *label*, which
+    stopped meaning anything once ``_svg`` began folding those out before serialization --
+    the file was clean whatever ``newline=`` did. ``<style>`` is now the only text whose
+    line breaks reach disk, so it is the only material left that can observe the setting."""
     document = _document()
-    document.add_text(None, "row1\r\nrow2", attrib={"x": "1", "y": "1"})
+    document.add_text(None, ".a { fill: red; }\n.b { fill: blue; }", tag="style")
     path = tmp_path / "chart.md"
     save_markdown(document, None, str(path))
 
     raw = path.read_bytes()
-    assert b"\r\n\r\n" not in raw
+    assert b".a { fill: red; }\n.b { fill: blue; }" in raw
+    assert b"\r" not in raw
     assert b"\n\n" not in raw
 
 
