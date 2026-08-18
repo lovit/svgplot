@@ -18,6 +18,7 @@ from svgplot.charts import (
     scatterplot,
     sparkline,
     treemap,
+    violinplot,
 )
 from svgplot.labels import LabelSpec
 from svgplot.layout import add_caption, apply_size, column, facet, grid, row
@@ -54,4 +55,5 @@ __all__ = [
     "scatterplot",
     "sparkline",
     "treemap",
+    "violinplot",
 ]
