@@ -93,4 +93,4 @@
 - v1.0은 JavaScript를 내보내지 않는다. 인터랙션 대신 정적 대체 수단(각주 테이블, 소제목 나열)을 쓴다.
 
 [Unreleased]: https://github.com/lovit/svgplot/compare/2fbe2dc...HEAD
-[0.1.0]: https://github.com/lovit/svgplot/releases/tag/v0.1.0
+[0.1.0]: https://github.com/lovit/svgplot/commit/2fbe2dc
