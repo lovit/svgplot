@@ -18,31 +18,19 @@ from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import format_coord, plot_area
 from svgplot.charts._legend import render_legend
+from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data.ingest import ingest_longform
 from svgplot.data.semantic import extract_channels
 from svgplot.scales import LinearScale, TimeScale
 from svgplot.stats.interpolate import interpolate as interpolate_curve
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
-from svgplot.theme.presets import PRESETS
 
 _WIDTH = 800.0
 _HEIGHT = 600.0
 _MARGIN_WITH_LEGEND = (30.0, 160.0, 50.0, 60.0)  # top, right, bottom, left
 _MARGIN_WITHOUT_LEGEND = (30.0, 40.0, 50.0, 60.0)
 _LEGEND_X_OFFSET = 20.0  # past the plot area's right edge
-
-
-def _resolve_theme(theme: Theme | str | None) -> Theme:
-    if theme is None:
-        return Theme()
-    if isinstance(theme, Theme):
-        return theme
-    if isinstance(theme, str):
-        if theme not in PRESETS:
-            raise KeyError(f"unknown theme preset: {theme!r} (available: {sorted(PRESETS)})")
-        return PRESETS[theme]
-    raise TypeError(f"theme must be a Theme, a preset name, or None, got {type(theme).__name__}")
 
 
 def _numeric_x(value: object) -> float:
@@ -97,7 +85,7 @@ def lineplot(
             ``interpolate`` isn't a recognized method name or a series has too few
             points to interpolate.
     """
-    resolved_theme = _resolve_theme(theme)
+    resolved_theme = resolve_theme(theme)
     longform = ingest_longform(data, x, y)
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
