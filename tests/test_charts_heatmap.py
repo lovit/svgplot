@@ -714,14 +714,31 @@ def test_a_diverging_cmap_without_center_is_refused_too(cmap: str) -> None:
         _render(GRID, cmap=cmap)
 
 
-def test_the_message_lists_the_colormaps_that_would_work() -> None:
-    """A rejection that does not say what to pass instead sends the caller to the source."""
-    with pytest.raises(ValueError) as caught:
-        _render(GRID, center=5.0)
-    message = str(caught.value)
+@pytest.mark.parametrize(
+    ("cmap", "center", "usable", "wrong"),
+    [
+        ("blues", 5.0, DIVERGING_PALETTES, SEQUENTIAL_PALETTES),
+        ("coolwarm", None, SEQUENTIAL_PALETTES, DIVERGING_PALETTES),
+    ],
+)
+def test_the_message_names_the_offending_cmap_and_the_ones_that_would_work(
+    cmap: str, center: float | None, usable: dict[str, object], wrong: dict[str, object]
+) -> None:
+    """Both directions, symmetrically. Checking only one left the other's message free to
+    drop its suggestions entirely, or -- worse -- to list the very colormap it just
+    rejected, which walks the caller in a circle. Both mutations passed the whole suite.
 
-    assert all(name in message for name in DIVERGING_PALETTES)
-    assert not any(name in message for name in SEQUENTIAL_PALETTES if name != "blues")
+    The offending name has to appear too: this project's other rejections quote the value
+    that broke the rule (``got vmin=...``), and that was the argument for replacing the
+    original ``KeyError`` in the first place."""
+    with pytest.raises(ValueError) as caught:
+        _render(GRID, cmap=cmap, center=center)
+    message = str(caught.value)
+    suggested = set(re.findall(r"[a-z]+", message.split("(")[-1] if "(" in message else message.split("one of")[-1]))
+
+    assert repr(cmap) in message, "the rejection does not name the colormap that broke the rule"
+    assert set(usable) <= suggested, f"{sorted(set(usable) - suggested)} missing from the suggestions"
+    assert not (set(wrong) & suggested), f"{sorted(set(wrong) & suggested)} suggested but would be rejected too"
 
 
 @pytest.mark.parametrize(
