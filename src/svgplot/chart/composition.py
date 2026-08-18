@@ -53,6 +53,7 @@ from svgplot.accessibility import add_accessibility
 from svgplot.chart.base import Chart
 from svgplot.charts._layout import format_coord
 from svgplot.output.jupyter import repr_svg
+from svgplot.output.markdown import MARKDOWN_SUFFIXES, save_markdown, to_markdown
 from svgplot.output.png import to_png
 from svgplot.output.svg import save_svg, to_string
 
@@ -333,12 +334,25 @@ class Composition:
         """Serialize to an SVG string. See svgplot.output.svg."""
         return to_string(self._accessible_document(), pretty=pretty)
 
+    def to_markdown(self) -> str:
+        """Serialize to inline markdown. See svgplot.output.markdown.
+
+        A composition carries no table of its own: gathering the children's is a follow-up
+        (which child gets a heading? what if only some have ``info=``? is a facet grid one
+        table or N?). The format is supported here regardless, because this class promises
+        the same serialization surface as :class:`~svgplot.chart.base.Chart` and supporting
+        markdown on only one of them would break that documented invariant.
+        """
+        return to_markdown(self._accessible_document())
+
     def save(self, path: str) -> None:
         """Write the composition to a file, dispatching on ``path``'s extension
-        (``.svg``/``.png``) exactly as :meth:`svgplot.chart.base.Chart.save` does.
+        (``.svg``/``.png``/``.md``/``.markdown``) exactly as
+        :meth:`svgplot.chart.base.Chart.save` does.
 
         Raises:
-            ValueError: if ``path``'s extension is neither ``.svg`` nor ``.png``.
+            ValueError: if ``path``'s extension isn't one of the above, or if markdown
+                output is requested and the serialized SVG contains a blank line.
             ImportError: if the extension is ``.png`` and the ``png`` extra isn't installed.
         """
         suffix = Path(path).suffix.lower()
@@ -347,8 +361,13 @@ class Composition:
             save_svg(document, path)
         elif suffix == ".png":
             to_png(document, path)
+        elif suffix in MARKDOWN_SUFFIXES:
+            save_markdown(document, None, path)
         else:
-            raise ValueError(f"unsupported file extension for Composition.save: {suffix!r} (expected .svg or .png)")
+            raise ValueError(
+                f"unsupported file extension for Composition.save: {suffix!r} "
+                f"(expected .svg, .png or one of {MARKDOWN_SUFFIXES})"
+            )
 
     def _repr_svg_(self) -> str:
         """Jupyter rich display hook. See svgplot.output.jupyter."""
