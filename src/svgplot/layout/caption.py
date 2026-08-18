@@ -9,12 +9,27 @@ visual unity Bokeh got from a shared toolbar.
 
 from __future__ import annotations
 
+from svgplot._svg import SvgDocument
 from svgplot.chart.composition import CAPTION_HEIGHT, Composition, composition_document, composition_title
 from svgplot.charts._layout import format_coord
 
 _CAPTION_CLASS = "composition-caption"
 _CAPTION_LOCATIONS = ("above", "below")
 _CAPTION_BASELINE_INSET = CAPTION_HEIGHT / 3
+
+
+def _validate_caption_text(text: str) -> None:
+    """Raise ``ValueError`` if ``text`` would be rejected as a text node, without touching
+    the real document -- checked on a throwaway one instead.
+
+    Every mutation below this point is unconditional, so a caption rejected *after* them
+    left the canvas permanently taller with no caption in it, and a retry grew it again.
+    ``accessibility._validate_accessibility_text`` solves the same problem the same way:
+    ``SvgDocument``'s validation lives behind its public API rather than being exposed for
+    direct reuse, because ``_svg.py`` is the escape chokepoint and this module is not.
+    """
+    scratch = SvgDocument()
+    scratch.add_text(None, text, tag="text", classes=[_CAPTION_CLASS])
 
 
 def add_caption(composition: Composition, text: str, location: str = "below") -> Composition:
@@ -37,13 +52,16 @@ def add_caption(composition: Composition, text: str, location: str = "below") ->
     correction of what it is called.
 
     Raises:
-        ValueError: if ``location`` isn't ``"above"`` or ``"below"``, or if ``text``
-            is empty/whitespace-only (an empty caption band is just dead space).
+        ValueError: if ``location`` isn't ``"above"`` or ``"below"``, if ``text`` is
+            empty/whitespace-only (an empty caption band is just dead space), or if
+            ``text`` holds a character XML 1.0 forbids. A rejected caption leaves the
+            composition exactly as it was.
     """
     if location not in _CAPTION_LOCATIONS:
         raise ValueError(f"location must be one of {_CAPTION_LOCATIONS}, got {location!r}")
     if not text.strip():
         raise ValueError(f"caption text must not be empty: {text!r}")
+    _validate_caption_text(text)
 
     document = composition_document(composition)
     width, height = float(document.width), float(document.height)
