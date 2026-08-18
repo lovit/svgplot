@@ -6,7 +6,7 @@ import re
 import pytest
 
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, plot_area
-from svgplot.charts.violin import _VIOLIN_PADDING, _group_by_x, shared_grid_range, violinplot
+from svgplot.charts.violin import _EVALUATION_GRID, _VIOLIN_PADDING, _group_by_x, shared_grid_range, violinplot
 from svgplot.scales import CategoricalScale, LinearScale
 from svgplot.stats.box import box_stats
 from svgplot.stats.kde import kde
@@ -19,14 +19,25 @@ _ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 CATEGORIES = ["a", "b", "c"]
 
 
+_SPREADS = {"a": 1.0, "b": 0.5, "c": 2.0}
+"""Standard deviations per category, with the *densest* (``b``, the narrowest spread)
+deliberately in the middle of the sorted order. With it at either end, taking the peak from
+a fixed position in the list is right by accident and the mutation survives -- exactly what
+happened here before, and in ``charts/kde.py`` before that."""
+
+
+def _category_values(category: str) -> list[float]:
+    generator = random.Random(11 + ord(category))
+    return [generator.gauss(0.0, _SPREADS[category]) for _ in range(40)]
+
+
 def _three_groups() -> dict[str, list]:
-    generator = random.Random(11)
-    return {
-        "grp": ["a"] * 40 + ["b"] * 40 + ["c"] * 40,
-        "v": [generator.gauss(0.0, 1.0) for _ in range(40)]
-        + [generator.gauss(3.0, 2.0) for _ in range(40)]
-        + [generator.gauss(1.0, 0.5) for _ in range(40)],
-    }
+    values: list[float] = []
+    labels: list[str] = []
+    for category in CATEGORIES:
+        values.extend(_category_values(category))
+        labels.extend([category] * 40)
+    return {"grp": labels, "v": values}
 
 
 def _x_scale(categories: list[str] | None = None) -> CategoricalScale:
@@ -135,8 +146,17 @@ def test_widths_are_scaled_against_one_shared_peak() -> None:
         left, right = _flanks(body)
         widths.append(max(rx - lx for (lx, _), (rx, _) in zip(left, right, strict=True)))
 
-    assert max(widths) == pytest.approx(abs(_x_scale().bandwidth), abs=1e-6)
-    assert min(widths) < max(widths)
+    band = abs(_x_scale().bandwidth)
+    peaks = {category: max(kde(_category_values(category)).y) for category in CATEGORIES}
+    shared_peak = max(peaks.values())
+
+    assert max(peaks, key=peaks.get) == "b"  # densest is neither first nor last
+    assert max(widths) == pytest.approx(band, abs=1e-6)
+    # Each violin's drawn width is its own peak as a share of the shared one. Asserting
+    # only "the widest fills the band" cannot tell a shared peak from one lifted off
+    # whichever category happens to be densest.
+    for category, width in zip(CATEGORIES, widths, strict=True):
+        assert width / band == pytest.approx(peaks[category] / shared_peak, rel=0.05)
 
 
 def test_no_violin_spills_outside_its_band() -> None:
@@ -270,3 +290,157 @@ def test_the_signature_matches_boxplot_s_leading_parameters() -> None:
     box = list(inspect.signature(boxplot).parameters)
 
     assert violin[:3] == box[:3] == ["data", "x", "y"]
+
+
+# ---------------------------------------------------------------------------
+# bandwidth reaches the estimator
+# ---------------------------------------------------------------------------
+
+
+def test_an_explicit_bandwidth_sets_the_shared_span() -> None:
+    """With a numeric bandwidth the span is just ``min - 3h`` .. ``max + 3h``, so it can be
+    written out by hand rather than taken from the helper under test."""
+    data = _three_groups()
+    groups = _group_by_x(data, "grp", "v")
+
+    low, high = shared_grid_range(groups, 0.5)
+
+    assert low == pytest.approx(min(min(values) for values in groups.values()) - 3.0 * 0.5)
+    assert high == pytest.approx(max(max(values) for values in groups.values()) + 3.0 * 0.5)
+
+
+@pytest.mark.parametrize("bandwidth", ["silverman", 0.5, 2.0])
+def test_the_bandwidth_argument_changes_the_chart(bandwidth: float | str) -> None:
+    """It is part of the published signature and it does change the picture, but nothing
+    failed when the parameter was dropped on the floor and ``"scott"`` used instead."""
+    data = _three_groups()
+
+    assert violinplot(data, x="grp", y="v", bandwidth=bandwidth).to_string() != violinplot(data, x="grp", y="v").to_string()
+
+
+def test_the_bandwidth_reaches_both_passes() -> None:
+    """It is used twice -- to size the shared grid, and to evaluate on it. Comparing whole
+    SVGs cannot separate those: forwarding it to either one alone already changes the
+    output. Undoing the pixel mapping pins the density itself, and the span check pins the
+    grid, so each pass is asserted on its own."""
+    data = _three_groups()
+    groups = _group_by_x(data, "grp", "v")
+    low = min(min(values) for values in groups.values()) - 3.0 * 0.5
+    high = max(max(values) for values in groups.values()) + 3.0 * 0.5
+    y_scale = LinearScale((low, high), (AREA.bottom, AREA.top))
+
+    svg = violinplot(data, x="grp", y="v", bandwidth=0.5).to_string()
+    bodies = _tags(svg, "path", "violin-body")
+    scale = _x_scale()
+
+    # The grid: the outline spans exactly the hand-computed shared range.
+    drawn_y = [float(vy) for _, vy in _VERTEX_RE.findall(bodies[0]["d"])]
+    assert min(drawn_y) == pytest.approx(y_scale(high), abs=1e-6)
+    assert max(drawn_y) == pytest.approx(y_scale(low), abs=1e-6)
+
+    # The evaluation: half-widths are the densities at that same bandwidth, scaled by the
+    # shared peak.
+    peaks = {category: max(kde(values, bandwidth=0.5, grid_range=(low, high)).y) for category, values in groups.items()}
+    shared_peak = max(peaks.values())
+    expected = kde(groups["a"], bandwidth=0.5, grid_range=(low, high))
+    half_band = abs(scale.bandwidth) / 2
+    left, right = _flanks(bodies[0])
+    drawn_half = [(rx - lx) / 2 for (lx, _), (rx, _) in zip(left, right, strict=True)]
+
+    assert drawn_half == pytest.approx([half_band * value / shared_peak for value in expected.y], abs=1e-6)
+
+
+def test_a_bad_bandwidth_names_the_category() -> None:
+    with pytest.raises(ValueError, match=r"category 'a'.*must be positive"):
+        violinplot(_three_groups(), x="grp", y="v", bandwidth=-1.0)
+
+
+def test_each_violin_carries_the_full_evaluation_grid() -> None:
+    """200 written out, not imported: a test that reads the constant follows whatever the
+    code says and cannot notice the grid being coarsened."""
+    bodies = _tags(violinplot(_three_groups(), x="grp", y="v").to_string(), "path", "violin-body")
+
+    assert _EVALUATION_GRID == 200
+    for body in bodies:
+        assert len(_VERTEX_RE.findall(body["d"])) == 400
+
+
+# ---------------------------------------------------------------------------
+# the inner marks stay in their own band
+# ---------------------------------------------------------------------------
+
+
+def test_the_inner_marks_stay_inside_their_band() -> None:
+    """``test_no_violin_spills_outside_its_band`` only looks at the outline, so a median
+    tick wide enough to reach into the neighbouring category went unnoticed."""
+    svg = violinplot(_three_groups(), x="grp", y="v").to_string()
+    scale = _x_scale()
+    half_band = abs(scale.bandwidth) / 2
+
+    for category, box, tick in zip(
+        CATEGORIES, _tags(svg, "rect", "violin-box"), _tags(svg, "line", "violin-median"), strict=True
+    ):
+        centre = scale.center(category)
+        assert float(box["x"]) >= centre - half_band - 1e-6
+        assert float(box["x"]) + float(box["width"]) <= centre + half_band + 1e-6
+        assert float(tick["x1"]) >= centre - half_band - 1e-6
+        assert float(tick["x2"]) <= centre + half_band + 1e-6
+
+
+def test_the_inner_marks_are_a_fixed_share_of_the_step() -> None:
+    """Pinned as literals, not through the constants: importing them would let the tests
+    follow whatever the code says."""
+    svg = violinplot(_three_groups(), x="grp", y="v").to_string()
+    step = abs(_x_scale().step)
+    box = _tags(svg, "rect", "violin-box")[0]
+    tick = _tags(svg, "line", "violin-median")[0]
+
+    assert float(box["width"]) == pytest.approx(step * 0.12, abs=1e-6)
+    assert float(tick["x2"]) - float(tick["x1"]) == pytest.approx(step * 0.2, abs=1e-6)
+
+
+def test_neighbouring_violins_do_not_touch() -> None:
+    """The gutter is what ``padding`` buys; without it adjacent densities merge visually."""
+    svg = violinplot(_three_groups(), x="grp", y="v", inner=None).to_string()
+    bodies = _tags(svg, "path", "violin-body")
+    rights = [max(rx for rx, _ in _flanks(body)[1]) for body in bodies]
+    lefts = [min(lx for lx, _ in _flanks(body)[0]) for body in bodies]
+
+    assert all(right < left for right, left in zip(rights[:-1], lefts[1:], strict=True))
+    assert abs(_x_scale().step) - abs(_x_scale().bandwidth) == pytest.approx(abs(_x_scale().step) * 0.2)
+
+
+# ---------------------------------------------------------------------------
+# theme and grouping
+# ---------------------------------------------------------------------------
+
+
+def test_the_theme_reaches_the_output() -> None:
+    """Nothing rendered this chart with a ``theme=`` before, so replacing the resolved
+    theme with the default changed nothing that any test looked at."""
+    data = _three_groups()
+
+    assert violinplot(data, x="grp", y="v", theme="dark").to_string() != violinplot(data, x="grp", y="v").to_string()
+
+
+def test_the_series_style_keeps_a_stroke_and_a_translucent_fill() -> None:
+    """One series class carries the body, the inner box and the median tick. A plain
+    ``"fill"`` style emits ``stroke: none``, which erases the outline and the tick."""
+    rule = next(
+        line.strip()
+        for line in violinplot(_three_groups(), x="grp", y="v").to_string().splitlines()
+        if line.strip().startswith(".series-1 {")
+    )
+
+    assert "stroke: #" in rule
+    assert "fill-opacity" in rule
+    assert "stroke: none" not in rule
+
+
+def test_a_nan_category_label_drops_the_row() -> None:
+    """``boxplot``'s hand-rolled grouping keeps a NaN x as the literal category ``'nan'``;
+    this one treats it as missing, which is the rule the rest of the package uses. Pinned
+    so the difference is a decision on record rather than an accident."""
+    data = {"grp": [float("nan"), "a", "a", "a"], "v": [1.0, 2.0, 3.0, 4.0]}
+
+    assert sorted(_group_by_x(data, "grp", "v")) == ["a"]
