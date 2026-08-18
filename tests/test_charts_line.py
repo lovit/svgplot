@@ -107,6 +107,15 @@ def test_lineplot_rejects_unknown_interpolate_method() -> None:
         lineplot(SINGLE_SERIES, x="day", y="value", interpolate="not-a-real-method")
 
 
+def test_lineplot_propagates_stats_interpolate_error_for_too_few_points() -> None:
+    """stats.interpolate.interpolate itself rejects fewer than 2 points for a
+    non-linear method — that error must surface cleanly through lineplot, not be
+    swallowed or replaced by a different exception.
+    """
+    with pytest.raises(ValueError):
+        lineplot({"day": [1], "value": [10.0]}, x="day", y="value", interpolate="cubic")
+
+
 # ---------------------------------------------------------------------------
 # .save() produces human-readable (pretty-printed, semantically classed) SVG
 # ---------------------------------------------------------------------------
@@ -183,3 +192,8 @@ def test_lineplot_handles_a_single_point_series_without_crashing() -> None:
     chart = lineplot({"day": [1], "value": [10.0]}, x="day", y="value")
     svg = chart.to_string()
     assert "<path" in svg
+
+
+def test_lineplot_rejects_data_where_every_row_is_missing() -> None:
+    with pytest.raises(ValueError, match="no rows with both x and y"):
+        lineplot({"day": [None, None], "value": [None, None]}, x="day", y="value")
