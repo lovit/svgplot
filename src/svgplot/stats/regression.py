@@ -124,6 +124,42 @@ def _fit(xs: list[float], ys: list[float]) -> LinearFit | None:
     return LinearFit(slope=slope, intercept=mean_y - slope * mean_x)
 
 
+def _grid_positions(xs: list[float], grid: int) -> list[float]:
+    """``grid`` evenly spaced positions spanning the observed x range, endpoints included."""
+    low, high = min(xs), max(xs)
+    step = (high - low) / (grid - 1)
+    return [low + index * step for index in range(grid)]
+
+
+def _require_grid(grid: int) -> None:
+    if grid < 2:
+        raise ValueError(f"grid must be at least 2 to span a range, got {grid}")
+    if grid > _MAX_GRID:
+        raise ValueError(f"grid must be at most {_MAX_GRID}, got {grid}")
+
+
+def fit_curve(x: list[float], y: list[float], *, grid: int = 100) -> RegressionBand:
+    """The fitted line sampled on a grid, with a zero-width band around it.
+
+    What a caller wants when it needs the line's geometry but not the uncertainty around
+    it -- ``regplot(ci=None)``. Returning the same ``RegressionBand`` shape as
+    :func:`confidence_band`, from the same grid helper, is what keeps the two paths from
+    drifting: the line is identical either way.
+
+    Raises:
+        ValueError: for anything :func:`linear_fit` rejects, or if ``grid`` isn't an int in
+            ``[2, _MAX_GRID]``.
+    """
+    _require_grid(grid)
+    fit = linear_fit(x, y)
+    xs, _ = _require_finite_pairs(x, y)
+    grid_x = _grid_positions(xs, grid)
+    grid_y = [fit.predict(position) for position in grid_x]
+    # Separate list objects: nothing mutates them today, but three aliases of one list is a
+    # trap for whoever first edits band coordinates in place.
+    return RegressionBand(x=grid_x, y=grid_y, lower=list(grid_y), upper=list(grid_y))
+
+
 def linear_fit(x: list[float], y: list[float]) -> LinearFit:
     """Fit ``y = slope * x + intercept`` by ordinary least squares.
 
@@ -180,10 +216,7 @@ def confidence_band(
         raise ValueError(f"n_boot must be at least 1, got {n_boot}")
     if n_boot > _MAX_BOOTSTRAP_SAMPLES:
         raise ValueError(f"n_boot must be at most {_MAX_BOOTSTRAP_SAMPLES}, got {n_boot}")
-    if grid < 2:
-        raise ValueError(f"grid must be at least 2 to span a range, got {grid}")
-    if grid > _MAX_GRID:
-        raise ValueError(f"grid must be at most {_MAX_GRID}, got {grid}")
+    _require_grid(grid)
 
     point_fit = _fit(xs, ys)
     if point_fit is None:
@@ -205,9 +238,7 @@ def confidence_band(
     lower_q = (1.0 - confidence) / 2.0
     upper_q = 1.0 - lower_q
 
-    lo, hi = min(xs), max(xs)
-    step = (hi - lo) / (grid - 1)
-    grid_x = [lo + index * step for index in range(grid)]
+    grid_x = _grid_positions(xs, grid)
 
     grid_y: list[float] = []
     band_lower: list[float] = []
