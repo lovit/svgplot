@@ -14,9 +14,18 @@ from svgplot.layout.facet import facet
 GRID_DATA = {
     "x": [1, 2, 1, 2, 1, 2],
     "y": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
-    "c": ["L", "L", "R", "R", "L", "L"],
+    "c": ["L", "L", "R", "R", "R", "R"],
     "r": ["top", "top", "top", "top", "bot", "bot"],
 }
+"""Three of four (row, col) combinations, with the hole at ``(bot, L)`` — the
+*leading* column of its row, deliberately.
+
+A hole in the trailing column is useless for pinning blank-cell behavior: drop
+the blank and the resulting ragged row lays out pixel-identically to the correct
+one, so the test passes either way. Only a leading-column hole shifts its row's
+surviving panel left when the blank is dropped, which is what makes this fixture
+actually detect the regression (found in review of PR #47).
+"""
 COL_DATA = {
     "x": [1, 2, 3, 1, 2, 3],
     "y": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
@@ -66,15 +75,17 @@ def test_facet_col_and_row_together_form_a_2d_grid() -> None:
     """
     svg = facet(lineplot, GRID_DATA, col="c", row="r", x="x", y="y").to_string()
     placed = panels(svg)
-    assert len(placed) == 3  # (bot, R) is absent from the data
+    assert len(placed) == 3  # (bot, L) is absent from the data
     assert len({x for x, _ in placed}) == 2
     assert len({y for _, y in placed}) == 2
 
 
 def test_facet_leaves_a_missing_combination_blank_without_shifting_neighbours() -> None:
-    """The absent (bot, R) panel must leave a hole. If the blank were dropped
-    instead, (top, L) would slide into the vacated column and the two rows would
-    no longer share a column lattice.
+    """The absent (bot, L) panel must leave a hole. If the blank were dropped
+    instead, (bot, R) would slide left into the vacated first column and the two
+    rows would no longer share a column lattice. The hole sits in the *leading*
+    column on purpose — see GRID_DATA's docstring for why a trailing-column hole
+    cannot detect this.
     """
     svg = facet(lineplot, GRID_DATA, col="c", row="r", x="x", y="y").to_string()
     placed = panels(svg)
@@ -83,8 +94,10 @@ def test_facet_leaves_a_missing_combination_blank_without_shifting_neighbours() 
         by_row.setdefault(y, []).append(x)
     rows = [sorted(xs) for _, xs in sorted(by_row.items())]
     assert [len(xs) for xs in rows] == [1, 2]  # bot has one panel, top has two
-    # The single "bot" panel sits in the *first* column, aligned with "top"'s first.
-    assert rows[0][0] == rows[1][0]
+    # The single "bot" panel stays in the *second* column, aligned with "top"'s
+    # second — not slid left into the blank first column.
+    assert rows[0][0] == rows[1][1]
+    assert rows[0][0] != rows[1][0]
 
 
 # ---------------------------------------------------------------------------
@@ -98,7 +111,7 @@ def test_facet_titles_name_the_facet_column_and_value() -> None:
 
 def test_facet_2d_titles_name_both_facet_values() -> None:
     rendered = titles(facet(lineplot, GRID_DATA, col="c", row="r", x="x", y="y").to_string())
-    assert rendered == ["r = bot, c = L", "r = top, c = L", "r = top, c = R"]
+    assert rendered == ["r = bot, c = R", "r = top, c = L", "r = top, c = R"]
 
 
 def test_facet_orders_panels_deterministically_regardless_of_row_order() -> None:
