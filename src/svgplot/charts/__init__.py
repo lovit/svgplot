@@ -11,6 +11,7 @@ from svgplot.charts.histogram import histplot
 from svgplot.charts.kde import kdeplot
 from svgplot.charts.line import lineplot
 from svgplot.charts.pie import pieplot
+from svgplot.charts.radar import radarplot
 from svgplot.charts.regression import regplot
 from svgplot.charts.scatter import scatterplot
 from svgplot.charts.sparkline import sparkline
@@ -27,6 +28,7 @@ __all__ = [
     "kdeplot",
     "lineplot",
     "pieplot",
+    "radarplot",
     "regplot",
     "scatterplot",
     "sparkline",
