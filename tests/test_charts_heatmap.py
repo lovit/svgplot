@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import re
 import warnings
+from dataclasses import replace
 
 import pytest
 
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, format_coord, plot_area
-from svgplot.charts.heatmap import _WARN_CELL_COUNT, LEVELS, _readable_ink, heatmap
+from svgplot.charts.heatmap import _BYTES_PER_CELL, _BYTES_PER_TICK, _WARN_CELL_COUNT, LEVELS, _readable_ink, heatmap
 from svgplot.palette._color import hex_to_rgb01
+from svgplot.palette.diverging import DIVERGING_PALETTES
 from svgplot.palette.normalize import Normalize
+from svgplot.palette.sequential import SEQUENTIAL_PALETTES
 from svgplot.theme import PRESETS
 from svgplot.warnings import HeatmapSizeWarning
 
@@ -242,17 +245,65 @@ def test_the_warning_carries_the_count_the_size_and_the_way_out() -> None:
     assert ".png" in message
 
 
-def test_the_estimated_size_is_close_to_the_real_one() -> None:
-    """The number in the warning has to be worth reading, and ``_BYTES_PER_TICK``'s
-    docstring claims 5%. Asserting a looser bound than the docstring makes leaves the claim
-    unheld: at ``rel=0.15`` both constants could move ~10% with the suite still green."""
+def _diagonal(side: int) -> dict[str, list]:
+    """A ``side x side`` grid holding only its diagonal -- the sparse case the two-term
+    estimate exists for: ``side`` rects but ``2 * side`` axis ticks."""
+    return {
+        "col": [f"x{index}" for index in range(side)],
+        "row": [f"y{index}" for index in range(side)],
+        "v": [float(index) for index in range(side)],
+    }
+
+
+def _estimated_and_actual_kb(data: dict[str, list]) -> tuple[float, float]:
+    """The formula's own answer and the real serialized size, both in KB.
+
+    The formula is called directly rather than read out of the warning, because the 50x50
+    point sits exactly *at* ``_WARN_CELL_COUNT`` and so emits no warning at all -- reading
+    the warning would silently drop the one point that pins ``_BYTES_PER_CELL`` hardest.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", HeatmapSizeWarning)
+        chart = heatmap(data, x="col", y="row", values="v")
+    drawn = len(data["v"])
+    ticks = len(set(data["col"])) + len(set(data["row"]))
+    estimated = (drawn * _BYTES_PER_CELL + ticks * _BYTES_PER_TICK) // 1024
+    return estimated, len(chart.to_string()) / 1024
+
+
+@pytest.mark.parametrize(
+    ("name", "data"),
+    [
+        ("50x50 dense", _square(50)),
+        ("100x100 dense", _square(100)),
+        ("100x100 diagonal", _diagonal(100)),
+        ("200x200 diagonal", _diagonal(200)),
+    ],
+)
+def test_the_estimate_holds_at_every_point_the_docstring_cites(name: str, data: dict[str, list]) -> None:
+    """``_BYTES_PER_TICK``'s docstring names four measured points and claims 5% on all of
+    them. Pinning only two left the claim half-held: ``_BYTES_PER_CELL`` could drop from 88
+    to 80 with the suite green, which puts the untested 50x50 point at -7.1%.
+
+    Four points constrain the two constants to a band, not to a value -- 84 instead of 88
+    is admitted here, and in fact fits slightly better (2.8% worst against 4.4%). That is
+    the honest resolution of the measurement, not a gap: asserting harder would claim a
+    precision these four points do not carry."""
+    estimated, actual = _estimated_and_actual_kb(data)
+
+    assert estimated == pytest.approx(actual, rel=0.05), f"{name}: {estimated} vs {actual:.1f} KB"
+
+
+def test_the_warning_reports_the_same_number_the_formula_gives() -> None:
+    """Otherwise the four points above could all hold while the text a reader actually sees
+    said something else."""
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         chart = heatmap(_square(100), x="col", y="row", values="v")
-    estimated = int(re.search(r"~(\d+) KB", str(caught[0].message)).group(1))
-    actual = len(chart.to_string()) / 1024
+    printed = int(re.search(r"~(\d+) KB", str(caught[0].message)).group(1))
 
-    assert estimated == pytest.approx(actual, rel=0.05)
+    assert printed == _estimated_and_actual_kb(_square(100))[0]
+    assert printed == pytest.approx(len(chart.to_string()) / 1024, rel=0.05)
 
 
 def test_a_large_heatmap_still_renders() -> None:
@@ -450,22 +501,67 @@ def test_annotations_take_the_font_from_a_class_the_theme_styles() -> None:
     assert ".tick-label {" in svg
 
 
-def test_annotation_ink_is_readable_on_every_level_under_every_preset() -> None:
+@pytest.mark.parametrize("cmap", sorted(SEQUENTIAL_PALETTES))
+def test_annotation_ink_is_readable_on_every_level_of_every_sequential_map(cmap: str) -> None:
     """The fix for the class above was first to borrow ``.tick-label``'s ``fill`` as well as
     its font -- and that made things worse, not better. Cell colours come from the colormap
     and are byte-identical under every preset, so the theme foreground is a colour picked to
     read against the *canvas*, applied over a *cell*. Measured on the dark preset it left 5
     of 9 levels below 3:1, worst 1.04:1 -- less legible than the browser default it
-    replaced. Ink now comes from the cell's own luminance instead."""
-    for preset in PRESETS:
-        svg = _render(_ramp(), annot=True, theme=preset)
-        style = svg[svg.index("<style>") : svg.index("</style>")]
-        fills = dict(re.findall(r"\.(level-\d+(?:-annotation)?) \{ fill: (#[0-9a-f]{6})", style))
+    replaced. Ink now comes from the cell's own luminance instead.
 
-        assert len(fills) == 2 * LEVELS, f"{preset}: {sorted(fills)}"
-        for index in range(1, LEVELS + 1):
-            ratio = _contrast(fills[f"level-{index}"], fills[f"level-{index}-annotation"])
-            assert ratio >= 4.5, f"{preset} level-{index}: {ratio:.2f}:1"
+    Parametrised on the **colormap**, not on the theme preset: the preset is exactly the
+    axis along which these colours do not vary, so looping over presets would run the same
+    assertion five times. Sweeping the maps instead is what makes a mutation that inks every
+    cell the same mid-grey fail."""
+    _assert_ink_is_readable(_render(_ramp(), annot=True, cmap=cmap))
+
+
+@pytest.mark.parametrize("cmap", sorted(DIVERGING_PALETTES))
+def test_annotation_ink_is_readable_on_a_centred_diverging_map(cmap: str) -> None:
+    """``center=`` swaps in a different palette entirely, so it is a second set of nine cell
+    colours and needs its own check -- and it is the harder one, since a diverging map runs
+    pale through the middle where a sequential map only starts there."""
+    _assert_ink_is_readable(_render(_ramp(), annot=True, cmap=cmap, center=5.0))
+
+
+def test_the_ink_does_not_take_the_theme_s_opacity() -> None:
+    """Ink reaches the ``<style>`` block through the same call the cells do, and the cell
+    rules carry ``theme.opacity``. Inheriting it would blend the ink back toward the cell it
+    was chosen to contrast with: at ``opacity=0.8`` the measured ratio falls from 4.9:1 to
+    3.3:1, below AA, and at 0.5 to 1.8:1."""
+    faded = replace(PRESETS["light"], opacity=0.5)
+    style = _style_of(_render(_ramp(), annot=True, theme=faded))
+
+    ink_rules = [line for line in style.splitlines() if "-annotation {" in line]
+    assert len(ink_rules) == LEVELS
+    for rule in ink_rules:
+        assert "opacity" not in rule, rule
+
+
+def test_the_theme_s_opacity_still_reaches_the_cells() -> None:
+    """The exemption above is for text only -- removing opacity from the level rules too
+    would be a different change, and this keeps the two apart."""
+    faded = replace(PRESETS["light"], opacity=0.5)
+    style = _style_of(_render(_ramp(), annot=True, theme=faded))
+
+    cell_rules = [line for line in style.splitlines() if re.match(r"\.level-\d+ \{", line)]
+    assert len(cell_rules) == LEVELS
+    assert all("opacity: 0.5" in rule for rule in cell_rules)
+
+
+def _style_of(svg: str) -> str:
+    return svg[svg.index("<style>") : svg.index("</style>")]
+
+
+def _assert_ink_is_readable(svg: str) -> None:
+    style = _style_of(svg)
+    fills = dict(re.findall(r"\.(level-\d+(?:-annotation)?) \{ fill: (#[0-9a-f]{6})", style))
+
+    assert len(fills) == 2 * LEVELS, sorted(fills)
+    for index in range(1, LEVELS + 1):
+        ratio = _contrast(fills[f"level-{index}"], fills[f"level-{index}-annotation"])
+        assert ratio >= 4.5, f"level-{index}: {ratio:.2f}:1"
 
 
 def test_each_annotation_takes_the_ink_of_the_cell_it_sits_on() -> None:
@@ -481,7 +577,7 @@ def test_each_annotation_takes_the_ink_of_the_cell_it_sits_on() -> None:
         level = next(name for name in cell["class"].split() if name.startswith("level-"))
         assert f"{level}-annotation" in annotation["class"].split()
     # ...and the classes really do differ across levels, so "all of them say level-1" fails.
-    inks = {annotation["class"].split()[0] for annotation in annotations}
+    inks = {name for annotation in annotations for name in annotation["class"].split() if name.startswith("level-")}
     assert len(inks) == LEVELS
 
 
