@@ -9,6 +9,8 @@ together, this file is where it should surface.
 
 from __future__ import annotations
 
+import inspect
+import re
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from pathlib import Path
@@ -38,6 +40,10 @@ CHART_TYPES: list[tuple[str, Callable[..., Chart]]] = [
     ("areaplot", lambda **kw: sp.areaplot(DATA, x="day", y="value", **kw)),
     ("pieplot", lambda **kw: sp.pieplot(DATA, values="value", labels="category", **kw)),
     ("boxplot", lambda **kw: sp.boxplot(DATA, x="group", y="value", **kw)),
+    ("ecdfplot", lambda **kw: sp.ecdfplot(DATA, x="value", hue="group", **kw)),
+    ("kdeplot", lambda **kw: sp.kdeplot(DATA, x="value", hue="group", **kw)),
+    ("violinplot", lambda **kw: sp.violinplot(DATA, x="group", y="value", **kw)),
+    ("regplot", lambda **kw: sp.regplot(DATA, x="day", y="value", **kw)),
 ]
 CHART_IDS = [name for name, _ in CHART_TYPES]
 CHART_FACTORIES = [factory for _, factory in CHART_TYPES]
@@ -193,3 +199,67 @@ def test_every_exported_name_is_importable() -> None:
     missing = [name for name in sp.__all__ if not hasattr(sp, name)]
     assert not missing, f"names in __all__ that aren't actually exported: {missing}"
     assert sp.__version__ == "0.1.0"
+
+
+def test_a_mixed_composition_of_distribution_charts_keeps_its_namespaces() -> None:
+    """The cross-drift an individual chart PR cannot catch: four chart types that each
+    mint ``series-N`` classes, placed in one document. Without per-cell prefixes the
+    second chart's palette would silently repaint the first."""
+    composition = sp.grid(
+        [
+            [sp.kdeplot(DATA, x="value", hue="group"), sp.violinplot(DATA, x="group", y="value")],
+            [sp.regplot(DATA, x="day", y="value"), sp.ecdfplot(DATA, x="value")],
+        ]
+    )
+    svg = composition.to_string()
+    series_rules = sorted(set(re.findall(r"\.([a-z0-9-]*series[a-z0-9-]*)\s*\{", svg)))
+    prefixes = {rule.split("-")[0] for rule in series_rules}
+
+    assert series_rules
+    assert all(re.match(r"^c\d+-", rule) for rule in series_rules)
+    # Distinct per cell, not merely present: one shared prefix is exactly the collision
+    # this guards against, and it satisfies "every rule is prefixed" just as well.
+    assert len(prefixes) == 4
+
+
+@pytest.mark.parametrize(
+    ("factory", "kwargs"),
+    [
+        pytest.param(sp.ecdfplot, {"x": "value"}, id="ecdfplot"),
+        pytest.param(sp.kdeplot, {"x": "value"}, id="kdeplot"),
+        # One category per panel here, because faceting by "group" and splitting on
+        # "category" too leaves a single value per violin and KDE needs two. The
+        # shared y domain that a multi-category panel would exercise is covered in the
+        # violin's own tests; what this row checks is that facet forwards the signature.
+        pytest.param(sp.violinplot, {"x": "group", "y": "value"}, id="violinplot"),
+        pytest.param(sp.regplot, {"x": "day", "y": "value"}, id="regplot"),
+    ],
+)
+def test_the_distribution_charts_facet(factory: Callable[..., Chart], kwargs: dict[str, str]) -> None:
+    """``facet`` forwards ``**kwargs`` untouched, so a chart whose signature drifts breaks
+    here and nowhere else."""
+    composition = sp.facet(factory, DATA, col="group", **kwargs)
+
+    assert len(composition.charts) == 2
+    assert composition.to_string().startswith("<?xml")
+
+
+def test_violinplot_takes_boxplot_s_positional_arguments() -> None:
+    """The README tells readers the two share ``(data, x, y)``, so that has to stay true.
+    Every other test here calls by keyword, which cannot notice a positional shape drifting
+    -- making ``y`` keyword-only breaks the documented swap and nothing else fails."""
+    assert sp.violinplot(DATA, "group", "value").to_string()
+    assert sp.boxplot(DATA, "group", "value").to_string()
+
+    violin = [
+        name
+        for name, parameter in inspect.signature(sp.violinplot).parameters.items()
+        if parameter.kind is parameter.POSITIONAL_OR_KEYWORD
+    ]
+    box = [
+        name
+        for name, parameter in inspect.signature(sp.boxplot).parameters.items()
+        if parameter.kind is parameter.POSITIONAL_OR_KEYWORD
+    ]
+
+    assert violin == box == ["data", "x", "y"]
