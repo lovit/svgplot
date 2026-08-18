@@ -6,18 +6,20 @@ escape-hatch methods recommended in docs/research/11-api-syntax.md
 but the returned Chart can still be customized and always composes with
 ``svgplot.layout``.
 
-``set_title``/``palette`` only record state on the Chart for now — applying a
-title to the document (``<title>``/``aria-label``) is ``accessibility.py``'s
-job, and resolving a palette spec into actual colors is ``theme``/``palette``'s
-job. Both land in later issues and will read this stored state when a chart is
-actually rendered.
+``set_title`` is applied at render time, not when it's called: every
+serialization path runs the stored document through ``accessibility.py`` first
+(see :meth:`Chart._accessible_document`). ``palette`` still only records state —
+resolving a spec into actual colors is ``theme``/``palette``'s job, landing in a
+later issue.
 """
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 from svgplot._svg import SvgDocument
+from svgplot.accessibility import add_accessibility
 from svgplot.output.jupyter import repr_svg
 from svgplot.output.png import to_png
 from svgplot.output.svg import save_svg, to_string
@@ -25,6 +27,11 @@ from svgplot.output.svg import save_svg, to_string
 
 class Chart:
     """A single rendered chart, backed by one SVG document."""
+
+    DEFAULT_TITLE = "Chart"
+    """Accessible name used when the caller hasn't set one. An empty ``aria-label``
+    is worse than a generic one — assistive tech would announce ``role="img"`` with
+    no usable name at all (see ``accessibility.add_accessibility``)."""
 
     def __init__(self, svg_document: SvgDocument) -> None:
         self._svg_document = svg_document
@@ -41,9 +48,29 @@ class Chart:
         self._palette = spec
         return self
 
+    def _accessible_document(self) -> SvgDocument:
+        """Return a copy of the document with role/aria/title/desc applied.
+
+        A *copy*, because ``add_accessibility`` appends ``<title>``/``<desc>`` and is
+        documented as once-per-document — but ``to_string``/``save``/``_repr_svg_``
+        are all callable repeatedly, so mutating the stored document would stack a
+        fresh pair on every render. Applying to a throwaway copy also means a
+        ``set_title()`` after an earlier render still takes effect, since the title
+        is read at serialization time rather than baked in once.
+
+        A whitespace-only title falls back to :attr:`DEFAULT_TITLE` just like an empty
+        one. Without the ``strip()`` the two diverge — ``""`` falls back quietly while
+        ``"   "`` reaches ``add_accessibility``'s empty-title ``ValueError``, which
+        would then surface at ``save()`` time rather than at the ``set_title()`` call
+        that caused it.
+        """
+        document = copy.deepcopy(self._svg_document)
+        add_accessibility(document, title=(self._title or "").strip() or self.DEFAULT_TITLE)
+        return document
+
     def to_string(self, *, pretty: bool = True) -> str:
         """Serialize to an SVG string. See svgplot.output.svg."""
-        return to_string(self._svg_document, pretty=pretty)
+        return to_string(self._accessible_document(), pretty=pretty)
 
     def save(self, path: str) -> None:
         """Write the chart to a file. Dispatches on ``path``'s extension: ``.svg`` (see
@@ -58,13 +85,14 @@ class Chart:
             ImportError: if the extension is ``.png`` and the ``png`` extra isn't installed.
         """
         suffix = Path(path).suffix.lower()
+        document = self._accessible_document()
         if suffix == ".svg":
-            save_svg(self._svg_document, path)
+            save_svg(document, path)
         elif suffix == ".png":
-            to_png(self._svg_document, path)
+            to_png(document, path)
         else:
             raise ValueError(f"unsupported file extension for Chart.save: {suffix!r} (expected .svg or .png)")
 
     def _repr_svg_(self) -> str:
         """Jupyter rich display hook. See svgplot.output.jupyter."""
-        return repr_svg(self._svg_document)
+        return repr_svg(self._accessible_document())
