@@ -7,12 +7,24 @@ from itertools import pairwise
 import pytest
 
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, plot_area
-from svgplot.charts.radar import _LABEL_GAP, _MARGIN, _MIN_CATEGORIES, _START_ANGLE, _label_anchor, radarplot
+from svgplot.charts.radar import (
+    _LABEL_GAP,
+    _MARGIN_WITH_LEGEND,
+    _MARGIN_WITHOUT_LEGEND,
+    _MIN_CATEGORIES,
+    _START_ANGLE,
+    _label_anchor,
+    radarplot,
+)
 from svgplot.scales import LinearScale, make_ticks
 
-AREA = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=_MARGIN)
+AREA = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=_MARGIN_WITHOUT_LEGEND)
 CENTRE = ((AREA.left + AREA.right) / 2, (AREA.top + AREA.bottom) / 2)
 OUTER = min(AREA.right - AREA.left, AREA.bottom - AREA.top) / 2 - _LABEL_GAP
+
+HUED_AREA = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=_MARGIN_WITH_LEGEND)
+HUED_CENTRE = ((HUED_AREA.left + HUED_AREA.right) / 2, (HUED_AREA.top + HUED_AREA.bottom) / 2)
+HUED_OUTER = min(HUED_AREA.right - HUED_AREA.left, HUED_AREA.bottom - HUED_AREA.top) / 2 - _LABEL_GAP
 
 CATEGORIES = ["a", "b", "c", "d", "e"]
 
@@ -48,8 +60,8 @@ def _series(svg: str) -> list[dict[str, str]]:
     return _tags(svg, "path", "radar-series")
 
 
-def _radius(point: tuple[float, float]) -> float:
-    return math.hypot(point[0] - CENTRE[0], point[1] - CENTRE[1])
+def _radius(point: tuple[float, float], centre: tuple[float, float] = CENTRE) -> float:
+    return math.hypot(point[0] - centre[0], point[1] - centre[1])
 
 
 # ---------------------------------------------------------------------------
@@ -236,9 +248,9 @@ def test_series_share_one_radial_scale() -> None:
     comparison a radar exists for."""
     data = _two_series()
     polygons = _series(radarplot(data, x="stat", y="v", hue="who").to_string())
-    peaks = [max(_radius(point) for point in _vertices(polygon)) for polygon in polygons]
+    peaks = [max(_radius(point, HUED_CENTRE) for point in _vertices(polygon)) for polygon in polygons]
 
-    assert max(peaks) == pytest.approx(OUTER)
+    assert max(peaks) == pytest.approx(HUED_OUTER)
     assert min(peaks) < OUTER
 
 

@@ -35,7 +35,12 @@ from svgplot.theme.css import render_theme_style
 _MIN_CATEGORIES = 3
 """Two spokes make a line, not a radar -- the shape has no interior to read."""
 
-_MARGIN = (40.0, 180.0, 40.0, 40.0)  # top, right, bottom, left -- right reserves legend space
+_MARGIN_WITH_LEGEND = (40.0, 180.0, 40.0, 40.0)  # top, right, bottom, left -- right reserves legend space
+_MARGIN_WITHOUT_LEGEND = (40.0, 40.0, 40.0, 40.0)
+"""Picked on ``hue``, the way every axed chart picks between ``MARGIN_WITH_LEGEND`` and
+``MARGIN_WITHOUT_LEGEND``. ``pie.py``'s single fixed margin is not the precedent here: a
+pie always draws a legend, a radar only does with ``hue=``, and reserving the space anyway
+pushes the dial 70px off the canvas centre with nothing filling the gap."""
 
 _START_ANGLE = -math.pi / 2
 """Twelve o'clock. Radars are read clockwise from the top, like a clock face."""
@@ -191,7 +196,7 @@ def radarplot(
         raise ValueError("radar values must not all be zero; there is no scale to draw them against")
 
     document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=_MARGIN)
+    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=_MARGIN_WITH_LEGEND if hue is not None else _MARGIN_WITHOUT_LEGEND)
     document.add_node(
         None,
         "rect",
