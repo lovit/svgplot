@@ -6,8 +6,10 @@ import warnings
 import pytest
 
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, format_coord, plot_area
-from svgplot.charts.heatmap import _WARN_CELL_COUNT, LEVELS, heatmap
+from svgplot.charts.heatmap import _WARN_CELL_COUNT, LEVELS, _readable_ink, heatmap
+from svgplot.palette._color import hex_to_rgb01
 from svgplot.palette.normalize import Normalize
+from svgplot.theme import PRESETS
 from svgplot.warnings import HeatmapSizeWarning
 
 AREA = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND)
@@ -36,6 +38,31 @@ def _tags(svg: str, element: str, css_class: str) -> list[dict[str, str]]:
     """Opening tags of ``element`` carrying ``css_class``. Matches both self-closing forms
     (``<rect …/>``) and ones with content (``<text …>…</text>``)."""
     return [dict(_ATTR_RE.findall(tag)) for tag in re.findall(rf"<{element}\b[^>]*?/?>", svg) if css_class in tag]
+
+
+def _annotations(svg: str) -> list[str]:
+    """The text content of each annotation, in document order."""
+    return re.findall(r'<text[^>]*class="[^"]*heatmap-annotation[^"]*"[^>]*>([^<]*)</text>', svg)
+
+
+def _ramp() -> dict[str, list]:
+    """One row per level plus the two saturating ends, so every ``level-N`` is present."""
+    values = [float(index) for index in range(11)]
+    return {"col": [f"c{index}" for index in range(11)], "row": ["p"] * 11, "v": values}
+
+
+def _relative_luminance(hex_color: str) -> float:
+    channels = [
+        channel / 12.92 if channel <= 0.03928 else ((channel + 0.055) / 1.055) ** 2.4 for channel in hex_to_rgb01(hex_color)
+    ]
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+
+def _contrast(one: str, other: str) -> float:
+    """WCAG contrast ratio. Written out here rather than imported, so a bug in the
+    production luminance calculation cannot make its own output look correct."""
+    dark, light = sorted((_relative_luminance(one), _relative_luminance(other)))
+    return (light + 0.05) / (dark + 0.05)
 
 
 def _cells(svg: str) -> list[dict[str, str]]:
@@ -409,17 +436,73 @@ def test_an_annotation_shows_its_cell_s_value() -> None:
     data = {"col": ["a", "b"], "row": ["p", "p"], "v": [1.5, 12.0]}
     svg = _render(data, annot=True)
 
-    assert re.findall(r'class="tick-label heatmap-annotation">([^<]+)<', svg) == ["1.5", "12"]
+    assert _annotations(svg) == ["1.5", "12"]
 
 
-def test_annotations_take_a_class_the_theme_styles() -> None:
-    """A class of its own has no CSS rule, so the text falls back to the browser default --
-    black serif, unreadable on a dark theme's dark cells."""
+def test_annotations_take_the_font_from_a_class_the_theme_styles() -> None:
+    """A class of its own has no CSS rule at all, so the text falls back to the browser
+    default -- a serif face at the browser's own size, next to the theme's sans everywhere
+    else on the chart."""
     svg = _render(GRID, annot=True, theme="dark")
     annotation = _tags(svg, "text", "heatmap-annotation")[0]
 
     assert "tick-label" in annotation["class"].split()
     assert ".tick-label {" in svg
+
+
+def test_annotation_ink_is_readable_on_every_level_under_every_preset() -> None:
+    """The fix for the class above was first to borrow ``.tick-label``'s ``fill`` as well as
+    its font -- and that made things worse, not better. Cell colours come from the colormap
+    and are byte-identical under every preset, so the theme foreground is a colour picked to
+    read against the *canvas*, applied over a *cell*. Measured on the dark preset it left 5
+    of 9 levels below 3:1, worst 1.04:1 -- less legible than the browser default it
+    replaced. Ink now comes from the cell's own luminance instead."""
+    for preset in PRESETS:
+        svg = _render(_ramp(), annot=True, theme=preset)
+        style = svg[svg.index("<style>") : svg.index("</style>")]
+        fills = dict(re.findall(r"\.(level-\d+(?:-annotation)?) \{ fill: (#[0-9a-f]{6})", style))
+
+        assert len(fills) == 2 * LEVELS, f"{preset}: {sorted(fills)}"
+        for index in range(1, LEVELS + 1):
+            ratio = _contrast(fills[f"level-{index}"], fills[f"level-{index}-annotation"])
+            assert ratio >= 4.5, f"{preset} level-{index}: {ratio:.2f}:1"
+
+
+def test_each_annotation_takes_the_ink_of_the_cell_it_sits_on() -> None:
+    """The nine ink rules are worthless if the text does not carry the matching class, and
+    a ``<style>``-only assertion cannot tell: dropping the class entirely, or giving every
+    annotation ``level-1``'s ink, both leave the emitted CSS byte-identical."""
+    svg = _render(_ramp(), annot=True, theme="dark")
+    cells = _cells(svg)
+    annotations = _tags(svg, "text", "heatmap-annotation")
+
+    assert len(annotations) == len(cells) == 11
+    for cell, annotation in zip(cells, annotations, strict=True):
+        level = next(name for name in cell["class"].split() if name.startswith("level-"))
+        assert f"{level}-annotation" in annotation["class"].split()
+    # ...and the classes really do differ across levels, so "all of them say level-1" fails.
+    inks = {annotation["class"].split()[0] for annotation in annotations}
+    assert len(inks) == LEVELS
+
+
+def test_the_ink_rules_are_absent_when_nothing_is_annotated() -> None:
+    """Nine rules no element matches are nine more lines to read past in a file whose whole
+    point is that a person can hand-edit it."""
+    assert "-annotation {" not in _render(GRID)
+
+
+def test_the_ink_flips_to_black_on_a_pale_cell_and_white_on_a_dark_one() -> None:
+    """Pinned against the WCAG threshold rather than a midpoint: splitting at 0.5 luminance
+    would send white ink onto cells where black reads up to 1.7x better."""
+    assert _readable_ink("#ffffff") == "#000000"
+    assert _readable_ink("#000000") == "#ffffff"
+    # One step either side of the threshold, so a moved constant fails rather than rounds.
+    assert _readable_ink("#767676") == "#000000"  # luminance 0.18116, just above 0.17913
+    assert _readable_ink("#757575") == "#ffffff"  # luminance 0.17789, just below it
+    # A mid-grey a 0.5 split would hand to white ink. Black wins here by 1.7x, which is the
+    # whole reason the threshold is derived rather than picked.
+    assert _readable_ink("#8a8a8a") == "#000000"
+    assert _contrast("#8a8a8a", "#000000") / _contrast("#8a8a8a", "#ffffff") == pytest.approx(1.7, abs=0.1)
 
 
 # ---------------------------------------------------------------------------
