@@ -5,8 +5,9 @@ import warnings
 
 import pytest
 
-from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, plot_area
+from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, format_coord, plot_area
 from svgplot.charts.heatmap import _WARN_CELL_COUNT, LEVELS, heatmap
+from svgplot.palette.normalize import Normalize
 from svgplot.warnings import HeatmapSizeWarning
 
 AREA = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND)
@@ -318,3 +319,166 @@ def test_rows_missing_any_channel_are_dropped() -> None:
 
 def test_heatmap_is_deterministic() -> None:
     assert _render(GRID) == _render(GRID)
+
+
+# ---------------------------------------------------------------------------
+# the legend names the values
+# ---------------------------------------------------------------------------
+
+
+def _legend_labels(svg: str) -> list[str]:
+    return re.findall(r'class="legend-text">([^<]+)<', svg)
+
+
+def _swatch_classes(svg: str) -> list[str]:
+    return [next(name for name in swatch["class"].split() if name.startswith("level-")) for swatch in _swatches(svg)]
+
+
+def test_each_swatch_is_labelled_with_the_value_its_colour_starts_at() -> None:
+    """The legend is the only way a reader turns a cell's colour back into a number. It has
+    no other test, and that is how the ``center=`` mislabelling below went unnoticed."""
+    data = {"col": ["a", "b", "c"], "row": ["p", "p", "p"], "v": [0.0, 4.5, 9.0]}
+    labels = _legend_labels(_render(data))
+
+    assert labels == [format_coord(9.0 * index / LEVELS) for index in range(LEVELS)]
+
+
+def test_the_legend_follows_a_centred_scale_too() -> None:
+    """With ``center`` the normalisation is two straight lines, so undoing it by assuming
+    one slope mislabels every step on the shorter side -- measured six of nine wrong, by up
+    to two levels."""
+    values = [0.0, 2.0, 10.0]
+    data = {"col": ["a", "b", "c"], "row": ["p", "p", "p"], "v": values}
+    normalize = Normalize.from_values(values, center=2.0)
+
+    labels = _legend_labels(_render(data, cmap="coolwarm", center=2.0))
+
+    assert labels == [format_coord(normalize.inverse(index / LEVELS)) for index in range(LEVELS)]
+
+    # The centre falls inside the middle swatch rather than starting it: 0.5 sits between
+    # 4/9 and 5/9 with nine levels. What matters is that the swatch the centre lands in is
+    # the middle one, and that its own label brackets the centre.
+    middle = LEVELS // 2
+    assert float(labels[middle]) < 2.0 < float(labels[middle + 1])
+    # A single-slope inverse would put this label at 4.444; the two-slope one at 1.778.
+    assert labels[middle] == format_coord(normalize.inverse(middle / LEVELS))
+
+
+def test_the_swatches_carry_one_level_class_each_in_order() -> None:
+    assert _swatch_classes(_render(GRID)) == [f"level-{index + 1}" for index in range(LEVELS)]
+
+
+def test_the_legend_reads_from_low_to_high() -> None:
+    labels = _legend_labels(_render(GRID))
+
+    assert [float(label) for label in labels] == sorted(float(label) for label in labels)
+
+
+# ---------------------------------------------------------------------------
+# the quantiser
+# ---------------------------------------------------------------------------
+
+
+def test_the_quantiser_maps_evenly_spaced_values_to_every_level() -> None:
+    """``GRID``'s six values skip levels 3, 5 and 7, so an off-by-one lands on the same two
+    ends and goes unnoticed. Nine values are no better -- with exactly ``LEVELS`` evenly
+    spaced values ``t * LEVELS`` and ``t * (LEVELS - 1)`` happen to agree everywhere, and
+    ``int`` and ``round`` agree too because every product is a whole number. Eleven values
+    separate all three: ``* (LEVELS - 1)`` doubles up in the middle instead of at the ends,
+    and ``round`` shifts the whole scale one step early."""
+    count = 11
+    values = [float(index) for index in range(count)]
+    data = {"col": [f"c{index}" for index in range(count)], "row": ["p"] * count, "v": values}
+    cells = _cells(_render(data))
+    levels = [next(name for name in cell["class"].split() if name.startswith("level-")) for cell in cells]
+
+    # A level spans 1/9 of the range while a step is 1/10 of it, so the two ends each take
+    # two values and the middle nine land one apiece.
+    assert levels == [f"level-{min(max(index, 1), LEVELS)}" for index in range(count)]
+
+
+# ---------------------------------------------------------------------------
+# annotations carry the values, and are themed
+# ---------------------------------------------------------------------------
+
+
+def test_an_annotation_shows_its_cell_s_value() -> None:
+    """Only the count and position were checked, so writing the level number -- or a
+    constant -- into every cell passed."""
+    data = {"col": ["a", "b"], "row": ["p", "p"], "v": [1.5, 12.0]}
+    svg = _render(data, annot=True)
+
+    assert re.findall(r'class="tick-label heatmap-annotation">([^<]+)<', svg) == ["1.5", "12"]
+
+
+def test_annotations_take_a_class_the_theme_styles() -> None:
+    """A class of its own has no CSS rule, so the text falls back to the browser default --
+    black serif, unreadable on a dark theme's dark cells."""
+    svg = _render(GRID, annot=True, theme="dark")
+    annotation = _tags(svg, "text", "heatmap-annotation")[0]
+
+    assert "tick-label" in annotation["class"].split()
+    assert ".tick-label {" in svg
+
+
+# ---------------------------------------------------------------------------
+# ordering and missing values
+# ---------------------------------------------------------------------------
+
+
+def test_columns_keep_their_first_seen_order() -> None:
+    """Asserted through the tick labels: cells are emitted in column order either way, so
+    comparing their x coordinates is true whatever order the categories are in."""
+    data = {"col": ["z", "a"], "row": ["p", "p"], "v": [1.0, 2.0]}
+    svg = _render(data)
+
+    assert re.findall(r'class="tick-label"[^>]*>([^<]+)<', svg)[:2] == ["z", "a"]
+
+
+def test_a_row_with_a_missing_value_is_dropped() -> None:
+    """The existing drop test holes ``col``/``row`` only, so removing the check on
+    ``values`` itself passed."""
+    data = {"col": ["a", "b", "c"], "row": ["p", "p", "p"], "v": [1.0, None, float("nan")]}
+
+    assert len(_cells(_render(data))) == 1
+
+
+# ---------------------------------------------------------------------------
+# the size estimate
+# ---------------------------------------------------------------------------
+
+
+def test_the_estimate_tracks_a_sparse_grid_too() -> None:
+    """A 100x100 grid holding a diagonal draws 100 rects but still labels 200 ticks.
+    Estimating from grid cells alone put it at 859 KB against a real 51 KB."""
+    side = 100
+    sparse = {
+        "col": [f"x{index}" for index in range(side)],
+        "row": [f"y{index}" for index in range(side)],
+        "v": [float(index) for index in range(side)],
+    }
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        chart = heatmap(sparse, x="col", y="row", values="v")
+
+    estimated = int(re.search(r"~(\d+) KB", str(caught[0].message)).group(1))
+    actual = len(chart.to_string()) / 1024
+
+    assert len(_cells(chart.to_string())) == side
+    assert estimated == pytest.approx(actual, rel=0.15)
+
+
+def test_the_warning_still_fires_on_a_sparse_grid() -> None:
+    """The *grid* is what makes each cell too small to read, however few are filled."""
+    side = 100
+    sparse = {
+        "col": [f"x{index}" for index in range(side)],
+        "row": [f"y{index}" for index in range(side)],
+        "v": [float(index) for index in range(side)],
+    }
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        heatmap(sparse, x="col", y="row", values="v")
+
+    assert len(caught) == 1
+    assert "10000 cells" in str(caught[0].message)
