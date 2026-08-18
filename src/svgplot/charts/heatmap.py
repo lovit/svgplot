@@ -25,6 +25,7 @@ It also means this package never needs a continuous ``colormap(name, t)`` sample
 
 from __future__ import annotations
 
+import math
 import warnings
 
 from svgplot._svg import SvgDocument
@@ -42,6 +43,7 @@ from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
+from svgplot.palette._color import hex_to_rgb01
 from svgplot.palette.diverging import diverging
 from svgplot.palette.normalize import Normalize
 from svgplot.palette.sequential import sequential
@@ -68,6 +70,13 @@ cells alone put that chart at 8 KB against a real 51 KB; from grid cells alone, 
 of all of them (estimate vs real, as the warning itself prints them): 50x50 dense 235 vs
 233 KB, 100x100 dense 901 vs 863 KB, 100x100 diagonal 50 vs 51 KB, 200x200 diagonal 101 vs
 102 KB. Worst case +4.4%, on the densest."""
+
+_INK_FLIP_LUMINANCE = math.sqrt(1.05 * 0.05) - 0.05
+"""Relative luminance at which black and white give a cell exactly the same contrast.
+
+WCAG contrast is ``(L_light + 0.05) / (L_dark + 0.05)``, so white scores ``1.05 / (L +
+0.05)`` and black ``(L + 0.05) / 0.05``; equating them gives this value, ~0.1791. Anything
+brighter takes black ink."""
 
 _WARN_CELL_COUNT = 2_500
 """Where the size warning starts. Two independent arguments land near the same number:
@@ -242,10 +251,13 @@ def heatmap(
                         "text-anchor": "middle",
                         "dominant-baseline": "middle",
                     },
-                    # "tick-label" rather than a class of its own: it is the only text
-                    # class the theme styles, and a bespoke one inherits the browser
-                    # default -- black serif, unreadable on a dark theme's dark cells.
-                    classes=["tick-label", "heatmap-annotation"],
+                    # Two classes doing two jobs. "tick-label" supplies the font, which is
+                    # the theme's business; the per-level class supplies the ink, which is
+                    # not -- a cell's colour comes from the colormap and is identical under
+                    # every preset, so a theme foreground picked to read against the
+                    # *canvas* is a guess about the *cell*. Measured on the dark preset,
+                    # borrowing it put 5 of 9 levels below 3:1 contrast, worst 1.04:1.
+                    classes=[f"{level_classes[level]}-annotation", "tick-label", "heatmap-annotation"],
                 )
 
     render_legend(
@@ -255,9 +267,36 @@ def heatmap(
         y=area.top,
         mark_style="fill",
     )
+    if annot:
+        # Emitted through level_colors, the same channel the cells use, so the ink rules
+        # get the same validation and the same composition namespacing. Only when there are
+        # annotations to colour -- nine dead rules would be nine more lines to read past in
+        # a chart a reader is meant to be able to hand-edit.
+        level_colors |= {f"{name}-annotation": _readable_ink(color) for name, color in level_colors.items()}
     render_theme_style(document, resolved_theme, [], mark_style="fill", level_colors=level_colors)
 
     return Chart(document)
+
+
+def _readable_ink(background: str) -> str:
+    """Black or white, whichever reads better on ``background``.
+
+    The threshold is the one that falls out of WCAG's contrast formula rather than a
+    hand-picked midpoint: black beats white exactly when the background's relative
+    luminance exceeds ``sqrt(1.05 * 0.05) - 0.05``. Splitting at 0.5 instead would flip the
+    choice on mid-tone cells and lose up to 1.7x of contrast on them.
+
+    Both candidates are theme-independent on purpose. A cell's colour comes from the
+    colormap, not the palette, so the ink that reads on it is a property of the data
+    encoding; a reader who wants different ink edits nine CSS rules, as with everything
+    else here.
+    """
+    red, green, blue = hex_to_rgb01(background)
+    channels = [
+        channel / 12.92 if channel <= 0.03928 else ((channel + 0.055) / 1.055) ** 2.4 for channel in (red, green, blue)
+    ]
+    luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+    return "#000000" if luminance > _INK_FLIP_LUMINANCE else "#ffffff"
 
 
 def _level_label(index: int, normalize: Normalize) -> str:
