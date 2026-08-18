@@ -138,8 +138,8 @@ def lineplot(
         if is_time
         else pixel_x_scale
     )
-    render_x_axis(document, tick_x_scale, area)
-    render_y_axis(document, pixel_y_scale, area)
+    render_x_axis(document, tick_x_scale, area, tick_length=resolved_theme.tick_size)
+    render_y_axis(document, pixel_y_scale, area, tick_length=resolved_theme.tick_size)
 
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []

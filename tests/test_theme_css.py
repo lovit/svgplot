@@ -93,3 +93,48 @@ def test_render_theme_style_accepts_valid_hex_colors_case_insensitively() -> Non
     document = SvgDocument()
     render_theme_style(document, theme, [])
     assert "#ABCDEF" in _style_text(document)
+
+
+def test_render_theme_style_stroke_mark_style_is_the_default_and_emits_a_marker_rule() -> None:
+    theme = Theme(palette=("#111111",))
+    document = SvgDocument()
+    render_theme_style(document, theme, ["series-1"])
+    css = _style_text(document)
+    assert ".series-1 { stroke: #111111; fill: none;" in css
+    assert ".series-1-marker { fill: #111111; stroke: none; }" in css
+
+
+def test_render_theme_style_fill_mark_style_sets_fill_and_emits_no_marker_rule() -> None:
+    """A future fill-based chart type (bar/area/pie) reuses this same shared
+    infrastructure — see charts/_legend.py's matching mark_style parameter.
+    """
+    theme = Theme(palette=("#111111",))
+    document = SvgDocument()
+    render_theme_style(document, theme, ["series-1"], mark_style="fill")
+    css = _style_text(document)
+    assert ".series-1 { fill: #111111; stroke: none;" in css
+    assert "-marker" not in css
+
+
+def test_render_theme_style_rejects_unknown_mark_style() -> None:
+    document = SvgDocument()
+    with pytest.raises(ValueError, match="mark_style"):
+        render_theme_style(document, Theme(), ["series-1"], mark_style="bogus")
+
+
+def test_render_theme_style_rejects_font_family_with_unterminated_quote() -> None:
+    """An odd number of "'" can't inject a new CSS rule (the character-set allow-list
+    already blocks "{"/"}"/";"/":" ), but it does leave a CSS string literal
+    unterminated, corrupting every rule after it in the <style> block.
+    """
+    theme = Theme(font_family="Arial'")
+    document = SvgDocument()
+    with pytest.raises(ValueError, match="unterminated quote"):
+        render_theme_style(document, theme, [])
+
+
+def test_render_theme_style_accepts_font_family_with_balanced_quotes() -> None:
+    theme = Theme(font_family="'Helvetica Neue', Arial")
+    document = SvgDocument()
+    render_theme_style(document, theme, [])
+    assert "'Helvetica Neue', Arial" in _style_text(document)

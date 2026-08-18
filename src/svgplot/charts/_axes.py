@@ -16,11 +16,9 @@ from datetime import datetime
 
 from svgplot._svg import SvgDocument
 from svgplot.charts._layout import PlotArea, format_coord
-from svgplot.scales import CategoricalScale, LinearScale, TimeScale, make_ticks
+from svgplot.scales import CategoricalScale, Scale, make_ticks
 
-Scale = LinearScale | CategoricalScale | TimeScale
-
-_TICK_LENGTH = 6.0
+_DEFAULT_TICK_LENGTH = 6.0
 _TICK_LABEL_OFFSET = 18.0
 _Y_TICK_LABEL_OFFSET = 8.0
 
@@ -43,8 +41,16 @@ def _tick_label_text(scale: Scale, tick: object) -> str:
     return format_coord(float(tick))
 
 
-def render_x_axis(document: SvgDocument, scale: Scale, area: PlotArea, *, tick_count: int = 5) -> None:
-    """Draw the bottom spine, vertical grid lines, tick marks, and tick labels for ``scale``."""
+def render_x_axis(
+    document: SvgDocument, scale: Scale, area: PlotArea, *, tick_count: int = 5, tick_length: float = _DEFAULT_TICK_LENGTH
+) -> None:
+    """Draw the bottom spine, vertical grid lines, tick marks, and tick labels for ``scale``.
+
+    ``tick_length`` should come from the ``Theme`` being rendered with
+    (``theme.tick_size``) so a theme's tick length actually takes visual effect —
+    it defaults to a sane constant only for direct/standalone callers that don't
+    have a ``Theme`` in scope.
+    """
     document.add_node(
         None,
         "line",
@@ -56,6 +62,7 @@ def render_x_axis(document: SvgDocument, scale: Scale, area: PlotArea, *, tick_c
         },
         classes=["spine"],
     )
+    label_offset = tick_length + _TICK_LABEL_OFFSET
     for tick in make_ticks(scale, count=tick_count):
         x = _tick_position(scale, tick)
         document.add_node(
@@ -76,7 +83,7 @@ def render_x_axis(document: SvgDocument, scale: Scale, area: PlotArea, *, tick_c
                 "x1": format_coord(x),
                 "y1": format_coord(area.bottom),
                 "x2": format_coord(x),
-                "y2": format_coord(area.bottom + _TICK_LENGTH),
+                "y2": format_coord(area.bottom + tick_length),
             },
             classes=["tick-line"],
         )
@@ -84,13 +91,21 @@ def render_x_axis(document: SvgDocument, scale: Scale, area: PlotArea, *, tick_c
             None,
             _tick_label_text(scale, tick),
             tag="text",
-            attrib={"x": format_coord(x), "y": format_coord(area.bottom + _TICK_LABEL_OFFSET), "text-anchor": "middle"},
+            attrib={"x": format_coord(x), "y": format_coord(area.bottom + label_offset), "text-anchor": "middle"},
             classes=["tick-label"],
         )
 
 
-def render_y_axis(document: SvgDocument, scale: Scale, area: PlotArea, *, tick_count: int = 5) -> None:
-    """Draw the left spine, horizontal grid lines, tick marks, and tick labels for ``scale``."""
+def render_y_axis(
+    document: SvgDocument, scale: Scale, area: PlotArea, *, tick_count: int = 5, tick_length: float = _DEFAULT_TICK_LENGTH
+) -> None:
+    """Draw the left spine, horizontal grid lines, tick marks, and tick labels for ``scale``.
+
+    ``tick_length`` should come from the ``Theme`` being rendered with
+    (``theme.tick_size``) so a theme's tick length actually takes visual effect —
+    it defaults to a sane constant only for direct/standalone callers that don't
+    have a ``Theme`` in scope.
+    """
     document.add_node(
         None,
         "line",
@@ -102,6 +117,7 @@ def render_y_axis(document: SvgDocument, scale: Scale, area: PlotArea, *, tick_c
         },
         classes=["spine"],
     )
+    label_x_offset = tick_length + 2
     for tick in make_ticks(scale, count=tick_count):
         y = _tick_position(scale, tick)
         document.add_node(
@@ -119,7 +135,7 @@ def render_y_axis(document: SvgDocument, scale: Scale, area: PlotArea, *, tick_c
             None,
             "line",
             attrib={
-                "x1": format_coord(area.left - _TICK_LENGTH),
+                "x1": format_coord(area.left - tick_length),
                 "y1": format_coord(y),
                 "x2": format_coord(area.left),
                 "y2": format_coord(y),
@@ -131,7 +147,7 @@ def render_y_axis(document: SvgDocument, scale: Scale, area: PlotArea, *, tick_c
             _tick_label_text(scale, tick),
             tag="text",
             attrib={
-                "x": format_coord(area.left - _TICK_LENGTH - 2),
+                "x": format_coord(area.left - label_x_offset),
                 "y": format_coord(y + _Y_TICK_LABEL_OFFSET / 2),
                 "text-anchor": "end",
             },

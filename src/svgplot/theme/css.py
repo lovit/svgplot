@@ -50,6 +50,12 @@ def _validate_css_font_family(value: object, *, field: str) -> str:
             f"{field} must contain only letters/digits/spaces/commas/hyphens/apostrophes "
             f"for safe CSS embedding, got {value!r}"
         )
+    # An odd number of "'" can't inject a new rule (no "{"/"}"/";"/":" allowed by the
+    # regex above), but it does leave a CSS string literal unterminated, which silently
+    # corrupts every rule after it in the <style> block — not an injection, but still
+    # a real breakage this validator should catch (post-merge security review).
+    if value.count("'") % 2 != 0:
+        raise ValueError(f'{field} has an unterminated quote (odd number of "\'"), got {value!r}')
     return value
 
 
@@ -65,12 +71,20 @@ def _validate_css_class_name(value: str) -> str:
     return value
 
 
-def render_theme_style(document: SvgDocument, theme: Theme, series_classes: list[str]) -> None:
+def render_theme_style(document: SvgDocument, theme: Theme, series_classes: list[str], *, mark_style: str = "stroke") -> None:
     """Emit one ``<style>`` element (child of ``document``'s root) with CSS rules for
     the shared static chart elements (background/grid/spine/tick/tick-label/legend-text)
     plus one rule per entry in ``series_classes``, colored by cycling through
     ``theme.palette`` — the same convention ``document.semantic_class("series")``-style
     incrementing class names are meant to pair with.
+
+    ``mark_style`` picks which CSS properties color a series: ``"stroke"`` (the
+    default — outlined marks like lines, e.g. ``lineplot``) sets ``stroke``/leaves
+    ``fill: none`` and also emits a paired ``.{class}-marker`` rule (``fill: color``)
+    for chart types that draw point markers alongside a stroked line/path (e.g. a
+    future scatter/line-with-markers chart); ``"fill"`` (solid marks like bars/areas/
+    pie slices) sets ``fill``/leaves ``stroke: none`` and emits no separate marker
+    rule, since a fill-based mark has no meaningful separate "marker" companion.
 
     Meant to be called once per document, after all data marks/axes/legend have been
     added (order doesn't matter for correctness — CSS class rules apply regardless of
@@ -79,9 +93,12 @@ def render_theme_style(document: SvgDocument, theme: Theme, series_classes: list
 
     Raises:
         ValueError: if any theme color isn't a strict ``#rrggbb`` hex string, if
-            ``theme.font_family`` contains a character outside the safe allow-list, or
-            if any numeric style field isn't finite.
+            ``theme.font_family`` contains a character outside the safe allow-list,
+            if any numeric style field isn't finite, or if ``mark_style`` isn't
+            ``"stroke"`` or ``"fill"``.
     """
+    if mark_style not in ("stroke", "fill"):
+        raise ValueError(f"mark_style must be 'stroke' or 'fill', got {mark_style!r}")
     background = _validate_css_color(theme.background, field="theme.background")
     foreground = _validate_css_color(theme.foreground, field="theme.foreground")
     grid_color = _validate_css_color(theme.grid_color, field="theme.grid_color")
@@ -115,7 +132,10 @@ def render_theme_style(document: SvgDocument, theme: Theme, series_classes: list
             continue  # a caller passing the same class twice shouldn't emit a duplicate CSS rule
         seen_classes.add(class_name)
         color = _validate_css_color(palette[index % len(palette)], field=f"theme.palette[{index % len(palette)}]")
-        rules.append(f".{class_name} {{ stroke: {color}; fill: none; stroke-width: {line_width}; opacity: {opacity}; }}")
-        rules.append(f".{class_name}-marker {{ fill: {color}; stroke: none; }}")
+        if mark_style == "stroke":
+            rules.append(f".{class_name} {{ stroke: {color}; fill: none; stroke-width: {line_width}; opacity: {opacity}; }}")
+            rules.append(f".{class_name}-marker {{ fill: {color}; stroke: none; }}")
+        else:
+            rules.append(f".{class_name} {{ fill: {color}; stroke: none; opacity: {opacity}; }}")
 
     document.add_text(None, "\n".join(rules), tag="style")
