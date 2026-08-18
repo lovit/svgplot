@@ -39,6 +39,14 @@ for a legend-capable chart's benefit would silently move those charts too."""
 LEGEND_X_OFFSET = 20.0
 """Gap between the plot area's right edge and the legend's left edge."""
 
+SPARKLINE_WIDTH = 120.0
+SPARKLINE_HEIGHT = 24.0
+"""Canvas size for ``charts/sparkline.py``, the one chart that can't start from
+``DEFAULT_WIDTH``/``DEFAULT_HEIGHT``. A sparkline is meant to sit inline in a line of
+prose or a table cell, so its size is bounded by the surrounding text rather than
+chosen for readable axis labels — and it draws no axes, legend or labels at all, so
+the margin presets above have nothing to reserve space for."""
+
 
 @dataclass(frozen=True)
 class PlotArea:
