@@ -65,6 +65,36 @@ sp.violinplot(data, x="region", y="sales", inner="box").save("violin.svg")
 sp.regplot(data, x="day", y="sales", ci=0.95, seed=0).save("reg.svg")
 ```
 
+### 형태 차트
+
+축이 있는 차트로는 잘 읽히지 않는 모양들이다. `heatmap`/`radarplot`/`treemap`/`gaugeplot`은 직교축이 없어 `.tick-label`이 없거나(treemap) 축 대신 자기 눈금을 그린다.
+
+```python
+# 히트맵 — 값을 9단계로 양자화해 색을 고른다(연속 램프가 아닌 이유는 모듈 docstring 참조)
+# center=를 주면 발산 컬러맵으로 바뀌어 가운데 단계가 "중심값"을 뜻한다
+# annot=True는 셀 값을 써넣고, 잉크 색은 셀 색의 휘도에서 고른다
+sp.heatmap(data, x="day", y="region", values="sales", annot=True).save("heatmap.svg")
+
+# 레이더 — x의 각 카테고리가 스포크, 시리즈마다 닫힌 다각형 하나
+# 눈금 링은 원이 아니라 다각형이라 모든 스포크를 그 눈금이 말하는 값에서 지난다
+sp.radarplot(data, x="day", y="sales", hue="region").save("radar.svg")
+
+# 트리맵 — squarified(Bruls 2000), 단일 레벨. 면적이 값에 비례한다
+sp.treemap(data, values="sales", labels="region").save("treemap.svg")
+
+# 스파크라인 — 축도 범례도 라벨도 없는 120x24 미니 캔버스. 문장 안에 넣으라고 있는 것
+sp.sparkline(data, y="sales").save("spark.svg")
+```
+
+`gaugeplot`은 9종 중 유일하게 데이터 모델이 **비교가 아니라 스칼라**다. x/y 채널이 없고 `pieplot`처럼 단일 `value` 컬럼을 받으므로, 위 long-form 데이터가 아니라 자기 모양의 데이터를 쓴다.
+
+```python
+# 게이지 — [vmin, vmax] 안에서 값이 어디쯤인지. 범위 밖 값은 양 끝으로 클램핑된다
+# 여러 행은 하나의 범위를 공유하는 동심 아크가 된다(pygal SolidGauge 모델)
+sp.gaugeplot({"metric": ["가동률", "적중률"], "score": [72.0, 91.0]},
+             "score", labels="metric", vmax=100).save("gauge.svg")
+```
+
 ### 여러 차트를 하나의 도판으로
 
 `row`/`column`/`grid`는 `Chart`와 동일한 인터페이스를 가진 `Composition`을 돌려주므로 그대로 저장할 수 있다. `None`은 빈 칸이고, `titles=`는 각 칸 위에 소제목을 붙인다(markdown에서 재현 불가능한 탭 UI의 정적 대체).
