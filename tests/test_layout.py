@@ -5,7 +5,14 @@ import re
 import pytest
 
 from svgplot.chart.base import Chart
-from svgplot.chart.composition import CAPTION_HEIGHT, TITLE_HEIGHT, Composition, chart_document, composition_document
+from svgplot.chart.composition import (
+    CAPTION_HEIGHT,
+    TITLE_HEIGHT,
+    Composition,
+    chart_document,
+    composition_document,
+    composition_title,
+)
 from svgplot.charts.line import lineplot
 from svgplot.layout.caption import add_caption
 from svgplot.layout.facet import facet
@@ -708,3 +715,125 @@ def test_the_png_branch_also_writes_the_accessible_document(monkeypatch, tmp_pat
 
     assert 'role="img"' in captured["svg"]
     assert "<title>PNG figure</title>" in captured["svg"]
+
+
+# ---------------------------------------------------------------------------
+# a rejected caption leaves nothing behind (issue #58)
+# ---------------------------------------------------------------------------
+
+
+def _caption_state(composition: Composition) -> tuple[float, str | None, str | None, list[str | None]]:
+    """Everything ``add_caption`` would mutate, as one comparable snapshot."""
+    document = composition_document(composition)
+    return (
+        document.height,
+        document.root.get("height"),
+        document.root.get("viewBox"),
+        [element.get("y") for element in document.root if element.tag in ("svg", "text")],
+    )
+
+
+@pytest.mark.parametrize("location", ["below", "above"])
+def test_a_rejected_caption_does_not_resize_the_canvas(location: str) -> None:
+    """Every mutation in ``add_caption`` used to run before the text was validated, so a
+    caption holding a character XML forbids raised *and* left the figure permanently
+    taller with nothing in the new band."""
+    composition = row([make_chart()])
+    before = _caption_state(composition)
+
+    with pytest.raises(ValueError, match="not allowed in XML"):
+        add_caption(composition, "bad\x00caption", location=location)
+
+    assert _caption_state(composition) == before
+
+
+def test_a_rejected_caption_does_not_shift_the_children() -> None:
+    """``location="above"`` moves every child down before writing the text, so a rejected
+    caption slid the charts off their own layout."""
+    composition = row([make_chart()])
+    before = _caption_state(composition)[3]
+
+    with pytest.raises(ValueError):
+        add_caption(composition, "bad\x00caption", location="above")
+
+    assert _caption_state(composition)[3] == before
+
+
+@pytest.mark.parametrize("location", ["below", "above"])
+def test_repeated_rejections_do_not_accumulate(location: str) -> None:
+    """The failure mode a user actually hits: fix the caption, try again, and find the
+    figure has grown by a band for every earlier attempt."""
+    composition = row([make_chart()])
+    before = _caption_state(composition)
+
+    for _ in range(3):
+        with pytest.raises(ValueError):
+            add_caption(composition, "bad\x00caption", location=location)
+
+    assert _caption_state(composition) == before
+
+
+@pytest.mark.parametrize("suffix", ["\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x1f"])
+def test_a_trailing_control_character_is_rejected_without_mutating(suffix: str) -> None:
+    """These six are removed by ``str.strip()`` *and* forbidden by XML 1.0, so validating a
+    stripped copy accepts a caption the real write then rejects -- after the canvas has
+    grown. Every other case here puts the bad character mid-string, where stripping makes
+    no difference, so only this one closes that door."""
+    composition = row([make_chart()])
+    before = _caption_state(composition)
+
+    with pytest.raises(ValueError, match="not allowed in XML"):
+        add_caption(composition, f"caption{suffix}")
+
+    assert _caption_state(composition) == before
+
+
+def test_the_validation_probe_makes_the_same_call_as_the_real_write(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The probe stands in for the write, so it has to *be* the same call -- recorded here
+    rather than compared by eye. Two separately assembled calls agree today only because
+    ``add_text`` validates the text before the attributes; the moment a caption node carries
+    a user-derived attribute, a weaker probe would stop covering it and nothing would fail."""
+    from svgplot._svg import SvgDocument
+
+    recorded: list[dict[str, object]] = []
+    original = SvgDocument.add_text
+
+    def spy(self: SvgDocument, parent: object, text: str, **kwargs: object):
+        recorded.append({"text": text, **kwargs})
+        return original(self, parent, text, **kwargs)
+
+    composition = row([make_chart()])  # rendering the chart itself emits text nodes too
+    monkeypatch.setattr(SvgDocument, "add_text", spy)
+    add_caption(composition, "a caption")
+
+    caption_calls = [call for call in recorded if call["text"] == "a caption"]
+    assert len(caption_calls) == 2, "expected the probe and the write, in that order"
+    probe, write = caption_calls
+    assert probe["text"] == write["text"] == "a caption"
+    assert probe["tag"] == write["tag"]
+    assert probe["classes"] == write["classes"]
+    assert set(probe["attrib"]) == set(write["attrib"])
+
+
+def test_a_rejected_caption_does_not_become_the_accessible_name() -> None:
+    composition = row([make_chart()])
+
+    with pytest.raises(ValueError):
+        add_caption(composition, "bad\x00caption")
+
+    assert composition_title(composition) is None
+
+
+@pytest.mark.parametrize("location", ["below", "above"])
+def test_a_good_caption_still_applies_after_a_rejected_one(location: str) -> None:
+    """The point of leaving the document untouched: the retry has to behave exactly as if
+    the bad attempt never happened."""
+    failed = row([make_chart()])
+    with pytest.raises(ValueError):
+        add_caption(failed, "bad\x00caption", location=location)
+    add_caption(failed, "good caption", location=location)
+
+    clean = row([make_chart()])
+    add_caption(clean, "good caption", location=location)
+
+    assert failed.to_string() == clean.to_string()

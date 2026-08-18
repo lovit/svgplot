@@ -10,6 +10,7 @@ from svgplot.charts.histogram import histplot
 from svgplot.charts.kde import kdeplot
 from svgplot.charts.line import lineplot
 from svgplot.charts.pie import pieplot
+from svgplot.charts.regression import regplot
 from svgplot.charts.scatter import scatterplot
 from svgplot.charts.sparkline import sparkline
 from svgplot.charts.treemap import treemap
@@ -24,6 +25,7 @@ __all__ = [
     "kdeplot",
     "lineplot",
     "pieplot",
+    "regplot",
     "scatterplot",
     "sparkline",
     "treemap",
