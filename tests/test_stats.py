@@ -101,13 +101,35 @@ def test_interpolate_rejects_too_many_points() -> None:
 
 def test_interpolate_lagrange_has_a_much_stricter_point_cap() -> None:
     """lagrange is O(n^2 * precision) and numerically unstable past a small point count,
-    so it gets a much lower cap than the other 4 (O(n)) methods — a point count that's
+    so it gets a much lower cap than the linear-in-n methods — a point count that's
     fine for cubic/hermite should still be rejected for lagrange specifically."""
     x = [float(i) for i in range(100)]
     y = [float(i % 3) for i in range(100)]
     interpolate(x, y, method="cubic", precision=10)  # under _MAX_POINTS: fine
     with pytest.raises(ValueError, match="lagrange"):
         interpolate(x, y, method="lagrange", precision=10)
+
+
+def test_interpolate_trigonometric_has_a_stricter_point_cap_than_the_linear_methods() -> None:
+    """trigonometric's DFT is the naive O(n^2) form, so it is not linear in the point
+    count the way cubic/hermite are. Under the shared _MAX_POINTS it was the slowest
+    path in the package (~3.5x the already-capped lagrange worst case), so it needs its
+    own cap — a point count fine for cubic must still be rejected for trigonometric."""
+    x = [float(i) for i in range(600)]
+    y = [float(i % 5) for i in range(600)]
+    interpolate(x, y, method="cubic", precision=10)  # under _MAX_POINTS: fine
+    with pytest.raises(ValueError, match="trigonometric"):
+        interpolate(x, y, method="trigonometric", precision=10)
+
+
+def test_interpolate_trigonometric_accepts_a_point_count_at_its_cap() -> None:
+    """The cap bounds cost without rejecting realistic input: exactly _MAX_TRIGONOMETRIC_POINTS
+    must still work, so the boundary is inclusive rather than off by one."""
+    n = 500
+    x = [float(i) for i in range(n)]
+    y = [float(i % 5) for i in range(n)]
+    curve = interpolate(x, y, method="trigonometric", precision=10)
+    assert len(curve) == 10
 
 
 @pytest.mark.parametrize("method", ("cubic", "hermite"))
@@ -242,16 +264,25 @@ def test_box_stats_all_identical_values_degenerates_cleanly(mode: str) -> None:
 
 
 @pytest.mark.parametrize("mode", ("extremes", "1.5IQR", "stdev", "pstdev"))
-def test_box_stats_rejects_extreme_but_finite_values_that_would_overflow_linear_quartiles(mode: str) -> None:
-    """Regression: round-1's fix only validated the whiskers for finiteness, but
-    q1/q3 can independently overflow through the linear-interpolation percentile
-    formula (sorted[lower] + fraction * (sorted[upper] - sorted[lower])) even though
-    every individual input value (-1e308, 1e308) is finite on its own. (tukey uses a
-    different hinge algorithm that doesn't overflow on this particular 2-value input —
-    see test_box_stats_rejects_extreme_but_finite_values_that_would_overflow_tukey_hinges
-    for a dataset that does trigger tukey's own overflow path.)"""
-    with pytest.raises(ValueError, match="finite"):
-        box_stats([-1e308, 1e308], mode=mode)
+def test_box_stats_computes_wide_span_quartiles_instead_of_over_rejecting(mode: str) -> None:
+    """A span of -1e308..1e308 has a perfectly representable 25th percentile (-5e307),
+    but the old percentile formula (``lo + f * (up - lo)``) formed the difference
+    ``up - lo`` first, which overflows to inf and tripped the finiteness guard on a
+    result that was never actually non-finite. The weighted form
+    (``lo * (1 - f) + up * f``) never forms a value larger than its own endpoints,
+    so the correct answer survives.
+
+    This pins the *absence* of that spurious rejection. The guard itself is still
+    exercised by the tukey/stdev overflow tests below, which use datasets whose
+    results genuinely are non-finite."""
+    stats = box_stats([-1e308, 1e308], mode=mode)
+
+    # Hand-checked: rank = 0.25 * (2 - 1) = 0.25, so
+    # q1 = -1e308 * 0.75 + 1e308 * 0.25 = -5e307 (and q3 mirrors it).
+    assert stats.q1 == pytest.approx(-5e307)
+    assert stats.q3 == pytest.approx(5e307)
+    assert math.isfinite(stats.median)
+    assert math.isfinite(stats.whisker_low) and math.isfinite(stats.whisker_high)
 
 
 def test_box_stats_rejects_extreme_but_finite_values_that_would_overflow_tukey_hinges() -> None:

@@ -20,9 +20,12 @@ _MAX_PRECISION = 10_000
 ``_MAX_CUBEHELIX_MAGNITUDE``/``_MAX_SPEC_LENGTH`` elsewhere in this package."""
 
 _MAX_POINTS = 2_000
-"""Sane upper bound on input point count for the 4 non-``lagrange`` methods (all O(n) or
-O(n log n) in the point count) — generous enough for real chart data (e.g. a daily
-time series spanning several years) while still bounding memory/CPU for a single call."""
+"""Sane upper bound on input point count for the methods that are linear in it
+(``quadratic``/``cubic``/``hermite`` — each evaluates a fixed-size local stencil per
+output point) — generous enough for real chart data (e.g. a daily time series spanning
+several years) while still bounding memory/CPU for a single call. ``lagrange`` and
+``trigonometric`` are quadratic in the point count and get their own stricter caps
+below."""
 
 _MAX_LAGRANGE_POINTS = 50
 """Much stricter cap for ``lagrange`` specifically: it's an O(n^2 * precision) CPU-DoS
@@ -30,6 +33,16 @@ vector (n=2000, precision=1000 takes ~2 minutes; even n=200 with a large precisi
 several seconds) AND numerically meaningless well before that (Runge's phenomenon makes
 it diverge past roughly this many points anyway) — so this cap costs nothing for a method
 that's only ever practical on a handful of points."""
+
+_MAX_TRIGONOMETRIC_POINTS = 500
+"""Stricter cap for ``trigonometric``: the DFT here is the naive O(n^2) form and the
+reconstruction is O(n * precision), so it is *not* linear in the point count the way
+``cubic``/``hermite`` are. Left under ``_MAX_POINTS`` it was the package's slowest
+remaining path — measured 2.36s at n=2000 with ``_MAX_PRECISION``, i.e. ~3.5x the
+already-capped ``lagrange`` worst case. This bound puts its worst case (0.59s) just
+under ``lagrange``'s (0.68s), so no single interpolation call is worse than the bound
+already accepted there. An FFT would lift this, but a naive DFT keeps the module
+dependency-free."""
 
 
 @dataclass(frozen=True)
@@ -49,8 +62,9 @@ def interpolate(x: list[float], y: list[float], method: str = "cubic", precision
     Raises:
         ValueError: if ``method`` isn't one of :data:`METHODS`, if ``precision`` is out of
             range, if ``x``/``y`` differ in length, have fewer than 2 or more than
-            :data:`_MAX_POINTS` points (or, for ``method="lagrange"`` specifically, more
-            than the much stricter :data:`_MAX_LAGRANGE_POINTS`), contain a non-numeric or
+            :data:`_MAX_POINTS` points (or, for the two methods that are quadratic in the
+            point count, more than the stricter :data:`_MAX_LAGRANGE_POINTS` /
+            :data:`_MAX_TRIGONOMETRIC_POINTS`), contain a non-numeric or
             non-finite coordinate, if ``x`` isn't strictly increasing, if ``x``'s span
             (``x[-1] - x[0]``) isn't finite, or if the interpolated output itself contains
             a non-finite value —
@@ -71,6 +85,11 @@ def interpolate(x: list[float], y: list[float], method: str = "cubic", precision
     if method == "lagrange" and len(x) > _MAX_LAGRANGE_POINTS:
         raise ValueError(
             f"too many points for lagrange interpolation ({len(x)}), max {_MAX_LAGRANGE_POINTS} (see _MAX_LAGRANGE_POINTS docstring)"
+        )
+    if method == "trigonometric" and len(x) > _MAX_TRIGONOMETRIC_POINTS:
+        raise ValueError(
+            f"too many points for trigonometric interpolation ({len(x)}), max {_MAX_TRIGONOMETRIC_POINTS} "
+            "(see _MAX_TRIGONOMETRIC_POINTS docstring)"
         )
     for value in (*x, *y):
         try:
