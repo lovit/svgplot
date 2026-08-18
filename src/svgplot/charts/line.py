@@ -27,6 +27,7 @@ from svgplot.charts._layout import (
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.data.semantic import extract_channels
 from svgplot.scales import LinearScale, TimeScale
@@ -44,9 +45,7 @@ def _series_points(columns: dict[str, list], x: str, y: str) -> list[tuple[objec
     points in x order regardless of the input rows' original order.
     """
     points = [
-        (xv, float(yv))
-        for xv, yv in zip(columns[x], columns[y], strict=True)
-        if xv is not None and yv is not None and not (isinstance(yv, float) and yv != yv)
+        (xv, float(yv)) for xv, yv in zip(columns[x], columns[y], strict=True) if not is_missing(xv) and not is_missing(yv)
     ]
     return sorted(points, key=lambda point: _numeric_x(point[0]))
 
