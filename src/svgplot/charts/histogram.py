@@ -38,9 +38,13 @@ def _count_in_bins(values: list[float], edges: list[float]) -> list[int]:
     counts = [0] * n_bins
     for value in values:
         # bisect_right(edges, value) - 1 gives the bin index i such that
-        # edges[i] <= value < edges[i+1]; clamping handles value == edges[-1]
+        # edges[i] <= value < edges[i+1]; the upper clamp handles value == edges[-1]
         # (bisect_right returns len(edges) there) by folding it into the last bin.
-        index = min(bisect.bisect_right(edges, value) - 1, n_bins - 1)
+        # The lower clamp is defensive: a value below edges[0] would give -1, which
+        # indexes the *last* bin instead of the first. Unreachable today (edges always
+        # come from histogram_bins(all_values), so edges[0] == min(values)), but it
+        # would silently miscount for any future caller passing custom edges.
+        index = max(0, min(bisect.bisect_right(edges, value) - 1, n_bins - 1))
         counts[index] += 1
     return counts
 
