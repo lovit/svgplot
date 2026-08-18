@@ -9,8 +9,10 @@ Wired into ``chart.base.Chart``'s render path (issue #29): every serialization
 (``to_string``/``save``/``_repr_svg_``) applies this to a *copy* of the chart's
 document, so repeated renders never stack duplicate ``<title>``/``<desc>`` pairs
 and a late ``set_title()`` still takes effect. ``chart.composition.Composition``
-is deliberately not covered — a composed figure needs one accessible name of its
-own, not one per nested child; that is tracked as issue #55.
+does the same on its own serialization paths (issue #55), but only on the *outer*
+document: a composed figure needs one accessible name of its own, not one per
+nested child, and children are nested from their raw pre-accessibility documents
+precisely so this function is never applied per panel.
 """
 
 from __future__ import annotations

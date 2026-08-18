@@ -49,6 +49,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from svgplot._svg import SvgDocument
+from svgplot.accessibility import add_accessibility
 from svgplot.chart.base import Chart
 from svgplot.charts._layout import format_coord
 from svgplot.output.jupyter import repr_svg
@@ -127,6 +128,24 @@ def composition_document(composition: Composition) -> SvgDocument:
     composition after the fact (e.g. ``layout.caption.add_caption``).
     """
     return composition._svg_document
+
+
+def composition_title(composition: Composition) -> str | None:
+    """Return the accessible name a caller actually set on ``composition``, or ``None``.
+
+    The :func:`composition_document` counterpart for the accessible name, and for the
+    same reason: ``layout`` passes need to know whether a name is already set (see
+    ``layout.caption.add_caption``, which only adopts its text when one isn't), and
+    that read belongs in one named, documented place rather than as a bare
+    ``composition._title`` in each layout module.
+
+    Delegates to :meth:`Composition._resolved_title`, so "already set" means exactly
+    what the render path means by it — a whitespace-only title reads as unset here
+    just as it falls back to :attr:`Composition.DEFAULT_TITLE` there. Were the two to
+    disagree, ``set_title("  ")`` followed by ``add_caption("Figure 3")`` would render
+    the caption visibly while announcing the generic default.
+    """
+    return composition._resolved_title()
 
 
 def _namespaced_child_root(chart: Chart, prefix: str) -> ET.Element:
@@ -238,6 +257,11 @@ class Composition:
     like a single chart.
     """
 
+    DEFAULT_TITLE = "Chart composition"
+    """Accessible name used when neither :meth:`set_title` nor a caption supplied one.
+    Deliberately distinct from ``Chart.DEFAULT_TITLE`` so a screen-reader user can tell
+    a multi-panel figure from a single chart without exploring it."""
+
     def __init__(self, document: SvgDocument, charts: list[Chart]) -> None:
         """``document`` is the composed canvas built by a ``svgplot.layout`` function;
         ``charts`` are the children it was built from, kept so a composition can be
@@ -246,6 +270,59 @@ class Composition:
         """
         self._svg_document = document
         self._charts = list(charts)
+        self._title: str | None = None
+
+    def set_title(self, title: str) -> Composition:
+        """Set the composition's accessible name. Returns self for chaining.
+
+        Mirrors :meth:`svgplot.chart.base.Chart.set_title`. ``layout.add_caption`` also
+        sets this when it isn't already set, since a caption *is* the figure's name —
+        announcing a generic default while a visible caption reads "Figure 3. Quarterly
+        revenue" would be strictly worse for a screen-reader user.
+
+        ``grid(titles=...)`` deliberately does *not* feed this. Those are per-cell
+        headings, so there is no single one of them to name the whole figure by, and
+        concatenating them would announce the panel list before the reader learns what
+        the figure even is. They stay visible chrome; the figure's name comes from
+        ``set_title``, a caption, or :attr:`DEFAULT_TITLE`.
+        """
+        self._title = title
+        return self
+
+    def _resolved_title(self) -> str | None:
+        """The accessible name a caller actually set, or ``None`` if none is in effect.
+
+        The single definition of "unset" for this class: both the render path below and
+        ``layout.caption.add_caption`` (via :func:`composition_title`) ask this, so a
+        whitespace-only title can't count as set in one and unset in the other.
+        """
+        return (self._title or "").strip() or None
+
+    def _accessible_document(self) -> SvgDocument:
+        """Return a copy of the composed document with role/aria/title/desc applied.
+
+        Same copy-based approach as :meth:`svgplot.chart.base.Chart._accessible_document`
+        and for the same reasons — ``add_accessibility`` appends and is once-per-document,
+        while every serialization path is repeatedly callable.
+
+        Only the *outer* document gets these: children were nested from
+        ``chart_document()`` (the charts' raw documents, before ``Chart``'s own
+        accessibility pass), so a composed figure announces one name rather than one
+        per panel. ``test_composition_children_do_not_carry_their_own_accessibility``
+        pins that.
+
+        The panel count is ``len(self._charts)``, which is the number of charts actually
+        placed — ``layout.grid`` drops ``None`` blank cells before building the
+        ``Composition``, so a blank never inflates the count a screen reader announces.
+        """
+        document = copy.deepcopy(self._svg_document)
+        count = len(self._charts)
+        add_accessibility(
+            document,
+            title=self._resolved_title() or self.DEFAULT_TITLE,
+            desc=f"A figure composed of {count} chart{'' if count == 1 else 's'}.",
+        )
+        return document
 
     @property
     def charts(self) -> list[Chart]:
@@ -254,7 +331,7 @@ class Composition:
 
     def to_string(self, *, pretty: bool = True) -> str:
         """Serialize to an SVG string. See svgplot.output.svg."""
-        return to_string(self._svg_document, pretty=pretty)
+        return to_string(self._accessible_document(), pretty=pretty)
 
     def save(self, path: str) -> None:
         """Write the composition to a file, dispatching on ``path``'s extension
@@ -265,13 +342,14 @@ class Composition:
             ImportError: if the extension is ``.png`` and the ``png`` extra isn't installed.
         """
         suffix = Path(path).suffix.lower()
+        document = self._accessible_document()
         if suffix == ".svg":
-            save_svg(self._svg_document, path)
+            save_svg(document, path)
         elif suffix == ".png":
-            to_png(self._svg_document, path)
+            to_png(document, path)
         else:
             raise ValueError(f"unsupported file extension for Composition.save: {suffix!r} (expected .svg or .png)")
 
     def _repr_svg_(self) -> str:
         """Jupyter rich display hook. See svgplot.output.jupyter."""
-        return repr_svg(self._svg_document)
+        return repr_svg(self._accessible_document())
