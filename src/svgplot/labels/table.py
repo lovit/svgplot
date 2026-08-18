@@ -19,13 +19,14 @@ separator is then backslash-escaped, and a literal newline (which would
 otherwise terminate the row early and desynchronize the table) is collapsed
 to a space — that order matters, see :func:`_escape_markdown_cell`.
 
-Known limit (issue #97): only *structure* is neutralized. Markdown **inline**
-syntax in a cell is passed through and renders live — a value of
-``[click](https://elsewhere/)`` becomes a real link, ``![x](https://…)`` a
-remote image (an IP beacon for whoever opens the document), and backticks or
-asterisks restyle the cell. That is not an XSS vector — ``html.escape`` still
-neutralizes ``<`` — but it does mean a table built from untrusted data can
-carry active content into the rendered document.
+Markdown **inline** syntax is neutralized too (issue #97), on the same
+principle: a cell holds data, not markup. ``[click](https://elsewhere/)`` used
+to become a real link and ``![x](https://…)`` a remote image — an IP beacon for
+whoever opened the document — which is not an XSS vector (``html.escape`` still
+neutralizes ``<``) but is active content injected from caller data. The
+representative use of ``info=`` is a user-submitted CSV, so that path is the
+one this matters on. See :data:`_MARKDOWN_ESCAPED` for the character set and
+the one case escaping cannot reach.
 """
 
 from __future__ import annotations
@@ -56,12 +57,59 @@ def _collapse_newlines(text: str) -> str:
     return text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
 
 
+_MARKDOWN_ESCAPED = "`[]*_|"
+r"""Characters backslash-escaped in a markdown cell, so its value renders as written.
+
+``|`` is the table's own column separator and would desynchronise the row. ``` ` ``,
+``[`` and ``]`` begin **active content** -- a code span, a link, or an image (a remote
+fetch, so an IP beacon for anyone who opens the document). ``*`` and ``_`` only restyle,
+and are escaped anyway: the rule worth having is "a cell is data, not markup", and a rule
+that admits some markup has to keep answering which.
+
+``~`` is the exception, and it is a rendering constraint rather than a judgement. CommonMark
+permits a backslash before any ASCII punctuation, but Python-Markdown -- MkDocs' engine, and
+this project's own -- carries a fixed escape list that does not include ``~``, so ``\~``
+reaches the reader as a visible backslash. Measured: ``x\~y`` renders as ``x\~y`` there.
+And the thing escaping it would prevent, GFM strikethrough, is already inert in that
+flavour. So escaping ``~`` corrupts every cell containing one, in exchange for suppressing
+a styling change in one flavour only. The other five are on Python-Markdown's list and
+render bare in both.
+"""
+
+
 def _escape_markdown_cell(text: str) -> str:
-    # Order matters: double existing backslashes BEFORE inserting the "\|" escape below,
-    # so a user-supplied "\" can never combine with our inserted "\" to change meaning.
+    """Render a cell value literally, whatever markdown syntax it contains.
+
+    Exactly one ordering constraint, and it is the backslash. Existing backslashes are
+    doubled **first**, so a user-supplied ``\\`` can never pair with one this function
+    inserts and leave the character after it live. Doubling last would instead re-escape
+    every backslash this function just added, turning ``\\|`` back into a bare ``|``.
+
+    Where ``html.escape`` sits relative to the inline escapes does **not** matter: it
+    neither produces nor consumes any of :data:`_MARKDOWN_ESCAPED` (its output is
+    ``&amp;``/``&lt;``/``&gt;``/``&quot;``/``&#x27;``) and it leaves backslashes alone. The
+    two passes are independent, and a test pins that so the placement here stays a free
+    choice rather than a silent dependency.
+
+    What this cannot neutralise is GFM's **autolink extension**, which links text carrying
+    no markup at all, so no escape reaches it. Measured against cmark-gfm, three forms
+    survive: a bare URL (``https://x/`` -> a link), a ``www.`` prefix (``www.x/`` ->
+    ``http://www.x/``), and an email address (``a@x`` -> ``mailto:``). The last is the one
+    that matters most in practice -- the representative ``info=`` input is a user-submitted
+    CSV, and an email column is commoner than a URL column.
+
+    Killing those would mean rewriting the value itself -- reporting data the caller never
+    gave -- so the honest limit is that this makes a cell's *markup* inert, not its
+    *content* unclickable. What it does remove entirely is the image: ``![x](url)`` emits
+    no ``<img>`` under any input, so the remote fetch is gone even though the URL inside it
+    still autolinks as text.
+    """
     text = _collapse_newlines(text)
     text = text.replace("\\", "\\\\")
-    return html.escape(text, quote=True).replace("|", "\\|")
+    text = html.escape(text, quote=True)
+    for character in _MARKDOWN_ESCAPED:
+        text = text.replace(character, f"\\{character}")
+    return text
 
 
 def _escape_html_cell(text: str) -> str:
