@@ -1,0 +1,161 @@
+"""kdeplot — kernel density curves (delegates to svgplot.stats.kde).
+
+Structurally ``histplot`` with the binning swapped for a density estimate, including the
+part that matters most for comparison: ``histplot`` computes one set of bin edges across
+every group so their bars land on the same boundaries, and this computes one evaluation
+grid across every group for the same reason.
+"""
+
+from __future__ import annotations
+
+from svgplot._svg import SvgDocument
+from svgplot.chart.base import Chart
+from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._layout import (
+    DEFAULT_HEIGHT,
+    DEFAULT_WIDTH,
+    LEGEND_X_OFFSET,
+    MARGIN_WITH_LEGEND,
+    MARGIN_WITHOUT_LEGEND,
+    format_coord,
+    plot_area,
+)
+from svgplot.charts._legend import render_legend
+from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.data._missing import is_missing
+from svgplot.data.ingest import ingest_longform
+from svgplot.data.semantic import extract_channels
+from svgplot.scales import LinearScale
+from svgplot.stats.kde import KdeCurve, kde
+from svgplot.theme.base import Theme
+from svgplot.theme.css import render_theme_style
+
+_PROBE_GRID = 2
+"""Grid size for the pass that only needs a group's bandwidth.
+
+The shared grid's span depends on every group's bandwidth, which is chosen from that
+group's own values -- so the bandwidths have to be known before the grid exists. Two is
+the smallest grid ``kde`` accepts, making this probe cost ~1% of the real evaluation
+instead of running the estimator twice at full width.
+"""
+
+
+def _clean_values(columns: dict[str, list], x: str) -> list[float]:
+    """Drop missing (``None``/NaN) values from column ``x``."""
+    return [float(value) for value in columns[x] if not is_missing(value)]
+
+
+def _shared_grid_range(
+    series_values: list[tuple[object, list[float]]], bandwidth: float | str, cut: float
+) -> tuple[float, float]:
+    """The union of the spans each group would have chosen for itself.
+
+    Taking the union rather than a single span computed from the pooled values keeps every
+    group's own tail on the canvas: a narrow group beside a wide one still gets its ``cut``
+    bandwidths of room, because the bandwidth is per-group.
+    """
+    lows: list[float] = []
+    highs: list[float] = []
+    for _, values in series_values:
+        width = kde(values, bandwidth=bandwidth, grid=_PROBE_GRID).bandwidth
+        lows.append(min(values) - cut * width)
+        highs.append(max(values) + cut * width)
+    return min(lows), max(highs)
+
+
+def _curve_path(curve: KdeCurve, x_scale: LinearScale, y_scale: LinearScale, *, baseline: float, fill: bool) -> str:
+    """The polyline through the density, closed down to the baseline when filling."""
+    points = [f"{format_coord(x_scale(x))},{format_coord(y_scale(y))}" for x, y in zip(curve.x, curve.y, strict=True)]
+    commands = [f"M {points[0]}", *(f"L {point}" for point in points[1:])]
+    if fill:
+        # Down to the axis at the right end, back along it, then Z -- so the closed region
+        # is the area under the curve rather than the chord between its two ends.
+        commands.append(f"L {format_coord(x_scale(curve.x[-1]))},{format_coord(baseline)}")
+        commands.append(f"L {format_coord(x_scale(curve.x[0]))},{format_coord(baseline)}")
+        commands.append("Z")
+    return " ".join(commands)
+
+
+def kdeplot(
+    data: object,
+    x: str,
+    hue: str | None = None,
+    *,
+    bandwidth: float | str = "scott",
+    fill: bool = False,
+    theme: Theme | str | None = None,
+) -> Chart:
+    """Draw a kernel density estimate from long-form data.
+
+    With ``hue=``, one curve per distinct hue value is drawn with an auto-generated
+    legend. Every group is evaluated on **one shared x grid**, so the curves are directly
+    comparable and a reader can trace a single vertical line across all of them.
+
+    ``fill=True`` closes each curve down to the axis and draws it outlined -- a filled
+    density with no outline loses its own edge where two groups overlap.
+
+    ``bandwidth`` is passed to :func:`svgplot.stats.kde.kde` untouched, so its rules and
+    its validation (including the refusal to pick a bandwidth for a zero-variance sample)
+    apply here unchanged.
+
+    Raises:
+        KeyError: if ``x``/``hue`` isn't a column in ``data``, or if ``theme`` is a string
+            that isn't a registered preset name.
+        TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
+        ValueError: if ``data`` has no rows, if no rows have a non-missing ``x`` value, or
+            (via ``stats.kde``) for anything that module rejects — an unusable bandwidth,
+            a group with fewer than two values, or a group with no spread.
+    """
+    resolved_theme = resolve_theme(theme)
+    longform = ingest_longform(data, x)
+    if len(longform) == 0:
+        raise ValueError("data must contain at least one row")
+
+    if hue is not None:
+        groups = extract_channels(data, hue=hue)
+        if not groups:
+            raise ValueError(f"no rows with a non-missing {hue!r} value")
+        series_items = sorted(groups.items(), key=lambda item: str(item[0]))
+    else:
+        series_items = [(None, longform.columns)]
+
+    series_values = [(label, _clean_values(columns, x)) for label, columns in series_items]
+    if not any(values for _, values in series_values):
+        raise ValueError("no rows with a non-missing x value after dropping missing values")
+
+    cut = 3.0
+    grid_range = _shared_grid_range(series_values, bandwidth, cut)
+    series_curves = [(label, kde(values, bandwidth=bandwidth, grid_range=grid_range)) for label, values in series_values]
+    peak = max(value for _, curve in series_curves for value in curve.y)
+
+    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
+    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
+    document.add_node(
+        None,
+        "rect",
+        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
+        classes=["plot-background"],
+    )
+
+    pixel_x_scale = LinearScale(grid_range, (area.left, area.right))
+    pixel_y_scale = LinearScale((0.0, peak), (area.bottom, area.top))
+    render_x_axis(document, pixel_x_scale, area, tick_length=resolved_theme.tick_size)
+    render_y_axis(document, pixel_y_scale, area, tick_length=resolved_theme.tick_size)
+
+    mark_style = "outlined" if fill else "stroke"
+    series_classes: list[str] = []
+    legend_entries: list[tuple[str, str]] = []
+    for label, curve in series_curves:
+        series_class = document.semantic_class("series")
+        series_classes.append(series_class)
+        path = _curve_path(curve, pixel_x_scale, pixel_y_scale, baseline=area.bottom, fill=fill)
+        document.add_node(None, "path", attrib={"d": path}, classes=[series_class, "kde-series"])
+        if label is not None:
+            legend_entries.append((str(label), series_class))
+
+    if legend_entries:
+        render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style=mark_style)
+
+    render_theme_style(document, resolved_theme, series_classes, mark_style=mark_style)
+
+    return Chart(document)
