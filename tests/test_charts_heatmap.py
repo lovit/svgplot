@@ -688,3 +688,55 @@ def test_the_warning_still_fires_on_a_sparse_grid() -> None:
 
     assert len(caught) == 1
     assert "10000 cells" in str(caught[0].message)
+
+
+# ---------------------------------------------------------------------------
+# cmap and center have to agree (issue #109)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("cmap", sorted(SEQUENTIAL_PALETTES))
+def test_a_sequential_cmap_with_center_names_the_pairing_not_the_key(cmap: str) -> None:
+    """The two registries are disjoint, so the likeliest mistake here is the *pair*, and the
+    palette functions cannot report it: each sees only its own half. ``center=1.0`` with the
+    default ``cmap="blues"`` used to raise ``KeyError: unknown diverging palette: 'blues'``,
+    which is wrong twice -- ``blues`` is not unknown, and the key is not what went wrong."""
+    with pytest.raises(ValueError, match=r"center= needs a diverging colormap"):
+        _render(GRID, cmap=cmap, center=5.0)
+
+
+@pytest.mark.parametrize("cmap", sorted(DIVERGING_PALETTES))
+def test_a_diverging_cmap_without_center_is_refused_too(cmap: str) -> None:
+    """The other direction, and it is not symmetric decoration: a diverging map drawn as a
+    sequential one puts its pale midpoint at the middle of the *data range* instead of at a
+    value the caller chose, which reads as a centre that is not there."""
+    with pytest.raises(ValueError, match=r"is a diverging colormap, which needs a center="):
+        _render(GRID, cmap=cmap)
+
+
+def test_the_message_lists_the_colormaps_that_would_work() -> None:
+    """A rejection that does not say what to pass instead sends the caller to the source."""
+    with pytest.raises(ValueError) as caught:
+        _render(GRID, center=5.0)
+    message = str(caught.value)
+
+    assert all(name in message for name in DIVERGING_PALETTES)
+    assert not any(name in message for name in SEQUENTIAL_PALETTES if name != "blues")
+
+
+@pytest.mark.parametrize(
+    ("cmap", "center"),
+    [("blues", None), ("greens", None), ("coolwarm", 5.0), ("purplegreen", 5.0)],
+)
+def test_the_valid_pairings_still_render(cmap: str, center: float | None) -> None:
+    """Otherwise the two refusals above would pass for a check that rejected everything."""
+    assert len(_style_rules(_render(GRID, cmap=cmap, center=center))) == LEVELS
+
+
+def test_an_unregistered_cmap_still_raises_keyerror_from_the_palette() -> None:
+    """The new check is about the pairing only. A name in neither registry is a different
+    mistake and keeps its own error, so widening this to catch everything would hide it."""
+    with pytest.raises(KeyError, match="unknown sequential palette"):
+        _render(GRID, cmap="nope")
+    with pytest.raises(KeyError, match="unknown diverging palette"):
+        _render(GRID, cmap="nope", center=5.0)
