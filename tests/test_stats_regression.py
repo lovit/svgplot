@@ -11,6 +11,7 @@ from svgplot.stats.regression import (
     _MAX_BOOTSTRAP_SAMPLES,
     _MAX_GRID,
     _MAX_POINTS,
+    _MAX_SPAN,
     _MIN_POINTS,
     confidence_band,
     linear_fit,
@@ -45,6 +46,19 @@ def test_linear_fit_is_exact_on_a_perfectly_linear_sample() -> None:
     assert fit.slope == pytest.approx(2.0, abs=1e-9)
     assert fit.intercept == pytest.approx(1.0, abs=1e-9)
     assert fit.predict(10.0) == pytest.approx(21.0, abs=1e-9)
+
+
+@pytest.mark.parametrize("span", [1e155, 1e200, 1e308])
+def test_a_span_too_wide_for_the_arithmetic_is_a_value_error(span: float) -> None:
+    """Every value is finite and inside the point cap, but squaring the deviations raises
+    ``OverflowError`` past ~1.3e154 -- an exception the ``Raises:`` contract does not list,
+    so a caller catching ``ValueError`` would crash on it."""
+    with pytest.raises(ValueError, match="too wide"):
+        linear_fit([0.0, span / 2, span], [1.0, 2.0, 3.0])
+
+
+def test_a_span_just_inside_the_cap_still_fits() -> None:
+    assert linear_fit([0.0, _MAX_SPAN / 2, _MAX_SPAN], [1.0, 2.0, 3.0]).slope > 0.0
 
 
 def test_linear_fit_rejects_a_vertical_sample() -> None:
@@ -229,6 +243,10 @@ def test_the_caps_admit_their_own_boundary() -> None:
     assert len(confidence_band(xs, ys, grid=_MAX_GRID).x) == _MAX_GRID
     assert len(confidence_band(xs, ys, n_boot=_MAX_BOOTSTRAP_SAMPLES).x) == 100
 
+    at_cap_x = [float(index) for index in range(_MAX_POINTS)]
+    at_cap_y = [2.0 * value for value in at_cap_x]
+    assert linear_fit(at_cap_x, at_cap_y).slope == pytest.approx(2.0)
+
 
 def test_a_single_resample_still_produces_a_usable_band() -> None:
     """``n_boot=1`` is the degenerate low end: one resample means the percentile interval
@@ -242,9 +260,86 @@ def test_a_single_resample_still_produces_a_usable_band() -> None:
 def test_a_near_degenerate_sample_survives_resampling() -> None:
     """Most resamples of a sample whose x values nearly all coincide come out vertical
     and get dropped. The call must still return a band from the survivors rather than
-    crashing on an empty percentile input."""
+    crashing on an empty percentile input.
+
+    Asserting ``lower <= upper`` here would be vacuous -- the widening step makes it true
+    by construction whatever the percentiles are. What is worth pinning is that dropping
+    the degenerate resamples is *conservative*: with a single x carrying all the leverage,
+    the band has to admit substantial uncertainty. Counting the dropped resamples as the
+    point estimate instead would pretend to a confidence the data does not support, and
+    measurably narrows the band (4.25 -> 3.46 on this fixture)."""
     xs = [1.0] * 12 + [5.0]
     ys = [float(index) for index in range(13)]
     band = confidence_band(xs, ys, n_boot=200)
+    widths = [up - lo for lo, up in zip(band.lower, band.upper, strict=True)]
 
-    assert all(lo <= up for lo, up in zip(band.lower, band.upper, strict=True))
+    assert all(math.isfinite(value) for value in (*band.lower, *band.upper))
+    assert max(widths) > 0.3 * (max(ys) - min(ys))
+
+
+def test_every_resample_degenerate_is_reported_as_such() -> None:
+    """Reachable, not theoretical: with a single resample of a sample whose x values are
+    nearly all identical, this fires for many seeds. Without the guard the user gets
+    ``quantiles``' unrelated "values must not be empty" instead."""
+    xs = [1.0] * 12 + [5.0]
+    ys = [float(index) for index in range(13)]
+
+    degenerate_seeds = []
+    for seed in range(30):
+        try:
+            confidence_band(xs, ys, n_boot=1, seed=seed)
+        except ValueError as error:
+            if "degenerate" in str(error):
+                degenerate_seeds.append(seed)
+
+    assert degenerate_seeds, "expected at least one seed to draw only vertical resamples"
+
+
+# ---------------------------------------------------------------------------
+# calibration
+# ---------------------------------------------------------------------------
+#
+# The tests above pin the band's *shape* -- monotone in ``level``, hourglass, two-sided.
+# None of them pin its *width*, and width is the entire product: turning the two-sided
+# percentiles into one-sided ones, or halving the resample size, leaves every shape
+# property intact while turning a nominal 95% band into something else.
+#
+# The oracle is the closed-form OLS standard error, used here only as a *test* reference.
+# That is not a reversal of the module's decision to bootstrap: the objection to the
+# closed form was that it needs a Student-t quantile, and these assertions are calibrated
+# at sample sizes large enough that the normal quantile is the right constant.
+
+_Z_95 = 1.959964
+_Z_68 = 0.994458
+
+
+def test_band_width_scales_with_the_normal_quantile_of_the_level() -> None:
+    """Asymptotically the band is ``+- z(level) * se``, so the ratio of two levels' widths
+    is the ratio of their z values -- 1.971 for 95% over 68% -- independent of the data.
+    A one-sided quantile leaves the band monotone in ``level`` but lands this near 3.5."""
+    xs, ys = _noisy_line(n=300)
+    wide = confidence_band(xs, ys, level=0.95, n_boot=1000)
+    narrow = confidence_band(xs, ys, level=0.68, n_boot=1000)
+
+    middle = len(wide.x) // 2
+    ratio = (wide.upper[middle] - wide.lower[middle]) / (narrow.upper[middle] - narrow.lower[middle])
+
+    assert ratio == pytest.approx(_Z_95 / _Z_68, rel=0.10)
+
+
+def test_band_width_at_the_centroid_matches_the_closed_form_standard_error() -> None:
+    """At ``xbar`` the OLS prediction's standard error is ``s / sqrt(n)``, so a 95% band is
+    ``2 * z * s / sqrt(n)`` wide there. This is what fixes the *absolute* scale: halving
+    the resample size inflates the bootstrap spread by ~sqrt(2) and shows up here while
+    every shape assertion stays green."""
+    xs, ys = _noisy_line(n=300)
+    fit = linear_fit(xs, ys)
+    residuals = [y - fit.predict(x) for x, y in zip(xs, ys, strict=True)]
+    standard_error = math.sqrt(math.fsum(value**2 for value in residuals) / (len(xs) - 2))
+
+    band = confidence_band(xs, ys, level=0.95, n_boot=1000)
+    mean_x = math.fsum(xs) / len(xs)
+    at_centroid = min(range(len(band.x)), key=lambda index: abs(band.x[index] - mean_x))
+    width = band.upper[at_centroid] - band.lower[at_centroid]
+
+    assert width == pytest.approx(2 * _Z_95 * standard_error / math.sqrt(len(xs)), rel=0.10)
