@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
@@ -61,6 +62,8 @@ def barplot(
     orient: str = "v",
     stacked: bool = False,
     theme: Theme | str | None = None,
+    categories: tuple[str, ...] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a bar chart from long-form data.
 
@@ -72,6 +75,12 @@ def barplot(
     is drawn, segmented by hue value stacked cumulatively from a zero baseline.
     ``stacked=True`` with no ``hue=`` has nothing to stack and renders a plain
     single-series bar per category.
+
+    ``categories=`` replaces the category list this chart would take from its own data, and
+    ``ylim=`` its value domain. They exist so several charts can be made to agree -- see
+    :func:`~svgplot.layout.facet.facet`. A category with no rows still gets its band and its
+    place in the palette, so the same category is the same colour in every chart sharing the
+    list; it simply has no mark drawn in it.
 
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
@@ -90,9 +99,10 @@ def barplot(
 
     group_items = build_series(data, longform.columns, hue)
 
-    categories = _unique_categories(longform.columns[x])
-    if not categories:
+    own_categories = _unique_categories(longform.columns[x])
+    if not own_categories:
         raise ValueError("no rows with a non-missing category value")
+    drawn_categories = list(categories) if categories is not None else own_categories
 
     group_lookups = [(label, _category_value_lookup(columns, x, y)) for label, columns in group_items]
     all_values = [value for _, lookup in group_lookups for value in lookup.values()]
@@ -101,18 +111,19 @@ def barplot(
 
     is_stacked = stacked
     if is_stacked:
-        totals = [sum(lookup.get(category, 0.0) for _, lookup in group_lookups) for category in categories]
+        totals = [sum(lookup.get(category, 0.0) for _, lookup in group_lookups) for category in drawn_categories]
         value_max = max(totals) if totals else 0.0
     else:
         value_max = max(all_values) if all_values else 0.0
     value_max = value_max or 1.0  # an all-zero chart still needs a non-degenerate axis
+    value_domain = apply_limit((0.0, value_max), ylim)
 
     document, area = new_canvas(MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
 
     category_range = (area.left, area.right) if orient == "v" else (area.top, area.bottom)
     value_range = (area.bottom, area.top) if orient == "v" else (area.left, area.right)
-    category_scale = CategoricalScale(categories, category_range)
-    value_scale = LinearScale((0.0, value_max), value_range)
+    category_scale = CategoricalScale(drawn_categories, category_range)
+    value_scale = LinearScale(value_domain, value_range)
 
     if orient == "v":
         render_x_axis(document, category_scale, area, tick_length=resolved_theme.tick_size)
@@ -132,11 +143,11 @@ def barplot(
     bar_width = slot_width * (1 - _GROUP_GAP_FRACTION) if group_count > 1 else slot_width
     slot_gap = (slot_width - bar_width) / 2
 
-    stack_cumulative = dict.fromkeys(categories, 0.0)
+    stack_cumulative = dict.fromkeys(drawn_categories, 0.0)
     for group_index, (_, lookup) in enumerate(group_lookups):
         series_class = series_classes[group_index]
         slot_index = 0 if is_stacked else group_index
-        for category in categories:
+        for category in drawn_categories:
             value = lookup.get(category)
             if value is None:
                 continue
@@ -175,4 +186,4 @@ def barplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document)
+    return Chart(document, domains=Domains(y=value_domain, categories=tuple(drawn_categories)))

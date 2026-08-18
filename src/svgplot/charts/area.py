@@ -9,6 +9,7 @@ Marks are filled (``mark_style="fill"``), unlike lineplot's stroked paths.
 
 from __future__ import annotations
 
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
@@ -86,6 +87,8 @@ def areaplot(
     *,
     stacked: bool = False,
     theme: Theme | str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a filled area chart from long-form data.
 
@@ -101,6 +104,11 @@ def areaplot(
     area has one filled height per x, so two records at the same x contribute
     their combined value there. This holds identically in stacked and unstacked
     mode.
+
+    ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
+    exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
+    which uses them to give faceted panels one axis -- and replace rather than widen, so a
+    caller asking for a narrower view gets one.
 
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
@@ -144,6 +152,8 @@ def areaplot(
         y_domain_values = [0.0, *all_y]
 
     y_domain = (min(y_domain_values), max(y_domain_values))
+    x_domain = apply_limit(x_domain, xlim)
+    y_domain = apply_limit(y_domain, ylim)
 
     document, area = new_canvas(MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
 
@@ -192,4 +202,4 @@ def areaplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document)
+    return Chart(document, domains=Domains(x=x_domain, y=y_domain))
