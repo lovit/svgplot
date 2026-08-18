@@ -67,13 +67,17 @@ sp.regplot(data, x="day", y="sales", ci=0.95, seed=0).save("reg.svg")
 
 ### 형태 차트
 
-축이 있는 차트로는 잘 읽히지 않는 모양들이다. `heatmap`/`radarplot`/`treemap`/`gaugeplot`은 직교축이 없어 `.tick-label`이 없거나(treemap) 축 대신 자기 눈금을 그린다.
+축이 있는 차트로는 잘 읽히지 않는 모양들이다. `radarplot`/`gaugeplot`은 직교축 대신 자기 눈금(스포크와 링, 아크 눈금)을 그리고, `treemap`/`sparkline`은 눈금이 아예 없다. `heatmap`만 예외로 카테고리 축 위에 셀을 올리므로 스파인과 눈금 라벨을 그대로 가진다.
 
 ```python
 # 히트맵 — 값을 9단계로 양자화해 색을 고른다(연속 램프가 아닌 이유는 모듈 docstring 참조)
-# center=를 주면 발산 컬러맵으로 바뀌어 가운데 단계가 "중심값"을 뜻한다
 # annot=True는 셀 값을 써넣고, 잉크 색은 셀 색의 휘도에서 고른다
 sp.heatmap(data, x="day", y="region", values="sales", annot=True).save("heatmap.svg")
+
+# center=는 발산 컬러맵과 함께 준다 — 가운데 단계가 "중심값"을 뜻하게 된다
+# cmap=은 기본값이 sequential("blues")이므로 반드시 같이 바꿔야 한다
+sp.heatmap(data, x="day", y="region", values="sales",
+           cmap="coolwarm", center=10.0).save("heatmap-diverging.svg")
 
 # 레이더 — x의 각 카테고리가 스포크, 시리즈마다 닫힌 다각형 하나
 # 눈금 링은 원이 아니라 다각형이라 모든 스포크를 그 눈금이 말하는 값에서 지난다
@@ -86,7 +90,7 @@ sp.treemap(data, values="sales", labels="region").save("treemap.svg")
 sp.sparkline(data, y="sales").save("spark.svg")
 ```
 
-`gaugeplot`은 9종 중 유일하게 데이터 모델이 **비교가 아니라 스칼라**다. x/y 채널이 없고 `pieplot`처럼 단일 `value` 컬럼을 받으므로, 위 long-form 데이터가 아니라 자기 모양의 데이터를 쓴다.
+`gaugeplot`은 이 패키지의 차트 중 유일하게 데이터 모델이 **비교가 아니라 스칼라**다. x/y 채널이 없고 `pieplot`처럼 단일 `value` 컬럼을 받으므로, 위 long-form 데이터가 아니라 자기 모양의 데이터를 쓴다.
 
 ```python
 # 게이지 — [vmin, vmax] 안에서 값이 어디쯤인지. 범위 밖 값은 양 끝으로 클램핑된다
