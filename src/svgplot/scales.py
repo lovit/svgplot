@@ -52,32 +52,52 @@ class CategoricalScale:
 
     ``scale(category)`` gives a band's start position; ``scale.center(category)``
     gives its midpoint (what most callers actually want, e.g. for tick labels);
-    ``scale.bandwidth`` gives each band's width (e.g. for bar width).
+    ``scale.bandwidth`` gives each band's width (e.g. for bar width); ``scale.step``
+    gives the spacing between consecutive band starts.
+
+    ``padding`` is d3's ``scaleBand().padding()``: the fraction of each step left as
+    gutter, split evenly on both sides so the band stays centred in its step. It exists
+    because ``charts/bar.py`` and ``charts/box.py`` each carry a hand-rolled copy of this
+    idea (``_BAND_PADDING_FRACTION``/``_BOX_WIDTH_FRACTION``) and a violin plot would have
+    been the third. **Migrating those two onto this is deliberately a separate change** —
+    it is a behaviour-preserving refactor, and folding it in here would mix two intents.
     """
 
-    def __init__(self, categories: list[str], range_: tuple[float, float]) -> None:
+    def __init__(self, categories: list[str], range_: tuple[float, float], *, padding: float = 0.0) -> None:
         self.categories = list(categories)
         if len(set(self.categories)) != len(self.categories):
             raise ValueError(f"categories must be unique, got duplicates in: {self.categories!r}")
+        if not isinstance(padding, int | float) or isinstance(padding, bool) or not 0.0 <= float(padding) < 1.0:
+            raise ValueError(f"padding must be a number in [0, 1), got {padding!r}")
         self.range = range_
+        self.padding = float(padding)
         self._index_by_category = {category: index for index, category in enumerate(self.categories)}
 
     @property
-    def bandwidth(self) -> float:
+    def step(self) -> float:
+        """Distance between consecutive band starts, gutter included."""
         if not self.categories:
             return 0.0
         range_min, range_max = self.range
         return (range_max - range_min) / len(self.categories)
+
+    @property
+    def bandwidth(self) -> float:
+        """Drawn width of one band. Equals :attr:`step` at the default ``padding=0.0``."""
+        return self.step * (1.0 - self.padding)
 
     def __call__(self, category: str) -> float:
         """Map a category to its band's start position."""
         if category not in self._index_by_category:
             raise KeyError(f"category not found in scale: {category!r}")
         range_min, _ = self.range
-        return range_min + self._index_by_category[category] * self.bandwidth
+        step = self.step
+        # Half the gutter sits on each side, which is what keeps center() independent of
+        # padding -- tick labels must not shift when a chart changes its bar width.
+        return range_min + self._index_by_category[category] * step + (step - self.bandwidth) / 2
 
     def center(self, category: str) -> float:
-        """Map a category to its band's midpoint."""
+        """Map a category to its band's midpoint. Unaffected by ``padding``."""
         return self(category) + self.bandwidth / 2
 
 
