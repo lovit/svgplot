@@ -52,14 +52,17 @@ class LabelData:
 
     ``columns`` holds only the fields the spec names -- a chart keeps this for the
     lifetime of the ``Chart``, and holding the caller's whole DataFrame would both waste
-    memory and let a post-plot mutation make the table disagree with the SVG.
+    memory and let a post-plot mutation of *the caller's data* make the table disagree
+    with the SVG. The snapshot is shallowly frozen: the lists inside are fresh copies, so
+    they are not aliases of the caller's, but nothing stops a holder of this object from
+    mutating them.
     """
 
     spec: LabelSpec
     columns: dict[str, list]
 
     def __len__(self) -> int:
-        return column_length(self.columns) if self.columns else 0
+        return column_length(self.columns)
 
 
 def collect_label_data(data: object, info: LabelSpec | None, *, required: Sequence[str | None]) -> LabelData | None:

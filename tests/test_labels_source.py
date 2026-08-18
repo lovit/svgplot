@@ -74,13 +74,39 @@ def test_dropping_is_driven_by_the_required_channels_not_by_every_column() -> No
     assert data.columns["note"] == ["p", "s", None, "u"]
 
 
-def test_nan_counts_as_missing_alongside_none() -> None:
-    """``is_missing`` treats NaN and ``None`` alike; so must row selection, or a NaN row
-    would appear in the table while the chart skipped it."""
-    data = {"x": [1.0, float("nan"), 3.0], "y": [1.0, 2.0, 3.0]}
-    spec = LabelSpec.parse([("X", "@x{0.0}")])
+NAN_MIXED = {
+    "x": [1.0, float("nan"), 3.0, 4.0],
+    "y": [1.0, 2.0, float("nan"), 4.0],
+    "g": ["a", "a", "a", "a"],
+}
 
-    assert len(collect_label_data(data, spec, required=("x", "y"))) == 2
+
+@pytest.mark.parametrize("channel", ["x", "y"])
+def test_a_nan_in_any_channel_is_dropped_by_chart_and_table_alike(channel: str) -> None:
+    """``is_missing`` treats NaN and ``None`` alike, but sharing the predicate only makes
+    the rules identical if the charts actually *use* it. ``lineplot`` did not: it tested
+    ``x is not None`` and checked NaN on ``y`` only, so a NaN x survived its filter and
+    then killed the whole chart in ``scales``. Pinned against both renderers because the
+    ``None``-only fixture above cannot tell the two predicates apart."""
+    data = {"x": list(NAN_MIXED["x"]), "y": list(NAN_MIXED["y"])}
+    if channel == "x":
+        data["y"] = [1.0, 2.0, 3.0, 4.0]
+    else:
+        data["x"] = [1.0, 2.0, 3.0, 4.0]
+    spec = LabelSpec.parse([("X", "@x{0.0}")])
+    collected = len(collect_label_data(data, spec, required=("x", "y")))
+
+    assert collected == 3
+    assert collected == _marker_count(scatterplot(data, x="x", y="y").to_string())
+    assert collected == _vertex_count(lineplot(data, x="x", y="y").to_string())
+
+
+def test_a_nan_hue_drops_the_row_for_both() -> None:
+    spec = LabelSpec.parse([("X", "@x{0.0}")])
+    data = {"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0], "g": ["a", float("nan"), "b"]}
+    collected = len(collect_label_data(data, spec, required=("x", "y", "g")))
+
+    assert collected == _marker_count(scatterplot(data, x="x", y="y", hue="g").to_string())
 
 
 # ---------------------------------------------------------------------------
@@ -174,10 +200,50 @@ def test_render_table_still_raises_without_the_opt_in() -> None:
         render_table({"a": [None]}, spec)
 
 
-def test_render_table_substitutes_the_opted_in_text() -> None:
+def test_render_table_substitutes_only_the_missing_cells() -> None:
+    """Both directions matter. Asserting the missing row alone leaves "and non-missing
+    cells are left alone" untested -- and substituting unconditionally, which erases the
+    whole table into dashes, would then pass."""
+    spec = LabelSpec.parse([("A", "@a{%s}")])
+    lines = render_table({"a": ["x", None]}, spec, missing=MISSING_TEXT).splitlines()
+
+    assert lines[2] == "| x |"
+    assert lines[3] == f"| {MISSING_TEXT} |"
+
+
+def test_the_missing_mark_is_an_em_dash() -> None:
+    """Every other test reaches the value through the constant, so the constant itself
+    needs pinning -- the docstring promises the conventional printed-table mark."""
+    assert MISSING_TEXT == "\u2014"
+
+
+def test_a_newline_in_a_cell_cannot_break_either_format() -> None:
+    """A raw newline splits a GFM table row; a *blank* line additionally ends the
+    CommonMark HTML block around the ``<table>``, spilling the rest of the markup into
+    the document as markdown. Both renderers sit beside markdown-embedded SVG, so neither
+    may carry a line break through."""
     spec = LabelSpec.parse([("A", "@a{%s}")])
 
-    assert render_table({"a": ["x", None]}, spec, missing=MISSING_TEXT).splitlines()[3] == f"| {MISSING_TEXT} |"
+    for output_format in ("markdown", "html"):
+        rendered = render_table({"a": ["first\n\nsecond"]}, spec, format=output_format)
+        assert "\n" not in rendered.replace("|\n", "|")
+        assert "first  second" in rendered
+
+
+def test_a_non_string_substitute_is_rejected_up_front() -> None:
+    """Otherwise it surfaces as an AttributeError from inside an escaper, far from the
+    call that caused it -- the same reason format is validated at the top."""
+    spec = LabelSpec.parse([("A", "@a{%s}")])
+
+    with pytest.raises(ValueError, match="missing must be a string"):
+        render_table({"a": [None]}, spec, missing=0)
+
+
+def test_a_newline_in_the_substitute_cannot_break_either_format() -> None:
+    spec = LabelSpec.parse([("A", "@a{%s}")])
+
+    for output_format in ("markdown", "html"):
+        assert "\n\n" not in render_table({"a": [None]}, spec, format=output_format, missing="a\n\nb")
 
 
 def test_the_substitute_is_escaped_like_any_other_cell() -> None:
@@ -209,3 +275,14 @@ def test_an_empty_substitute_is_honoured_rather_than_treated_as_absent() -> None
     spec = LabelSpec.parse([("A", "@a{%s}")])
 
     assert render_table({"a": [None]}, spec, missing="").splitlines()[2] == "|  |"
+
+
+def test_a_literal_backslash_is_doubled_before_the_pipe_escape_is_inserted() -> None:
+    """The ordering the module docstring calls out twice, and the half of it that had no
+    test. Doubling the user's backslashes *first* is what stops a trailing ``\\`` from
+    pairing with the ``\\`` this function inserts before ``|`` -- which would turn the
+    escape into a literal backslash and let the pipe split the row again."""
+    spec = LabelSpec.parse([("A", "@a{%s}")])
+
+    assert render_table({"a": ["\\|"]}, spec).splitlines()[2] == r"| \\\| |"
+    assert render_table({"a": ["\\"]}, spec).splitlines()[2] == r"| \\ |"
