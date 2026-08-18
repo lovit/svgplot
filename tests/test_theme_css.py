@@ -353,3 +353,75 @@ def test_level_rules_are_identical_regardless_of_mark_style(mark_style: str) -> 
 
     level_rule = next(line for line in css.split("\n") if line.startswith(".level-1 "))
     assert level_rule == ".level-1 { fill: #08519c; stroke: none; opacity: 1; }"
+
+
+# ---------------------------------------------------------------------------
+# ink_colors (issue #74 review)
+# ---------------------------------------------------------------------------
+
+
+def test_ink_colors_emit_fill_and_nothing_else() -> None:
+    """An ink colour is chosen *against* the mark it sits on, so anything that blends it
+    back toward that mark undoes the choice. ``opacity`` is the reason this parameter is
+    separate from ``level_colors`` at all; ``stroke`` matters for a different reason -- SVG
+    text defaults to ``stroke: none``, so setting one puts a visible outline on every
+    glyph. Neither was pinned, and both mutations passed the whole suite."""
+    document = SvgDocument()
+
+    render_theme_style(document, Theme(opacity=0.4), [], ink_colors={"level-1-annotation": "#000000"})
+    rule = next(line for line in _style_text(document).splitlines() if line.startswith(".level-1-annotation"))
+
+    assert rule == ".level-1-annotation { fill: #000000; }"
+
+
+def test_ink_colors_are_independent_of_mark_style() -> None:
+    """Ink is text, not a mark, so none of the three mark styles has anything to say
+    about it."""
+    rules = []
+    for mark_style in ("stroke", "fill", "outlined"):
+        document = SvgDocument()
+        render_theme_style(document, Theme(), ["series-1"], mark_style=mark_style, ink_colors={"ink-1": "#ffffff"})
+        rules.append(next(line for line in _style_text(document).splitlines() if line.startswith(".ink-1")))
+
+    assert len(set(rules)) == 1
+
+
+@pytest.mark.parametrize("other", ["series_classes", "level_colors"])
+def test_a_class_in_both_ink_colors_and_another_mapping_is_rejected(other: str) -> None:
+    """Two rules for one class leave the winner decided by emission order. Downgrading this
+    to a skip is worse than it sounds: the ink is what silently disappears, and the level
+    colour then paints the glyphs the same colour as the cell behind them."""
+    document = SvgDocument()
+    kwargs: dict[str, object] = {"level_colors": {"shared": "#08519c"}} if other == "level_colors" else {}
+    series = ["shared"] if other == "series_classes" else []
+
+    with pytest.raises(ValueError, match="appears in both ink_colors and another color mapping"):
+        render_theme_style(document, Theme(), series, ink_colors={"shared": "#000000"}, **kwargs)
+
+
+@pytest.mark.parametrize("bad_key", ["x{}body{background:red}.y", "has space", "1leading-digit", ""])
+def test_ink_colors_reject_a_css_unsafe_class_name(bad_key: str) -> None:
+    """Caller-controlled just like ``level_colors``' keys, so it needs the same rejection --
+    ``_svg``'s XML validation permits characters that break out of a CSS rule."""
+    document = SvgDocument()
+
+    with pytest.raises(ValueError, match="ink class name must match"):
+        render_theme_style(document, Theme(), [], ink_colors={bad_key: "#000000"})
+
+
+@pytest.mark.parametrize("bad_color", ["red", "#fff", "#0085 19c", "rgb(0,0,0)", None])
+def test_ink_colors_reject_a_color_that_is_not_strict_hex(bad_color: object) -> None:
+    document = SvgDocument()
+
+    with pytest.raises(ValueError, match="ink_colors"):
+        render_theme_style(document, Theme(), [], ink_colors={"ink-1": bad_color})  # type: ignore[dict-item]
+
+
+def test_omitting_ink_colors_emits_no_extra_rules() -> None:
+    """Every existing caller passes nothing, and their output has to be byte-identical."""
+    without, with_none = SvgDocument(), SvgDocument()
+
+    render_theme_style(without, Theme(), ["series-1"], mark_style="fill")
+    render_theme_style(with_none, Theme(), ["series-1"], mark_style="fill", ink_colors=None)
+
+    assert _style_text(without) == _style_text(with_none)
