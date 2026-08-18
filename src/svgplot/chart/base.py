@@ -20,6 +20,7 @@ from pathlib import Path
 
 from svgplot._svg import SvgDocument
 from svgplot.accessibility import add_accessibility
+from svgplot.chart._domain import Domains
 from svgplot.labels._source import LabelData
 from svgplot.labels.table import MISSING_TEXT, render_table
 from svgplot.output.jupyter import repr_svg
@@ -36,11 +37,24 @@ class Chart:
     is worse than a generic one — assistive tech would announce ``role="img"`` with
     no usable name at all (see ``accessibility.add_accessibility``)."""
 
-    def __init__(self, svg_document: SvgDocument, labels: LabelData | None = None) -> None:
+    def __init__(self, svg_document: SvgDocument, labels: LabelData | None = None, domains: Domains | None = None) -> None:
         self._svg_document = svg_document
         self._title: str | None = None
         self._palette: str | list[str] | None = None
         self._labels = labels
+        self._domains = domains or Domains()
+
+    @property
+    def domains(self) -> Domains:
+        """What this chart's axes actually spanned.
+
+        Empty for a chart with no cartesian axes (a pie, a treemap). Read by
+        :func:`~svgplot.layout.facet.facet` to make several panels agree; see
+        ``charts/_domain.py`` for why this is recorded rather than recomputed from the
+        data. Not part of the public API surface yet -- it is a chart's report about
+        itself, and the shape of that report is still settling.
+        """
+        return self._domains
 
     def set_title(self, title: str) -> Chart:
         """Set the chart title. Returns self for chaining."""
