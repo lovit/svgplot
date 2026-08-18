@@ -351,16 +351,49 @@ def test_set_attribute_class_rejects_control_character_in_a_class_token() -> Non
         doc.set_attribute(node, "class", "a\x00b")
 
 
-def test_add_text_rejects_script_and_style_tags() -> None:
+def test_add_text_rejects_script_tag() -> None:
+    """ "script" must never be allowed here, unlike "style" (issue #12 added "style"
+    to the allow-list — see this module's "Security note (issue #12)" — because it
+    has a sanctioned, self-validating caller; "script" has no such caller and never
+    should, since this package emits no JS.
+    """
     doc = SvgDocument()
 
     with pytest.raises(ValueError, match="text-bearing tags"):
         doc.add_text(None, "fetch('//evil/')", tag="script")
-    with pytest.raises(ValueError, match="text-bearing tags"):
-        doc.add_text(None, "@import url('//evil/x.css')", tag="style")
 
 
-@pytest.mark.parametrize("tag", ["text", "tspan", "title", "desc", "textPath"])
+def test_add_node_rejects_script_tag_directly() -> None:
+    """Post-merge security review: add_text's allow-list alone isn't a structural
+    guarantee — a caller could create a <script> node via add_node and set .text
+    directly on the returned element, bypassing add_text entirely. add_node must
+    reject "script" itself so the guarantee holds regardless of which method is used.
+    """
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match="script"):
+        doc.add_node(None, "script")
+
+
+@pytest.mark.parametrize("tag", ["SCRIPT", "Script", "sCrIpT", "svg:script", "svg:SCRIPT"])
+def test_add_node_rejects_script_tag_regardless_of_case_or_namespace(tag: str) -> None:
+    """Round-2 security review: the first fix only checked `tag in _BLOCKED_TAGS`
+    with an exact-match, case-sensitive comparison — "SCRIPT"/"svg:script" slipped
+    through. That matters here specifically because this package's actual use case
+    is inline embedding in markdown/HTML, where an HTML tokenizer lowercases tag
+    names before it ever cares about XML case-sensitivity — a "SCRIPT" that a strict
+    XML parser would treat as a distinct, harmless tag becomes a live <script>
+    element the moment the same markup is parsed as HTML.
+    """
+    doc = SvgDocument()
+
+    # match="not allowed", not "script": the error message preserves tag's original
+    # case/namespace (e.g. "'SCRIPT'"), only the *comparison* is normalized.
+    with pytest.raises(ValueError, match="not allowed"):
+        doc.add_node(None, tag)
+
+
+@pytest.mark.parametrize("tag", ["text", "tspan", "title", "desc", "textPath", "style"])
 def test_add_text_allows_every_text_bearing_tag(tag: str) -> None:
     doc = SvgDocument()
 

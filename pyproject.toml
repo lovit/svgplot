@@ -16,7 +16,14 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-dependencies = []
+dependencies = [
+    "numpy>=2.5.2",
+]
+
+[project.optional-dependencies]
+# PNG export (svgplot.output.png). Pinned >=2.7.0: earlier versions are affected
+# by an SSRF issue (CVE-2023-27586) via external references in untrusted SVG input.
+png = ["cairosvg>=2.7.0"]
 
 [project.urls]
 Homepage = "https://github.com/lovit/svgplot"

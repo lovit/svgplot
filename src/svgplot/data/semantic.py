@@ -7,11 +7,7 @@ size=/style= are 2차 additions planned for this same file
 from __future__ import annotations
 
 from svgplot.data._columns import column_length, extract_columns
-
-
-def _is_missing(value: object) -> bool:
-    """``None`` or NaN (``value != value`` — works for float/numpy NaN without a numpy dependency)."""
-    return value is None or (isinstance(value, float) and value != value)
+from svgplot.data._missing import is_missing
 
 
 def extract_channels(
@@ -52,7 +48,7 @@ def extract_channels(
     groups: dict[object, dict[str, list]] = {}
     for index in range(length):
         key_parts = [columns[column_name][index] for _, column_name in channels]
-        if any(_is_missing(value) for value in key_parts):
+        if any(is_missing(value) for value in key_parts):
             continue  # missing channel value -> no well-defined group, drop the row
         key = key_parts[0] if len(key_parts) == 1 else tuple(key_parts)
         group = groups.setdefault(key, {name: [] for name in columns})
