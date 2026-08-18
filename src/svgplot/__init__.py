@@ -18,6 +18,7 @@ from svgplot.charts import (
     sparkline,
     treemap,
 )
+from svgplot.labels import LabelSpec
 from svgplot.layout import add_caption, apply_size, column, facet, grid, row
 from svgplot.theme import PRESETS, Theme, apply_context, parametric_theme
 from svgplot.warnings import HeatmapSizeWarning, SvgplotWarning
@@ -29,6 +30,7 @@ __all__ = [
     "Chart",
     "Composition",
     "HeatmapSizeWarning",
+    "LabelSpec",
     "SvgplotWarning",
     "Theme",
     "__version__",

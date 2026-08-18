@@ -30,6 +30,8 @@ from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.data.semantic import extract_channels
+from svgplot.labels._source import collect_label_data
+from svgplot.labels.spec import LabelSpec
 from svgplot.scales import LinearScale, TimeScale
 from svgplot.stats.interpolate import interpolate as interpolate_curve
 from svgplot.theme.base import Theme
@@ -65,6 +67,7 @@ def lineplot(
     hue: str | None = None,
     *,
     interpolate: str = "linear",
+    info: LabelSpec | list[tuple[str, str]] | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
     """Draw a line chart from long-form data.
@@ -108,6 +111,9 @@ def lineplot(
     is_time = isinstance(all_x[0], datetime)
     numeric_x_domain = (min(_numeric_x(v) for v in all_x), max(_numeric_x(v) for v in all_x))
     y_domain = (min(all_y), max(all_y))
+
+    # After the checks above, so a bad column still reports the chart's own error first.
+    label_data = collect_label_data(data, info, required=(x, y, hue))
 
     document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
     area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
@@ -156,4 +162,4 @@ def lineplot(
 
     render_theme_style(document, resolved_theme, series_classes)
 
-    return Chart(document)
+    return Chart(document, label_data)

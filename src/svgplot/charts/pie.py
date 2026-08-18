@@ -20,6 +20,8 @@ from svgplot.charts._polar import FULL_CIRCLE_TOLERANCE, full_ring_path, polar_p
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._columns import column_length, extract_columns
 from svgplot.data._missing import is_missing
+from svgplot.labels._source import collect_label_data
+from svgplot.labels.spec import LabelSpec
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
@@ -44,6 +46,7 @@ def pieplot(
     labels: str | None = None,
     *,
     inner_radius: float = 0.0,
+    info: LabelSpec | list[tuple[str, str]] | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
     """Draw a pie chart from ``values`` (slice angle) and, optionally, ``labels``
@@ -100,6 +103,9 @@ def pieplot(
     if total == 0:
         raise ValueError("pie values must not all be zero (sum is 0)")
 
+    # After the checks above, so a bad column still reports the chart's own error first.
+    label_data = collect_label_data(data, info, required=(values, labels))
+
     document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
     area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=_MARGIN)
     document.add_node(
@@ -150,4 +156,4 @@ def pieplot(
     render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document)
+    return Chart(document, label_data)
