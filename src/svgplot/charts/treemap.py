@@ -80,8 +80,10 @@ def _layout_row(row: list[tuple[str, float]], row_total: float, area: PlotArea, 
     """Place one closed row of tiles along the short side of ``area``.
 
     ``vertical`` selects which way the row runs: when the remaining rectangle is
-    taller than it is wide the row stacks down the left edge, otherwise it runs
-    across the top.
+    wider than it is tall the row stacks down the left edge -- along the shorter,
+    vertical side -- otherwise it runs across the top. Reading this backwards is
+    what produces the sliver layout squarified exists to avoid, so it must agree
+    with the caller's ``vertical = width > height``.
     """
     width, height = area.right - area.left, area.bottom - area.top
     tiles: list[_Tile] = []
