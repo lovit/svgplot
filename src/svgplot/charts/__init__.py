@@ -10,6 +10,7 @@ from svgplot.charts.histogram import histplot
 from svgplot.charts.line import lineplot
 from svgplot.charts.pie import pieplot
 from svgplot.charts.scatter import scatterplot
+from svgplot.charts.sparkline import sparkline
 from svgplot.charts.treemap import treemap
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "lineplot",
     "pieplot",
     "scatterplot",
+    "sparkline",
     "treemap",
 ]

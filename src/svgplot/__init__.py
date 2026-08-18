@@ -15,6 +15,7 @@ from svgplot.charts import (
     lineplot,
     pieplot,
     scatterplot,
+    sparkline,
     treemap,
 )
 from svgplot.layout import add_caption, apply_size, column, facet, grid, row
@@ -47,5 +48,6 @@ __all__ = [
     "pieplot",
     "row",
     "scatterplot",
+    "sparkline",
     "treemap",
 ]
