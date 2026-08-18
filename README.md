@@ -6,7 +6,90 @@ matplotlib/seaborn에 익숙한 문법으로 SVG를 만들되, pygal보다 데�
 matplotlib보다 렌더 후에도 CSS로 재테마 가능한 SVG를 목표로 한다. 설계 배경은 [`docs/research/`](docs/research/00-overview.md)를 참고
 (pygal/matplotlib/seaborn/Bokeh 기능 조사와 그로부터 도출한 설계 결정).
 
-> 현재 이 레포는 인프라 세팅 단계이며, 실제 플로팅 기능은 아직 구현되지 않았다.
+## 사용법
+
+모든 `*plot()` 함수는 long-form 데이터(pandas DataFrame, 컬럼 dict, dict 레코드 리스트)를 받아 `Chart`를 돌려주고, `Chart`는 `.save()`/`.to_string()`/Jupyter 표시를 지원한다. 아래 예제들은 이 데이터를 공유한다.
+
+```python
+import svgplot as sp
+
+data = {
+    "day": [1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
+    "sales": [10.0, 15.0, 7.0, 20.0, 12.0, 6.0, 9.0, 4.0, 14.0, 8.0],
+    "size": [1.0, 3.0, 2.0, 5.0, 4.0, 2.0, 1.0, 3.0, 5.0, 2.0],
+    "region": ["서울", "서울", "서울", "서울", "서울", "부산", "부산", "부산", "부산", "부산"],
+}
+```
+
+### 차트 타입 7종
+
+```python
+# 선 그래프 — hue=로 시리즈 분리, interpolate=로 보간(quadratic/cubic/hermite/lagrange/trigonometric)
+sp.lineplot(data, x="day", y="sales", hue="region").save("line.svg")
+
+# 산점도 — hue=는 색상, size=는 마커 크기에 매핑
+sp.scatterplot(data, x="day", y="sales", hue="region", size="size").save("scatter.svg")
+
+# 막대 — orient="v"|"h", stacked=True면 누적, hue=만 주면 그룹(dodge)
+sp.barplot(data, x="region", y="sales", hue="region", stacked=True).save("bar.svg")
+
+# 히스토그램 — bins는 정수 또는 numpy 전략 문자열("auto" 기본)
+sp.histplot(data, x="sales", bins=5).save("hist.svg")
+
+# 영역 — stacked=True면 누적 영역
+sp.areaplot(data, x="day", y="sales", hue="region", stacked=True).save("area.svg")
+
+# 파이 — inner_radius > 0이면 도넛(외곽 반지름 대비 비율)
+sp.pieplot(data, values="sales", labels="region", inner_radius=0.5).save("pie.svg")
+
+# 박스플롯 — mode는 extremes / 1.5IQR / tukey / stdev / pstdev
+sp.boxplot(data, x="region", y="sales", mode="1.5IQR").save("box.svg")
+```
+
+### 여러 차트를 하나의 도판으로
+
+`row`/`column`/`grid`는 `Chart`와 동일한 인터페이스를 가진 `Composition`을 돌려주므로 그대로 저장할 수 있다. `None`은 빈 칸이고, `titles=`는 각 칸 위에 소제목을 붙인다(markdown에서 재현 불가능한 탭 UI의 정적 대체).
+
+```python
+figure = sp.row([sp.lineplot(data, x="day", y="sales"), sp.barplot(data, x="region", y="sales")], spacing=16)
+sp.add_caption(figure, "Figure 1. 지역별 매출")
+figure.save("figure.svg")
+
+sp.grid(
+    [[sp.lineplot(data, x="day", y="sales"), sp.histplot(data, x="sales")], [None, sp.boxplot(data, x="region", y="sales")]],
+    spacing=12,
+    titles=["추이", "분포", None, "지역별"],
+).save("grid.svg")
+```
+
+### 패싯
+
+`facet`은 임의의 차트 함수를 그룹별로 반복 호출해 격자로 배치한다. `col=`만 주면 가로, `row=`만 주면 세로, 둘 다 주면 2D 격자가 된다.
+
+```python
+sp.facet(sp.lineplot, data, col="region", x="day", y="sales").save("facet.svg")
+```
+
+### 테마
+
+기본 팔레트는 색맹 안전(Okabe-Ito)이며, 스타일은 렌더 후에도 CSS 클래스로 재정의할 수 있다.
+
+```python
+sp.lineplot(data, x="day", y="sales", theme="dark")                                  # 내장 프리셋
+sp.lineplot(data, x="day", y="sales", theme=sp.parametric_theme("#3366cc"))          # 브랜드 시드 컬러
+sp.lineplot(data, x="day", y="sales", theme=sp.apply_context(sp.PRESETS["light"], "poster"))  # 발표용 확대
+```
+
+내장 프리셋은 `light` / `dark` / `minimal` / `print` / `high_contrast`, context는 `paper` / `notebook` / `talk` / `poster`다.
+
+### 출력
+
+```python
+chart = sp.apply_size(sp.lineplot(data, x="day", y="sales"), "responsive")  # viewBox + max-width:100%
+markup = chart.to_string()      # SVG 문자열 (pretty-print)
+chart.save("chart.svg")          # 파일로 저장
+chart.save("chart.png")          # PNG는 optional dep: uv add "svgplot[png]"
+```
 
 ## 부트스트랩
 
