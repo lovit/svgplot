@@ -353,3 +353,71 @@ def test_make_ticks_time_returns_datetimes_within_domain_and_ascending() -> None
 def test_make_ticks_raises_for_unsupported_scale_type() -> None:
     with pytest.raises(TypeError, match="unsupported scale type"):
         make_ticks(object())
+
+
+# ---------------------------------------------------------------------------
+# CategoricalScale(padding=)
+# ---------------------------------------------------------------------------
+
+_PADDING_CATEGORIES = ["a", "b", "c", "d"]
+_PADDING_RANGE = (0.0, 400.0)
+
+
+def test_padding_defaults_to_no_gutter() -> None:
+    """The default has to reproduce the unpadded scale exactly -- every existing chart
+    goes through this constructor, so a shift here moves every bar and tick."""
+    scale = CategoricalScale(_PADDING_CATEGORIES, _PADDING_RANGE)
+
+    assert scale.bandwidth == scale.step == 100.0
+    assert [scale(category) for category in _PADDING_CATEGORIES] == [0.0, 100.0, 200.0, 300.0]
+    assert [scale.center(category) for category in _PADDING_CATEGORIES] == [50.0, 150.0, 250.0, 350.0]
+
+
+def test_padding_narrows_the_band_without_changing_the_step() -> None:
+    scale = CategoricalScale(_PADDING_CATEGORIES, _PADDING_RANGE, padding=0.5)
+
+    assert scale.step == 100.0
+    assert scale.bandwidth == 50.0
+
+
+def test_padding_splits_the_gutter_evenly_so_centres_do_not_move() -> None:
+    """Tick labels are positioned by ``center()``. If the gutter were taken from one side
+    only, changing a chart's bar width would silently slide every label off its bar."""
+    plain = CategoricalScale(_PADDING_CATEGORIES, _PADDING_RANGE)
+    padded = CategoricalScale(_PADDING_CATEGORIES, _PADDING_RANGE, padding=0.5)
+
+    assert [padded(category) for category in _PADDING_CATEGORIES] == [25.0, 125.0, 225.0, 325.0]
+    assert [padded.center(c) for c in _PADDING_CATEGORIES] == [plain.center(c) for c in _PADDING_CATEGORIES]
+
+
+@pytest.mark.parametrize("padding", [0.0, 0.1, 0.5, 0.9, 0.999])
+def test_centres_are_independent_of_padding_across_the_whole_range(padding: float) -> None:
+    plain = CategoricalScale(_PADDING_CATEGORIES, _PADDING_RANGE)
+    padded = CategoricalScale(_PADDING_CATEGORIES, _PADDING_RANGE, padding=padding)
+
+    for category in _PADDING_CATEGORIES:
+        assert padded.center(category) == pytest.approx(plain.center(category))
+
+
+@pytest.mark.parametrize("padding", [-0.1, -1.0, 1.0, 1.5, float("nan"), float("inf"), "0.5", True, False, None])
+def test_padding_outside_the_unit_interval_is_rejected(padding: object) -> None:
+    """``1.0`` is excluded, not just clamped: a band of zero width draws nothing, and a
+    chart that silently renders nothing is worse than one that says why. Booleans are
+    rejected on both sides -- ``True`` happens to fail the range check, but ``False``
+    would quietly pass as 0.0, and ``interpolate`` rejects bools for the same reason."""
+    with pytest.raises(ValueError, match="padding must be a number"):
+        CategoricalScale(_PADDING_CATEGORIES, _PADDING_RANGE, padding=padding)  # type: ignore[arg-type]
+
+
+def test_padding_is_keyword_only() -> None:
+    """Positionally it would sit where a future parameter might, and ``range_`` is already
+    the last positional -- an accidental third positional should not become a padding."""
+    with pytest.raises(TypeError):
+        CategoricalScale(_PADDING_CATEGORIES, _PADDING_RANGE, 0.5)  # type: ignore[misc]
+
+
+def test_an_empty_scale_stays_degenerate_under_padding() -> None:
+    scale = CategoricalScale([], _PADDING_RANGE, padding=0.5)
+
+    assert scale.step == 0.0
+    assert scale.bandwidth == 0.0
