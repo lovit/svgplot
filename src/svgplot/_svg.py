@@ -47,7 +47,15 @@ itself (``_BLOCKED_TAGS``), not merely omitted from ``add_text``'s allow-list
 ``add_text`` entirely and reach the tree unvalidated. Blocking it in
 ``add_node`` makes this a structural guarantee (every node, regardless of
 which method creates it) rather than a convention only ``add_text`` happens
-to follow.
+to follow. The check normalizes ``tag`` the same way ``_validate_name``
+normalizes attribute local names (``rsplit(":", 1)[-1].lower()``) rather than
+comparing case-sensitively: this package's actual use case is inline
+embedding in markdown/HTML (``to_string(pretty=False)``/``_repr_svg_``), and
+an HTML tokenizer lowercases tag names before caring about XML
+case-sensitivity, so ``"SCRIPT"``/``"svg:script"`` would still become a live
+``<script>`` element there even though a strict XML parser would treat them
+as distinct, harmless tag names — a naive case-sensitive block would be a
+one-character bypass.
 """
 
 from __future__ import annotations
@@ -159,7 +167,12 @@ class SvgDocument:
         partial node attached to the tree.
         """
         _validate_name(tag, "tag")
-        if tag in _BLOCKED_TAGS:
+        # Normalized the same way _validate_name normalizes attribute local names
+        # (rsplit(":", 1)[-1].lower()) — an inline SVG embedded in markdown/HTML is
+        # parsed by an HTML tokenizer, which lowercases tag names, so "SCRIPT" or
+        # "svg:script" would still become a live <script> element there even though
+        # they're distinct, case-sensitive XML names to a strict XML parser.
+        if tag.rsplit(":", 1)[-1].lower() in _BLOCKED_TAGS:
             raise ValueError(f"tag not allowed (this package emits no JS): {tag!r}")
         validated_attrib: list[tuple[str, str]] = []
         if attrib:

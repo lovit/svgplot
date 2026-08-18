@@ -375,6 +375,24 @@ def test_add_node_rejects_script_tag_directly() -> None:
         doc.add_node(None, "script")
 
 
+@pytest.mark.parametrize("tag", ["SCRIPT", "Script", "sCrIpT", "svg:script", "svg:SCRIPT"])
+def test_add_node_rejects_script_tag_regardless_of_case_or_namespace(tag: str) -> None:
+    """Round-2 security review: the first fix only checked `tag in _BLOCKED_TAGS`
+    with an exact-match, case-sensitive comparison — "SCRIPT"/"svg:script" slipped
+    through. That matters here specifically because this package's actual use case
+    is inline embedding in markdown/HTML, where an HTML tokenizer lowercases tag
+    names before it ever cares about XML case-sensitivity — a "SCRIPT" that a strict
+    XML parser would treat as a distinct, harmless tag becomes a live <script>
+    element the moment the same markup is parsed as HTML.
+    """
+    doc = SvgDocument()
+
+    # match="not allowed", not "script": the error message preserves tag's original
+    # case/namespace (e.g. "'SCRIPT'"), only the *comparison* is normalized.
+    with pytest.raises(ValueError, match="not allowed"):
+        doc.add_node(None, tag)
+
+
 @pytest.mark.parametrize("tag", ["text", "tspan", "title", "desc", "textPath", "style"])
 def test_add_text_allows_every_text_bearing_tag(tag: str) -> None:
     doc = SvgDocument()
