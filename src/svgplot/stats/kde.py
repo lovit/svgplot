@@ -151,7 +151,14 @@ def _resolve_bandwidth(bandwidth: float | str, numbers: list[float]) -> float:
     return width
 
 
-def kde(values: list[float], *, bandwidth: float | str = "scott", grid: int = 200, cut: float = 3.0) -> KdeCurve:
+def kde(
+    values: list[float],
+    *,
+    bandwidth: float | str = "scott",
+    grid: int = 200,
+    cut: float = 3.0,
+    grid_range: tuple[float, float] | None = None,
+) -> KdeCurve:
     """Estimate a Gaussian kernel density over ``values``.
 
     The curve is evaluated on ``grid`` evenly spaced points spanning
@@ -161,12 +168,18 @@ def kde(values: list[float], *, bandwidth: float | str = "scott", grid: int = 20
     A numeric ``bandwidth`` is used as given and bypasses rule selection entirely; a
     string picks one of :data:`BANDWIDTH_RULES`.
 
+    ``grid_range`` overrides that span with an explicit ``(low, high)``, making ``cut``
+    irrelevant. It exists for callers that must evaluate several samples on *one* grid --
+    ``kdeplot`` with ``hue=`` shares a grid across groups so their curves are directly
+    comparable, the same reason ``histplot`` computes one set of bin edges across groups.
+
     Raises:
         ValueError: if ``values`` is empty, holds a non-number or non-finite value, has
             fewer than 2 or more than :data:`_MAX_POINTS` entries, spans a non-finite
             range, or has zero variance while a named rule is in use; if ``bandwidth`` is
             an unknown rule name or a non-positive/non-finite number; if ``grid`` isn't an
-            int in ``[2, _MAX_GRID]``; if ``cut`` is negative or non-finite; or if the
+            int in ``[2, _MAX_GRID]``; if ``cut`` is negative or non-finite; if
+            ``grid_range`` isn't a finite increasing pair; or if the
             estimate itself comes out non-finite because the inputs span too extreme a
             range. Nothing else escapes -- in particular the arithmetic never surfaces a
             bare ``OverflowError``.
@@ -189,8 +202,15 @@ def kde(values: list[float], *, bandwidth: float | str = "scott", grid: int = 20
 
     width = _resolve_bandwidth(bandwidth, numbers)
 
-    lower = min(numbers) - extension * width
-    upper = max(numbers) + extension * width
+    if grid_range is None:
+        lower = min(numbers) - extension * width
+        upper = max(numbers) + extension * width
+    else:
+        lower, upper = (float(bound) for bound in grid_range)
+        if not math.isfinite(lower) or not math.isfinite(upper):
+            raise ValueError(f"grid_range bounds must be finite, got {grid_range!r}")
+        if not lower < upper:
+            raise ValueError(f"grid_range must be increasing, got {grid_range!r}")
     step = (upper - lower) / (grid - 1)
     xs = [lower + index * step for index in range(grid)]
 
