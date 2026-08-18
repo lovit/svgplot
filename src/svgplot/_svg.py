@@ -273,7 +273,7 @@ class SvgDocument:
         self._class_counters[prefix] = count
         return f"{prefix}-{count}"
 
-    def to_string(self, *, pretty: bool = True) -> str:
+    def to_string(self, *, pretty: bool = True, declaration: bool = True) -> str:
         """Serialize the document to an SVG string.
 
         With ``pretty=True`` (the default) the output is indented for readability
@@ -283,10 +283,18 @@ class SvgDocument:
         rather than as a standalone file. Indentation is applied to a copy of the
         tree, so calling ``to_string`` repeatedly (in either mode, in either
         order) never mutates the document or affects later calls.
+
+        ``declaration=False`` drops the ``<?xml ...?>`` prolog while keeping the
+        indentation. Markdown embedding needs exactly that combination: a prolog
+        would render as literal text mid-document, but compact output can't be
+        hand-edited, which is the whole premise of this package. It is a parameter
+        rather than a caller-side ``removeprefix`` so serialization stays in one
+        place. Ignored when ``pretty=False``, which never emits a prolog anyway.
         """
         if pretty:
             root = copy.deepcopy(self.root)
             ET.indent(root, space="  ")
             body = ET.tostring(root, encoding="unicode")
-            return f'<?xml version="1.0" encoding="UTF-8"?>\n{body}\n'
+            prolog = '<?xml version="1.0" encoding="UTF-8"?>\n' if declaration else ""
+            return f"{prolog}{body}\n"
         return ET.tostring(self.root, encoding="unicode")
