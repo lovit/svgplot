@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import datetime
+import html
+import re
 
 import pytest
 
 from svgplot.labels import LabelSpec, render_table
 from svgplot.labels.spec import render_value
-from svgplot.labels.table import TABLE_FORMATS
+from svgplot.labels.table import _MARKDOWN_ESCAPED, TABLE_FORMATS
 
 # ---------------------------------------------------------------------------
 # LabelSpec.parse — parsing "@field{format}" entries
@@ -508,3 +510,99 @@ def test_a_korean_field_name_renders_through_to_the_table() -> None:
     table = render_table({"매출": [1200.0, 3400.0]}, LabelSpec.parse([("매출", "@매출{0,0}")]))
 
     assert table.splitlines() == ["| 매출 |", "| --- |", "| 1,200 |", "| 3,400 |"]
+
+
+# ---------------------------------------------------------------------------
+# markdown inline syntax in a cell (issue #97)
+# ---------------------------------------------------------------------------
+
+
+def _markdown_cell(value: str) -> str:
+    spec = LabelSpec.parse([("Name", "@name{%s}")])
+    return render_table({"name": [value]}, spec, format="markdown").splitlines()[2]
+
+
+@pytest.mark.parametrize(
+    ("value", "cell"),
+    [
+        ("[click](https://evil.example/pwn)", r"| \[click\](https://evil.example/pwn) |"),
+        ("![px](https://evil.example/p.gif)", r"| !\[px\](https://evil.example/p.gif) |"),
+        ("`code`", r"| \`code\` |"),
+        ("**bold**", r"| \*\*bold\*\* |"),
+        ("_em_", r"| \_em\_ |"),
+        ("~~strike~~", r"| \~\~strike\~\~ |"),
+    ],
+)
+def test_markdown_inline_syntax_in_a_cell_renders_literally(value: str, cell: str) -> None:
+    """A cell holds data, not markup. Unescaped, the first two are the ones that matter:
+    a live link is a phishing target and a remote image is an IP beacon for whoever opens
+    the document. Neither is XSS -- ``html.escape`` still stops ``<`` -- but both are
+    active content injected from caller data, and the representative use of ``info=`` is a
+    user-submitted CSV."""
+    assert _markdown_cell(value) == cell
+
+
+def test_the_escapes_round_trip_back_to_the_original_value() -> None:
+    """Escaping is only correct if a renderer reading it back produces what the caller
+    gave. Asserting the escaped form alone would pass for an escaper that mangled the
+    value as long as it did so consistently."""
+    value = r"a|b [x](y) `c` **d** _e_ ~f~ \g\ 100% 5*6"
+    cell = _markdown_cell(value).removeprefix("| ").removesuffix(" |")
+
+    unescaped = re.sub(r"\\(.)", r"\1", cell)
+    assert unescaped == value
+
+
+def test_the_html_escape_and_inline_escape_passes_do_not_interact() -> None:
+    """``_escape_markdown_cell`` runs ``html.escape`` before the inline escapes, and that
+    order is free rather than load-bearing -- but only while the two passes stay disjoint.
+    If ``html.escape`` ever emitted one of the escaped characters, or learned to touch a
+    backslash, the placement would silently start to matter."""
+    entities = html.escape("&<>\"'", quote=True)
+
+    assert not set(entities) & set(_MARKDOWN_ESCAPED)
+    assert html.escape("\\", quote=True) == "\\"
+
+
+def test_escaping_does_not_touch_the_html_renderer() -> None:
+    """``<td>`` content is not markdown, so a backslash there would be a literal backslash
+    shown to the reader -- the escaping has to be specific to the markdown path."""
+    spec = LabelSpec.parse([("Name", "@name{%s}")])
+    result = render_table({"name": ["[x](y) `c` *d*"]}, spec, format="html")
+
+    assert "<td>[x](y) `c` *d*</td>" in result
+    assert "\\" not in result
+
+
+def test_a_backslash_already_in_the_value_survives_the_new_escapes() -> None:
+    """The doubling has to happen before the inline escapes go in, or a user-supplied
+    ``\\`` pairs with an inserted one and the character after it comes back live."""
+    cell = _markdown_cell(r"\[not a link](x)")
+
+    assert cell == r"| \\\[not a link\](x) |"
+    assert re.sub(r"\\(.)", r"\1", cell.removeprefix("| ").removesuffix(" |")) == r"\[not a link](x)"
+
+
+def test_an_escaped_cell_still_holds_one_column() -> None:
+    """The point of all of it: whatever the value contains, the row keeps its shape."""
+    spec = LabelSpec.parse([("A", "@a{%s}"), ("B", "@b{%s}")])
+    result = render_table({"a": ["x|y [z](w)"], "b": ["ok"]}, spec, format="markdown")
+    rows = result.splitlines()
+
+    assert len(rows) == 3
+    assert rows[2].count(" | ") == 1  # one separator => two cells
+
+
+def test_a_label_gets_the_same_treatment_as_a_cell() -> None:
+    """A header is caller data too, and an unescaped link there renders just as live."""
+    spec = LabelSpec.parse([("[hdr](https://evil.example)", "@name{%s}")])
+    result = render_table({"name": ["ok"]}, spec, format="markdown")
+
+    assert result.splitlines()[0] == r"| \[hdr\](https://evil.example) |"
+
+
+def test_a_bare_url_is_documented_as_out_of_reach() -> None:
+    """GFM's autolink extension makes ``https://x`` a link with no markup at all, and no
+    backslash escape stops it. Killing it would mean rewriting the value -- reporting data
+    the caller never gave -- so this pins the limit rather than pretending it away."""
+    assert _markdown_cell("https://bare.example/beacon") == "| https://bare.example/beacon |"
