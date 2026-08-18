@@ -130,6 +130,24 @@ def composition_document(composition: Composition) -> SvgDocument:
     return composition._svg_document
 
 
+def composition_title(composition: Composition) -> str | None:
+    """Return the accessible name a caller actually set on ``composition``, or ``None``.
+
+    The :func:`composition_document` counterpart for the accessible name, and for the
+    same reason: ``layout`` passes need to know whether a name is already set (see
+    ``layout.caption.add_caption``, which only adopts its text when one isn't), and
+    that read belongs in one named, documented place rather than as a bare
+    ``composition._title`` in each layout module.
+
+    Delegates to :meth:`Composition._resolved_title`, so "already set" means exactly
+    what the render path means by it — a whitespace-only title reads as unset here
+    just as it falls back to :attr:`Composition.DEFAULT_TITLE` there. Were the two to
+    disagree, ``set_title("  ")`` followed by ``add_caption("Figure 3")`` would render
+    the caption visibly while announcing the generic default.
+    """
+    return composition._resolved_title()
+
+
 def _namespaced_child_root(chart: Chart, prefix: str) -> ET.Element:
     """Deep-copy ``chart``'s root element and rewrite its classes into ``prefix``'s namespace.
 
@@ -261,9 +279,24 @@ class Composition:
         sets this when it isn't already set, since a caption *is* the figure's name —
         announcing a generic default while a visible caption reads "Figure 3. Quarterly
         revenue" would be strictly worse for a screen-reader user.
+
+        ``grid(titles=...)`` deliberately does *not* feed this. Those are per-cell
+        headings, so there is no single one of them to name the whole figure by, and
+        concatenating them would announce the panel list before the reader learns what
+        the figure even is. They stay visible chrome; the figure's name comes from
+        ``set_title``, a caption, or :attr:`DEFAULT_TITLE`.
         """
         self._title = title
         return self
+
+    def _resolved_title(self) -> str | None:
+        """The accessible name a caller actually set, or ``None`` if none is in effect.
+
+        The single definition of "unset" for this class: both the render path below and
+        ``layout.caption.add_caption`` (via :func:`composition_title`) ask this, so a
+        whitespace-only title can't count as set in one and unset in the other.
+        """
+        return (self._title or "").strip() or None
 
     def _accessible_document(self) -> SvgDocument:
         """Return a copy of the composed document with role/aria/title/desc applied.
@@ -277,12 +310,17 @@ class Composition:
         accessibility pass), so a composed figure announces one name rather than one
         per panel. ``test_composition_children_do_not_carry_their_own_accessibility``
         pins that.
+
+        The panel count is ``len(self._charts)``, which is the number of charts actually
+        placed — ``layout.grid`` drops ``None`` blank cells before building the
+        ``Composition``, so a blank never inflates the count a screen reader announces.
         """
         document = copy.deepcopy(self._svg_document)
+        count = len(self._charts)
         add_accessibility(
             document,
-            title=(self._title or "").strip() or self.DEFAULT_TITLE,
-            desc=f"A figure composed of {len(self._charts)} charts.",
+            title=self._resolved_title() or self.DEFAULT_TITLE,
+            desc=f"A figure composed of {count} chart{'' if count == 1 else 's'}.",
         )
         return document
 

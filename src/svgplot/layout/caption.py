@@ -9,7 +9,7 @@ visual unity Bokeh got from a shared toolbar.
 
 from __future__ import annotations
 
-from svgplot.chart.composition import CAPTION_HEIGHT, Composition, composition_document
+from svgplot.chart.composition import CAPTION_HEIGHT, Composition, composition_document, composition_title
 from svgplot.charts._layout import format_coord
 
 _CAPTION_CLASS = "composition-caption"
@@ -31,7 +31,10 @@ def add_caption(composition: Composition, text: str, location: str = "below") ->
     set explicitly — a caption *is* the figure's name, so announcing the generic
     default while a visible caption reads "Figure 3. Quarterly revenue" would be
     strictly worse. An explicit :meth:`~svgplot.chart.composition.Composition.set_title`
-    always wins.
+    always wins, whether it was called before or after this. Adding a *second* caption
+    likewise leaves the name alone: both bands render, but the first caption stays the
+    figure's name, since a later band is an addition to the figure rather than a
+    correction of what it is called.
 
     Raises:
         ValueError: if ``location`` isn't ``"above"`` or ``"below"``, or if ``text``
@@ -65,6 +68,6 @@ def add_caption(composition: Composition, text: str, location: str = "below") ->
         attrib={"x": format_coord(width / 2), "y": format_coord(caption_y), "text-anchor": "middle"},
         classes=[_CAPTION_CLASS],
     )
-    if not composition._title:
+    if composition_title(composition) is None:
         composition.set_title(text)
     return composition
