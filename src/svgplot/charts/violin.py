@@ -18,8 +18,8 @@ from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import CategoricalScale, LinearScale
-from svgplot.stats.kde import kde
-from svgplot.stats.quantile import quantile
+from svgplot.stats.kde import KdeCurve, kde
+from svgplot.stats.quantile import quantiles
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
@@ -32,12 +32,15 @@ share ``bar`` leaves between bars, so a violin chart and a bar chart of the same
 categories line up."""
 
 _INNER_BOX_FRACTION = 0.12
-"""Width of the inner quartile box, as a fraction of the category band. Deliberately thin:
-it is an annotation on the density, not a second chart competing with it."""
+"""Width of the inner quartile box, as a fraction of the category *step* (band + gutter).
+Deliberately thin: it is an annotation on the density, not a second chart competing with
+it. Measured against the step rather than the band so the two inner marks keep their
+proportions when ``_VIOLIN_PADDING`` changes."""
 
 _MEDIAN_TICK_FRACTION = 0.2
-"""Width of the median tick. Wider than the box so it reads as a mark rather than as the
-box's own edge."""
+"""Width of the median tick, also a fraction of the step. Wider than the box so it reads
+as a mark rather than as the box's own edge, and below ``1 - _VIOLIN_PADDING`` so it stays
+inside its own band."""
 
 _CUT = 3.0
 """Bandwidths of room past each category's extremes, matching ``stats.kde``'s default."""
@@ -45,6 +48,10 @@ _CUT = 3.0
 _PROBE_GRID = 2
 """Grid size for the pass that only needs a category's bandwidth -- see ``charts/kde.py``,
 which shares a grid across hue groups for the same reason and by the same means."""
+
+_EVALUATION_GRID = 200
+"""Points per violin outline. Named rather than left to ``stats.kde``'s default, because it
+also fixes how many vertices each emitted path carries."""
 
 
 def _group_by_x(columns: dict[str, list], x: str, y: str) -> dict[str, list[float]]:
@@ -61,7 +68,7 @@ def _group_by_x(columns: dict[str, list], x: str, y: str) -> dict[str, list[floa
     return groups
 
 
-def _density(values: list[float], category: str, bandwidth: float | str, grid_range: tuple[float, float] | None):
+def _density(values: list[float], category: str, bandwidth: float | str, grid_range: tuple[float, float] | None) -> KdeCurve:
     """``kde`` over one category's values, with the category named in any failure.
 
     Without this the most common mistake -- a category holding a single observation, or
@@ -69,7 +76,9 @@ def _density(values: list[float], category: str, bandwidth: float | str, grid_ra
     work out which of their categories that was.
     """
     try:
-        return kde(values, bandwidth=bandwidth, grid=_PROBE_GRID if grid_range is None else 200, grid_range=grid_range)
+        if grid_range is None:
+            return kde(values, bandwidth=bandwidth, grid=_PROBE_GRID)
+        return kde(values, bandwidth=bandwidth, grid=_EVALUATION_GRID, grid_range=grid_range)
     except ValueError as error:
         raise ValueError(f"category {category!r}: {error}") from error
 
@@ -81,6 +90,11 @@ def shared_grid_range(groups: dict[str, list[float]], bandwidth: float | str) ->
     Bandwidth is chosen per category, so pooling the values first would settle on one width
     and clip a narrow category's tail. Public (unlike this module's other helpers) because
     it is the only way to reconstruct the chart's y mapping from outside.
+
+    A shared grid has one inherent cost: if two categories differ in scale by orders of
+    magnitude, the grid step can exceed the narrow one's bandwidth entirely and it
+    evaluates to zero everywhere -- drawn as a vertical line with its inner box still
+    beside it. seaborn shares the limitation; ``charts/kde.py`` records the same note.
     """
     lows: list[float] = []
     highs: list[float] = []
@@ -180,9 +194,13 @@ def violinplot(
         )
 
         if inner == "box":
-            # Quartiles from stats.quantile, which is what stats.box's hinges resolve to --
-            # so this annotation lands exactly where boxplot would put the same box.
-            q1, median, q3 = (quantile(groups[category], probability) for probability in (0.25, 0.5, 0.75))
+            # Quartiles from stats.quantile, which is what stats.box's hinges resolve to in
+            # its default "1.5IQR" mode -- so this annotation lands exactly where a default
+            # boxplot would put the same box. (boxplot's mode="tukey" uses different
+            # hinges; violinplot has no mode= of its own.)
+            # quantiles(), not three quantile() calls: it sorts once, which is exactly what
+            # its docstring asks callers with several probabilities to do (stats.box too).
+            q1, median, q3 = quantiles(groups[category], (0.25, 0.5, 0.75))
             box_half = abs(band) * _INNER_BOX_FRACTION / 2
             top, bottom = y_scale(q3), y_scale(q1)
             document.add_node(
