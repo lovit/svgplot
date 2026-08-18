@@ -93,6 +93,25 @@ class Normalize:
         span = self.vmax - self.center
         return 0.5 + 0.5 * (number - self.center) / span if span else 0.5
 
+    def inverse(self, position: float) -> float:
+        """The value that :meth:`__call__` maps to ``position``.
+
+        A legend has to name the value each colour step begins at, and with ``center`` set
+        the mapping is two straight lines rather than one -- undoing it by assuming a
+        single slope mislabels every step on the shorter side.
+
+        Raises:
+            ValueError: if ``position`` isn't a finite number in ``[0, 1]``.
+        """
+        fraction = _require_finite_number(position, field="position")
+        if not 0.0 <= fraction <= 1.0:
+            raise ValueError(f"position must be in [0, 1], got {position!r}")
+        if self.center is None:
+            return self.vmin + fraction * (self.vmax - self.vmin)
+        if fraction <= 0.5:
+            return self.vmin + 2.0 * fraction * (self.center - self.vmin)
+        return self.center + 2.0 * (fraction - 0.5) * (self.vmax - self.center)
+
     @classmethod
     def from_values(cls, values: list[float], *, center: float | None = None) -> Normalize:
         """Build a ``Normalize`` spanning ``values``' own range.
