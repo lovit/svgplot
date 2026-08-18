@@ -14,23 +14,17 @@ import math
 
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
-from svgplot.charts._layout import format_coord, plot_area
+from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, LEGEND_X_OFFSET, format_coord, plot_area
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._columns import column_length, extract_columns
+from svgplot.data._missing import is_missing
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
-_WIDTH = 800.0
-_HEIGHT = 600.0
 _MARGIN = (30.0, 180.0, 30.0, 30.0)  # top, right, bottom, left -- right reserves legend space
-_LEGEND_X_OFFSET = 20.0  # past the plot area's right edge
 _LABEL_RADIUS_FRACTION = 0.65  # value-label distance from center, as a fraction between inner/outer radius
 _FULL_CIRCLE_TOLERANCE = 1e-9
-
-
-def _is_missing(value: object) -> bool:
-    return value is None or (isinstance(value, float) and value != value)
 
 
 def _format_value_label(value: float) -> str:
@@ -139,7 +133,7 @@ def pieplot(
     pairs = [
         (str(label), float(value))
         for label, value in zip(raw_labels, raw_values, strict=True)
-        if not _is_missing(label) and not _is_missing(value)
+        if not is_missing(label) and not is_missing(value)
     ]
     if not pairs:
         raise ValueError("no rows with both a non-missing label and value present after dropping missing values")
@@ -155,12 +149,12 @@ def pieplot(
     if total == 0:
         raise ValueError("pie values must not all be zero (sum is 0)")
 
-    document = SvgDocument(width=_WIDTH, height=_HEIGHT)
-    area = plot_area(_WIDTH, _HEIGHT, margin=_MARGIN)
+    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
+    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=_MARGIN)
     document.add_node(
         None,
         "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(_WIDTH), "height": format_coord(_HEIGHT)},
+        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
         classes=["plot-background"],
     )
 
@@ -202,7 +196,7 @@ def pieplot(
             classes=["legend-text"],
         )
 
-    render_legend(document, legend_entries, x=area.right + _LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+    render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
     return Chart(document)

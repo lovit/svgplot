@@ -5,20 +5,23 @@ from __future__ import annotations
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
-from svgplot.charts._layout import format_coord, plot_area
+from svgplot.charts._layout import (
+    DEFAULT_HEIGHT,
+    DEFAULT_WIDTH,
+    LEGEND_X_OFFSET,
+    MARGIN_WITH_LEGEND,
+    MARGIN_WITHOUT_LEGEND,
+    format_coord,
+    plot_area,
+)
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.data.semantic import extract_channels
 from svgplot.scales import CategoricalScale, LinearScale
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
-
-_WIDTH = 800.0
-_HEIGHT = 600.0
-_MARGIN_WITH_LEGEND = (30.0, 160.0, 50.0, 60.0)  # top, right, bottom, left
-_MARGIN_WITHOUT_LEGEND = (30.0, 40.0, 50.0, 60.0)
-_LEGEND_X_OFFSET = 20.0  # past the plot area's right edge
 
 # A category's full band is never filled edge-to-edge — some of it is inset as
 # whitespace so adjacent bands read as visually distinct, and (in grouped mode)
@@ -27,17 +30,13 @@ _BAND_PADDING_FRACTION = 0.2
 _GROUP_GAP_FRACTION = 0.1
 
 
-def _is_missing(value: object) -> bool:
-    return value is None or (isinstance(value, float) and value != value)
-
-
 def _unique_categories(values: list) -> list[str]:
     """Distinct category labels, in first-appearance order (not sorted) — matches
     how a caller's data is usually already meaningfully ordered.
     """
     seen: dict[str, None] = {}
     for value in values:
-        if not _is_missing(value):
+        if not is_missing(value):
             seen.setdefault(str(value), None)
     return list(seen)
 
@@ -50,7 +49,7 @@ def _category_value_lookup(columns: dict[str, list], x: str, y: str) -> dict[str
     """
     lookup: dict[str, float] = {}
     for xv, yv in zip(columns[x], columns[y], strict=True):
-        if _is_missing(xv) or _is_missing(yv):
+        if is_missing(xv) or is_missing(yv):
             continue
         lookup[str(xv)] = float(yv)
     return lookup
@@ -117,12 +116,12 @@ def barplot(
         value_max = max(all_values) if all_values else 0.0
     value_max = value_max or 1.0  # an all-zero chart still needs a non-degenerate axis
 
-    document = SvgDocument(width=_WIDTH, height=_HEIGHT)
-    area = plot_area(_WIDTH, _HEIGHT, margin=_MARGIN_WITH_LEGEND if hue is not None else _MARGIN_WITHOUT_LEGEND)
+    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
+    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
     document.add_node(
         None,
         "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(_WIDTH), "height": format_coord(_HEIGHT)},
+        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
         classes=["plot-background"],
     )
 
@@ -188,7 +187,7 @@ def barplot(
 
     if hue is not None:
         legend_entries = [(str(label), series_classes[index]) for index, (label, _) in enumerate(group_items)]
-        render_legend(document, legend_entries, x=area.right + _LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+        render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 

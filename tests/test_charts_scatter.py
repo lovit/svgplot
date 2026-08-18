@@ -147,3 +147,39 @@ def test_scatterplot_rejects_unknown_theme_preset() -> None:
 def test_scatterplot_rejects_bad_theme_type() -> None:
     with pytest.raises(TypeError):
         scatterplot(PLAIN, x="x", y="y", theme=123)  # type: ignore[arg-type]
+
+
+def test_size_legend_sits_below_the_hue_legend_even_if_the_row_height_changes(monkeypatch) -> None:
+    """scatter stacks its size legend beneath the hue legend. It used to compute the
+    offset from a hardcoded copy of _legend._ROW_HEIGHT, so changing that constant
+    would silently overlap the two. render_legend now reports its own consumed height;
+    this pins that by enlarging the constant and asserting the two legends' drawn
+    *extents* (not just their reference points) stay disjoint.
+    """
+    import re
+
+    from svgplot.charts import _legend
+    from svgplot.charts._legend import _SWATCH_HEIGHT
+
+    def attrs(tag: str) -> dict[str, str]:
+        """Attribute order in the emitted markup is an implementation detail, so parse
+        into a dict rather than matching a fixed sequence."""
+        return dict(re.findall(r'([\w-]+)="([^"]*)"', tag))
+
+    # Far larger than scatter's own _SIZE_LEGEND_GAP, so a stale hardcoded row height
+    # cannot be masked by the gap alone happening to clear the last row.
+    monkeypatch.setattr(_legend, "_ROW_HEIGHT", 200.0)
+    svg = scatterplot(HUE_AND_SIZE_DATA, x="x", y="y", hue="group", size="weight").to_string()
+
+    # Hue swatches are the <rect>s carrying a series class (the only other rect is the
+    # full-canvas background); size samples are the <circle>s in that same x band.
+    swatches = [attrs(t) for t in re.findall(r"<rect[^>]*/>", svg) if "series-" in t]
+    assert len(swatches) == 2, "expected one swatch per hue group"
+    legend_x = min(float(a["x"]) for a in swatches)
+    samples = [a for a in (attrs(t) for t in re.findall(r"<circle[^>]*/>", svg)) if float(a["cx"]) >= legend_x]
+    assert samples, "expected size-legend sample circles"
+
+    # Compare real extents: a swatch occupies [y, y + height]; a sample [cy - r, cy + r].
+    hue_bottom = max(float(a["y"]) + _SWATCH_HEIGHT for a in swatches)
+    size_top = min(float(a["cy"]) - float(a["r"]) for a in samples)
+    assert size_top > hue_bottom
