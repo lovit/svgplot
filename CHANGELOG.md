@@ -13,6 +13,12 @@
 - `violinplot` — 카테고리별 좌우 대칭 밀도. `boxplot`과 **위치 인자 `(data, x, y)`가 같아** 그 부분은 바꿔 쓸 수 있다(키워드는 다르다 — `boxplot`의 `mode=`에 해당하는 것이 없다). 모든 카테고리가 하나의 y 도메인과 하나의 peak을 공유해 폭이 비교 가능하고, `inner="box"`는 기본 모드 `boxplot`이 그렸을 사분위 상자와 일치한다.
 - `regplot` — 최소제곱 적합선과 백분위 부트스트랩 신뢰대역. 같은 `seed`면 SVG가 byte-identical하다.
 
+**형태 차트**
+
+- `heatmap` — 값을 **9단계로 양자화**해 색을 고른다. 연속 램프가 아닌 이유는 재테마가 실제로 동작하게 하기 위해서다 — CSS 규칙 9개는 손으로 고칠 수 있지만 셀당 규칙 하나는 못 고친다. 덤으로 범례가 공짜이고(스와치 9개가 기존 `render_legend`로) 출력이 절반이다. `center=`는 발산 컬러맵으로 바꾼다. `annot=True`의 글자 색은 테마가 아니라 **셀 색의 휘도**에서 고르며(셀 색은 컬러맵에서 오므로 모든 프리셋에서 동일하다) 전 프리셋 × 전 컬러맵에서 WCAG AA(4.5:1)를 넘는다. 2,500셀을 넘으면 크기를 경고하되 **막지는 않는다**.
+- `radarplot` — 극좌표 위의 선 그래프(pygal 모델). 새 스케일 타입 없이 기존 `CategoricalScale`/`LinearScale`을 각도 스케일로 그대로 쓴다. 눈금 링은 원이 아니라 **다각형**이라 모든 스포크를 그 눈금이 말하는 값에서 지난다.
+- `gaugeplot` — 240도 아크 위의 스칼라 값. 9종 중 유일하게 데이터 모델이 비교가 아니라 스칼라라 `pieplot`처럼 단일 `value` 컬럼을 받는다. 범위 밖 값은 양 끝으로 **클램핑**된다 — 감아 돌게 두면 큰 값이 더 작은 아크로 그려진다.
+
 **통계**
 
 - `stats.kde` — 순수 stdlib 가우시안 KDE(Scott/Silverman). `grid_range=`로 여러 표본을 한 그리드에서 평가할 수 있다.
@@ -37,9 +43,21 @@
 - `theme.css`에 `level_colors=`와 `mark_style="outlined"` 추가.
 - `palette.Normalize`, `palette.diverging`.
 - `CategoricalScale(padding=)` — d3 `scaleBand().padding()`.
-- `warnings` — `SvgplotWarning` / `HeatmapSizeWarning`. 경고 정책의 첫 구현이며, `HeatmapSizeWarning`은 아직 이것을 발생시키는 차트가 없다(heatmap은 M8).
-- `charts/_polar.py` — `pie.py`에서 극좌표 기하 추출.
-- `treemap`, `sparkline`.
+- `warnings` — `SvgplotWarning` / `HeatmapSizeWarning`. 경고 정책의 첫 구현이다("출력은 유효하나 품질 저하"면 warn, 무효면 raise).
+- `charts/_polar.py` — `pie.py`에서 극좌표 기하 추출. `pie`/`radar`/`gauge`가 공유한다.
+- `treemap` — squarified(Bruls 2000), 단일 레벨. 면적이 값에 비례한다.
+- `sparkline` — 축·범례·라벨 없는 120x24 미니 캔버스. 문장 안에 넣으라고 있는 것이라 800x600 기본 캔버스를 쓰지 않는 유일한 차트다.
+- `theme.css`의 `ink_colors=` — 값으로 칠한 마크 **위에 얹는 글자** 색. `level_colors=`와 분리한 이유는 둘이 불투명도에 대해 정반대를 원하기 때문이다: 레벨 색은 다른 마크처럼 `theme.opacity`를 지니고, 잉크는 아래 마크와 대비되도록 고른 색이라 어떤 불투명도든 그 선택을 무효화한다.
+
+### 알려진 제약
+
+의도적으로 범위 밖에 둔 것들이며, 각각의 근거는 해당 모듈 docstring에 있다.
+
+- **계층형 treemap 미지원** — 단일 레벨만. 계층 입력은 `data/_columns.py`가 표현하지 못하는 트리 구조를 요구한다.
+- **`violinplot(split=)` 미지원** — hue 두 그룹을 한 바이올린의 좌우로 나누는 형태.
+- **연속 컬러바 미지원** — `heatmap`이 양자화인 것의 이면이다. 연속 램프는 `<linearGradient>`/`stop-color`가 필요한데, 이는 CSS 클래스 계약 밖의 스타일링이고 합성 시 네임스페이싱 재작성에도 잡히지 않는다.
+- **markdown 표 셀의 GFM autolink** — 맨 URL·`www.` 접두·이메일 주소는 마크업 없이 링크가 되므로 이스케이프로 막을 수 없다. 값을 고쳐 쓰는 것은 호출자가 주지 않은 데이터를 보고하는 일이라 하지 않는다.
+- **여러 줄 라벨 미지원** — 텍스트 노드의 개행은 공백으로 접힌다. 진짜 여러 줄 라벨은 `dy`를 가진 `<tspan>`이 필요하고 이 패키지는 글리프를 측정하지 않는다.
 
 ### Fixed
 
@@ -47,6 +65,8 @@
 - `lineplot`이 NaN x 하나로 차트 전체를 죽이던 문제(필터가 x의 NaN을 보지 않았다).
 - 비ASCII 컬럼명(`@매출{0,0}`)이 라벨 스펙에서 거부되던 문제.
 - 표 셀의 개행이 HTML 출력에서 그대로 통과해 markdown 블록을 끊던 문제.
+- 텍스트 노드의 개행이 SVG에 빈 줄을 만들어, markdown에 인라인으로 넣으면 CommonMark HTML 블록이 그 지점에서 끝나고 이후 SVG 원문이 본문으로 파싱되던 문제.
+- 표 셀의 markdown 인라인 문법이 그대로 렌더돼 `[click](url)`이 살아있는 링크가, `![x](url)`이 원격 이미지(문서를 여는 사람의 IP 비컨)가 되던 문제.
 
 ## [0.1.0] - 2026-08-18
 
