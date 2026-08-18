@@ -54,9 +54,9 @@ def _circle_loop(cx: float, cy: float, r: float) -> str:
     and end points coincide is dropped entirely by the renderer (SVG spec F.6.2), so
     sweeping straight back to the start point silently yields half a circle.
     """
-    return (
-        f"M {format_coord(cx - r)},{format_coord(cy)} "
-        f"A {format_coord(r)},{format_coord(r)} 0 1 1 {format_coord(cx - r)},{format_coord(cy)}"
+    return f"M {format_coord(cx - r)},{format_coord(cy)} " + " ".join(
+        f"A {format_coord(r)},{format_coord(r)} 0 1 1 {format_coord(x)},{format_coord(y)}"
+        for x, y in (polar_point(cx, cy, r, 0.0), polar_point(cx, cy, r, math.pi))
     )
 
 
