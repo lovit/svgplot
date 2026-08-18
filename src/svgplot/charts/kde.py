@@ -53,14 +53,39 @@ def _shared_grid_range(
     Taking the union rather than a single span computed from the pooled values keeps every
     group's own tail on the canvas: a narrow group beside a wide one still gets its ``cut``
     bandwidths of room, because the bandwidth is per-group.
+
+    A shared grid still has one cost, and it is inherent rather than a defect: if two groups
+    differ in scale by orders of magnitude, the grid step can exceed the narrow group's
+    bandwidth entirely and that group evaluates to zero everywhere -- drawn as a flat line
+    on the baseline. seaborn behaves the same way for the same reason.
     """
     lows: list[float] = []
     highs: list[float] = []
-    for _, values in series_values:
-        width = kde(values, bandwidth=bandwidth, grid=_PROBE_GRID).bandwidth
+    for label, values in series_values:
+        width = _bandwidth_of(values, label, bandwidth)
         lows.append(min(values) - cut * width)
         highs.append(max(values) + cut * width)
     return min(lows), max(highs)
+
+
+def _bandwidth_of(values: list[float], label: object, bandwidth: float | str) -> float:
+    """One group's bandwidth, with the group named in any failure.
+
+    Otherwise a single bad group reports only "every value is 3.0" and the caller is left
+    to work out which of their hue values that was.
+    """
+    try:
+        return kde(values, bandwidth=bandwidth, grid=_PROBE_GRID).bandwidth
+    except ValueError as error:
+        raise ValueError(f"hue group {label!r}: {error}" if label is not None else str(error)) from error
+
+
+def _curve_of(values: list[float], label: object, bandwidth: float | str, grid_range: tuple[float, float]) -> KdeCurve:
+    """One group's density on the shared grid, with the group named in any failure."""
+    try:
+        return kde(values, bandwidth=bandwidth, grid_range=grid_range)
+    except ValueError as error:
+        raise ValueError(f"hue group {label!r}: {error}" if label is not None else str(error)) from error
 
 
 def _curve_path(curve: KdeCurve, x_scale: LinearScale, y_scale: LinearScale, *, baseline: float, fill: bool) -> str:
@@ -125,7 +150,7 @@ def kdeplot(
 
     cut = 3.0
     grid_range = _shared_grid_range(series_values, bandwidth, cut)
-    series_curves = [(label, kde(values, bandwidth=bandwidth, grid_range=grid_range)) for label, values in series_values]
+    series_curves = [(label, _curve_of(values, label, bandwidth, grid_range)) for label, values in series_values]
     peak = max(value for _, curve in series_curves for value in curve.y)
 
     document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
@@ -154,7 +179,17 @@ def kdeplot(
             legend_entries.append((str(label), series_class))
 
     if legend_entries:
-        render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style=mark_style)
+        # The legend takes the swatch *shape*, not the series' mark style: it only knows
+        # "stroke" (a line) and "fill" (a rect). An outlined curve reads as a filled swatch
+        # -- the outlined CSS rule sets stroke, fill and fill-opacity, so the rect shows all
+        # three. Passing "outlined" straight through is a ValueError from render_legend.
+        render_legend(
+            document,
+            legend_entries,
+            x=area.right + LEGEND_X_OFFSET,
+            y=area.top,
+            mark_style="fill" if fill else "stroke",
+        )
 
     render_theme_style(document, resolved_theme, series_classes, mark_style=mark_style)
 
