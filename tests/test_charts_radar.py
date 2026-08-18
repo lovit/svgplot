@@ -563,3 +563,64 @@ def test_a_non_numeric_value_is_refused_with_its_category_named(bad: object) -> 
 
     with pytest.raises(ValueError, match=r"radar values must be numbers.*for 'b'"):
         radarplot(data, x="stat", y="v")
+
+
+def test_the_spoke_set_is_the_union_of_every_series_not_just_the_first() -> None:
+    """Building it from one series only leaves the extra categories of the others silently
+    off the chart -- the same shape change this rule exists to refuse, and it passed
+    because every gap fixture happened to put the *complete* series alphabetically first."""
+    data = {
+        "stat": ["a", "b", "c", "d", *CATEGORIES],
+        "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+        "who": ["A"] * 4 + ["B"] * 5,
+    }
+
+    with pytest.raises(ValueError, match=r"series 'A' has no value for 'e'"):
+        radarplot(data, x="stat", y="v", hue="who")
+
+
+@pytest.mark.parametrize("value", [-0.5, -1e-9, -1.0])
+def test_the_negative_boundary_sits_at_zero_not_somewhere_below_it(value: float) -> None:
+    """Only -5.0 was tested, so loosening the check to ``value < -1.0`` passed and -0.5
+    still rendered -- reflected onto the opposite spoke, which is the whole failure."""
+    data = {"stat": CATEGORIES, "v": [1.0, value, 3.0, 4.0, 5.0]}
+
+    with pytest.raises(ValueError, match="non-negative"):
+        radarplot(data, x="stat", y="v")
+
+
+def test_zero_itself_is_on_the_allowed_side_of_that_boundary() -> None:
+    """Otherwise the parametrised refusals above would pass for a check that rejected
+    everything at or below zero."""
+    data = {"stat": CATEGORIES, "v": [0.0, 6.0, 7.0, 5.0, 4.0]}
+
+    assert len(_series(radarplot(data, x="stat", y="v").to_string())) == 1
+
+
+def test_the_hued_dial_geometry_is_pinned_to_literal_pixels_too() -> None:
+    """``test_the_dial_geometry_is_pinned_to_literal_pixels`` anchors only the no-hue
+    margin, so ``_MARGIN_WITH_LEGEND`` could move (right 180 to 200, or top/bottom to
+    60/20) with every hued assertion following it and nothing failing."""
+    svg = radarplot(_two_series(), x="stat", y="v", hue="who").to_string()
+    top_label = min(_tags(svg, "text", "tick-label"), key=lambda tag: float(tag["y"]))
+
+    assert (HUED_CENTRE, HUED_OUTER) == ((330.0, 300.0), 242.0)
+    assert (float(top_label["x"]), float(top_label["y"])) == (330.0, 40.0)  # 300 - (242 + 18)
+
+
+def test_spokes_follow_the_order_the_categories_first_appear_in() -> None:
+    """Not sorted: the reader's own ordering is data too, and every fixture in this file
+    happens to be alphabetical, so sorting them made no test fail."""
+    data = {"stat": ["e", "d", "c", "b", "a"], "v": [1.0, 2.0, 3.0, 4.0, 5.0]}
+    svg = radarplot(data, x="stat", y="v").to_string()
+
+    assert re.findall(r'class="tick-label"[^>]*>([^<]+)<', svg) == ["e", "d", "c", "b", "a"]
+
+
+def test_the_gap_message_names_the_first_missing_category() -> None:
+    """With one hole, ``missing[0]`` and ``missing[-1]`` are the same category, so which
+    end the message reports went unpinned."""
+    data = {"stat": CATEGORIES, "v": [1.0, None, 3.0, None, 5.0]}
+
+    with pytest.raises(ValueError, match=r"no value for 'b'"):
+        radarplot(data, x="stat", y="v")
