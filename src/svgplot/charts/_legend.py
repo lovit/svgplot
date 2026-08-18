@@ -20,8 +20,14 @@ _SWATCH_HEIGHT = 10.0
 
 def render_legend(
     document: SvgDocument, entries: list[tuple[str, str]], *, x: float, y: float, mark_style: str = "stroke"
-) -> None:
-    """Draw a vertical legend starting at ``(x, y)``, one row per ``entries`` item.
+) -> float:
+    """Draw a vertical legend starting at ``(x, y)``, one row per ``entries`` item,
+    and return the y coordinate just past the last row.
+
+    Returning the consumed height keeps row spacing owned by this module: a caller
+    stacking something beneath the legend (e.g. ``charts.scatter``'s size legend)
+    derives its offset from this value instead of re-deriving it from a copy of
+    ``_ROW_HEIGHT``, which would silently overlap if that constant ever changed.
 
     Each entry is ``(label, css_class)`` — ``css_class`` is reused as-is (e.g. the
     same class a series' ``<path>`` already carries), so this function only
@@ -40,6 +46,8 @@ def render_legend(
     """
     if mark_style not in ("stroke", "fill"):
         raise ValueError(f"mark_style must be 'stroke' or 'fill', got {mark_style!r}")
+    if not entries:
+        return y
     for index, (label, css_class) in enumerate(entries):
         row_y = y + index * _ROW_HEIGHT
         if mark_style == "stroke":
@@ -73,3 +81,4 @@ def render_legend(
             attrib={"x": format_coord(x + _SWATCH_WIDTH + _LABEL_GAP), "y": format_coord(row_y + _TEXT_BASELINE_OFFSET)},
             classes=["legend-text"],
         )
+    return y + len(entries) * _ROW_HEIGHT

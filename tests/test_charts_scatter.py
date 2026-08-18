@@ -147,3 +147,36 @@ def test_scatterplot_rejects_unknown_theme_preset() -> None:
 def test_scatterplot_rejects_bad_theme_type() -> None:
     with pytest.raises(TypeError):
         scatterplot(PLAIN, x="x", y="y", theme=123)  # type: ignore[arg-type]
+
+
+def test_size_legend_sits_below_the_hue_legend_even_if_the_row_height_changes(monkeypatch) -> None:
+    """scatter stacks its size legend beneath the hue legend. It used to compute the
+    offset from a hardcoded copy of _legend._ROW_HEIGHT, so changing that constant
+    would silently overlap the two. render_legend now reports its own consumed height,
+    which this pins by enlarging the constant and asserting they still don't collide.
+    """
+    import re
+
+    from svgplot.charts import _legend
+
+    # Far larger than scatter's own _SIZE_LEGEND_GAP, so a stale hardcoded row
+    # height cannot be masked by the gap happening to clear the last row.
+    monkeypatch.setattr(_legend, "_ROW_HEIGHT", 200.0)
+    svg = scatterplot(HUE_AND_SIZE_DATA, x="x", y="y", hue="group", size="weight").to_string()
+
+    # Hue legend rows are the swatch <rect>s carrying a series class (the only other
+    # <rect> is the full-canvas plot background). Size samples are the legend <circle>s.
+    swatch_ys = [
+        float(re.search(r'y="([\d.]+)"', tag).group(1)) for tag in re.findall(r"<rect[^>]*/>", svg) if "series-" in tag
+    ]
+    sample_ys = [float(cy) for cy in re.findall(r'<circle[^>]*cy="([\d.]+)"[^>]*/>', svg)]
+    legend_x = max(float(x) for x in re.findall(r'<rect[^>]*x="([\d.]+)"[^>]*series-', svg) or ["0"])
+    sample_ys = [
+        float(re.search(r'cy="([\d.]+)"', tag).group(1))
+        for tag in re.findall(r"<circle[^>]*/>", svg)
+        if float(re.search(r'cx="([\d.]+)"', tag).group(1)) >= legend_x
+    ]
+
+    assert len(swatch_ys) == 2, "expected one swatch per hue group"
+    assert sample_ys, "expected size-legend sample circles"
+    assert min(sample_ys) > max(swatch_ys)

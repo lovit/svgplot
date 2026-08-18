@@ -214,8 +214,10 @@ def scatterplot(
 
     legend_bottom = area.top
     if legend_entries:
-        render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
-        legend_bottom = area.top + len(legend_entries) * 20.0 + _SIZE_LEGEND_GAP
+        legend_bottom = (
+            render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+            + _SIZE_LEGEND_GAP
+        )
     if size is not None:
         _render_size_legend(
             document,
