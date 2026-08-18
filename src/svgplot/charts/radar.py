@@ -1,0 +1,221 @@
+"""radarplot — a line chart on a polar view (pygal's model).
+
+Needs no new scale type: ``CategoricalScale(categories, (-pi/2, -pi/2 + 2*pi))`` maps a
+category to a spoke angle, and ``LinearScale((0, max), (0, radius))`` maps a value to a
+distance from the centre. Both are pixel-agnostic, so "polar" is a use of the existing
+scales rather than a third kind.
+
+There are no cartesian axes here, so this owns its own margin the way ``pie.py`` does and
+never calls ``charts/_axes``.
+"""
+
+from __future__ import annotations
+
+import math
+
+from svgplot._svg import SvgDocument
+from svgplot.chart.base import Chart
+from svgplot.charts._layout import (
+    DEFAULT_HEIGHT,
+    DEFAULT_WIDTH,
+    LEGEND_X_OFFSET,
+    format_coord,
+    plot_area,
+)
+from svgplot.charts._legend import render_legend
+from svgplot.charts._polar import polar_point
+from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.data._missing import is_missing
+from svgplot.data.ingest import ingest_longform
+from svgplot.data.semantic import extract_channels
+from svgplot.scales import CategoricalScale, LinearScale, make_ticks
+from svgplot.theme.base import Theme
+from svgplot.theme.css import render_theme_style
+
+_MIN_CATEGORIES = 3
+"""Two spokes make a line, not a radar -- the shape has no interior to read."""
+
+_MARGIN = (40.0, 180.0, 40.0, 40.0)  # top, right, bottom, left -- right reserves legend space
+
+_START_ANGLE = -math.pi / 2
+"""Twelve o'clock. Radars are read clockwise from the top, like a clock face."""
+
+_LABEL_GAP = 18.0
+"""Distance from the outer ring to a category label, in pixels. Fixed rather than derived
+from the text, because this package measures no glyphs."""
+
+_ANCHOR_EPSILON = 1e-9
+"""How close to straight up/down counts as vertical when choosing a label's anchor. Guards
+against a float that is 1e-17 off the axis flipping the anchor to a side."""
+
+
+def _values_by_category(columns: dict[str, list], x: str, y: str) -> dict[str, float]:
+    """One value per category, later rows winning -- radar has a single spoke per label."""
+    values: dict[str, float] = {}
+    for xv, yv in zip(columns[x], columns[y], strict=True):
+        if is_missing(xv) or is_missing(yv):
+            continue
+        values[str(xv)] = float(yv)
+    return values
+
+
+def _label_anchor(angle: float) -> str:
+    """The ``text-anchor`` for a label sitting at ``angle``, from the quadrant alone.
+
+    An angle, not a measured width: this package has no font metrics, and a label's side
+    is fully determined by which half of the circle it is on. Straight up and straight
+    down get ``middle`` because neither side is nearer.
+    """
+    cosine = math.cos(angle)
+    if abs(cosine) < _ANCHOR_EPSILON:
+        return "middle"
+    return "start" if cosine > 0 else "end"
+
+
+def _polygon_points(
+    categories: list[str],
+    values: dict[str, float],
+    centre: tuple[float, float],
+    angle_of: CategoricalScale,
+    radius_of: LinearScale,
+) -> list[tuple[float, float]]:
+    return [polar_point(centre[0], centre[1], radius_of(values[category]), angle_of(category)) for category in categories]
+
+
+def _closed_path(points: list[tuple[float, float]]) -> str:
+    commands = [f"M {format_coord(points[0][0])},{format_coord(points[0][1])}"]
+    commands.extend(f"L {format_coord(px)},{format_coord(py)}" for px, py in points[1:])
+    commands.append("Z")
+    return " ".join(commands)
+
+
+def radarplot(
+    data: object,
+    x: str,
+    y: str,
+    hue: str | None = None,
+    *,
+    fill: bool = True,
+    theme: Theme | str | None = None,
+) -> Chart:
+    """Draw a radar chart: one spoke per ``x`` category, one closed polygon per series.
+
+    The grid is drawn as concentric **polygons** rather than circles, so a ring crosses
+    every spoke at the value its tick names -- on a circular ring the reader would have to
+    interpolate between spokes to place a value.
+
+    ``fill=True`` draws each series outlined over a translucent fill; ``fill=False`` leaves
+    the outline alone, which is what several overlapping series usually want.
+
+    Raises:
+        KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme`` is a
+            string that isn't a registered preset name.
+        TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
+        ValueError: if ``data`` has no rows, if no rows have both channels, if fewer than
+            :data:`_MIN_CATEGORIES` categories remain, or if a series is missing a value
+            for some category (a radar polygon has no meaning with a gap in it).
+    """
+    resolved_theme = resolve_theme(theme)
+    longform = ingest_longform(data, x, y)
+    if len(longform) == 0:
+        raise ValueError("data must contain at least one row")
+
+    if hue is not None:
+        groups = extract_channels(data, hue=hue)
+        if not groups:
+            raise ValueError(f"no rows with a non-missing {hue!r} value")
+        series_items = sorted(groups.items(), key=lambda item: str(item[0]))
+    else:
+        series_items = [(None, longform.columns)]
+
+    series_values = [(label, _values_by_category(columns, x, y)) for label, columns in series_items]
+    categories = [
+        category
+        for category in dict.fromkeys(str(value) for value in longform.columns[x] if not is_missing(value))
+        if any(category in values for _, values in series_values)
+    ]
+    if len(categories) < _MIN_CATEGORIES:
+        raise ValueError(f"a radar needs at least {_MIN_CATEGORIES} categories, got {len(categories)}")
+
+    for label, values in series_values:
+        missing = [category for category in categories if category not in values]
+        if missing:
+            named = f"series {label!r}" if label is not None else "the series"
+            raise ValueError(f"{named} has no value for {missing[0]!r}; a radar polygon cannot have a gap")
+
+    peak = max(value for _, values in series_values for value in values.values())
+
+    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
+    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=_MARGIN)
+    document.add_node(
+        None,
+        "rect",
+        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
+        classes=["plot-background"],
+    )
+
+    centre = ((area.left + area.right) / 2, (area.top + area.bottom) / 2)
+    outer_radius = min(area.right - area.left, area.bottom - area.top) / 2 - _LABEL_GAP
+    angle_of = CategoricalScale(categories, (_START_ANGLE, _START_ANGLE + 2 * math.pi))
+    radius_of = LinearScale((0.0, peak), (0.0, outer_radius))
+
+    # Concentric rings, one per radial tick, each an n-gon through the spokes.
+    for tick in make_ticks(radius_of):
+        ring_radius = radius_of(float(tick))
+        if ring_radius <= 0:
+            continue
+        ring = [polar_point(centre[0], centre[1], ring_radius, angle_of(category)) for category in categories]
+        document.add_node(None, "path", attrib={"d": _closed_path(ring)}, classes=["grid-line"])
+
+    for category in categories:
+        angle = angle_of(category)
+        spoke_end = polar_point(centre[0], centre[1], outer_radius, angle)
+        document.add_node(
+            None,
+            "line",
+            attrib={
+                "x1": format_coord(centre[0]),
+                "y1": format_coord(centre[1]),
+                "x2": format_coord(spoke_end[0]),
+                "y2": format_coord(spoke_end[1]),
+            },
+            classes=["grid-line"],
+        )
+        label_point = polar_point(centre[0], centre[1], outer_radius + _LABEL_GAP, angle)
+        document.add_text(
+            None,
+            category,
+            attrib={
+                "x": format_coord(label_point[0]),
+                "y": format_coord(label_point[1]),
+                "text-anchor": _label_anchor(angle),
+                "dominant-baseline": "middle",
+            },
+            classes=["tick-label"],
+        )
+
+    mark_style = "outlined" if fill else "stroke"
+    series_classes: list[str] = []
+    legend_entries: list[tuple[str, str]] = []
+    for label, values in series_values:
+        series_class = document.semantic_class("series")
+        series_classes.append(series_class)
+        points = _polygon_points(categories, values, centre, angle_of, radius_of)
+        document.add_node(None, "path", attrib={"d": _closed_path(points)}, classes=[series_class, "radar-series"])
+        if label is not None:
+            legend_entries.append((str(label), series_class))
+
+    if legend_entries:
+        # The legend swatch knows "stroke" (a line) and "fill" (a rect) only; an outlined
+        # polygon reads as a filled swatch, and passing "outlined" through raises.
+        render_legend(
+            document,
+            legend_entries,
+            x=area.right + LEGEND_X_OFFSET,
+            y=area.top,
+            mark_style="fill" if fill else "stroke",
+        )
+
+    render_theme_style(document, resolved_theme, series_classes, mark_style=mark_style)
+
+    return Chart(document)
