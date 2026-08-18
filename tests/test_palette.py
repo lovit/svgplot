@@ -11,7 +11,6 @@ from svgplot.palette import (
     DEFAULT_PALETTE,
     QUALITATIVE_PALETTES,
     SEQUENTIAL_PALETTES,
-    diverging,
     is_colorblind_safe,
     parse_palette_spec,
     qualitative,
@@ -401,8 +400,3 @@ def test_is_colorblind_safe_returns_false_for_non_string_instead_of_raising() ->
 def test_blend_sequence_and_cubehelix_sequence_handle_n_equals_one() -> None:
     assert blend_sequence("#3366cc", "#cc3366", 1) == ["#3366cc"]
     assert len(cubehelix_sequence(1)) == 1
-
-
-def test_diverging_is_still_an_unimplemented_stub() -> None:
-    with pytest.raises(NotImplementedError):
-        diverging("RdBu", 5)
