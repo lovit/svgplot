@@ -17,6 +17,7 @@ from svgplot.charts import (
 )
 from svgplot.layout import add_caption, apply_size, column, facet, grid, row
 from svgplot.theme import PRESETS, Theme, apply_context, parametric_theme
+from svgplot.warnings import HeatmapSizeWarning, SvgplotWarning
 
 __version__ = "0.1.0"
 
@@ -24,6 +25,8 @@ __all__ = [
     "PRESETS",
     "Chart",
     "Composition",
+    "HeatmapSizeWarning",
+    "SvgplotWarning",
     "Theme",
     "__version__",
     "add_caption",
