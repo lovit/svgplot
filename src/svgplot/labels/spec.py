@@ -33,7 +33,9 @@ _STRFTIME_DIRECTIVES = frozenset("aAbBcdfHIjmMpSUwWxXyYzZ%GguV")
 # directive (e.g. Y/m/H/M/S) to be classified as datetime; otherwise it falls through to printf.
 _STRFTIME_UNAMBIGUOUS = _STRFTIME_DIRECTIVES - frozenset("dsxf%")
 
-_FIELD_RE = re.compile(r"^@(?P<field>[A-Za-z_][A-Za-z0-9_]*)\{(?P<format_spec>.*)\}$")
+_FIELD_PREFIX = "@"
+_FIELD_OPEN = "{"
+_FIELD_CLOSE = "}"
 
 # numeral scheme (Bokeh/numbro-style subset): optional "$" currency prefix, "0" or "0,0"
 # integer part (comma = thousands grouping), optional ".0..0" decimal places, optional
@@ -81,14 +83,40 @@ def _classify_scheme(format_spec: str) -> str:
     return "numeral"
 
 
+def _split_field(raw: str) -> tuple[str, str]:
+    """Split ``"@field{format}"`` into its two parts.
+
+    The field name is validated with ``str.isidentifier()`` rather than a character-class
+    regex. The original ``[A-Za-z_][A-Za-z0-9_]*`` rejected every non-ASCII column name --
+    ``@매출{0,0}`` and ``@売上{%d}`` both failed -- even though Python considers those
+    perfectly good identifiers. Writing the Unicode rule out as a regex means restating
+    XID_Start/XID_Continue by hand and keeping it in step with the Unicode database, so
+    the check defers to the interpreter's own answer instead.
+
+    The name is *not* normalised: it has to match a column key in the caller's data
+    exactly, and NFKC-folding it here would make ``@ﬁeld`` silently look up ``field``.
+
+    Raises:
+        ValueError: if ``raw`` isn't ``@name{...}`` with a name that is an identifier.
+    """
+    invalid = ValueError(f"invalid label spec {raw!r} — expected '@field_name{{format}}'")
+    if not raw.startswith(_FIELD_PREFIX) or not raw.endswith(_FIELD_CLOSE):
+        raise invalid
+    # The format spec may itself contain braces, so the split is at the *first* opening
+    # brace and the *last* closing one -- what the previous greedy regex also did.
+    open_at = raw.find(_FIELD_OPEN)
+    if open_at == -1:
+        raise invalid
+    field = raw[len(_FIELD_PREFIX) : open_at]
+    if not field.isidentifier():
+        raise invalid
+    return field, raw[open_at + 1 : -1]
+
+
 def _parse_field(label: str, raw: str) -> LabelField:
     if not isinstance(label, str) or not isinstance(raw, str):
         raise ValueError(f"expected (str, str) pair, got ({label!r}, {raw!r})")
-    match = _FIELD_RE.fullmatch(raw)
-    if not match:
-        raise ValueError(f"invalid label spec {raw!r} — expected '@field_name{{format}}'")
-    field = match.group("field")
-    format_spec = match.group("format_spec")
+    field, format_spec = _split_field(raw)
     scheme = _classify_scheme(format_spec)
     return LabelField(label=label, field=field, format_spec=format_spec, scheme=scheme)
 
