@@ -27,7 +27,9 @@
 
 **접근성**
 
-- `Composition`(`row`/`column`/`grid`/`facet`) 출력에도 `role="img"`/`aria-label`/`<title>`/`<desc>`를 부여한다. 0.1.0에서는 합성 도판에 접근성 요소가 하나도 없었다.
+- `Chart` 렌더 경로에 접근성 기본값을 연결한다 — `role="img"`/`aria-label`/`<title>`/`<desc>`. 0.1.0에서는 `accessibility.py`가 존재했을 뿐 어떤 렌더 경로에도 연결되어 있지 않아, **차트와 합성 도판 모두** 접근성 요소를 하나도 내보내지 않았다.
+- `Composition`(`row`/`column`/`grid`/`facet`) 출력에도 같은 요소를 부여한다.
+- 제목을 지정하지 않았거나 공백만 지정한 경우 기본 접근 가능한 이름(`"Chart"`)으로 대체한다 — 보조 기술에 빈 이름을 읽어주는 것보다 낫다.
 - `add_caption`이 제목을 따로 지정하지 않은 합성물의 접근 가능한 이름으로 캡션을 채택한다 — 눈에 보이는 캡션이 있는데 보조 기술에는 일반 기본값을 읽어주는 것이 더 나쁘기 때문이다.
 
 **그 외**
@@ -35,14 +37,13 @@
 - `theme.css`에 `level_colors=`와 `mark_style="outlined"` 추가.
 - `palette.Normalize`, `palette.diverging`.
 - `CategoricalScale(padding=)` — d3 `scaleBand().padding()`.
-- `warnings` — `SvgplotWarning` / `HeatmapSizeWarning`.
+- `warnings` — `SvgplotWarning` / `HeatmapSizeWarning`. 경고 정책의 첫 구현이며, `HeatmapSizeWarning`은 아직 이것을 발생시키는 차트가 없다(heatmap은 M8).
 - `charts/_polar.py` — `pie.py`에서 극좌표 기하 추출.
 - `treemap`, `sparkline`.
 
 ### Fixed
 
 - `add_caption`이 캡션 텍스트를 검증하기 *전에* 캔버스를 키워, 거부된 캡션이 도판을 영구히 늘리고 재시도마다 또 늘리던 문제.
-- 공백만 있는 `set_title("   ")`이 `set_title()` 호출 시점이 아니라 한참 뒤 `to_string()`/`save()`에서 터지던 문제.
 - `lineplot`이 NaN x 하나로 차트 전체를 죽이던 문제(필터가 x의 NaN을 보지 않았다).
 - 비ASCII 컬럼명(`@매출{0,0}`)이 라벨 스펙에서 거부되던 문제.
 - 표 셀의 개행이 HTML 출력에서 그대로 통과해 markdown 블록을 끊던 문제.
@@ -91,5 +92,5 @@
 - `barplot`은 음수 값을 받지 않는다(명시적 `ValueError`).
 - v1.0은 JavaScript를 내보내지 않는다. 인터랙션 대신 정적 대체 수단(각주 테이블, 소제목 나열)을 쓴다.
 
-[Unreleased]: https://github.com/lovit/svgplot/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/lovit/svgplot/compare/2fbe2dc...HEAD
 [0.1.0]: https://github.com/lovit/svgplot/releases/tag/v0.1.0
