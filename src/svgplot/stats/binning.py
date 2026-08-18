@@ -12,9 +12,18 @@ _MAX_BINS = 10_000
 of ``_MAX_PRECISION`` in ``stats.interpolate``."""
 
 
-def histogram_bins(values: list[float], bins: str | int = "auto") -> list[float]:
+def histogram_bins(
+    values: list[float], bins: str | int = "auto", *, bin_range: tuple[float, float] | None = None
+) -> list[float]:
     """Compute histogram bin edges for the given values, delegating to
     :func:`numpy.histogram_bin_edges`.
+
+    ``bin_range`` bins over a stated range instead of over ``values``' own extremes. Two charts
+    binned separately land their boundaries in different places, so their bars come out
+    different widths and a "count of 3" means a different amount of data in each -- which
+    is exactly the comparison a shared axis promises and would otherwise not deliver. It is
+    the same rule ``histplot`` already applies to ``hue=`` groups, extended to callers that
+    know a wider range than the values in hand.
 
     Raises:
         ValueError: if ``values`` is empty or contains a non-numeric/non-finite value,
@@ -41,5 +50,9 @@ def histogram_bins(values: list[float], bins: str | int = "auto") -> list[float]
     span = max(values) - min(values)
     if not math.isfinite(span):
         raise ValueError(f"values span (max - min = {span!r}) must be finite")
-    edges = np.histogram_bin_edges(values, bins=bins)
+    if bin_range is not None:
+        low, high = bin_range
+        if not (math.isfinite(low) and math.isfinite(high)) or low >= high:
+            raise ValueError(f"bin_range must be an increasing pair of finite numbers, got {bin_range!r}")
+    edges = np.histogram_bin_edges(values, bins=bins, range=bin_range)
     return edges.tolist()

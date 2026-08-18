@@ -100,14 +100,18 @@ def histplot(
     if not all_values:
         raise ValueError("no rows with a non-missing x value after dropping missing values")
 
-    edges = histogram_bins(all_values, bins=bins)
+    # Binned over xlim when one is given, not over this chart's own values: two charts
+    # sharing an axis but not their bin boundaries draw bars of different widths, and a
+    # count of 3 covers a different amount of data in each. Same rule this chart already
+    # applies across hue= groups.
+    edges = histogram_bins(all_values, bins=bins, bin_range=xlim)
     series_counts = [(label, _count_in_bins(values, edges)) for label, values in series_values]
     max_count = max((count for _, counts in series_counts for count in counts), default=0)
 
     document, area = new_canvas(MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
 
     x_domain = apply_limit((edges[0], edges[-1]), xlim)
-    y_domain = apply_limit((float((0, max_count)[0]), float((0, max_count)[1])), ylim)
+    y_domain = apply_limit((0.0, float(max_count)), ylim)
     pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
     render_x_axis(document, pixel_x_scale, area, tick_length=resolved_theme.tick_size)
