@@ -50,13 +50,42 @@ against a float that is 1e-17 off the axis flipping the anchor to a side."""
 
 
 def _values_by_category(columns: dict[str, list], x: str, y: str) -> dict[str, float]:
-    """One value per category, later rows winning -- radar has a single spoke per label."""
+    """One value per category, later rows winning -- radar has a single spoke per label.
+
+    Same rule as ``barplot``'s category lookup, for the same reason: one category owns one
+    mark, so a repeated row can only replace the previous one.
+    """
     values: dict[str, float] = {}
     for xv, yv in zip(columns[x], columns[y], strict=True):
         if is_missing(xv) or is_missing(yv):
             continue
         values[str(xv)] = float(yv)
     return values
+
+
+def _validate_radius_values(label: object, values: dict[str, float]) -> None:
+    """Reject values a radial axis cannot draw, naming the offending category.
+
+    A radar encodes a value as a **distance from the centre**, so the sign matters in a way
+    it does not on a cartesian axis: a negative radius reflects the vertex through the
+    centre and lands it on the *opposite* spoke, where a reader decodes it as a value for a
+    different category. Measured on ``[-5, 2, 3]``, the -5 vertex came out at radius 403 on
+    a 242px dial, 103px outside the canvas. ``pieplot``/``treemap``/``barplot`` reject
+    negatives for the same reason, and this chart is the one that reflects rather than
+    merely inverting.
+
+    Checked here rather than left to ``LinearScale``: an inf raises there too, but with a
+    message about a domain value that names neither the category nor the series.
+
+    Raises:
+        ValueError: if a value is not finite or is negative.
+    """
+    named = f"series {label!r}" if label is not None else "the series"
+    for category, value in values.items():
+        if not math.isfinite(value):
+            raise ValueError(f"radar values must be finite, got {value!r} for {category!r} in {named}")
+        if value < 0:
+            raise ValueError(f"radar values must be non-negative, got {value!r} for {category!r} in {named}")
 
 
 def _label_anchor(angle: float) -> str:
@@ -107,13 +136,18 @@ def radarplot(
     ``fill=True`` draws each series outlined over a translucent fill; ``fill=False`` leaves
     the outline alone, which is what several overlapping series usually want.
 
+    Values are distances from the centre, so they must be finite and non-negative: a
+    negative radius reflects its vertex onto the opposite spoke, where it reads as another
+    category's value.
+
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme`` is a
             string that isn't a registered preset name.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
         ValueError: if ``data`` has no rows, if no rows have both channels, if fewer than
-            :data:`_MIN_CATEGORIES` categories remain, or if a series is missing a value
-            for some category (a radar polygon has no meaning with a gap in it).
+            :data:`_MIN_CATEGORIES` categories remain, if a series is missing a value for
+            some category (a radar polygon has no meaning with a gap in it), if a value
+            isn't finite or is negative, or if every value is zero.
     """
     resolved_theme = resolve_theme(theme)
     longform = ingest_longform(data, x, y)
@@ -142,8 +176,14 @@ def radarplot(
         if missing:
             named = f"series {label!r}" if label is not None else "the series"
             raise ValueError(f"{named} has no value for {missing[0]!r}; a radar polygon cannot have a gap")
+        _validate_radius_values(label, values)
 
     peak = max(value for _, values in series_values for value in values.values())
+    if peak == 0:
+        # LinearScale((0, 0), ...) answers the midpoint of its range for every input, so an
+        # all-zero series would draw at exactly half the outer radius -- indistinguishable
+        # from real mid-scale data. pieplot refuses an all-zero column for the same reason.
+        raise ValueError("radar values must not all be zero; there is no scale to draw them against")
 
     document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
     area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=_MARGIN)
