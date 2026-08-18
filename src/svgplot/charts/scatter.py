@@ -26,6 +26,8 @@ from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import numeric_or_none
 from svgplot.data.ingest import ingest_longform
 from svgplot.data.semantic import extract_channels
+from svgplot.labels._source import collect_label_data
+from svgplot.labels.spec import LabelSpec
 from svgplot.scales import LinearScale
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
@@ -114,6 +116,7 @@ def scatterplot(
     hue: str | None = None,
     size: str | None = None,
     *,
+    info: LabelSpec | list[tuple[str, str]] | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
     """Draw a scatter plot from long-form data.
@@ -169,6 +172,9 @@ def scatterplot(
     y_domain = (min(all_y), max(all_y))
 
     has_legend = hue is not None or size is not None
+    # After the checks above, so a bad column still reports the chart's own error first.
+    label_data = collect_label_data(data, info, required=(x, y, hue, size))
+
     document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
     area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND if has_legend else MARGIN_WITHOUT_LEGEND)
     document.add_node(
@@ -223,4 +229,4 @@ def scatterplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document)
+    return Chart(document, label_data)

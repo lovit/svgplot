@@ -20,6 +20,8 @@ from pathlib import Path
 
 from svgplot._svg import SvgDocument
 from svgplot.accessibility import add_accessibility
+from svgplot.labels._source import LabelData
+from svgplot.labels.table import MISSING_TEXT, render_table
 from svgplot.output.jupyter import repr_svg
 from svgplot.output.markdown import MARKDOWN_SUFFIXES, save_markdown, to_markdown
 from svgplot.output.png import to_png
@@ -34,10 +36,11 @@ class Chart:
     is worse than a generic one — assistive tech would announce ``role="img"`` with
     no usable name at all (see ``accessibility.add_accessibility``)."""
 
-    def __init__(self, svg_document: SvgDocument) -> None:
+    def __init__(self, svg_document: SvgDocument, labels: LabelData | None = None) -> None:
         self._svg_document = svg_document
         self._title: str | None = None
         self._palette: str | list[str] | None = None
+        self._labels = labels
 
     def set_title(self, title: str) -> Chart:
         """Set the chart title. Returns self for chaining."""
@@ -74,18 +77,36 @@ class Chart:
         return to_string(self._accessible_document(), pretty=pretty)
 
     def to_markdown(self) -> str:
-        """Serialize to inline markdown. See svgplot.output.markdown."""
+        """Serialize to inline markdown. See svgplot.output.markdown.
+
+        Raises:
+            ValueError: if the serialized SVG contains a blank line (see
+                ``svgplot.output.markdown``), or if an ``info=`` value cannot be rendered
+                by the format spec it was given. The latter is deferred to here rather
+                than caught at plot time: a *missing* value is substituted with
+                :data:`~svgplot.labels.table.MISSING_TEXT`, but a present-yet-unformattable
+                one (``inf`` under a numeral spec, a float under a datetime spec) has no
+                sensible substitute, and validating every row at plot time would make
+                ``info=`` cost a full pass over the data whether or not markdown is ever
+                asked for.
+        """
         return to_markdown(self._accessible_document(), self._label_table())
 
     def _label_table(self) -> str | None:
-        """The footnote table to place under the chart, or ``None`` for none.
+        """The footnote table to place under the chart, or ``None`` when the chart was
+        built without ``info=`` — the normal case, not an error: markdown is a format, not
+        a feature flag.
 
-        Always ``None`` here: wiring ``info=`` through to a rendered table is issue #69.
-        Markdown output does not wait on it — the format is useful for a chart with no
-        labels at all, and returning ``None`` is what makes that the normal case rather
-        than an error.
+        Rendered at serialization time rather than at plot time, so building a chart stays
+        cheap and a chart that is never saved as markdown never pays for the table.
+
+        ``missing=MISSING_TEXT`` rather than ``render_table``'s default refusal: these rows
+        already passed the chart's own channel filter, so a hole can only be in a column
+        the chart never consulted, and dropping the row would silently shrink the table.
         """
-        return None
+        if self._labels is None:
+            return None
+        return render_table(self._labels.columns, self._labels.spec, missing=MISSING_TEXT)
 
     def save(self, path: str) -> None:
         """Write the chart to a file. Dispatches on ``path``'s extension: ``.svg`` (see
@@ -97,8 +118,8 @@ class Chart:
         (e.g. in a web service) are responsible for validating/resolving them.
 
         Raises:
-            ValueError: if ``path``'s extension isn't one of the above, or if markdown
-                output is requested and the serialized SVG contains a blank line.
+            ValueError: if ``path``'s extension isn't one of the above, or — for markdown
+                output — for anything :meth:`to_markdown` rejects.
             ImportError: if the extension is ``.png`` and the ``png`` extra isn't installed.
         """
         suffix = Path(path).suffix.lower()

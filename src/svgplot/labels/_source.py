@@ -65,12 +65,16 @@ class LabelData:
         return column_length(self.columns)
 
 
-def collect_label_data(data: object, info: LabelSpec | None, *, required: Sequence[str | None]) -> LabelData | None:
+def collect_label_data(
+    data: object, info: LabelSpec | list[tuple[str, str]] | None, *, required: Sequence[str | None]
+) -> LabelData | None:
     """Snapshot the ``info`` fields of ``data``, keeping rows whose channels are present.
 
     Args:
         data: the same shapes ``data.ingest_longform`` accepts.
-        info: the spec to snapshot for, or ``None`` to skip label collection entirely.
+        info: the spec to snapshot for, or ``None`` to skip label collection entirely. The
+            raw ``[(label, "@field{format}"), ...]`` form is accepted and parsed here, so
+            each chart takes both shapes without repeating the conversion.
         required: the channel column names the calling chart consumes -- ``x``/``y``/
             ``hue``/``size``/``values``/``labels`` as applicable. ``None`` entries are
             ignored so a caller can pass optional channels straight through.
@@ -84,13 +88,15 @@ def collect_label_data(data: object, info: LabelSpec | None, *, required: Sequen
         KeyError: if a field named in ``info``, or a name in ``required``, isn't a column
             in ``data``. Raised here at plot time rather than deferred to ``save()``, so a
             typo surfaces where the spec was passed.
+        ValueError: if ``info`` is a list that doesn't parse as a spec.
     """
     if info is None:
         return None
+    spec = info if isinstance(info, LabelSpec) else LabelSpec.parse(info)
 
     columns = extract_columns(data)
 
-    for field in info:
+    for field in spec:
         if field.field not in columns:
             raise KeyError(f"field not found in data: {field.field!r}")
 
@@ -106,6 +112,6 @@ def collect_label_data(data: object, info: LabelSpec | None, *, required: Sequen
     ]
 
     return LabelData(
-        spec=info,
-        columns={field.field: [columns[field.field][row_index] for row_index in kept] for field in info},
+        spec=spec,
+        columns={field.field: [columns[field.field][row_index] for row_index in kept] for field in spec},
     )
