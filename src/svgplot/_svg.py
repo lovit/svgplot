@@ -39,6 +39,15 @@ every value it embeds (colors via a strict ``#rrggbb`` regex, font family via
 an allowlisted character set) before ever reaching ``add_text`` — this module
 still only guarantees XML-structural safety for ``<style>`` content, exactly
 as it does for every other tag; CSS-semantic safety is the caller's job.
+
+Security note (issue #12 review): ``"script"`` is rejected by ``add_node``
+itself (``_BLOCKED_TAGS``), not merely omitted from ``add_text``'s allow-list
+— a node created via ``add_node(parent, "script")`` followed by setting
+``.text`` directly on the returned element would otherwise bypass
+``add_text`` entirely and reach the tree unvalidated. Blocking it in
+``add_node`` makes this a structural guarantee (every node, regardless of
+which method creates it) rather than a convention only ``add_text`` happens
+to follow.
 """
 
 from __future__ import annotations
@@ -54,6 +63,10 @@ _NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*(:[A-Za-z_][A-Za-z0-9_.-]*)?$")
 _INVALID_XML_CHAR_RE = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 _BLOCKED_ATTRIBUTE_LOCAL_NAMES = frozenset({"style"})
 _TEXT_BEARING_TAGS = frozenset({"text", "tspan", "title", "desc", "textPath", "style"})
+# Enforced in add_node itself (not just add_text's allow-list) so no code path —
+# not even one that bypasses add_text by setting .text directly on an add_node
+# result — can ever attach a <script> element to the tree. This package emits no JS.
+_BLOCKED_TAGS = frozenset({"script"})
 
 
 def _validate_name(name: str, kind: str) -> str:
@@ -132,16 +145,22 @@ class SvgDocument:
         """Create a child element under ``parent`` (or the document root if ``None``).
 
         ``tag`` and ``attrib`` keys must be safe XML Names (``ValueError`` otherwise);
-        ``style``/``on*`` attribute names are rejected outright. ``attrib`` values are
-        coerced to strings; numeric values should already be formatted via
-        :func:`_format_number` by the caller so coordinates stay literal. Styling is
-        expressed via ``classes`` (CSS classes), not an inline ``style=`` attribute —
-        see docs/research/12-aesthetics.md §4. Each class must not contain whitespace
+        ``style``/``on*`` attribute names are rejected outright, and ``tag="script"``
+        is rejected outright too (see this module's "Security note (issue #12 review)")
+        — this package emits no JS, and that guarantee is enforced here, not just by
+        ``add_text``'s allow-list, so it holds regardless of which method a caller
+        uses to create a node. ``attrib`` values are coerced to strings; numeric
+        values should already be formatted via :func:`_format_number` by the caller
+        so coordinates stay literal. Styling is expressed via ``classes`` (CSS
+        classes), not an inline ``style=`` attribute — see
+        docs/research/12-aesthetics.md §4. Each class must not contain whitespace
         (a single list entry can't smuggle in extra classes). Every argument is fully
         validated before any node is created, so a ``ValueError`` never leaves a
         partial node attached to the tree.
         """
         _validate_name(tag, "tag")
+        if tag in _BLOCKED_TAGS:
+            raise ValueError(f"tag not allowed (this package emits no JS): {tag!r}")
         validated_attrib: list[tuple[str, str]] = []
         if attrib:
             for key, value in attrib.items():
@@ -179,7 +198,10 @@ class SvgDocument:
         arbitrary tag here would let ``<script>`` carry attacker-influenced content
         straight through as executable JS — the value-escaping ElementTree does still
         apply, but it's meaningless for that element's semantics, so ``"script"`` is
-        never in the allow-list. ``"style"`` *is* allowed (see this module's top-level
+        never in the allow-list (and, since this module's "Security note (issue #12
+        review)", is also rejected directly by :meth:`add_node`, which this method
+        calls into — so the guarantee holds even for a caller that bypasses this
+        method). ``"style"`` *is* allowed (see this module's top-level
         "Security note (issue #12)") but only because its one sanctioned caller
         (``theme.css.render_theme_style``) independently validates every value it
         embeds before calling this method — this method itself still only guarantees

@@ -363,6 +363,18 @@ def test_add_text_rejects_script_tag() -> None:
         doc.add_text(None, "fetch('//evil/')", tag="script")
 
 
+def test_add_node_rejects_script_tag_directly() -> None:
+    """Post-merge security review: add_text's allow-list alone isn't a structural
+    guarantee — a caller could create a <script> node via add_node and set .text
+    directly on the returned element, bypassing add_text entirely. add_node must
+    reject "script" itself so the guarantee holds regardless of which method is used.
+    """
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match="script"):
+        doc.add_node(None, "script")
+
+
 @pytest.mark.parametrize("tag", ["text", "tspan", "title", "desc", "textPath", "style"])
 def test_add_text_allows_every_text_bearing_tag(tag: str) -> None:
     doc = SvgDocument()
