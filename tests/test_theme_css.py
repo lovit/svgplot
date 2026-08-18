@@ -5,6 +5,7 @@ import pytest
 from svgplot._svg import SvgDocument
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
+from svgplot.theme.presets import PRESETS
 
 
 def _style_text(document: SvgDocument) -> str:
@@ -174,7 +175,25 @@ def test_fill_opacity_multiplies_with_the_whole_mark_opacity() -> None:
 
 
 def test_fill_opacity_can_be_opted_out_without_touching_stroke_marks() -> None:
-    assert "opacity: 1; }" in _fill_style_text(Theme(fill_opacity=1.0))
+    """Opting out must leave `opacity` still in effect — asserting only "opacity: 1"
+    would pass even with fill_opacity deleted entirely, so this pins a theme where the
+    two factors differ: opting out of the fill factor alone yields plain 0.5, not 0.375.
+    """
+    assert "opacity: 0.5; }" in _fill_style_text(Theme(opacity=0.5, fill_opacity=1.0))
+
+
+@pytest.mark.parametrize("preset", ["print", "high_contrast"])
+def test_presets_that_need_solid_fills_opt_out_of_translucency(preset: str) -> None:
+    """print reproduces blended translucency unreliably and high_contrast exists to
+    maximize figure/ground contrast, so both deliberately override to 1.0 — pinned here
+    because nothing else would catch the override being silently dropped.
+    """
+    assert PRESETS[preset].fill_opacity == 1.0
+    assert "opacity: 1; }" in _fill_style_text(PRESETS[preset])
+
+
+def test_default_presets_keep_translucent_fills() -> None:
+    assert PRESETS["light"].fill_opacity == 0.75
 
 
 @pytest.mark.parametrize("bad", [5.0, -0.1, float("nan"), float("inf"), True, "0.5"])

@@ -60,8 +60,8 @@ def histplot(
     """Draw a histogram from long-form data with automatic binning.
 
     With ``hue=``, one histogram per distinct hue value is drawn as overlapping
-    bars (colors cycling through the theme's palette, ``theme.opacity`` making
-    the overlap visible) sharing one set of bin edges computed across all groups'
+    bars (colors cycling through the theme's palette, ``theme.fill_opacity``
+    making the overlap visible) sharing one set of bin edges computed across all groups'
     combined values — so every group's bars land on directly comparable
     boundaries — with an auto-generated legend.
 

@@ -21,7 +21,6 @@ validation, not just this module's implicit trust.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
 from svgplot.palette.colorblind import DEFAULT_PALETTE
@@ -73,9 +72,13 @@ class Theme:
     # fully opaque later series can hide an earlier one entirely (issue #45). The two
     # multiply — `opacity` stays the whole-mark knob applying to stroked and filled marks
     # alike, `fill_opacity` narrows to fills only — so a theme opts out of translucency
-    # with `fill_opacity=1.0` without disturbing stroke marks. 0.75 follows seaborn's
-    # convention for overlapping distributions: 25% bleed-through reads clearly as
+    # with `fill_opacity=1.0` without disturbing stroke marks. 0.75 is a judgement call in
+    # the spirit of how seaborn treats overlapping distributions (it applies translucency
+    # selectively rather than as a global default): 25% bleed-through reads clearly as
     # "something is underneath" while a lone fill still looks solid rather than washed out.
+    # It applies to every `mark_style="fill"` chart — bars, areas, pie slices and scatter
+    # markers — including ones whose marks rarely overlap (pie slices are disjoint), where
+    # it is a small cost paid for one uniform rule rather than a per-chart-type default.
     fill_opacity: float = 0.75
     corner_radius: float = 0.0
     # fonts — one family, size per element (docs/research/12-aesthetics.md §3,
@@ -99,9 +102,15 @@ class Theme:
             raise ValueError("palette must not be empty")
         object.__setattr__(self, "palette", palette)
         # Validated here rather than left to theme.css's format_coord: an out-of-range
-        # (but finite) value like 5.0 would sail past that check and emit nonsense CSS,
-        # and the failure would surface at render time far from the Theme that caused it.
-        if not isinstance(self.fill_opacity, int | float) or isinstance(self.fill_opacity, bool):
-            raise ValueError(f"fill_opacity must be a real number, got {self.fill_opacity!r}")
-        if not math.isfinite(self.fill_opacity) or not 0.0 <= self.fill_opacity <= 1.0:
-            raise ValueError(f"fill_opacity must be a finite number in [0, 1], got {self.fill_opacity!r}")
+        # (but finite) value like 5.0 would sail past that check and emit nonsense CSS
+        # ("opacity: 5"), and the failure would surface at render time far from the Theme
+        # that caused it. Both opacity fields get this — they reach CSS the same way, so
+        # validating only one would leave the identical hole open on the other.
+        for field in ("opacity", "fill_opacity"):
+            value = getattr(self, field)
+            if not isinstance(value, int | float) or isinstance(value, bool):
+                raise ValueError(f"{field} must be a real number, got {value!r}")
+            # A range check alone rejects nan/inf too (every comparison with nan is False,
+            # and inf fails the upper bound), so no separate isfinite() call is needed.
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"{field} must be a number in [0, 1], got {value!r}")
