@@ -160,3 +160,61 @@ def test_from_values_rejects_a_non_finite_entry() -> None:
 def test_from_values_rejects_a_center_outside_the_data_range() -> None:
     with pytest.raises(ValueError, match="center must lie within"):
         Normalize.from_values([1.0, 5.0], center=9.0)
+
+
+# ---------------------------------------------------------------------------
+# inverse
+# ---------------------------------------------------------------------------
+
+
+def test_inverse_names_the_value_a_position_came_from() -> None:
+    normalize = Normalize(0, 10)
+
+    assert normalize.inverse(0.0) == 0.0
+    assert normalize.inverse(0.5) == 5.0
+    assert normalize.inverse(1.0) == 10.0
+
+
+def test_inverse_follows_both_slopes_of_a_centred_scale() -> None:
+    """The whole reason this method exists. ``center=2`` squeezes [0, 2] into the lower
+    half and stretches [2, 10] over the upper half, so a single-slope inverse -- ``vmin +
+    position * (vmax - vmin)`` -- answers 5.0 at the midpoint where the truth is 2.0, and
+    is wrong at every position except the two endpoints."""
+    normalize = Normalize(0, 10, center=2)
+
+    assert normalize.inverse(0.5) == 2.0
+    assert normalize.inverse(0.25) == 1.0  # halfway up the short side, not 2.5
+    assert normalize.inverse(0.75) == 6.0  # halfway up the long side, not 7.5
+    assert (normalize.inverse(0.0), normalize.inverse(1.0)) == (0.0, 10.0)
+
+
+@pytest.mark.parametrize("center", [None, 2.0, 8.0])
+@pytest.mark.parametrize("value", [0.0, 1.5, 2.0, 4.0, 7.25, 10.0])
+def test_inverse_round_trips_with_the_forward_mapping(center: float | None, value: float) -> None:
+    normalize = Normalize(0, 10, center=center)
+
+    assert normalize.inverse(normalize(value)) == pytest.approx(value)
+
+
+def test_inverse_of_a_centred_edge_case_does_not_divide_by_zero() -> None:
+    """``center == vmin`` collapses the lower half, so every position below 0.5 has the
+    same answer rather than an undefined one."""
+    normalize = Normalize(0, 10, center=0)
+
+    assert normalize.inverse(0.0) == 0.0
+    assert normalize.inverse(0.5) == 0.0
+    assert normalize.inverse(1.0) == 10.0
+
+
+@pytest.mark.parametrize("bad", [-0.01, 1.01, 2.0, -1.0])
+def test_inverse_rejects_a_position_outside_the_unit_interval(bad: float) -> None:
+    """Extrapolating would name a value the scale never shows, and the caller that asks
+    for one is looking at an off-by-one level index."""
+    with pytest.raises(ValueError, match="position must be in"):
+        Normalize(0, 10).inverse(bad)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), "0.5", None])
+def test_inverse_rejects_a_non_finite_or_non_real_position(bad: object) -> None:
+    with pytest.raises(ValueError, match="position"):
+        Normalize(0, 10).inverse(bad)  # type: ignore[arg-type]
