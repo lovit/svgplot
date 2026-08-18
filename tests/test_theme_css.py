@@ -5,6 +5,7 @@ import pytest
 from svgplot._svg import SvgDocument
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
+from svgplot.theme.presets import PRESETS
 
 
 def _style_text(document: SvgDocument) -> str:
@@ -138,3 +139,68 @@ def test_render_theme_style_accepts_font_family_with_balanced_quotes() -> None:
     document = SvgDocument()
     render_theme_style(document, theme, [])
     assert "'Helvetica Neue', Arial" in _style_text(document)
+
+
+# ---------------------------------------------------------------------------
+# fill_opacity (issue #45)
+# ---------------------------------------------------------------------------
+
+
+def _fill_style_text(theme: Theme, mark_style: str = "fill") -> str:
+    document = SvgDocument()
+    render_theme_style(document, theme, ["series-1"], mark_style=mark_style)
+    return next(element.text or "" for element in document.root if element.tag == "style")
+
+
+def test_fill_marks_are_translucent_by_default_so_overlaps_stay_visible() -> None:
+    """Unstacked multi-hue fills are drawn in sorted-label order, unrelated to value
+    magnitude, so an opaque later series can hide an earlier one entirely (issue #45).
+    The default must therefore be below 1.0.
+    """
+    assert "opacity: 0.75; }" in _fill_style_text(Theme())
+
+
+def test_stroke_marks_keep_full_opacity() -> None:
+    """fill_opacity narrows to fills only — a stroked line doesn't occlude what's
+    beneath it, so it must not be dimmed by the fill-specific factor.
+    """
+    assert "opacity: 1; }" in _fill_style_text(Theme(), mark_style="stroke")
+
+
+def test_fill_opacity_multiplies_with_the_whole_mark_opacity() -> None:
+    """The two are independent knobs that compose: `opacity` dims every mark type,
+    `fill_opacity` narrows to fills. 0.5 * 0.5 = 0.25.
+    """
+    assert "opacity: 0.25; }" in _fill_style_text(Theme(opacity=0.5, fill_opacity=0.5))
+
+
+def test_fill_opacity_can_be_opted_out_without_touching_stroke_marks() -> None:
+    """Opting out must leave `opacity` still in effect — asserting only "opacity: 1"
+    would pass even with fill_opacity deleted entirely, so this pins a theme where the
+    two factors differ: opting out of the fill factor alone yields plain 0.5, not 0.375.
+    """
+    assert "opacity: 0.5; }" in _fill_style_text(Theme(opacity=0.5, fill_opacity=1.0))
+
+
+@pytest.mark.parametrize("preset", ["print", "high_contrast"])
+def test_presets_that_need_solid_fills_opt_out_of_translucency(preset: str) -> None:
+    """print reproduces blended translucency unreliably and high_contrast exists to
+    maximize figure/ground contrast, so both deliberately override to 1.0 — pinned here
+    because nothing else would catch the override being silently dropped.
+    """
+    assert PRESETS[preset].fill_opacity == 1.0
+    assert "opacity: 1; }" in _fill_style_text(PRESETS[preset])
+
+
+def test_default_presets_keep_translucent_fills() -> None:
+    assert PRESETS["light"].fill_opacity == 0.75
+
+
+@pytest.mark.parametrize("bad", [5.0, -0.1, float("nan"), float("inf"), True, "0.5"])
+def test_theme_rejects_an_out_of_range_or_non_numeric_fill_opacity(bad: object) -> None:
+    """Validated on the Theme rather than at CSS-emission time: a finite-but-nonsense
+    value like 5.0 passes format_coord's finiteness check and would emit invalid CSS,
+    surfacing at render time far from the Theme that caused it.
+    """
+    with pytest.raises(ValueError, match="fill_opacity"):
+        Theme(fill_opacity=bad)  # type: ignore[arg-type]
