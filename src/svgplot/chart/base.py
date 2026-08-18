@@ -77,7 +77,19 @@ class Chart:
         return to_string(self._accessible_document(), pretty=pretty)
 
     def to_markdown(self) -> str:
-        """Serialize to inline markdown. See svgplot.output.markdown."""
+        """Serialize to inline markdown. See svgplot.output.markdown.
+
+        Raises:
+            ValueError: if the serialized SVG contains a blank line (see
+                ``svgplot.output.markdown``), or if an ``info=`` value cannot be rendered
+                by the format spec it was given. The latter is deferred to here rather
+                than caught at plot time: a *missing* value is substituted with
+                :data:`~svgplot.labels.table.MISSING_TEXT`, but a present-yet-unformattable
+                one (``inf`` under a numeral spec, a float under a datetime spec) has no
+                sensible substitute, and validating every row at plot time would make
+                ``info=`` cost a full pass over the data whether or not markdown is ever
+                asked for.
+        """
         return to_markdown(self._accessible_document(), self._label_table())
 
     def _label_table(self) -> str | None:
@@ -106,8 +118,8 @@ class Chart:
         (e.g. in a web service) are responsible for validating/resolving them.
 
         Raises:
-            ValueError: if ``path``'s extension isn't one of the above, or if markdown
-                output is requested and the serialized SVG contains a blank line.
+            ValueError: if ``path``'s extension isn't one of the above, or — for markdown
+                output — for anything :meth:`to_markdown` rejects.
             ImportError: if the extension is ``.png`` and the ``png`` extra isn't installed.
         """
         suffix = Path(path).suffix.lower()
