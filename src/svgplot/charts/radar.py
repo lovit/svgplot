@@ -64,7 +64,12 @@ def _values_by_category(columns: dict[str, list], x: str, y: str) -> dict[str, f
     for xv, yv in zip(columns[x], columns[y], strict=True):
         if is_missing(xv) or is_missing(yv):
             continue
-        values[str(xv)] = float(yv)
+        try:
+            values[str(xv)] = float(yv)
+        except (TypeError, ValueError) as error:
+            # Same reason _validate_radius_values checks here rather than leaving it to
+            # LinearScale: the bare message names neither the category nor the column.
+            raise ValueError(f"radar values must be numbers, got {yv!r} for {str(xv)!r}") from error
     return values
 
 
@@ -141,10 +146,12 @@ def radarplot(
     ``fill=True`` draws each series outlined over a translucent fill; ``fill=False`` leaves
     the outline alone, which is what several overlapping series usually want.
 
-    Every category in ``x`` becomes a spoke, and **every series must have a value for every
-    spoke** -- a radar polygon with a gap in it is a different shape, not a smaller one, so
-    a missing value is refused rather than silently dropping the axis. Repeating a category
-    within one series replaces the earlier row, as ``barplot`` does.
+    Every category named by a usable row becomes a spoke, and **every series must have a
+    value for every spoke** -- a radar polygon with a gap in it is a different shape, not a
+    smaller one, so a missing value is refused rather than silently dropping the axis. A row
+    whose ``x`` or ``hue`` is missing is not usable and names no spoke; a row whose ``y`` is
+    missing still names one, and is what that refusal is about. Repeating a category within
+    one series replaces the earlier row, as ``barplot`` does.
 
     Values are distances from the centre, so they must be finite and non-negative: a
     negative radius reflects its vertex onto the opposite spoke, where it reads as another
@@ -153,11 +160,13 @@ def radarplot(
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme`` is a
             string that isn't a registered preset name.
-        TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
-        ValueError: if ``data`` has no rows, if no rows have both channels, if no row has a
-            non-missing ``hue``, if fewer than :data:`_MIN_CATEGORIES` categories remain, if a series is missing a value for
-            some category (a radar polygon has no meaning with a gap in it), if a value
-            isn't finite or is negative, or if every value is zero.
+        TypeError: if ``data`` isn't a supported table type, or if ``theme`` is neither a
+            ``Theme``, a preset name, nor ``None``.
+        ValueError: if ``data`` has no rows, if its columns have different lengths, if no
+            row has a non-missing ``hue``, if fewer than three categories remain, if a
+            series is missing a value for some category (a radar polygon has no meaning
+            with a gap in it), if a value isn't a number, isn't finite, or is negative, or
+            if every value is zero.
     """
     resolved_theme = resolve_theme(theme)
     longform = ingest_longform(data, x, y)
@@ -173,11 +182,22 @@ def radarplot(
         series_items = [(None, longform.columns)]
 
     series_values = [(label, _values_by_category(columns, x, y)) for label, columns in series_items]
-    # Every category named anywhere in the x column is a spoke, whether or not a value
-    # reached it. Filtering to the categories some series happens to cover made the missing
-    # -value rule depend on how many series there were: with hue= a gap raised below, while
-    # a single series quietly lost the whole spoke -- a different shape, silently.
-    categories = list(dict.fromkeys(str(value) for value in longform.columns[x] if not is_missing(value)))
+    # Every category named by a row that belongs to some series is a spoke, whether or not
+    # a *value* reached it. Two rules meet here and they are not the same rule:
+    #
+    # - A missing y leaves the category standing, so the series is caught below with a gap.
+    #   Filtering those out instead made the rule depend on how many series there were:
+    #   with hue= a gap raised, while a single series quietly lost the whole spoke.
+    # - A row with a missing hue belongs to no series at all -- extract_channels drops it
+    #   from every group -- so it can no more name a spoke than a row with a missing x can.
+    #   Counting it would leave a category no series could ever fill, and blame the gap on
+    #   an arbitrary series that never had that row.
+    in_a_series = {str(value) for _, columns in series_items for value in columns[x] if not is_missing(value)}
+    categories = [
+        category
+        for category in dict.fromkeys(str(value) for value in longform.columns[x] if not is_missing(value))
+        if category in in_a_series
+    ]
     if len(categories) < _MIN_CATEGORIES:
         raise ValueError(f"a radar needs at least {_MIN_CATEGORIES} categories, got {len(categories)}")
 
