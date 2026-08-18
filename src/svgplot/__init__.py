@@ -14,6 +14,7 @@ from svgplot.charts import (
     lineplot,
     pieplot,
     scatterplot,
+    treemap,
 )
 from svgplot.layout import add_caption, apply_size, column, facet, grid, row
 from svgplot.theme import PRESETS, Theme, apply_context, parametric_theme
@@ -41,4 +42,5 @@ __all__ = [
     "pieplot",
     "row",
     "scatterplot",
+    "treemap",
 ]
