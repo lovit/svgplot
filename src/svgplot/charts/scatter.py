@@ -23,6 +23,7 @@ from svgplot.charts._layout import (
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.data._missing import numeric_or_none
 from svgplot.data.ingest import ingest_longform
 from svgplot.data.semantic import extract_channels
 from svgplot.scales import LinearScale
@@ -40,14 +41,6 @@ _SIZE_LEGEND_LABEL_GAP = 6.0
 # (if arbitrary) choice, not an accident.
 _SIZE_RADIUS_MIN_FACTOR = 0.5
 _SIZE_RADIUS_MAX_FACTOR = 2.5
-
-
-def _is_missing(value: object) -> bool:
-    return value is None or (isinstance(value, float) and value != value)
-
-
-def _numeric_or_none(value: object) -> float | None:
-    return None if _is_missing(value) else float(value)
 
 
 def _radius_mapper(size_values: list[float], base_radius: float) -> Callable[[float], float]:
@@ -160,8 +153,8 @@ def scatterplot(
         for xv, yv, sv in zip(
             columns[x], columns[y], columns[size] if size is not None else [None] * len(columns[x]), strict=True
         ):
-            xn, yn = _numeric_or_none(xv), _numeric_or_none(yv)
-            sn = _numeric_or_none(sv) if size is not None else None
+            xn, yn = numeric_or_none(xv), numeric_or_none(yv)
+            sn = numeric_or_none(sv) if size is not None else None
             if xn is None or yn is None or (size is not None and sn is None):
                 continue
             rows.append((xn, yn, sn))

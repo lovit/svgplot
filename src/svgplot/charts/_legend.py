@@ -46,8 +46,6 @@ def render_legend(
     """
     if mark_style not in ("stroke", "fill"):
         raise ValueError(f"mark_style must be 'stroke' or 'fill', got {mark_style!r}")
-    if not entries:
-        return y
     for index, (label, css_class) in enumerate(entries):
         row_y = y + index * _ROW_HEIGHT
         if mark_style == "stroke":

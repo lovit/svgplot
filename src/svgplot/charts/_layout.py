@@ -30,7 +30,11 @@ MARGIN_WITH_LEGEND = (30.0, 160.0, 50.0, 60.0)  # top, right, bottom, left
 MARGIN_WITHOUT_LEGEND = (30.0, 40.0, 50.0, 60.0)
 """The two margin presets an axed chart picks between: the wide right margin reserves
 legend space, the narrow one doesn't. Both leave the same room at bottom/left for tick
-labels. A chart with no axes (see ``charts/pie.py``) needs neither and defines its own."""
+labels. A chart with no axes (see ``charts/pie.py``) needs neither and defines its own.
+
+``MARGIN_WITHOUT_LEGEND`` is also what a chart that never draws a legend uses (e.g.
+``charts/box.py``, which labels its categories on the x-axis instead) — so retuning it
+for a legend-capable chart's benefit would silently move those charts too."""
 
 LEGEND_X_OFFSET = 20.0
 """Gap between the plot area's right edge and the legend's left edge."""

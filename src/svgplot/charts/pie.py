@@ -18,16 +18,13 @@ from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, LEGEND_X_OFFSE
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._columns import column_length, extract_columns
+from svgplot.data._missing import is_missing
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
 _MARGIN = (30.0, 180.0, 30.0, 30.0)  # top, right, bottom, left -- right reserves legend space
 _LABEL_RADIUS_FRACTION = 0.65  # value-label distance from center, as a fraction between inner/outer radius
 _FULL_CIRCLE_TOLERANCE = 1e-9
-
-
-def _is_missing(value: object) -> bool:
-    return value is None or (isinstance(value, float) and value != value)
 
 
 def _format_value_label(value: float) -> str:
@@ -136,7 +133,7 @@ def pieplot(
     pairs = [
         (str(label), float(value))
         for label, value in zip(raw_labels, raw_values, strict=True)
-        if not _is_missing(label) and not _is_missing(value)
+        if not is_missing(label) and not is_missing(value)
     ]
     if not pairs:
         raise ValueError("no rows with both a non-missing label and value present after dropping missing values")
