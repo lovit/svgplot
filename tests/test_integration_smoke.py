@@ -9,6 +9,7 @@ together, this file is where it should surface.
 
 from __future__ import annotations
 
+import inspect
 import re
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
@@ -39,7 +40,7 @@ CHART_TYPES: list[tuple[str, Callable[..., Chart]]] = [
     ("areaplot", lambda **kw: sp.areaplot(DATA, x="day", y="value", **kw)),
     ("pieplot", lambda **kw: sp.pieplot(DATA, values="value", labels="category", **kw)),
     ("boxplot", lambda **kw: sp.boxplot(DATA, x="group", y="value", **kw)),
-    ("ecdfplot", lambda **kw: sp.ecdfplot(DATA, x="value", **kw)),
+    ("ecdfplot", lambda **kw: sp.ecdfplot(DATA, x="value", hue="group", **kw)),
     ("kdeplot", lambda **kw: sp.kdeplot(DATA, x="value", hue="group", **kw)),
     ("violinplot", lambda **kw: sp.violinplot(DATA, x="group", y="value", **kw)),
     ("regplot", lambda **kw: sp.regplot(DATA, x="day", y="value", **kw)),
@@ -212,9 +213,13 @@ def test_a_mixed_composition_of_distribution_charts_keeps_its_namespaces() -> No
     )
     svg = composition.to_string()
     series_rules = sorted(set(re.findall(r"\.([a-z0-9-]*series[a-z0-9-]*)\s*\{", svg)))
+    prefixes = {rule.split("-")[0] for rule in series_rules}
 
     assert series_rules
     assert all(re.match(r"^c\d+-", rule) for rule in series_rules)
+    # Distinct per cell, not merely present: one shared prefix is exactly the collision
+    # this guards against, and it satisfies "every rule is prefixed" just as well.
+    assert len(prefixes) == 4
 
 
 @pytest.mark.parametrize(
@@ -233,3 +238,24 @@ def test_the_distribution_charts_facet(factory: Callable[..., Chart], kwargs: di
 
     assert len(composition.charts) == 2
     assert composition.to_string().startswith("<?xml")
+
+
+def test_violinplot_takes_boxplot_s_positional_arguments() -> None:
+    """The README tells readers the two share ``(data, x, y)``, so that has to stay true.
+    Every other test here calls by keyword, which cannot notice a positional shape drifting
+    -- making ``y`` keyword-only breaks the documented swap and nothing else fails."""
+    assert sp.violinplot(DATA, "group", "value").to_string()
+    assert sp.boxplot(DATA, "group", "value").to_string()
+
+    violin = [
+        name
+        for name, parameter in inspect.signature(sp.violinplot).parameters.items()
+        if parameter.kind is parameter.POSITIONAL_OR_KEYWORD
+    ]
+    box = [
+        name
+        for name, parameter in inspect.signature(sp.boxplot).parameters.items()
+        if parameter.kind is parameter.POSITIONAL_OR_KEYWORD
+    ]
+
+    assert violin == box == ["data", "x", "y"]
