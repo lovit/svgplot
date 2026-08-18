@@ -28,6 +28,11 @@ from svgplot.output.svg import save_svg, to_string
 class Chart:
     """A single rendered chart, backed by one SVG document."""
 
+    DEFAULT_TITLE = "Chart"
+    """Accessible name used when the caller hasn't set one. An empty ``aria-label``
+    is worse than a generic one — assistive tech would announce ``role="img"`` with
+    no usable name at all (see ``accessibility.add_accessibility``)."""
+
     def __init__(self, svg_document: SvgDocument) -> None:
         self._svg_document = svg_document
         self._title: str | None = None
@@ -43,11 +48,6 @@ class Chart:
         self._palette = spec
         return self
 
-    DEFAULT_TITLE = "Chart"
-    """Accessible name used when the caller hasn't set one. An empty ``aria-label``
-    is worse than a generic one — assistive tech would announce ``role="img"`` with
-    no usable name at all (see ``accessibility.add_accessibility``)."""
-
     def _accessible_document(self) -> SvgDocument:
         """Return a copy of the document with role/aria/title/desc applied.
 
@@ -57,9 +57,15 @@ class Chart:
         fresh pair on every render. Applying to a throwaway copy also means a
         ``set_title()`` after an earlier render still takes effect, since the title
         is read at serialization time rather than baked in once.
+
+        A whitespace-only title falls back to :attr:`DEFAULT_TITLE` just like an empty
+        one. Without the ``strip()`` the two diverge — ``""`` falls back quietly while
+        ``"   "`` reaches ``add_accessibility``'s empty-title ``ValueError``, which
+        would then surface at ``save()`` time rather than at the ``set_title()`` call
+        that caused it.
         """
         document = copy.deepcopy(self._svg_document)
-        add_accessibility(document, title=self._title or self.DEFAULT_TITLE)
+        add_accessibility(document, title=(self._title or "").strip() or self.DEFAULT_TITLE)
         return document
 
     def to_string(self, *, pretty: bool = True) -> str:

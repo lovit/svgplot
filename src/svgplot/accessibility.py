@@ -10,7 +10,7 @@ Wired into ``chart.base.Chart``'s render path (issue #29): every serialization
 document, so repeated renders never stack duplicate ``<title>``/``<desc>`` pairs
 and a late ``set_title()`` still takes effect. ``chart.composition.Composition``
 is deliberately not covered — a composed figure needs one accessible name of its
-own, not one per nested child; that's its own issue.
+own, not one per nested child; that is tracked as issue #55.
 """
 
 from __future__ import annotations

@@ -191,3 +191,15 @@ def test_saved_svg_file_also_carries_accessibility(tmp_path: Path) -> None:
     written = target.read_text(encoding="utf-8")
     assert 'role="img"' in written
     assert "<title>Saved</title>" in written
+
+
+@pytest.mark.parametrize("blank", ["", "   ", "\t\n "])
+def test_a_blank_title_falls_back_to_the_default_instead_of_erroring(blank: str) -> None:
+    """`""` and `"   "` used to diverge: the former fell back quietly, the latter hit
+    add_accessibility's empty-title ValueError — and only at save()/to_string() time,
+    far from the set_title() that caused it. Both now take the same fallback.
+    """
+    svg = _sample_chart().set_title(blank).to_string()
+
+    assert f'aria-label="{Chart.DEFAULT_TITLE}"' in svg
+    assert f"<title>{Chart.DEFAULT_TITLE}</title>" in svg
