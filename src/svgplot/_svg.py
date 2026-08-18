@@ -33,12 +33,22 @@ Security note (issue #12): ``"style"`` is allowed in ``_TEXT_BEARING_TAGS``
 Unlike every other text-bearing tag here, this module's own escaping is
 *not* sufficient for ``<style>``: XML text escaping stops ``<``/``&`` from
 breaking out of the element, but does nothing to stop ``}``/``;``/``@import``/
-``url(...)`` from breaking out of a CSS *rule* once inside. The only sanctioned
-caller is ``theme.css.render_theme_style``, which independently validates
-every value it embeds (colors via a strict ``#rrggbb`` regex, font family via
-an allowlisted character set) before ever reaching ``add_text`` — this module
-still only guarantees XML-structural safety for ``<style>`` content, exactly
-as it does for every other tag; CSS-semantic safety is the caller's job.
+``url(...)`` from breaking out of a CSS *rule* once inside. This module still
+only guarantees XML-structural safety for ``<style>`` content, exactly as it
+does for every other tag; **CSS-semantic safety is the caller's job**, and
+every sanctioned caller earns that trust by validating what it embeds:
+
+- ``theme.css.render_theme_style`` — validates colors via a strict ``#rrggbb``
+  regex, font family via an allowlisted character set, numbers via
+  ``format_coord``, and class names via a CSS-identifier regex.
+- ``layout.sizing.apply_size`` — embeds a fixed module-level constant only
+  (no interpolation, so nothing to validate).
+- ``chart.composition`` — rewrites already-validated selectors produced by
+  the two callers above; it interpolates no new user-derived values.
+
+Any *new* ``<style>`` producer must independently validate every value it
+interpolates before calling ``add_text``, and be added to this list — the
+list is the only record of which code carries that obligation.
 
 Security note (issue #12 review): ``"script"`` is rejected by ``add_node``
 itself (``_BLOCKED_TAGS``), not merely omitted from ``add_text``'s allow-list
@@ -215,9 +225,9 @@ class SvgDocument:
         review)", is also rejected directly by :meth:`add_node`, which this method
         calls into — so the guarantee holds even for a caller that bypasses this
         method). ``"style"`` *is* allowed (see this module's top-level
-        "Security note (issue #12)") but only because its one sanctioned caller
-        (``theme.css.render_theme_style``) independently validates every value it
-        embeds before calling this method — this method itself still only guarantees
+        "Security note (issue #12)") but only because each of its sanctioned
+        callers — listed in that note — independently validates every value it
+        embeds before calling this method; this method itself still only guarantees
         XML-structural safety, not CSS-semantic safety, for ``<style>`` content.
         ``tag`` is keyword-only so a caller can never accidentally pass a positional
         ``attrib``/``classes`` argument that lands in this slot instead.

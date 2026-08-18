@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from svgplot.chart.composition import CAPTION_HEIGHT, TITLE_HEIGHT, Composition
+from svgplot.chart.composition import CAPTION_HEIGHT, TITLE_HEIGHT, Composition, chart_document
 from svgplot.charts.line import lineplot
 from svgplot.layout.caption import add_caption
 from svgplot.layout.grid import column, grid, row
@@ -452,3 +452,19 @@ def test_nested_children_keep_their_own_viewbox() -> None:
 
     nested = re.findall(r"<svg x=\"[\d.]+\"[^>]*>", svg)
     assert all('viewBox="0 0 800 600"' in tag for tag in nested)
+
+
+def test_compose_restores_viewbox_for_a_fixed_sized_child() -> None:
+    """apply_size(..., "fixed") strips viewBox, but nesting scales a child to its
+    cell only via viewBox — without one the child keeps its intrinsic coordinates
+    and is clipped whenever the cell is smaller. Composition restores it so the two
+    features don't silently interact (review finding, PR #46).
+    """
+    fixed_chart = apply_size(make_chart(), "fixed")
+    assert "viewBox" not in chart_document(fixed_chart).root.attrib
+
+    svg = row([fixed_chart, make_chart()]).to_string()
+
+    nested = re.findall(r"<svg ([^>]*\bx=[^>]*)>", svg)
+    assert nested, "expected nested child <svg> elements"
+    assert all("viewBox" in attrs for attrs in nested)
