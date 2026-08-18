@@ -20,7 +20,7 @@ from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import LinearScale
-from svgplot.stats.regression import RegressionBand, confidence_band, linear_fit
+from svgplot.stats.regression import RegressionBand, confidence_band, fit_curve
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
@@ -76,7 +76,8 @@ def regplot(
     """Draw a linear fit through long-form data, optionally with a confidence band.
 
     ``ci=None`` draws the line alone — the band is the expensive part (it refits
-    ``n_boot`` times), so turning it off should also turn off the work.
+    ``n_boot`` times), so turning it off also turns off the work. ``n_boot`` and ``seed``
+    are then unused and, having nothing to validate against, unchecked.
 
     ``seed`` is forwarded to :func:`svgplot.stats.regression.confidence_band`, which makes
     the whole chart reproducible: the same data and seed serialize to byte-identical SVG.
@@ -99,12 +100,7 @@ def regplot(
         raise ValueError("no rows with both x and y present after dropping missing values")
 
     if ci is None:
-        fit = linear_fit(xs, ys)
-        low, high = min(xs), max(xs)
-        step = (high - low) / (_BAND_GRID - 1)
-        grid_x = [low + index * step for index in range(_BAND_GRID)]
-        grid_y = [fit.predict(position) for position in grid_x]
-        band = RegressionBand(x=grid_x, y=grid_y, lower=grid_y, upper=grid_y)
+        band = fit_curve(xs, ys, grid=_BAND_GRID)
     else:
         band = confidence_band(xs, ys, level=ci, n_boot=n_boot, seed=seed, grid=_BAND_GRID)
 
