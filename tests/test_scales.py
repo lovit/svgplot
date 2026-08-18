@@ -401,12 +401,47 @@ def test_centres_are_independent_of_padding_across_the_whole_range(padding: floa
 
 @pytest.mark.parametrize("padding", [-0.1, -1.0, 1.0, 1.5, float("nan"), float("inf"), "0.5", True, False, None])
 def test_padding_outside_the_unit_interval_is_rejected(padding: object) -> None:
-    """``1.0`` is excluded, not just clamped: a band of zero width draws nothing, and a
-    chart that silently renders nothing is worse than one that says why. Booleans are
-    rejected on both sides -- ``True`` happens to fail the range check, but ``False``
-    would quietly pass as 0.0, and ``interpolate`` rejects bools for the same reason."""
+    """``1.0`` is excluded rather than clamped because a band of exactly zero width draws
+    nothing. The bound is not a guarantee of visibility -- ``0.999999999`` already rounds
+    to a width of ``0`` in the emitted coordinates -- it just refuses the one value that
+    is unambiguously degenerate. Booleans are rejected on both sides: ``True`` happens to
+    fail the range check, but ``False`` would quietly pass as 0.0, and ``interpolate``
+    rejects bools for the same reason."""
     with pytest.raises(ValueError, match="padding must be a number"):
         CategoricalScale(_PADDING_CATEGORIES, _PADDING_RANGE, padding=padding)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("padding", [0, 0.0, 0.25, 1 - 2**-53])
+def test_padding_accepts_any_real_number_in_range(padding: float) -> None:
+    """``0`` as an ``int`` is the case a ``float``-only isinstance check would break, and
+    it is exactly what a caller writes when turning padding off explicitly."""
+    scale = CategoricalScale(_PADDING_CATEGORIES, _PADDING_RANGE, padding=padding)
+
+    assert scale.padding == pytest.approx(float(padding))
+    assert isinstance(scale.padding, float)
+
+
+def test_an_inverted_range_keeps_its_direction_under_padding() -> None:
+    """A range that runs high-to-low (a y axis, where pixels grow downward) gives a
+    negative ``step``. Taking ``abs()`` anywhere in the band arithmetic would flip the
+    gutter to the wrong side while leaving every equally-spaced-range test green."""
+    inverted = CategoricalScale(["a", "b"], (400.0, 0.0), padding=0.5)
+    plain = CategoricalScale(["a", "b"], (400.0, 0.0))
+
+    assert inverted.step == -200.0
+    assert inverted.bandwidth == -100.0
+    assert [inverted(c) for c in ("a", "b")] == [350.0, 150.0]
+    assert [inverted.center(c) for c in ("a", "b")] == [plain.center(c) for c in ("a", "b")]
+
+
+def test_a_range_that_does_not_divide_evenly_still_centres_consistently() -> None:
+    """Every other padding test uses a range that divides cleanly, which hides rounding."""
+    categories = ["a", "b", "c"]
+    plain = CategoricalScale(categories, (0.0, 100.0))
+    padded = CategoricalScale(categories, (0.0, 100.0), padding=0.3)
+
+    for category in categories:
+        assert padded.center(category) == pytest.approx(plain.center(category))
 
 
 def test_padding_is_keyword_only() -> None:
