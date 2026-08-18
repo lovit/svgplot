@@ -6,6 +6,7 @@ from svgplot.charts.area import areaplot
 from svgplot.charts.bar import barplot
 from svgplot.charts.box import boxplot
 from svgplot.charts.ecdf import ecdfplot
+from svgplot.charts.gauge import gaugeplot
 from svgplot.charts.heatmap import heatmap
 from svgplot.charts.histogram import histplot
 from svgplot.charts.kde import kdeplot
@@ -23,6 +24,7 @@ __all__ = [
     "barplot",
     "boxplot",
     "ecdfplot",
+    "gaugeplot",
     "heatmap",
     "histplot",
     "kdeplot",
