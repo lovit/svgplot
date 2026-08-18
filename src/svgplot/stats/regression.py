@@ -40,6 +40,12 @@ _MAX_GRID = 1_000
 grid would let a single call allocate and spin without limit regardless of the two caps
 above; at both this and ``_MAX_BOOTSTRAP_SAMPLES`` the prediction pass adds 0.05 s."""
 
+_MAX_SPAN = 1e150
+"""Widest ``max - min`` either axis may have. ``_fit`` squares deviations, and Python's
+``**`` raises ``OverflowError`` rather than saturating once they pass roughly 1.3e154 --
+an exception this module's ``Raises:`` does not promise, so a caller catching
+``ValueError`` would crash on it. Measured: 1e150 fits comfortably, 1e155 does not."""
+
 _MIN_POINTS = 3
 """Two points fit a line exactly with zero residual, so a band around them would be a
 line of zero width claiming certainty. Three is the smallest sample that can disagree
@@ -89,6 +95,15 @@ def _require_finite_pairs(x: list[float], y: list[float]) -> tuple[list[float], 
             if not math.isfinite(number):
                 raise ValueError(f"cannot fit a regression through a non-finite {axis} value: {value!r}")
             target.append(number)
+
+    # Each value is finite, but a span beyond ~1.3e154 makes the squared deviations in
+    # ``_fit`` raise ``OverflowError`` -- an exception neither entry point documents, so a
+    # caller catching ValueError would crash on it. ``interpolate`` guards the same way,
+    # and ``quantile`` documents avoiding this exact difference form.
+    for axis, values in (("x", xs), ("y", ys)):
+        span = max(values) - min(values)
+        if not math.isfinite(span) or span > _MAX_SPAN:
+            raise ValueError(f"regression {axis} range (max - min = {span!r}) is too wide for this arithmetic")
     return xs, ys
 
 
