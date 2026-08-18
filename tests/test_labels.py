@@ -10,7 +10,7 @@ import pytest
 
 from svgplot.labels import LabelSpec, render_table
 from svgplot.labels.spec import render_value
-from svgplot.labels.table import _MARKDOWN_ESCAPED, TABLE_FORMATS
+from svgplot.labels.table import _MARKDOWN_ESCAPED, TABLE_FORMATS, _collapse_newlines, _escape_markdown_cell
 
 # ---------------------------------------------------------------------------
 # LabelSpec.parse — parsing "@field{format}" entries
@@ -406,16 +406,19 @@ def test_render_table_escapes_backslash_before_pipe_in_markdown_cell() -> None:
     assert _gfm_unescape_backslash_and_pipe(cell) == "a\\|b"
 
 
-def test_render_table_collapses_newline_in_markdown_cell() -> None:
-    """A raw newline in a cell value would otherwise terminate the GFM table row
-    early, desynchronizing every row after it — must not appear literally in output.
-    """
+@pytest.mark.parametrize("raw", ["line1\nline2", "line1\rline2", "line1\r\nline2"])
+def test_render_table_collapses_newline_in_markdown_cell(raw: str) -> None:
+    """A raw line ending in a cell value would otherwise terminate the GFM table row early,
+    desynchronizing every row after it — must not appear literally in output.
+
+    All three forms, not just ``\\n``: a lone ``\\r`` splits the row in cmark-gfm just as a
+    ``\\n`` does, and testing only ``\\n`` left removing its handling undetected."""
     spec = LabelSpec.parse([("Name", "@name{%s}")])
-    data = {"name": ["line1\nline2"]}
-    result = render_table(data, spec, format="markdown")
+    result = render_table({"name": [raw]}, spec, format="markdown")
     lines = result.splitlines()
+
     assert len(lines) == 3
-    assert "line1" in lines[2] and "line2" in lines[2]
+    assert lines[2] == "| line1 line2 |"
 
 
 def test_table_formats_constant() -> None:
@@ -530,7 +533,6 @@ def _markdown_cell(value: str) -> str:
         ("`code`", r"| \`code\` |"),
         ("**bold**", r"| \*\*bold\*\* |"),
         ("_em_", r"| \_em\_ |"),
-        ("~~strike~~", r"| \~\~strike\~\~ |"),
     ],
 )
 def test_markdown_inline_syntax_in_a_cell_renders_literally(value: str, cell: str) -> None:
@@ -542,14 +544,28 @@ def test_markdown_inline_syntax_in_a_cell_renders_literally(value: str, cell: st
     assert _markdown_cell(value) == cell
 
 
+@pytest.mark.parametrize("value", ["~~strike~~", "a~b"])
+def test_a_tilde_is_left_alone(value: str) -> None:
+    """The one character where escaping costs more than it buys. Python-Markdown's escape
+    list has no ``~``, so ``\\~`` reaches its readers as a visible backslash in every cell
+    containing one -- while the GFM strikethrough that escaping would suppress is already
+    inert in that flavour. A styling change in one flavour is a smaller harm than corrupted
+    text in another."""
+    assert _markdown_cell(value) == f"| {value} |"
+
+
 def test_the_escapes_round_trip_back_to_the_original_value() -> None:
     """Escaping is only correct if a renderer reading it back produces what the caller
     gave. Asserting the escaped form alone would pass for an escaper that mangled the
     value as long as it did so consistently."""
-    value = r"a|b [x](y) `c` **d** _e_ ~f~ \g\ 100% 5*6"
+    value = r"""a|b [x](y) `c` **d** _e_ ~f~ \g\ 100% 5*6 & <tag> "q" 'p'"""
     cell = _markdown_cell(value).removeprefix("| ").removesuffix(" |")
 
-    unescaped = re.sub(r"\\(.)", r"\1", cell)
+    # Both passes reversed, in the order a renderer applies them: backslash escapes first,
+    # then HTML entities. Reversing only the backslashes would pass for a value that
+    # happened to contain no entity-escaped character, which is how the earlier version of
+    # this test stayed green while checking half the round trip.
+    unescaped = html.unescape(re.sub(r"\\(.)", r"\1", cell))
     assert unescaped == value
 
 
@@ -558,10 +574,17 @@ def test_the_html_escape_and_inline_escape_passes_do_not_interact() -> None:
     order is free rather than load-bearing -- but only while the two passes stay disjoint.
     If ``html.escape`` ever emitted one of the escaped characters, or learned to touch a
     backslash, the placement would silently start to matter."""
-    entities = html.escape("&<>\"'", quote=True)
 
-    assert not set(entities) & set(_MARKDOWN_ESCAPED)
-    assert html.escape("\\", quote=True) == "\\"
+    def alternate_order(text: str) -> str:
+        text = _collapse_newlines(text).replace("\\", "\\\\")
+        for character in _MARKDOWN_ESCAPED:
+            text = text.replace(character, f"\\{character}")
+        return html.escape(text, quote=True)
+
+    values = ["a&b", "<x>", '"q"', "'p'", "a|b [x] `c` *d* _e_", "\\&\\[", "&amp;", "&#124;"]
+    assert [_escape_markdown_cell(value) for value in values] == [alternate_order(value) for value in values]
+    # ...and the reason it holds: the two passes touch disjoint characters.
+    assert not set(html.escape("&<>\"'", quote=True)) & set(_MARKDOWN_ESCAPED)
 
 
 def test_escaping_does_not_touch_the_html_renderer() -> None:
@@ -601,8 +624,14 @@ def test_a_label_gets_the_same_treatment_as_a_cell() -> None:
     assert result.splitlines()[0] == r"| \[hdr\](https://evil.example) |"
 
 
-def test_a_bare_url_is_documented_as_out_of_reach() -> None:
-    """GFM's autolink extension makes ``https://x`` a link with no markup at all, and no
-    backslash escape stops it. Killing it would mean rewriting the value -- reporting data
-    the caller never gave -- so this pins the limit rather than pretending it away."""
-    assert _markdown_cell("https://bare.example/beacon") == "| https://bare.example/beacon |"
+@pytest.mark.parametrize(
+    "value",
+    ["https://bare.example/beacon", "www.bare.example/beacon", "victim@bare.example"],
+)
+def test_gfm_autolink_is_documented_as_out_of_reach(value: str) -> None:
+    """GFM's autolink extension links text carrying no markup at all, so no backslash escape
+    reaches it -- and it is three forms, not one: a bare URL, a ``www.`` prefix, and an email
+    address. The email is the one that matters most, since the representative ``info=`` input
+    is a user-submitted CSV. Killing them would mean rewriting the value, so this pins the
+    limit rather than pretending it away."""
+    assert _markdown_cell(value) == f"| {value} |"
