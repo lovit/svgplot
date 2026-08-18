@@ -58,6 +58,35 @@ CHART_IDS = [name for name, _ in CHART_TYPES]
 CHART_FACTORIES = [factory for _, factory in CHART_TYPES]
 
 
+def _themed_marks(svg: str) -> list[str]:
+    """Elements carrying a themed data class, **excluding legend swatches**.
+
+    ``render_legend`` gives a swatch the same class as the mark it stands for, so a plain
+    substring check is satisfied by the legend alone: strip the class off every bar in the
+    chart and the assertion still passes against a document whose only coloured thing is
+    its key. Measured on four of the five shape charts before this was narrowed.
+    """
+    body = svg[: svg.index("<style>")] if "<style>" in svg else svg
+    return [
+        tag
+        for tag in re.findall(r"<\w+\b[^>]*/?>", body)
+        if (match := re.search(r'class="([^"]*)"', tag))
+        and any(name.startswith(("series-", "level-")) for name in match.group(1).split())
+        and "legend" not in match.group(1)
+        and not _looks_like_a_swatch(tag)
+    ]
+
+
+def _looks_like_a_swatch(tag: str) -> bool:
+    """A legend swatch is a 16x10 rect or a 16-long line, at the fixed offsets
+    ``_legend.py`` uses. Matched by shape rather than by class, because the whole problem
+    is that it shares the mark's class."""
+    return bool(re.search(r'width="16" height="10"', tag)) or bool(
+        re.search(r'<line x1="([\d.]+)"[^>]*x2="([\d.]+)"', tag)
+        and abs(float(re.search(r'x2="([\d.]+)"', tag).group(1)) - float(re.search(r'x1="([\d.]+)"', tag).group(1))) == 16.0
+    )
+
+
 def assert_renders_a_real_chart(svg: str) -> None:
     """A rendered chart must be a well-formed standalone SVG document that actually
     carries chart content — not merely a non-empty string.
@@ -68,7 +97,7 @@ def assert_renders_a_real_chart(svg: str) -> None:
     # Either a series-coloured mark or a value-coloured one. They are alternatives rather
     # than a weakened check: heatmap's colour comes from the datum, not from a position in
     # the palette, so it carries `level-N` and deliberately passes no series classes at all.
-    assert 'class="series-1' in svg or 'class="level-1' in svg, "expected at least one themed data mark"
+    assert _themed_marks(svg), "expected at least one themed data mark outside the legend"
     ET.fromstring(svg)  # parses => structurally valid XML, not just plausible text
 
 
@@ -307,9 +336,10 @@ def test_each_chart_draws_the_frame_its_shape_calls_for(name: str, spines: int, 
     """Whether a chart has a cartesian axis is a design decision per chart, not an accident,
     and the M8 shapes are where it stops being uniform. ``heatmap`` keeps both spines because
     its cells sit on categorical axes; ``radarplot`` replaces them with spokes and rings but
-    still labels categories; ``gaugeplot``'s eight ``spine``-classed paths are its arc tracks
-    (an outlined region, not an axis) plus its own tick ring; ``treemap``/``sparkline``/
-    ``pieplot`` have no frame at all. A chart silently gaining or losing one would change how
+    still labels categories; ``gaugeplot``'s ``spine``-classed paths are its arc
+    tracks -- an outlined region rather than an axis, one per row, so the count here is the
+    fixture's row count and not a frame at all (its tick ring uses ``tick-line``);
+    ``treemap``/``sparkline``/``pieplot`` have no frame at all. A chart silently gaining or losing one would change how
     it reads, and nothing else here would notice."""
     svg = dict(CHART_TYPES)[name]().to_string()
 
@@ -326,6 +356,41 @@ def test_sparkline_keeps_its_own_canvas_while_every_other_chart_shares_one() -> 
 
     assert sizes["sparkline"] == ("120", "24")
     assert {size for name, size in sizes.items() if name != "sparkline"} == {("800", "600")}
+
+
+@pytest.mark.parametrize(
+    ("factory", "kwargs"),
+    [
+        pytest.param(sp.heatmap, {"x": "day", "y": "category", "values": "value"}, id="heatmap"),
+        pytest.param(sp.radarplot, {"x": "category", "y": "value"}, id="radarplot"),
+        pytest.param(sp.treemap, {"values": "value", "labels": "category"}, id="treemap"),
+        pytest.param(sp.sparkline, {"y": "value"}, id="sparkline"),
+        pytest.param(sp.gaugeplot, {"value": "value", "labels": "category"}, id="gaugeplot"),
+    ],
+)
+def test_the_shape_charts_facet(factory: Callable[..., Chart], kwargs: dict[str, str]) -> None:
+    """``facet`` forwards ``**kwargs`` untouched, so a chart whose signature drifts breaks
+    here and nowhere else. All five work -- they were missing from this file because nobody
+    added the rows, not because faceting a shape chart is meaningless."""
+    composition = sp.facet(factory, DATA, col="group", **kwargs)
+    svg = composition.to_string()
+
+    assert svg.count("<svg") == 3, "expected one root plus two panels"
+    ET.fromstring(svg)
+
+
+def test_a_composition_survives_children_of_different_canvas_sizes() -> None:
+    """``sparkline`` is the one chart with its own canvas, which makes it the likeliest
+    thing to break a layout that assumes every child is the same size."""
+    composition = sp.row([sp.treemap(DATA, values="value", labels="category"), sp.sparkline(DATA, y="value")])
+    svg = composition.to_string()
+    rules = [
+        rule for block in re.findall(r"<style>(.*?)</style>", svg, re.S) for rule in re.findall(r"^\.([\w-]+)", block, re.M)
+    ]
+
+    assert {match.group(1) for rule in rules if (match := re.match(r"(c\d+)-", rule))} == {"c0", "c1"}
+    assert not [rule for rule in rules if rule.startswith(("level-", "series-"))]
+    ET.fromstring(svg)
 
 
 def test_a_mixed_composition_of_shape_charts_keeps_its_namespaces() -> None:
