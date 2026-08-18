@@ -226,7 +226,10 @@ def heatmap(
                         "text-anchor": "middle",
                         "dominant-baseline": "middle",
                     },
-                    classes=["heatmap-annotation"],
+                    # "tick-label" rather than a class of its own: it is the only text
+                    # class the theme styles, and a bespoke one inherits the browser
+                    # default -- black serif, unreadable on a dark theme's dark cells.
+                    classes=["tick-label", "heatmap-annotation"],
                 )
 
     render_legend(
