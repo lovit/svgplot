@@ -227,6 +227,10 @@ def test_a_mixed_composition_of_distribution_charts_keeps_its_namespaces() -> No
     [
         pytest.param(sp.ecdfplot, {"x": "value"}, id="ecdfplot"),
         pytest.param(sp.kdeplot, {"x": "value"}, id="kdeplot"),
+        # One category per panel here, because faceting by "group" and splitting on
+        # "category" too leaves a single value per violin and KDE needs two. The
+        # shared y domain that a multi-category panel would exercise is covered in the
+        # violin's own tests; what this row checks is that facet forwards the signature.
         pytest.param(sp.violinplot, {"x": "group", "y": "value"}, id="violinplot"),
         pytest.param(sp.regplot, {"x": "day", "y": "value"}, id="regplot"),
     ],
