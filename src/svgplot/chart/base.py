@@ -20,6 +20,8 @@ from pathlib import Path
 
 from svgplot._svg import SvgDocument
 from svgplot.accessibility import add_accessibility
+from svgplot.labels._source import LabelData
+from svgplot.labels.table import MISSING_TEXT, render_table
 from svgplot.output.jupyter import repr_svg
 from svgplot.output.markdown import MARKDOWN_SUFFIXES, save_markdown, to_markdown
 from svgplot.output.png import to_png
@@ -34,10 +36,11 @@ class Chart:
     is worse than a generic one — assistive tech would announce ``role="img"`` with
     no usable name at all (see ``accessibility.add_accessibility``)."""
 
-    def __init__(self, svg_document: SvgDocument) -> None:
+    def __init__(self, svg_document: SvgDocument, labels: LabelData | None = None) -> None:
         self._svg_document = svg_document
         self._title: str | None = None
         self._palette: str | list[str] | None = None
+        self._labels = labels
 
     def set_title(self, title: str) -> Chart:
         """Set the chart title. Returns self for chaining."""
@@ -78,14 +81,20 @@ class Chart:
         return to_markdown(self._accessible_document(), self._label_table())
 
     def _label_table(self) -> str | None:
-        """The footnote table to place under the chart, or ``None`` for none.
+        """The footnote table to place under the chart, or ``None`` when the chart was
+        built without ``info=`` — the normal case, not an error: markdown is a format, not
+        a feature flag.
 
-        Always ``None`` here: wiring ``info=`` through to a rendered table is issue #69.
-        Markdown output does not wait on it — the format is useful for a chart with no
-        labels at all, and returning ``None`` is what makes that the normal case rather
-        than an error.
+        Rendered at serialization time rather than at plot time, so building a chart stays
+        cheap and a chart that is never saved as markdown never pays for the table.
+
+        ``missing=MISSING_TEXT`` rather than ``render_table``'s default refusal: these rows
+        already passed the chart's own channel filter, so a hole can only be in a column
+        the chart never consulted, and dropping the row would silently shrink the table.
         """
-        return None
+        if self._labels is None:
+            return None
+        return render_table(self._labels.columns, self._labels.spec, missing=MISSING_TEXT)
 
     def save(self, path: str) -> None:
         """Write the chart to a file. Dispatches on ``path``'s extension: ``.svg`` (see
