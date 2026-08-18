@@ -216,15 +216,16 @@ def test_the_warning_carries_the_count_the_size_and_the_way_out() -> None:
 
 
 def test_the_estimated_size_is_close_to_the_real_one() -> None:
-    """The number in the warning has to be worth reading. Measured 863 KB against an
-    estimate of 859 KB at 10,000 cells."""
+    """The number in the warning has to be worth reading, and ``_BYTES_PER_TICK``'s
+    docstring claims 5%. Asserting a looser bound than the docstring makes leaves the claim
+    unheld: at ``rel=0.15`` both constants could move ~10% with the suite still green."""
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         chart = heatmap(_square(100), x="col", y="row", values="v")
     estimated = int(re.search(r"~(\d+) KB", str(caught[0].message)).group(1))
     actual = len(chart.to_string()) / 1024
 
-    assert estimated == pytest.approx(actual, rel=0.15)
+    assert estimated == pytest.approx(actual, rel=0.05)
 
 
 def test_a_large_heatmap_still_renders() -> None:
@@ -465,7 +466,7 @@ def test_the_estimate_tracks_a_sparse_grid_too() -> None:
     actual = len(chart.to_string()) / 1024
 
     assert len(_cells(chart.to_string())) == side
-    assert estimated == pytest.approx(actual, rel=0.15)
+    assert estimated == pytest.approx(actual, rel=0.05)
 
 
 def test_the_warning_still_fires_on_a_sparse_grid() -> None:

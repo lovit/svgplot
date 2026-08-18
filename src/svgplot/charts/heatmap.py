@@ -64,9 +64,10 @@ Two terms are needed because the two counts come apart on a sparse grid: a 100x1
 holding a 100-cell diagonal draws 100 rects but still labels 200 ticks. Estimating from
 cells alone put that chart at 8 KB against a real 51 KB; from grid cells alone, at 859 KB.
 
-``drawn * 88 + (rows + cols) * 216`` was fitted on four measured points and is within 7%
-of all of them: 50x50 dense 236 vs 233 KB, 100x100 dense 923 vs 863 KB, 100x100 diagonal
-51 vs 51 KB, 200x200 diagonal 102 vs 102 KB."""
+``drawn * 88 + (rows + cols) * 216`` was fitted on four measured points and is within 5%
+of all of them (estimate vs real, as the warning itself prints them): 50x50 dense 235 vs
+233 KB, 100x100 dense 901 vs 863 KB, 100x100 diagonal 50 vs 51 KB, 200x200 diagonal 101 vs
+102 KB. Worst case +4.4%, on the densest."""
 
 _WARN_CELL_COUNT = 2_500
 """Where the size warning starts. Two independent arguments land near the same number:
