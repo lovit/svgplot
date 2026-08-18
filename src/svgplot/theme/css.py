@@ -80,6 +80,7 @@ def render_theme_style(
     *,
     mark_style: str = "stroke",
     level_colors: dict[str, str] | None = None,
+    ink_colors: dict[str, str] | None = None,
 ) -> None:
     """Emit one ``<style>`` element (child of ``document``'s root) with CSS rules for
     the shared static chart elements (background/grid/spine/tick/tick-label/legend-text)
@@ -111,6 +112,15 @@ def render_theme_style(
     as ``theme.opacity`` says, while only the interior is softened, so the fill
     factor rides on ``fill-opacity`` and the whole-mark factor on ``opacity``.
 
+    ``ink_colors`` maps a CSS class name to an explicit ``#rrggbb`` for **text drawn on top
+    of one of those marks** — a heatmap's ``annot=`` labels. It is separate from
+    ``level_colors`` rather than folded into it because the two want opposite things from
+    opacity: a level colour carries ``theme.opacity`` like every other mark, while ink is
+    picked for contrast against the mark underneath it and any opacity blends it back
+    toward that mark. It emits ``fill`` alone, so the caller pairs it with a class that
+    supplies the font (``tick-label``), and later emission order lets it win the ``fill``
+    at equal specificity.
+
     ``level_colors`` maps a CSS class name to an explicit ``#rrggbb``, for marks whose
     color encodes a *value* rather than a series identity — a heatmap cell's color
     comes from its datum, not from its position in ``theme.palette``. There is no other
@@ -141,7 +151,8 @@ def render_theme_style(
             if any numeric style field isn't finite, if ``mark_style`` isn't
             ``"stroke"``/``"fill"``/``"outlined"``, if a ``level_colors`` key or value
             fails the same validation ``series_classes``/theme colors get, or if a
-            class name appears in both ``series_classes`` and ``level_colors``.
+            class name appears in more than one of ``series_classes``/``level_colors``/
+            ``ink_colors``.
     """
     if mark_style not in ("stroke", "fill", "outlined"):
         raise ValueError(f"mark_style must be 'stroke', 'fill', or 'outlined', got {mark_style!r}")
@@ -214,5 +225,18 @@ def render_theme_style(
         # overlapping marks from occluding one another (issue #45); level-colored marks
         # tile rather than overlap, so they never had that problem to solve.
         rules.append(f".{class_name} {{ fill: {color}; stroke: none; opacity: {opacity}; }}")
+
+    for class_name, raw_color in (ink_colors or {}).items():
+        _validate_css_class_name(class_name, kind="ink")
+        if class_name in seen_classes:
+            raise ValueError(f"class name {class_name!r} appears in both ink_colors and another color mapping")
+        seen_classes.add(class_name)
+        color = _validate_css_color(raw_color, field=f"ink_colors[{class_name!r}]")
+        # Colour only: no opacity, and no stroke. An ink colour is chosen *against* the mark
+        # it sits on, so any opacity blends it back toward that mark and undoes the choice —
+        # measured, theme.opacity=0.8 alone drops a heatmap annotation from 4.9:1 to 3.3:1,
+        # below WCAG AA. Text is not a tiling mark either, so it never had the occlusion
+        # problem theme.opacity and theme.fill_opacity exist to solve.
+        rules.append(f".{class_name} {{ fill: {color}; }}")
 
     document.add_text(None, "\n".join(rules), tag="style")

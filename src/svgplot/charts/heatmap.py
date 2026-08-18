@@ -267,13 +267,10 @@ def heatmap(
         y=area.top,
         mark_style="fill",
     )
-    if annot:
-        # Emitted through level_colors, the same channel the cells use, so the ink rules
-        # get the same validation and the same composition namespacing. Only when there are
-        # annotations to colour -- nine dead rules would be nine more lines to read past in
-        # a chart a reader is meant to be able to hand-edit.
-        level_colors |= {f"{name}-annotation": _readable_ink(color) for name, color in level_colors.items()}
-    render_theme_style(document, resolved_theme, [], mark_style="fill", level_colors=level_colors)
+    # Only when there are annotations to colour: nine dead rules would be nine more lines
+    # to read past in a chart a reader is meant to be able to hand-edit.
+    ink_colors = {f"{name}-annotation": _readable_ink(color) for name, color in level_colors.items()} if annot else None
+    render_theme_style(document, resolved_theme, [], mark_style="fill", level_colors=level_colors, ink_colors=ink_colors)
 
     return Chart(document)
 
