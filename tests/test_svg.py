@@ -442,7 +442,7 @@ def test_every_line_ending_that_can_reach_add_text_is_folded() -> None:
     computes the difference rather than restating the pattern, so widening ``splitlines``'
     own definition, or narrowing the XML one, fails here instead of silently reopening the
     hole that made ``save("chart.md")`` refuse a chart."""
-    line_endings = {chr(code) for code in range(0x11000) if len(f"a{chr(code)}b".splitlines()) == 2}
+    line_endings = {chr(code) for code in range(0x110000) if len(f"a{chr(code)}b".splitlines()) == 2}
     folded = {character for character in line_endings if _NEWLINE_RUN_RE.fullmatch(character)}
 
     assert folded, "nothing is folded at all"

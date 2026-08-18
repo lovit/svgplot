@@ -63,9 +63,14 @@ def _reject_blank_lines(svg: str) -> None:
     caller with a new multi-line tag, or a document assembled by hand -- and is tested
     directly rather than through a chart, since going through one would now assert nothing.
 
-    Line endings are counted the way ``str.splitlines`` counts them, which is also the set
-    ``_svg`` folds: the two definitions have to agree, or a label passes the fold and then
-    gets its own chart refused here.
+    Line endings are counted the way ``str.splitlines`` counts them, and this guard is
+    deliberately the **wider** of the two definitions: ``_svg``'s fold covers five fewer
+    characters (``\x0b \x0c \x1c \x1d \x1e``), because XML 1.0 forbids those and
+    ``_validate_text`` rejects them before folding is ever reached. Wider is the safe
+    direction -- the failure that produced this docstring was the guard counting a line
+    ending the fold did not, so a label passed the fold and then had its own chart refused
+    right here. Narrowing this to CommonMark's ``\r``/``\n``, or widening ``_svg``'s fold
+    to match this exactly, both break that arrangement; see ``_NEWLINE_RUN_RE``.
     """
     for number, line in enumerate(svg.splitlines(), start=1):
         if not line.strip():
