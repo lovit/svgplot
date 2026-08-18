@@ -267,3 +267,50 @@ def test_a_non_integer_grid_is_rejected_as_a_value_error(grid: object) -> None:
     reaches ``range()`` and surfaces a ``TypeError`` this function never promises."""
     with pytest.raises(ValueError, match="must be an int"):
         kde(_normal_sample(n=20), grid=grid)  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# grid_range
+# ---------------------------------------------------------------------------
+
+
+def test_grid_range_replaces_the_computed_span() -> None:
+    """``kdeplot`` with ``hue=`` needs every group on one grid, so the span has to be
+    settable from outside -- computing it per group is what makes the curves incomparable."""
+    curve = kde(_normal_sample(n=50), grid=5, grid_range=(-4.0, 4.0))
+
+    assert curve.x[0] == pytest.approx(-4.0)
+    assert curve.x[-1] == pytest.approx(4.0)
+
+
+def test_grid_range_makes_two_different_samples_share_a_grid() -> None:
+    first = kde(_normal_sample(n=50, seed=1), grid=8, grid_range=(-6.0, 6.0))
+    second = kde([value + 3.0 for value in _normal_sample(n=50, seed=2)], grid=8, grid_range=(-6.0, 6.0))
+
+    assert first.x == second.x
+
+
+def test_grid_range_overrides_cut_entirely() -> None:
+    """``cut`` only exists to derive a span; with one given, it has nothing left to do."""
+    sample = _normal_sample(n=50)
+
+    assert kde(sample, grid=6, cut=0.0, grid_range=(-5.0, 5.0)).x == kde(sample, grid=6, cut=99.0, grid_range=(-5.0, 5.0)).x
+
+
+@pytest.mark.parametrize(
+    "grid_range",
+    [(1.0, 1.0), (2.0, 1.0), (float("nan"), 1.0), (0.0, float("inf")), (float("-inf"), 0.0)],
+)
+def test_an_unusable_grid_range_is_rejected(grid_range: tuple[float, float]) -> None:
+    """A reversed or zero-width span makes ``step`` zero or negative, which would put every
+    grid point on top of the last one; a non-finite bound goes straight to nan."""
+    with pytest.raises(ValueError, match="grid_range"):
+        kde(_normal_sample(n=20), grid_range=grid_range)
+
+
+def test_the_default_span_is_unchanged_when_no_grid_range_is_given() -> None:
+    sample = _normal_sample(n=50)
+    curve = kde(sample, grid=7)
+
+    assert curve.x[0] == pytest.approx(min(sample) - 3.0 * curve.bandwidth)
+    assert curve.x[-1] == pytest.approx(max(sample) + 3.0 * curve.bandwidth)

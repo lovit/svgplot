@@ -7,6 +7,7 @@ from svgplot.charts.bar import barplot
 from svgplot.charts.box import boxplot
 from svgplot.charts.ecdf import ecdfplot
 from svgplot.charts.histogram import histplot
+from svgplot.charts.kde import kdeplot
 from svgplot.charts.line import lineplot
 from svgplot.charts.pie import pieplot
 from svgplot.charts.scatter import scatterplot
@@ -19,6 +20,7 @@ __all__ = [
     "boxplot",
     "ecdfplot",
     "histplot",
+    "kdeplot",
     "lineplot",
     "pieplot",
     "scatterplot",
