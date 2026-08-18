@@ -11,6 +11,8 @@ import math
 import statistics
 from dataclasses import dataclass
 
+from svgplot.stats.quantile import quantiles
+
 MODES = ("extremes", "1.5IQR", "tukey", "stdev", "pstdev")
 
 
@@ -24,27 +26,6 @@ class BoxStats:
     whisker_low: float
     whisker_high: float
     outliers: list[float]
-
-
-def _percentile_linear(sorted_values: list[float], q: float) -> float:
-    """Linear-interpolation percentile (the common/numpy-default method)."""
-    n = len(sorted_values)
-    if n == 1:
-        return sorted_values[0]
-    rank = q * (n - 1)
-    lower = math.floor(rank)
-    upper = math.ceil(rank)
-    if lower == upper:
-        return sorted_values[lower]
-    fraction = rank - lower
-    # Weighted form rather than `lo + f*(up-lo)`: the latter forms the difference
-    # up-lo, which overflows to inf when the data spans (say) -1e308..1e308 even
-    # though the percentile itself is perfectly representable (-5e307), tripping
-    # box_stats' finiteness guard on a result that was never actually non-finite.
-    # Weighting each endpoint separately never forms a value larger than the
-    # endpoints themselves. It is also exact at both f=0 and f=1, where the
-    # difference form is only exact at f=0.
-    return sorted_values[lower] * (1.0 - fraction) + sorted_values[upper] * fraction
 
 
 def _tukey_hinges(sorted_values: list[float]) -> tuple[float, float]:
@@ -87,8 +68,7 @@ def box_stats(values: list[float], mode: str = "1.5IQR") -> BoxStats:
     if mode == "tukey":
         q1, q3 = _tukey_hinges(sorted_values)
     else:
-        q1 = _percentile_linear(sorted_values, 0.25)
-        q3 = _percentile_linear(sorted_values, 0.75)
+        q1, q3 = quantiles(sorted_values, (0.25, 0.75))
 
     if mode == "extremes":
         whisker_low, whisker_high, outliers = sorted_values[0], sorted_values[-1], []
