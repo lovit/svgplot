@@ -100,11 +100,16 @@ def _resolve_bounds(values: list[float], vmin: float | None, vmax: float | None)
     arc still has somewhere to sit.
 
     Raises:
-        ValueError: if a supplied bound isn't a finite number, or if the resulting range
-            is empty or inverted.
+        ValueError: if a supplied bound isn't a finite number, if the two are so far apart
+            that their difference overflows, or if the resulting range is empty or inverted.
     """
     low = _require_finite_bound(vmin, field="vmin") if vmin is not None else min(0.0, *values)
     high = _require_finite_bound(vmax, field="vmax") if vmax is not None else max(values)
+    if not math.isfinite(high - low):
+        # Each bound can be finite while the span is not. Left alone, LinearScale rejects
+        # it with a message about a domain span, naming neither argument -- the same reason
+        # the value check above does not defer to format_coord.
+        raise ValueError(f"gauge range is too wide to measure: vmax - vmin overflows for vmin={low!r}, vmax={high!r}")
     if low >= high:
         raise ValueError(
             f"gauge range must be non-empty and increasing, got vmin={low!r} >= vmax={high!r}"
@@ -165,9 +170,9 @@ def gaugeplot(
             string that isn't a registered preset name.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
         ValueError: if ``data`` has no rows, if no rows remain after dropping missing
-            values, if a value isn't finite, if ``vmin``/``vmax`` isn't a finite number or
-            they don't form an increasing range, or if there are so many rows that the
-            rings would be too thin to read.
+            values, if a value isn't finite, if ``vmin``/``vmax`` isn't a finite number,
+            if their difference overflows, if they don't form an increasing range, or if
+            there are so many rows that the rings would be too thin to read.
     """
     resolved_theme = resolve_theme(theme)
     columns = extract_columns(data)
@@ -225,6 +230,10 @@ def gaugeplot(
         series_class = document.semantic_class("series")
         series_classes.append(series_class)
         legend_entries.append((label, series_class))
+        # The max() half is defensive today: angle_of is increasing, so a value below low
+        # already maps below _START_ANGLE and the guard below drops it either way. It stays
+        # because the guard is what happens to enforce the documented lower clamp, not the
+        # clamp itself -- relaxing that guard to >= would make this line load-bearing again.
         end_angle = angle_of(min(max(magnitude, low), high))
         if end_angle > _START_ANGLE:
             # A zero-length sweep would be an arc whose endpoints coincide, which the
