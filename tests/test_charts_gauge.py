@@ -252,9 +252,15 @@ def test_the_value_arc_shares_its_ring_with_its_own_track() -> None:
     assert arcs == tracks
 
 
-def test_too_many_rows_is_refused_rather_than_drawn_too_thin_to_see() -> None:
-    with pytest.raises(ValueError, match="reads as an arc"):
-        _svg({"score": [float(index) for index in range(60)]})
+@pytest.mark.parametrize(("rows", "thickness"), [(24, 2.72), (30, 1.38), (39, 0.14), (60, -1.31)])
+def test_too_many_rows_is_refused_rather_than_drawn_too_thin_to_see(rows: int, thickness: float) -> None:
+    """Only the 60-row case was covered, and there the rings come out *negative* -- so the
+    whole ``0 < thickness < 3`` band went unchecked and ``_MIN_RING_THICKNESS`` could fall
+    to 0.1 with the suite green, quietly rendering 39 rings 0.14px thick."""
+    with pytest.raises(ValueError, match="reads as an arc") as caught:
+        _svg({"score": [1.0] * rows})
+
+    assert f"{thickness:.2f}px thick" in str(caught.value)
 
 
 def test_the_row_count_just_under_the_limit_still_renders() -> None:
@@ -272,16 +278,29 @@ def test_the_row_count_just_under_the_limit_still_renders() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_ticks_land_where_the_angle_scale_puts_them() -> None:
+@pytest.mark.parametrize(("vmin", "vmax"), [(0, 100), (0, 95), (3, 97), (-10, 45), (0, 7)])
+def test_ticks_land_where_the_angle_scale_puts_them(vmin: float, vmax: float) -> None:
     """Recomputed from ``make_ticks`` and a fresh scale rather than asserting that some
     ticks exist: a chart that placed them by evenly dividing the sweep would still emit
-    the right number of lines with the right labels, at the wrong angles."""
-    svg = _svg({"score": [40.0]}, vmin=0, vmax=100)
-    expected_scale = LinearScale((0.0, 100.0), (_START_ANGLE, _END_ANGLE))
-    expected = [expected_scale(float(tick)) for tick in make_ticks(expected_scale)]
+    the right number of lines with the right labels, at the wrong angles.
+
+    The domains matter as much as the recomputation. On ``(0, 100)`` -- and on any domain
+    whose nice ticks happen to land on both ends -- evenly dividing the sweep gives exactly
+    the same angles, so that fixture alone lets the very mistake this docstring names walk
+    through. ``(0, 95)``, ``(3, 97)`` and ``(-10, 45)`` all leave the ticks short of one end
+    or both, which is what separates the two."""
+    svg = _svg({"score": [float(vmin)]}, vmin=vmin, vmax=vmax)
+    expected_scale = LinearScale((float(vmin), float(vmax)), (_START_ANGLE, _END_ANGLE))
+    ticks = make_ticks(expected_scale)
+    expected = [expected_scale(float(tick)) for tick in ticks]
 
     drawn = [_angle(float(x1), float(y1)) for x1, y1, _, _ in _LINE_RE.findall(svg)]
     assert drawn == pytest.approx(expected)
+    # ...and at least one of these domains must actually disagree with even division, or
+    # the parametrisation is decorative.
+    if (vmin, vmax) == (3, 97):
+        even = [_START_ANGLE + _SWEEP * index / (len(ticks) - 1) for index in range(len(ticks))]
+        assert drawn != pytest.approx(even)
 
 
 def test_tick_marks_sit_outside_the_outer_ring() -> None:
@@ -349,6 +368,16 @@ def test_a_single_unlabelled_row_gets_no_legend() -> None:
     assert _texts(svg, "legend-text") == ["40"]
 
 
+def test_the_legend_swatch_is_a_filled_rect_not_a_line() -> None:
+    """``render_legend`` knows "stroke" (a line swatch) and "fill" (a rect) only, and an
+    outlined arc reads as a filled swatch -- passing the series' own "outlined" through
+    raises. Nothing checked which of the two it settled on."""
+    svg = _svg(labels="name")
+
+    assert _tags(svg, "rect", "series-1")
+    assert not _tags(svg, "line", "series-1")
+
+
 def test_a_single_labelled_row_still_gets_its_legend() -> None:
     svg = gaugeplot({"score": [40.0], "name": ["cpu"]}, "score", labels="name").to_string()
 
@@ -369,9 +398,13 @@ def test_the_printed_values_are_centred_as_a_block_on_the_dial() -> None:
     assert [float(y) for y in positions] == pytest.approx([_CY - 18.0, _CY, _CY + 18.0])
 
 
-def test_a_fractional_value_keeps_its_decimals() -> None:
-    """``format_coord`` would round it to six places, silently rewriting the datum."""
-    assert _texts(_svg({"score": [12.25]}, vmin=0, vmax=100), "legend-text") == ["12.25"]
+@pytest.mark.parametrize(("value", "printed"), [(12.25, "12.25"), (0.123456789, "0.123456789"), (1e-7, "1e-07")])
+def test_a_fractional_value_is_printed_without_being_rounded(value: float, printed: str) -> None:
+    """``format_coord`` rounds to six places because it formats *coordinates*; using it here
+    would silently rewrite the datum. 12.25 alone does not show that -- both functions
+    return "12.25" for it -- so the values that actually separate them are what pin it:
+    ``format_coord`` answers "0.123457" and, worse, turns 1e-07 into "0"."""
+    assert _texts(_svg({"score": [value]}, vmin=0, vmax=100), "legend-text") == [printed]
 
 
 # ---------------------------------------------------------------------------
@@ -488,3 +521,15 @@ def test_the_dial_geometry_is_pinned_to_literal_pixels() -> None:
     assert (round(end[0], 6), round(end[1], 6)) == (534.578148, 421.0)
     # Both ends level with each other and below the centre: the open third faces down.
     assert start[1] == pytest.approx(end[1]) and start[1] > _CY
+
+
+def test_a_range_whose_span_overflows_is_named_rather_than_deferred() -> None:
+    """Both bounds are finite here; only their difference is not. ``LinearScale`` rejects it
+    too, but with a message about a domain span that names neither argument."""
+    with pytest.raises(ValueError, match=r"too wide to measure.*vmin=-1e\+308"):
+        _svg({"score": [0.0]}, vmin=-1e308, vmax=1e308)
+
+
+def test_a_wide_but_representable_range_still_renders() -> None:
+    """Otherwise the guard above could be an unconditional refusal of large ranges."""
+    assert _value_sweep(_svg({"score": [0.0]}, vmin=-1e307, vmax=1e307)) == pytest.approx(_SWEEP / 2)
