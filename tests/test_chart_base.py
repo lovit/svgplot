@@ -47,15 +47,14 @@ def test_set_title_and_palette_return_self_for_chaining() -> None:
     assert chart._palette == ["#e69f00", "#56b4e9"]
 
 
-def test_set_title_and_palette_do_not_change_rendered_output() -> None:
-    """This issue only requires chaining; applying title/palette to the document is a later issue's job."""
+def test_set_title_reaches_the_rendered_output_but_palette_does_not_yet() -> None:
+    """set_title is applied at render time (issue #29); palette is still record-only —
+    resolving a spec into colors remains theme/palette's job in a later issue."""
     chart = _sample_chart()
-    before = chart.to_string()
 
     chart.set_title("My Chart").palette(["#e69f00"])
 
-    assert chart.to_string() == before
-    assert "My Chart" not in chart.to_string()
+    assert "My Chart" in chart.to_string()
     assert "#e69f00" not in chart.to_string()
 
 
@@ -117,3 +116,90 @@ def test_save_writes_png_file_when_cairosvg_available(require_cairosvg: None, tm
 
     assert path.exists()
     assert path.read_bytes().startswith(b"\x89PNG")
+
+
+# ---------------------------------------------------------------------------
+# accessibility wiring (issue #29)
+# ---------------------------------------------------------------------------
+
+
+def test_rendered_chart_carries_accessibility_defaults_without_any_setup() -> None:
+    """Accessibility is a default, not an opt-in (docs/research/10-feature-matrix.md A9),
+    so a chart nobody configured still announces itself to assistive tech.
+    """
+    svg = _sample_chart().to_string()
+
+    assert 'role="img"' in svg
+    assert f'aria-label="{Chart.DEFAULT_TITLE}"' in svg
+    assert f"<title>{Chart.DEFAULT_TITLE}</title>" in svg
+    assert "<desc>" in svg
+
+
+def test_repeated_renders_do_not_stack_duplicate_title_and_desc() -> None:
+    """add_accessibility appends <title>/<desc> and is documented as once-per-document,
+    but to_string/save/_repr_svg_ are all callable repeatedly — so the render path
+    applies it to a copy. Without that, every render would add another pair.
+    """
+    chart = _sample_chart()
+
+    chart.to_string()
+    chart._repr_svg_()
+    svg = chart.to_string()
+
+    assert svg.count("<title>") == 1
+    assert svg.count("<desc>") == 1
+
+
+def test_set_title_after_an_earlier_render_still_takes_effect() -> None:
+    """The title is read at serialization time, not baked in at first render."""
+    chart = _sample_chart()
+    chart.to_string()
+
+    svg = chart.set_title("Quarterly sales").to_string()
+
+    assert 'aria-label="Quarterly sales"' in svg
+    assert "<title>Quarterly sales</title>" in svg
+    assert svg.count("<title>") == 1
+
+
+def test_rendering_leaves_the_charts_own_document_untouched() -> None:
+    """Accessibility is applied to a throwaway copy, so the Chart's stored document
+    stays exactly as the plotting function built it — anything reading it directly
+    (e.g. chart.composition's nesting) sees no injected title/desc.
+    """
+    chart = _sample_chart()
+
+    chart.to_string()
+
+    assert "<title>" not in chart._svg_document.to_string()
+    assert 'role="img"' not in chart._svg_document.to_string()
+
+
+def test_a_title_containing_markup_is_escaped_not_injected() -> None:
+    svg = _sample_chart().set_title("</title><script>alert(1)</script>").to_string()
+
+    assert "<script>" not in svg
+    assert "&lt;script&gt;" in svg
+
+
+def test_saved_svg_file_also_carries_accessibility(tmp_path: Path) -> None:
+    """save() must not bypass the render path that to_string() goes through."""
+    target = tmp_path / "chart.svg"
+
+    _sample_chart().set_title("Saved").save(str(target))
+
+    written = target.read_text(encoding="utf-8")
+    assert 'role="img"' in written
+    assert "<title>Saved</title>" in written
+
+
+@pytest.mark.parametrize("blank", ["", "   ", "\t\n "])
+def test_a_blank_title_falls_back_to_the_default_instead_of_erroring(blank: str) -> None:
+    """`""` and `"   "` used to diverge: the former fell back quietly, the latter hit
+    add_accessibility's empty-title ValueError — and only at save()/to_string() time,
+    far from the set_title() that caused it. Both now take the same fallback.
+    """
+    svg = _sample_chart().set_title(blank).to_string()
+
+    assert f'aria-label="{Chart.DEFAULT_TITLE}"' in svg
+    assert f"<title>{Chart.DEFAULT_TITLE}</title>" in svg
