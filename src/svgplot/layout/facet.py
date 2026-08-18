@@ -21,9 +21,19 @@ find out what they used and again against the union. See ``chart/_domain.py``. M
 1.7x on six panels of 600 rows (2.7ms -> 4.5ms), and paid only when there is actually
 something to share -- one panel, or panels that record no domains, skip the second pass.
 
-Charts with no cartesian axes -- ``pieplot``, ``treemap``, ``gaugeplot``, ``radarplot``,
-``sparkline``, ``heatmap`` -- record no domains, and faceting them simply skips the second
-pass. Their radial and colour domains are a separate question, deliberately left open.
+Charts that record no domains -- ``pieplot``, ``treemap``, ``gaugeplot``, ``radarplot``,
+``sparkline``, ``heatmap`` -- skip the second pass entirely. Most of them have no cartesian
+axes at all; ``heatmap`` is the exception, with two categorical axes it simply does not
+report yet. Three kinds of domain are **deliberately left open** and will read differently
+per panel until they are closed:
+
+- ``heatmap``'s row/column categories and its value-to-colour scale
+- ``radarplot``/``gaugeplot``'s radial extent
+- **``hue=`` group colours on every chart.** Two panels whose hue values differ assign the
+  palette independently, so the same group can be blue in one and orange in the next. This
+  PR fixed exactly that problem for *categorical axis* colours (see ``barplot``/``boxplot``/
+  ``violinplot``'s ``categories=``) and did not fix it for ``hue=`` -- which is worse than
+  before in one respect, since aligned axes invite a reader to assume the colours align too.
 """
 
 from __future__ import annotations
@@ -46,28 +56,53 @@ def _sorted_unique(values: list[object]) -> list[object]:
     return sorted(dict.fromkeys(values), key=str)
 
 
-def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool) -> dict[str, object]:
+def _is_drawable(span: tuple[float, float] | None) -> bool:
+    """Whether a shared span is something a chart can be told to draw against.
+
+    A union of panels that all show the same constant is ``(5.0, 5.0)``. ``apply_limit``
+    refuses that, and rightly so for a *caller's* override -- a zero-width window maps every
+    value to one pixel. But a chart handed no override copes with its own constant data
+    perfectly well, so forwarding the degenerate union would turn a chart that rendered on
+    ``main`` into a ``ValueError``. Leaving it out lets each panel fall back to its own
+    handling, which is identical across panels anyway when the data is constant.
+    """
+    return span is not None and span[0] < span[1]
+
+
+def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool, explicit: dict[str, object]) -> dict[str, object]:
     """The overrides that make every panel agree, or ``{}`` if there is nothing to share.
 
-    Empty when no panel recorded a domain (a grid of pies), when both flags are off, or
-    when only one panel exists -- in each case the second render would reproduce the first
-    exactly, and paying for it would be waste dressed up as correctness.
+    Empty when no panel recorded a domain (a grid of pies), when both flags are off, when only
+    one panel exists, or when every panel already agrees -- in each case the second render
+    would reproduce the first exactly, and paying for it would be waste dressed up as
+    correctness.
+
+    ``explicit`` is what the caller already passed through to ``plot_fn``. Anything named
+    there wins: ``facet(..., ylim=(0, 500))`` is a caller stating the window they want, and
+    a computed union has no business overruling it -- nor may it be passed alongside, which
+    is a ``TypeError`` for a duplicate keyword rather than anything the caller can read.
     """
     if len(panels) < 2 or not (sharex or sharey):
         return {}
+    # ``isinstance`` because ``plot_fn`` may return a ``Composition`` -- a nested facet, or
+    # ``add_caption`` around a chart -- which reports no domains.
     recorded = [panel.domains for panel in panels if isinstance(panel, Chart)]
-    if not recorded or all(domain.is_empty() for domain in recorded):
+    # One guard, three cases that are the same case: nobody reported a domain, everybody
+    # reported an empty one, or everybody already agrees. In each the second render would
+    # reproduce the first exactly.
+    if not recorded or all(domain == recorded[0] for domain in recorded):
         return {}
     shared: Domains = union(recorded)
     overrides: dict[str, object] = {}
-    if sharex:
-        if shared.x is not None:
-            overrides["xlim"] = shared.x
-        if shared.categories is not None:
-            overrides["categories"] = shared.categories
-    if sharey and shared.y is not None:
+    if sharex and _is_drawable(shared.x):
+        overrides["xlim"] = shared.x
+    if sharey and _is_drawable(shared.y):
         overrides["ylim"] = shared.y
-    return overrides
+    # Under whichever flag names the axis the categories were actually drawn on -- a
+    # horizontal bar chart puts them up the left edge, where "sharex" has no business.
+    if shared.categories is not None and (sharex if shared.categories_axis == "x" else sharey):
+        overrides["categories"] = shared.categories
+    return {name: value for name, value in overrides.items() if name not in explicit}
 
 
 def facet(
@@ -135,7 +170,7 @@ def facet(
 
         matrix, titles = build({})
         drawn = [cell for cells in matrix for cell in cells if cell is not None]
-        overrides = _shared_kwargs(drawn, sharex=sharex, sharey=sharey)
+        overrides = _shared_kwargs(drawn, sharex=sharex, sharey=sharey, explicit=kwargs)
         if overrides:
             matrix, titles = build(overrides)
         return arrange_grid(matrix, titles=titles)
@@ -143,7 +178,7 @@ def facet(
     channel = col if col is not None else row
     values = _sorted_unique(list(groups))
     charts: list[Chart | None] = [plot_fn(groups[value], **kwargs) for value in values]  # type: ignore[arg-type,misc]
-    overrides = _shared_kwargs([chart for chart in charts if chart is not None], sharex=sharex, sharey=sharey)
+    overrides = _shared_kwargs([chart for chart in charts if chart is not None], sharex=sharex, sharey=sharey, explicit=kwargs)
     if overrides:
         charts = [plot_fn(groups[value], **kwargs, **overrides) for value in values]  # type: ignore[arg-type,misc]
     titles = [f"{channel} = {value}" for value in values]
