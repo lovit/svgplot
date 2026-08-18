@@ -123,7 +123,7 @@ def test_groups_are_ordered_by_their_label() -> None:
 def test_an_unfilled_curve_is_an_open_polyline() -> None:
     svg = kdeplot({"v": _sample()}, x="v", fill=False).to_string()
 
-    assert "Z" not in _curves(svg)[0] and "Z" not in re.findall(r'd="([^"]+)"', svg)[0]
+    assert not _raw_curve(svg).endswith("Z")
     assert _style_rule(svg, ".series-1 {") == ".series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }"
 
 
@@ -171,7 +171,10 @@ def test_a_numeric_bandwidth_is_passed_straight_through() -> None:
     curve = _curves(kdeplot({"v": values}, x="v", bandwidth=0.2).to_string())[0]
     drawn = [(AREA.bottom - y) / (AREA.bottom - AREA.top) for _, y in curve]
 
-    expected = kde(values, bandwidth=0.2, grid_range=_shared_grid_range([(None, values)], 0.2, 3.0))
+    # The expected span is written out by hand, not taken from the production helper: with
+    # a numeric bandwidth it is just min/max +- cut*h, and calling the helper here would
+    # cancel any mutation inside it on both sides of the comparison.
+    expected = kde(values, bandwidth=0.2, grid_range=(min(values) - 3.0 * 0.2, max(values) + 3.0 * 0.2))
     normalised = [value / max(expected.y) for value in expected.y]
 
     assert drawn == pytest.approx(normalised, abs=1e-9)
@@ -230,3 +233,132 @@ def test_kdeplot_is_deterministic() -> None:
     data = {"v": _sample()}
 
     assert kdeplot(data, x="v").to_string() == kdeplot(data, x="v").to_string()
+
+
+def _raw_curve(svg: str) -> str:
+    return next(dict(_ATTR_RE.findall(tag))["d"] for tag in re.findall(r"<path\b[^>]*/>", svg) if "kde-series" in tag)
+
+
+# ---------------------------------------------------------------------------
+# the shared peak
+# ---------------------------------------------------------------------------
+
+
+_SPREAD_SCALES = {"a": 4.0, "b": 0.5, "c": 2.0}
+"""Three groups whose peak densities differ, with the densest (``b``) deliberately in the
+*middle* of the sorted order. Two groups cannot distinguish a shared peak from one taken
+from a fixed position in the list -- whichever end that is, it happens to be the densest
+half the time."""
+
+
+def _spread_group_values(label: str) -> list[float]:
+    return [value * _SPREAD_SCALES[label] for value in _sample(n=120, seed=21 + ord(label))]
+
+
+def _spread_groups() -> dict[str, list]:
+    values: list[float] = []
+    labels: list[str] = []
+    for label in _SPREAD_SCALES:
+        values.extend(_spread_group_values(label))
+        labels.extend([label] * 120)
+    return {"v": values, "grp": labels}
+
+
+def test_every_group_is_drawn_against_one_shared_peak() -> None:
+    """The y domain runs 0..(peak across *all* groups), so the densest curve touches the
+    ceiling and every other one is drawn in proportion. Scaling each group to its own peak
+    would send them all to the top and make very different distributions look alike.
+
+    The proportion is asserted, not just "one of them is highest": picking the peak from a
+    fixed position in the group list happens to be right whenever that group is the densest,
+    so only the ratio distinguishes a shared peak from a lucky one."""
+    data = _spread_groups()
+    svg = kdeplot(data, x="v", hue="grp").to_string()
+    curves = _curves(svg)
+
+    labels = re.findall(r'class="legend-text">([^<]+)<', svg)
+    heights = {label: AREA_WITH_LEGEND.bottom - min(y for _, y in curve) for label, curve in zip(labels, curves, strict=True)}
+    full = AREA_WITH_LEGEND.bottom - AREA_WITH_LEGEND.top
+
+    densities = {label: max(kde(_spread_group_values(label)).y) for label in _SPREAD_SCALES}
+    peak = max(densities.values())
+    assert max(densities, key=densities.get) == "b"  # densest is neither first nor last
+
+    for label, height in heights.items():
+        assert height / full == pytest.approx(densities[label] / peak, rel=0.05)
+    assert max(heights.values()) == pytest.approx(full)
+
+
+def test_the_y_domain_is_shared_even_when_one_group_is_far_denser() -> None:
+    curves = _curves(kdeplot(_spread_groups(), x="v", hue="grp").to_string())
+    floors = [max(y for _, y in curve) for curve in curves]
+
+    assert all(floor <= AREA_WITH_LEGEND.bottom + 1e-6 for floor in floors)
+
+
+# ---------------------------------------------------------------------------
+# hue and fill together
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("fill", [False, True])
+def test_a_hued_chart_renders_with_and_without_fill(fill: bool) -> None:
+    """The intersection of this chart's two headline features. The legend only understands
+    "stroke" and "fill" swatches, so handing it the series' ``"outlined"`` style raised --
+    a break that neither a fill-only nor a hue-only test could reach."""
+    svg = kdeplot(_two_groups(), x="v", hue="grp", fill=fill).to_string()
+
+    assert svg.count('class="legend-text"') == 2
+    assert len(_curves(svg)) == 2
+
+    # The swatch shape has to follow the curve: a filled density gets a rect, an unfilled
+    # one a line. Handing the legend a fixed style would draw the wrong mark for one of them.
+    swatches = re.findall(r"<(rect|line)\b[^>]*class=\"[^\"]*series-1[^\"]*\"", svg)
+    assert swatches == (["rect"] if fill else ["line"])
+
+
+def test_a_filled_hued_chart_keeps_the_outlined_series_style() -> None:
+    """The legend swatch degrades to "fill", but the curves themselves must still be
+    outlined -- otherwise overlapping groups lose their own edges."""
+    rule = _style_rule(kdeplot(_two_groups(), x="v", hue="grp", fill=True).to_string(), ".series-1 {")
+
+    assert "stroke: #E69F00" in rule
+    assert "fill-opacity" in rule
+
+
+@pytest.mark.parametrize("groups", [3, 5])
+def test_the_shared_grid_holds_for_more_than_two_groups(groups: int) -> None:
+    data: dict[str, list] = {"v": [], "grp": []}
+    for index in range(groups):
+        data["v"].extend(value + index * 3.0 for value in _sample(n=40, seed=30 + index))
+        data["grp"].extend([f"g{index}"] * 40)
+
+    curves = _curves(kdeplot(data, x="v", hue="grp").to_string())
+
+    assert len(curves) == groups
+    assert len({tuple(x for x, _ in curve) for curve in curves}) == 1
+
+
+def test_a_group_of_exactly_two_values_is_estimable() -> None:
+    """Two is ``stats.kde``'s minimum, so it is the boundary a shared grid has to survive."""
+    data = {"v": [0.0, 1.0, *_sample(n=40, seed=31)], "grp": ["pair"] * 2 + ["rest"] * 40}
+    curves = _curves(kdeplot(data, x="v", hue="grp").to_string())
+
+    assert len(curves) == 2
+    assert all(len(curve) == 200 for curve in curves)
+
+
+@pytest.mark.parametrize(
+    ("values", "match"),
+    [
+        ([3.0] * 6, r"hue group 'bad'.*zero-variance"),
+        ([9.0], r"hue group 'bad'.*at least 2 values"),
+    ],
+)
+def test_a_bad_group_names_itself_in_the_error(values: list[float], match: str) -> None:
+    """Which group failed is the only thing the caller needs to act on, and the estimator
+    cannot know it."""
+    data = {"v": [*_sample(n=30, seed=32), *values], "grp": ["ok"] * 30 + ["bad"] * len(values)}
+
+    with pytest.raises(ValueError, match=match):
+        kdeplot(data, x="v", hue="grp")
