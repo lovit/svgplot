@@ -52,15 +52,20 @@ works too — a file extension's case is an accident of the filesystem, not an i
 def _reject_blank_lines(svg: str) -> None:
     """Refuse an SVG that would terminate its own HTML block early.
 
-    A CommonMark type-7 HTML block ends at the first blank line. ``xml.etree`` escapes
-    ``<`` and ``&`` in a text node but passes newlines through untouched, so a label
-    containing a blank line -- legal input that every chart accepts today -- splits the
-    block mid-document and the rest of the SVG source is then parsed as markdown.
+    A CommonMark type-7 HTML block ends at the first blank line, so a blank line inside the
+    SVG splits the block mid-document and the rest of its own source is then parsed as
+    markdown prose.
 
-    This is not XSS: angle brackets are already entity-escaped and ``_svg`` blocks
-    ``script``/``on*``/``style``. It is a content/layout injection specific to this output
-    path. Rewriting the text node here would put an edit outside ``_svg``'s escape
-    chokepoint, so this refuses instead and names the cause.
+    **No chart can reach this any more.** ``_svg.add_text`` folds line breaks out of text
+    content (issue #89), which is where every blank line used to come from, and that is the
+    right place for the fix: it is one edit inside the escape chokepoint rather than a
+    rewrite outside it. This stays as the last line of defence -- a future ``add_text``
+    caller with a new multi-line tag, or a document assembled by hand -- and is tested
+    directly rather than through a chart, since going through one would now assert nothing.
+
+    Line endings are counted the way ``str.splitlines`` counts them, which is also the set
+    ``_svg`` folds: the two definitions have to agree, or a label passes the fold and then
+    gets its own chart refused here.
     """
     for number, line in enumerate(svg.splitlines(), start=1):
         if not line.strip():
