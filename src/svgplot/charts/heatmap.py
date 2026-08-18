@@ -55,22 +55,30 @@ LEVELS = 9
 middle level with the same number of steps either side."""
 
 _BYTES_PER_CELL = 88
-"""Measured marginal output cost of one cell, used to put a size in the warning rather than
-making the caller guess.
+"""Measured marginal output cost of one drawn cell."""
 
-Measured on this implementation: 2,500 cells -> 233 KB (95 B/cell), 10,000 -> 863 KB
-(88 B/cell). The per-cell figure falls as the fixed overhead (axes, legend, style block)
-is amortised, so the asymptotic 88 is the honest multiplier for the sizes worth warning
-about; it understates small charts, which is where the warning never fires anyway."""
+_BYTES_PER_TICK = 216
+"""Measured marginal output cost of one axis tick (a row or a column label).
+
+Two terms are needed because the two counts come apart on a sparse grid: a 100x100 grid
+holding a 100-cell diagonal draws 100 rects but still labels 200 ticks. Estimating from
+cells alone put that chart at 8 KB against a real 51 KB; from grid cells alone, at 859 KB.
+
+``drawn * 88 + (rows + cols) * 216`` was fitted on four measured points and is within 7%
+of all of them: 50x50 dense 236 vs 233 KB, 100x100 dense 923 vs 863 KB, 100x100 diagonal
+51 vs 51 KB, 200x200 diagonal 102 vs 102 KB."""
 
 _WARN_CELL_COUNT = 2_500
 """Where the size warning starts. Two independent arguments land near the same number:
 
-- **~233 KB** at this size -- past what is polite to embed in a README.
-- In the 580x520 plot area this chart actually gets (the legend takes the rest of the
-  width), 50x50 cells are **11.6 x 10.4 px**. At ``tick_label_font_size=10`` that is about
-  the smallest cell an individual value can still be identified or annotated in; below it
-  the chart implies a legibility it does not have.
+- **~233 KB** at this size -- past what is polite to embed in a README. This is the
+  argument that actually fixes the number.
+- Legibility agrees rather than independently derives it: in the 580x520 plot area this
+  chart gets (the legend takes the rest of the width), 50x50 cells are **11.6 x 10.4 px**,
+  which is around where an individual value stops being identifiable at
+  ``tick_label_font_size=10``. The issue's own derivation assumed a 700px plot and a 14 px
+  floor; correcting the width to 580 would put that argument nearer 1,700 cells, so it
+  supports the same order rather than pinning 2,500 on its own.
 
 20x5 (100 cells) is 25x under and stays silent -- its cells are 29.0 x 104.0 px. 100x100
 is 4x over, warns, and **still renders**: there is deliberately no hard cap.
@@ -109,11 +117,18 @@ def _ordered(columns: list, keep: set[str]) -> list[str]:
     return seen
 
 
-def _warn_if_large(cell_count: int) -> None:
+def _warn_if_large(cell_count: int, *, drawn: int, ticks: int) -> None:
+    """Warn on the *grid* size but size the estimate by the cells actually drawn.
+
+    The two differ on a sparse grid, and each is right for its own half of the argument:
+    legibility is set by how small a grid cell gets, output size by how many rects exist.
+    Using the grid count for both overestimated a 100-cell diagonal by 17x.
+    """
     if cell_count <= _WARN_CELL_COUNT:
         return
+    estimate = (drawn * _BYTES_PER_CELL + ticks * _BYTES_PER_TICK) // 1024
     warnings.warn(
-        f"heatmap has {cell_count} cells (~{cell_count * _BYTES_PER_CELL // 1024} KB of SVG); "
+        f"heatmap has {cell_count} cells (~{estimate} KB of SVG); "
         f"above {_WARN_CELL_COUNT} cells the output gets large and each cell too small to read. "
         'Render to a raster instead if that matters: chart.save("heatmap.png") with the "png" extra.',
         HeatmapSizeWarning,
@@ -172,7 +187,7 @@ def heatmap(
 
     columns = _ordered(longform.columns[x], {key[0] for key in cells})
     rows = _ordered(longform.columns[y], {key[1] for key in cells})
-    _warn_if_large(len(columns) * len(rows))
+    _warn_if_large(len(columns) * len(rows), drawn=len(cells), ticks=len(columns) + len(rows))
 
     magnitudes = list(cells.values())
     normalize = Normalize.from_values(magnitudes, center=center)
