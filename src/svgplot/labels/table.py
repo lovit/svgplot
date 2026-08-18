@@ -57,17 +57,23 @@ def _collapse_newlines(text: str) -> str:
     return text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
 
 
-_MARKDOWN_ESCAPED = "`[]*_~|"
-"""Characters backslash-escaped in a markdown cell, so its value renders as written.
+_MARKDOWN_ESCAPED = "`[]*_|"
+r"""Characters backslash-escaped in a markdown cell, so its value renders as written.
 
-Three groups, one rule. ``|`` is the table's own column separator and would desynchronise
-the row. ``` ` ```, ``[`` and ``]`` begin **active content** -- a link, an image (a remote
-fetch, so an IP beacon for anyone who opens the document), or a code span. ``*``, ``_`` and
-``~`` only restyle. All three are escaped together because the rule worth having is "a cell
-is data, not markup", and a rule that admits some markup has to keep answering which.
+``|`` is the table's own column separator and would desynchronise the row. ``` ` ``,
+``[`` and ``]`` begin **active content** -- a code span, a link, or an image (a remote
+fetch, so an IP beacon for anyone who opens the document). ``*`` and ``_`` only restyle,
+and are escaped anyway: the rule worth having is "a cell is data, not markup", and a rule
+that admits some markup has to keep answering which.
 
-CommonMark allows a backslash escape before any ASCII punctuation, so each of these is
-valid in every markdown flavour this table can land in, and renders as the bare character.
+``~`` is the exception, and it is a rendering constraint rather than a judgement. CommonMark
+permits a backslash before any ASCII punctuation, but Python-Markdown -- MkDocs' engine, and
+this project's own -- carries a fixed escape list that does not include ``~``, so ``\~``
+reaches the reader as a visible backslash. Measured: ``x\~y`` renders as ``x\~y`` there.
+And the thing escaping it would prevent, GFM strikethrough, is already inert in that
+flavour. So escaping ``~`` corrupts every cell containing one, in exchange for suppressing
+a styling change in one flavour only. The other five are on Python-Markdown's list and
+render bare in both.
 """
 
 
@@ -85,11 +91,18 @@ def _escape_markdown_cell(text: str) -> str:
     two passes are independent, and a test pins that so the placement here stays a free
     choice rather than a silent dependency.
 
-    One thing this cannot neutralise: GFM's autolink extension turns a bare
-    ``https://example.com`` into a live link with no markup at all, and no escape stops it.
-    A cell holding a URL still renders as a link on GitHub. Killing that would mean
-    rewriting the value itself -- reporting data the caller never gave -- so the honest
-    limit is that this makes a cell's *markup* inert, not its *content* unclickable.
+    What this cannot neutralise is GFM's **autolink extension**, which links text carrying
+    no markup at all, so no escape reaches it. Measured against cmark-gfm, three forms
+    survive: a bare URL (``https://x/`` -> a link), a ``www.`` prefix (``www.x/`` ->
+    ``http://www.x/``), and an email address (``a@x`` -> ``mailto:``). The last is the one
+    that matters most in practice -- the representative ``info=`` input is a user-submitted
+    CSV, and an email column is commoner than a URL column.
+
+    Killing those would mean rewriting the value itself -- reporting data the caller never
+    gave -- so the honest limit is that this makes a cell's *markup* inert, not its
+    *content* unclickable. What it does remove entirely is the image: ``![x](url)`` emits
+    no ``<img>`` under any input, so the remote fetch is gone even though the URL inside it
+    still autolinks as text.
     """
     text = _collapse_newlines(text)
     text = text.replace("\\", "\\\\")
