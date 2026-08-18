@@ -254,7 +254,7 @@ def test_series_share_one_radial_scale() -> None:
     peaks = [max(_radius(point, HUED_CENTRE) for point in _vertices(polygon)) for polygon in polygons]
 
     assert max(peaks) == pytest.approx(HUED_OUTER)
-    assert min(peaks) < OUTER
+    assert min(peaks) < HUED_OUTER
 
 
 # ---------------------------------------------------------------------------
@@ -375,7 +375,11 @@ def test_dropping_the_hue_reclaims_the_reserved_legend_space() -> None:
     with_hue = _series(radarplot(_two_series(), x="stat", y="v", hue="who").to_string())[0]
 
     assert max(x for x, _ in _vertices(without)) > max(x for x, _ in _vertices(with_hue))
-    assert CENTRE[0] == pytest.approx(DEFAULT_WIDTH / 2)
+    # The dial's own centre, read off a rendered spoke rather than recomputed from the
+    # margin constant the chart used -- otherwise both sides of the comparison move
+    # together and the assertion holds whatever the margin is.
+    spokes = _tags(radarplot(_one_series(), x="stat", y="v").to_string(), "line", "grid-line")
+    assert float(spokes[0]["x1"]) == pytest.approx(DEFAULT_WIDTH / 2)
 
 
 # ---------------------------------------------------------------------------
@@ -500,3 +504,62 @@ def test_the_dial_geometry_is_pinned_to_literal_pixels() -> None:
 
     assert (CENTRE, OUTER) == ((400.0, 300.0), 242.0)
     assert (float(top_label["x"]), float(top_label["y"])) == (400.0, 40.0)  # 300 - (242 + 18)
+
+
+def test_a_label_a_hair_off_vertical_still_picks_a_side() -> None:
+    """``_ANCHOR_EPSILON`` exists to absorb float noise, not to claim a wedge of the circle.
+    Nothing pinned its size: widening it to 0.7 rad silently turned two of five labels on an
+    ordinary chart to ``middle`` and the whole suite stayed green, because the parametrised
+    cases stopped at +-45 degrees (|cos| = 0.707) and the on-chart check compared anchors as
+    a *set*."""
+    assert _label_anchor(-math.pi / 2 + 1e-6) == "start"
+    assert _label_anchor(-math.pi / 2 - 1e-6) == "end"
+    assert _label_anchor(math.pi / 2 + 1e-6) == "end"
+
+
+def test_every_label_on_a_real_chart_picks_the_side_its_spoke_is_on() -> None:
+    """Per label, not as a set: a set comparison passes as long as all three anchors appear
+    somewhere, however they are distributed."""
+    svg = radarplot(_one_series(), x="stat", y="v").to_string()
+    labels = _tags(svg, "text", "tick-label")
+
+    anchors = [(label["x"], label["text-anchor"]) for label in labels]
+    assert [anchor for _, anchor in anchors] == ["middle", "start", "start", "end", "end"]
+    for x, anchor in anchors:
+        expected = "middle" if float(x) == pytest.approx(CENTRE[0]) else ("start" if float(x) > CENTRE[0] else "end")
+        assert anchor == expected
+
+
+# ---------------------------------------------------------------------------
+# rows that name no series
+# ---------------------------------------------------------------------------
+
+
+def test_a_row_with_a_missing_hue_names_no_spoke() -> None:
+    """``extract_channels`` drops it from every group, so it belongs to no series and can no
+    more name a spoke than a row with a missing ``x`` can. Counting it left a category no
+    series could ever fill and blamed the resulting gap on an arbitrary series that never
+    had that row -- ``series 'A' has no value for 'f'``, when 'A' was never asked."""
+    data = {"stat": [*CATEGORIES, "f"], "v": [8.0, 6.0, 7.0, 5.0, 4.0, 3.0], "who": ["A"] * 5 + [None]}
+    svg = radarplot(data, x="stat", y="v", hue="who").to_string()
+
+    assert re.findall(r'class="tick-label"[^>]*>([^<]+)<', svg) == CATEGORIES
+
+
+def test_a_missing_y_still_names_its_spoke_and_is_refused() -> None:
+    """The other half of the same rule, kept apart from it: unlike a missing hue, a missing
+    value does name a place on the chart, and leaving it out would change the shape."""
+    data = {"stat": CATEGORIES * 2, "v": [8.0, 6.0, 7.0, 5.0, 4.0, 1.0, None, 1.0, 1.0, 1.0], "who": ["A"] * 5 + ["B"] * 5}
+
+    with pytest.raises(ValueError, match=r"series 'B' has no value for 'b'"):
+        radarplot(data, x="stat", y="v", hue="who")
+
+
+@pytest.mark.parametrize("bad", ["oops", object(), [1.0]])
+def test_a_non_numeric_value_is_refused_with_its_category_named(bad: object) -> None:
+    """``float()`` raises here anyway, but with a message naming neither the category nor
+    the column -- the same reason the finite/non-negative checks live in this module."""
+    data = {"stat": CATEGORIES, "v": [1.0, bad, 3.0, 4.0, 5.0]}
+
+    with pytest.raises(ValueError, match=r"radar values must be numbers.*for 'b'"):
+        radarplot(data, x="stat", y="v")
