@@ -177,14 +177,14 @@ def heatmap(
             the warning carries the cell count, an estimated size, and the one mitigation.
 
     Raises:
-        KeyError: if ``x``/``y``/``values`` isn't a column in ``data``, or if ``theme`` is a
-            string that isn't a registered preset name.
+        KeyError: if ``x``/``y``/``values`` isn't a column in ``data``, if ``theme`` is a
+            string that isn't a registered preset name, or (via ``palette``) if ``cmap`` is
+            in neither colormap registry.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
         ValueError: if ``data`` has no rows, if no row has all three channels, if two rows
             name the same cell, or if ``cmap`` and ``center`` disagree -- a diverging
             colormap needs a ``center`` to diverge about, and a ``center`` needs a diverging
             colormap. The two registries are disjoint, so exactly one pairing is valid.
-        KeyError: (via ``palette``) if ``cmap`` is in neither registry.
     """
     resolved_theme = resolve_theme(theme)
     longform = ingest_longform(data, x, y)
@@ -307,9 +307,18 @@ def _colormap(cmap: str, *, center: float | None) -> list[str]:
     ``cmap`` and ``center`` are two arguments that have to agree, and the registries are
     disjoint -- so getting the pair wrong is the likeliest mistake here, and the palette
     functions cannot name it: each sees only its own half and reports the caller's perfectly
-    valid colormap as an unknown one. ``center=1.0`` with the default ``cmap="blues"`` used
-    to raise ``KeyError: unknown diverging palette: 'blues'``, which names the wrong thing
-    twice: it is not unknown, and the key is not what the caller got wrong.
+    valid colormap as an unknown one. **Both directions already failed**, just unhelpfully:
+    ``center=1.0`` with the default ``cmap="blues"`` raised ``KeyError: unknown diverging
+    palette: 'blues'``, which names the wrong thing twice (it is not unknown, and the key is
+    not what the caller got wrong), and a diverging map without a ``center`` raised the
+    mirror image from the sequential registry. Neither ever rendered, so this changes the
+    error rather than the behaviour.
+
+    The reverse direction is refused rather than allowed because allowing it would mean
+    routing a diverging map through the sequential path, which puts its pale midpoint at the
+    middle of the *data range* instead of at a value the caller chose -- a centre that is
+    not there. Measured on data spanning 1..6, the neutral ``#f7f7f7`` level would cover
+    3.22..3.78, straddling the range's midpoint of 3.5.
 
     Raises:
         ValueError: if ``cmap`` names a colormap from the other registry, i.e. if a
