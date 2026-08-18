@@ -44,6 +44,15 @@ CHART_TYPES: list[tuple[str, Callable[..., Chart]]] = [
     ("kdeplot", lambda **kw: sp.kdeplot(DATA, x="value", hue="group", **kw)),
     ("violinplot", lambda **kw: sp.violinplot(DATA, x="group", y="value", **kw)),
     ("regplot", lambda **kw: sp.regplot(DATA, x="day", y="value", **kw)),
+    # y="group" rather than a second numeric column: heatmap needs one value per (x, y)
+    # cell and refuses a duplicate, so the two channels have to partition the rows. 8 cells
+    # is far under the size warning, which is deliberate -- a smoke test that warns would
+    # make every other assertion here run under a filter.
+    ("heatmap", lambda **kw: sp.heatmap(DATA, x="day", y="group", values="value", **kw)),
+    ("radarplot", lambda **kw: sp.radarplot(DATA, x="category", y="value", hue="group", **kw)),
+    ("treemap", lambda **kw: sp.treemap(DATA, values="value", labels="category", **kw)),
+    ("sparkline", lambda **kw: sp.sparkline(DATA, y="value", **kw)),
+    ("gaugeplot", lambda **kw: sp.gaugeplot(DATA, value="value", labels="category", **kw)),
 ]
 CHART_IDS = [name for name, _ in CHART_TYPES]
 CHART_FACTORIES = [factory for _, factory in CHART_TYPES]
@@ -56,7 +65,10 @@ def assert_renders_a_real_chart(svg: str) -> None:
     assert svg.startswith('<?xml version="1.0" encoding="UTF-8"?>')
     assert svg.rstrip().endswith("</svg>")
     assert "<style" in svg, "expected a theme <style> block"
-    assert 'class="series-1' in svg or 'class="series-1"' in svg, "expected at least one series-classed mark"
+    # Either a series-coloured mark or a value-coloured one. They are alternatives rather
+    # than a weakened check: heatmap's colour comes from the datum, not from a position in
+    # the palette, so it carries `level-N` and deliberately passes no series classes at all.
+    assert 'class="series-1' in svg or 'class="level-1' in svg, "expected at least one themed data mark"
     ET.fromstring(svg)  # parses => structurally valid XML, not just plausible text
 
 
@@ -263,3 +275,83 @@ def test_violinplot_takes_boxplot_s_positional_arguments() -> None:
     ]
 
     assert violin == box == ["data", "x", "y"]
+
+
+# ---------------------------------------------------------------------------
+# the shape charts (M8)
+# ---------------------------------------------------------------------------
+
+
+def _classed(svg: str, css_class: str) -> int:
+    """How many *elements* carry ``css_class``, ignoring the ``<style>`` block.
+
+    Searching the whole document would count the CSS rule itself, and every chart emits
+    every static rule -- so a naive substring check reports a cartesian axis on a pie."""
+    body = svg[: svg.index("<style>")] if "<style>" in svg else svg
+    return sum(1 for classes in re.findall(r'<\w+\b[^>]*class="([^"]*)"', body) if css_class in classes.split())
+
+
+@pytest.mark.parametrize(
+    ("name", "spines", "has_ticks"),
+    [
+        ("lineplot", 2, True),
+        ("heatmap", 2, True),
+        ("radarplot", 0, True),
+        ("gaugeplot", 8, True),
+        ("treemap", 0, False),
+        ("sparkline", 0, False),
+        ("pieplot", 0, False),
+    ],
+)
+def test_each_chart_draws_the_frame_its_shape_calls_for(name: str, spines: int, has_ticks: bool) -> None:
+    """Whether a chart has a cartesian axis is a design decision per chart, not an accident,
+    and the M8 shapes are where it stops being uniform. ``heatmap`` keeps both spines because
+    its cells sit on categorical axes; ``radarplot`` replaces them with spokes and rings but
+    still labels categories; ``gaugeplot``'s eight ``spine``-classed paths are its arc tracks
+    (an outlined region, not an axis) plus its own tick ring; ``treemap``/``sparkline``/
+    ``pieplot`` have no frame at all. A chart silently gaining or losing one would change how
+    it reads, and nothing else here would notice."""
+    svg = dict(CHART_TYPES)[name]().to_string()
+
+    assert _classed(svg, "spine") == spines
+    assert (_classed(svg, "tick-label") > 0) is has_ticks
+
+
+def test_sparkline_keeps_its_own_canvas_while_every_other_chart_shares_one() -> None:
+    """It is the one chart sized to sit inside a sentence, so the shared 800x600 default
+    would defeat its entire purpose."""
+    sizes = {
+        name: re.search(r'width="([\d.]+)" height="([\d.]+)"', factory().to_string()).groups() for name, factory in CHART_TYPES
+    }
+
+    assert sizes["sparkline"] == ("120", "24")
+    assert {size for name, size in sizes.items() if name != "sparkline"} == {("800", "600")}
+
+
+def test_a_mixed_composition_of_shape_charts_keeps_its_namespaces() -> None:
+    """The shape charts bring two class families the earlier compositions never exercised --
+    heatmap's value-coloured ``level-N`` and its annotation ink -- and composition rewrites
+    selectors by prefix, so a family it does not know about would cross-theme silently."""
+    composition = sp.row(
+        [
+            sp.heatmap(DATA, x="day", y="group", values="value", annot=True),
+            sp.radarplot(DATA, x="category", y="value", hue="group"),
+            sp.gaugeplot(DATA, value="value", labels="category"),
+        ]
+    )
+    svg = composition.to_string()
+    # One <style> per child plus the composition's own, so the rules have to be gathered
+    # from all of them -- reading only the first would report the first child's namespace
+    # as the only one and pass against a document that never namespaced the others.
+    rules = [
+        rule for block in re.findall(r"<style>(.*?)</style>", svg, re.S) for rule in re.findall(r"^\.([\w-]+)", block, re.M)
+    ]
+
+    assert {match.group(1) for rule in rules if (match := re.match(r"(c\d+)-", rule))} == {"c0", "c1", "c2"}
+    # Nothing escaped the rewrite: no data-mark rule survives without a namespace, which
+    # is what would let the second chart's palette repaint the first.
+    assert not [rule for rule in rules if rule.startswith(("level-", "series-"))]
+    # ...and heatmap's two families both made it through, not just the one composition
+    # already knew about.
+    assert any(rule.startswith("c0-level-") and rule.endswith("-annotation") for rule in rules)
+    ET.fromstring(svg)
