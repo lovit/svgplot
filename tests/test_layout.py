@@ -8,6 +8,7 @@ from svgplot.chart.base import Chart
 from svgplot.chart.composition import CAPTION_HEIGHT, TITLE_HEIGHT, Composition, chart_document, composition_document
 from svgplot.charts.line import lineplot
 from svgplot.layout.caption import add_caption
+from svgplot.layout.facet import facet
 from svgplot.layout.grid import column, grid, row
 from svgplot.layout.sizing import SIZE_MODES, apply_size
 
@@ -20,6 +21,27 @@ SPACING = 12.0
 
 def make_chart(theme: str | None = None):
     return lineplot(DATA, x="x", y="y", theme=theme)
+
+
+FACET_DATA = {
+    "x": [1, 2, 1, 2, 1, 2],
+    "y": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+    "c": ["L", "L", "R", "R", "R", "R"],
+    "r": ["top", "top", "top", "top", "bot", "bot"],
+}
+"""Three of four (row, col) facet combinations — the ``(bot, L)`` cell renders blank.
+Used by the accessibility tests to check that a blank cell is neither announced as a
+panel nor given accessibility markup of its own."""
+
+
+def describe(svg: str) -> str:
+    """The text of the composition's ``<desc>`` element."""
+    return re.search(r"<desc>([^<]*)</desc>", svg).group(1)
+
+
+def accessible_name(svg: str) -> str:
+    """The rendered ``aria-label`` — the name assistive tech actually announces."""
+    return re.search(r'\baria-label="([^"]*)"', svg).group(1)
 
 
 def root_size(svg: str) -> tuple[float, float]:
@@ -499,8 +521,19 @@ def test_composition_children_do_not_carry_their_own_accessibility() -> None:
 
 def test_composition_default_name_differs_from_a_single_charts() -> None:
     """A screen-reader user should be able to tell a multi-panel figure from a single
-    chart without exploring it."""
-    assert Composition.DEFAULT_TITLE != Chart.DEFAULT_TITLE
+    chart without exploring it.
+
+    Compares the two *rendered* names rather than the two class constants: asserting
+    ``Composition.DEFAULT_TITLE != Chart.DEFAULT_TITLE`` would keep passing even if a
+    render path stopped reading its constant altogether, which is the regression that
+    actually matters here.
+    """
+    composed = accessible_name(row([make_chart(), make_chart()]).to_string())
+    single = accessible_name(make_chart().to_string())
+
+    assert composed == Composition.DEFAULT_TITLE
+    assert single == Chart.DEFAULT_TITLE
+    assert composed != single
 
 
 def test_add_caption_becomes_the_accessible_name() -> None:
@@ -554,3 +587,124 @@ def test_saved_composition_file_also_carries_accessibility(tmp_path) -> None:
     written = target.read_text(encoding="utf-8")
     assert 'role="img"' in written
     assert "<title>Saved figure</title>" in written
+
+
+def test_column_carries_one_accessible_name_too() -> None:
+    """Issue #55's AC names row/column/grid/facet; ``column`` is a distinct entry point."""
+    svg = column([make_chart(), make_chart()]).to_string()
+
+    assert svg.count('role="img"') == 1
+    assert f'aria-label="{Composition.DEFAULT_TITLE}"' in svg
+    assert svg.count("<title>") == 1
+
+
+def test_facet_output_carries_one_accessible_name() -> None:
+    """``facet`` is the only entry point that generates blank cells on its own, so it is
+    the likeliest place for a per-panel accessibility regression to appear.
+    """
+    svg = facet(lineplot, FACET_DATA, col="c", row="r", x="x", y="y").to_string()
+
+    assert svg.count('role="img"') == 1
+    assert svg.count("<title>") == 1
+    assert svg.count("<desc>") == 1
+
+
+def test_blank_cells_are_not_announced_as_charts() -> None:
+    """``FACET_DATA`` fills three of four (row, col) cells, so the fourth renders blank.
+    The description must count placed charts, not grid cells — telling a screen-reader
+    user there are four panels when one is empty sends them hunting for a panel that
+    isn't there.
+    """
+    assert describe(facet(lineplot, FACET_DATA, col="c", row="r", x="x", y="y").to_string()) == (
+        "A figure composed of 3 charts."
+    )
+    assert describe(grid([[make_chart(), make_chart()], [make_chart(), None]]).to_string()) == (
+        "A figure composed of 3 charts."
+    )
+
+
+def test_a_one_chart_composition_is_described_in_the_singular() -> None:
+    """``row([chart])`` is legal, and "composed of 1 charts" is read aloud verbatim."""
+    assert describe(row([make_chart()]).to_string()) == "A figure composed of 1 chart."
+
+
+def test_a_whitespace_only_title_does_not_block_caption_adoption() -> None:
+    """``set_title("   ")`` falls back to the default at render time, so it must also
+    read as unset when ``add_caption`` decides whether to adopt its text. If the two
+    disagreed, this figure would show the caption while announcing the generic default.
+    """
+    composition = row([make_chart(), make_chart()]).set_title("   ")
+
+    add_caption(composition, "Figure 3. Quarterly revenue")
+
+    assert 'aria-label="Figure 3. Quarterly revenue"' in composition.to_string()
+
+
+def test_a_set_title_after_a_caption_still_wins() -> None:
+    """The other precedence order: an explicit name overrides an already-adopted caption."""
+    composition = add_caption(row([make_chart(), make_chart()]), "Some caption")
+
+    composition.set_title("Explicit name")
+
+    assert 'aria-label="Explicit name"' in composition.to_string()
+
+
+def test_a_second_caption_does_not_rename_the_figure() -> None:
+    """Both caption bands render, but the first stays the figure's name — a later band
+    adds to the figure rather than correcting what it is called.
+    """
+    composition = add_caption(row([make_chart(), make_chart()]), "First caption")
+
+    add_caption(composition, "Second caption", location="above")
+
+    svg = composition.to_string()
+    assert "First caption" in svg
+    assert "Second caption" in svg
+    assert 'aria-label="First caption"' in svg
+
+
+def test_a_caption_is_escaped_before_it_reaches_the_accessible_name() -> None:
+    """Captions are caller input and land in both an attribute and element text."""
+    svg = add_caption(row([make_chart(), make_chart()]), "</title><script>alert(1)</script>").to_string()
+
+    assert "<script>" not in svg
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in svg
+
+
+def test_a_title_cannot_break_out_of_the_aria_label_attribute() -> None:
+    """``aria-label`` is an attribute-context sink this feature newly introduces, so it
+    needs pinning separately from the element-text case above.
+    """
+    svg = row([make_chart(), make_chart()]).set_title('" onload="alert(1)').to_string()
+
+    assert 'onload="alert(1)"' not in svg
+    assert accessible_name(svg) == "&quot; onload=&quot;alert(1)"
+
+
+def test_an_xml_illegal_title_is_rejected_rather_than_corrupting_the_output() -> None:
+    """A character XML 1.0 forbids must fail loudly at render time. Silently dropping it
+    would emit an SVG that no parser accepts, which is worse than an exception.
+    """
+    composition = row([make_chart(), make_chart()]).set_title("bad\x00title")
+
+    with pytest.raises(ValueError, match="XML 1.0"):
+        composition.to_string()
+
+
+def test_the_png_branch_also_writes_the_accessible_document(monkeypatch, tmp_path) -> None:
+    """``save`` builds the accessible document once and hands it to whichever writer the
+    extension selects. The ``.svg`` test can't catch a ``.png`` branch that passed
+    ``self._svg_document`` instead, since the two are separate lines. Spying on the
+    writer keeps this runnable whether or not cairosvg is installed.
+    """
+    captured: dict[str, str] = {}
+
+    def spy(document, path: str) -> None:
+        captured["svg"] = document.to_string()
+
+    monkeypatch.setattr("svgplot.chart.composition.to_png", spy)
+
+    row([make_chart(), make_chart()]).set_title("PNG figure").save(str(tmp_path / "figure.png"))
+
+    assert 'role="img"' in captured["svg"]
+    assert "<title>PNG figure</title>" in captured["svg"]
