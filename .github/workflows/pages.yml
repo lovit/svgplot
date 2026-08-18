@@ -1,0 +1,39 @@
+name: Pages
+
+# Milestone 6(갤러리)에서 tools/build_gallery.py가 site/를 생성하도록 확장할 자리다.
+# 지금은 Pages가 실제로 서빙되는지 확인하기 위한 최소 placeholder만 배포한다.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# GITHUB_TOKEN에 Pages 배포 권한만 부여(최소 권한). contents는 checkout용 read만.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 배포는 동시에 하나만. 진행 중인 배포는 취소하지 않는다(중간에 끊긴 배포가
+# 사이트를 망가진 상태로 남기지 않도록).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Build placeholder site
+        run: |
+          mkdir -p site
+          cp site-src/index.html site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
