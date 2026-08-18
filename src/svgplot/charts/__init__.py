@@ -14,6 +14,7 @@ from svgplot.charts.regression import regplot
 from svgplot.charts.scatter import scatterplot
 from svgplot.charts.sparkline import sparkline
 from svgplot.charts.treemap import treemap
+from svgplot.charts.violin import violinplot
 
 __all__ = [
     "areaplot",
@@ -28,4 +29,5 @@ __all__ = [
     "scatterplot",
     "sparkline",
     "treemap",
+    "violinplot",
 ]
