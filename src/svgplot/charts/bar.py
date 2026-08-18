@@ -63,6 +63,7 @@ def barplot(
     stacked: bool = False,
     theme: Theme | str | None = None,
     categories: tuple[str, ...] | None = None,
+    xlim: tuple[float, float] | None = None,
     ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a bar chart from long-form data.
@@ -77,7 +78,8 @@ def barplot(
     single-series bar per category.
 
     ``categories=`` replaces the category list this chart would take from its own data, and
-    ``ylim=`` its value domain. They exist so several charts can be made to agree -- see
+    ``xlim=``/``ylim=`` its value domain -- whichever names the axis the values run along,
+    which ``orient=`` decides. They exist so several charts can be made to agree -- see
     :func:`~svgplot.layout.facet.facet`. A category with no rows still gets its band and its
     place in the palette, so the same category is the same colour in every chart sharing the
     list; it simply has no mark drawn in it.
@@ -116,7 +118,9 @@ def barplot(
     else:
         value_max = max(all_values) if all_values else 0.0
     value_max = value_max or 1.0  # an all-zero chart still needs a non-degenerate axis
-    value_domain = apply_limit((0.0, value_max), ylim)
+    # xlim/ylim name the axis on screen, not the data role: a horizontal bar's values run
+    # along x. Taking ylim there would mean "share the y axis" moved the bars sideways.
+    value_domain = apply_limit((0.0, value_max), xlim if orient == "h" else ylim)
 
     document, area = new_canvas(MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
 
@@ -186,4 +190,12 @@ def barplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document, domains=Domains(y=value_domain, categories=tuple(drawn_categories)))
+    value_axis = "x" if orient == "h" else "y"
+    return Chart(
+        document,
+        domains=Domains(
+            **{value_axis: value_domain},
+            categories=tuple(drawn_categories),
+            categories_axis="y" if orient == "h" else "x",
+        ),
+    )

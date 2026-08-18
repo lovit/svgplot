@@ -44,6 +44,10 @@ class Domains:
     x: tuple[float, float] | None = None
     y: tuple[float, float] | None = None
     categories: tuple[str, ...] | None = None
+    categories_axis: str = "x"
+    """Which **screen** axis the categories occupy. ``barplot(orient="h")`` draws them up
+    the left edge, and a caller sharing "the x axis" means the one it can see -- so the
+    field has to record where they landed, not which data role they play."""
 
     def is_empty(self) -> bool:
         return self.x is None and self.y is None and self.categories is None
@@ -71,10 +75,15 @@ def union(domains: list[Domains]) -> Domains:
             if category not in categories:
                 categories.append(category)
 
+    axes = {domain.categories_axis for domain in domains if domain.categories is not None}
+    if len(axes) > 1:
+        raise ValueError(f"charts disagree about which axis holds their categories: {sorted(axes)}")
+
     return Domains(
         x=(min(low for low, _ in xs), max(high for _, high in xs)) if xs else None,
         y=(min(low for low, _ in ys), max(high for _, high in ys)) if ys else None,
         categories=tuple(categories) or None,
+        categories_axis=axes.pop() if axes else "x",
     )
 
 
