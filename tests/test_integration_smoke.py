@@ -19,9 +19,13 @@ import pytest
 
 import svgplot as sp
 from svgplot.chart.base import Chart
-from svgplot.charts._layout import format_coord
+from svgplot.charts._layout import DEFAULT_WIDTH, SPARKLINE_WIDTH, format_coord
 from svgplot.charts._legend import _SWATCH_HEIGHT, _SWATCH_WIDTH
 from svgplot.theme.presets import PRESETS
+
+_ROW_SPACING = 12.0
+"""``layout.grid.row``'s default gap. A literal, so the width arithmetic below fails if the
+default changes rather than following it."""
 
 # One long-form frame every chart type can read, so the parametrized cases below
 # differ only in which plotting function they call.
@@ -382,11 +386,42 @@ def test_the_shape_charts_facet(factory: Callable[..., Chart], kwargs: dict[str,
     ET.fromstring(svg)
 
 
-def test_a_composition_survives_children_of_different_canvas_sizes() -> None:
+def _mixed_size_row() -> str:
+    """The **narrow** child first. With the wide one leading, its own width and the widest
+    width are the same number, so advancing by ``max(col_widths)`` instead of by each
+    column's own puts the second child in exactly the right place anyway -- the two
+    formulas coincide and the offset assertion below checks nothing."""
+    return sp.row([sp.sparkline(DATA, y="value"), sp.treemap(DATA, values="value", labels="category")]).to_string()
+
+
+def test_a_composition_gives_each_child_its_own_width() -> None:
     """``sparkline`` is the one chart with its own canvas, which makes it the likeliest
-    thing to break a layout that assumes every child is the same size."""
-    composition = sp.row([sp.treemap(DATA, values="value", labels="category"), sp.sparkline(DATA, y="value")])
-    svg = composition.to_string()
+    thing to break a layout that assumes every child is the same size -- so this has to
+    assert the *sizes*, not just that the two children were namespaced apart. Sizing every
+    column to the widest blows the 120px sparkline's column up to 800 and the sheet from
+    932 to 1612, and the version of this test that only checked namespacing stayed green."""
+    svg = _mixed_size_row()
+    widths = [float(width) for width, _ in re.findall(r'<svg[^>]*width="([\d.]+)" height="([\d.]+)"', svg)]
+
+    root, sparkline_width, treemap_width = widths
+    assert (sparkline_width, treemap_width) == (SPARKLINE_WIDTH, DEFAULT_WIDTH)
+    assert root == sparkline_width + treemap_width + _ROW_SPACING
+
+
+def test_a_composition_places_a_narrow_child_right_after_its_neighbour() -> None:
+    """The width arithmetic above is satisfied by a sheet that is the right size but leaves
+    a gap inside it: advancing by the widest column rather than by each column's own moves
+    the second child without changing the total, so the offsets need their own assertion --
+    and the narrow child has to lead, or the two formulas agree (see ``_mixed_size_row``)."""
+    svg = _mixed_size_row()
+    offsets = [float(x) for x in re.findall(r'<svg x="(-?[\d.]+)" y="-?[\d.]+"', svg)]
+
+    assert offsets == [0.0, SPARKLINE_WIDTH + _ROW_SPACING]
+
+
+def test_a_composition_of_differently_sized_children_keeps_its_namespaces() -> None:
+    """The other half, kept separate so neither assertion can stand in for the other."""
+    svg = _mixed_size_row()
     rules = [
         rule for block in re.findall(r"<style>(.*?)</style>", svg, re.S) for rule in re.findall(r"^\.([\w-]+)", block, re.M)
     ]
