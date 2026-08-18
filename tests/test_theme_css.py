@@ -204,3 +204,136 @@ def test_theme_rejects_an_out_of_range_or_non_numeric_fill_opacity(bad: object) 
     """
     with pytest.raises(ValueError, match="fill_opacity"):
         Theme(fill_opacity=bad)  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# mark_style="outlined" and level_colors (issue #62)
+# ---------------------------------------------------------------------------
+
+
+def _series_rules(css: str, class_name: str = "series-1") -> list[str]:
+    """Only the rules for one class — the shared base rules (.plot-background etc.)
+    are asserted elsewhere and would drown out what these tests are about."""
+    return [line for line in css.splitlines() if line.startswith(f".{class_name} ")]
+
+
+def test_outlined_marks_carry_both_a_stroke_and_a_translucent_fill() -> None:
+    """Neither existing mark_style can express this: "stroke" forces `fill: none` and
+    "fill" forces `stroke: none`, so a bounded-and-filled shape (violin body, filled
+    KDE, treemap tile, radar polygon, gauge arc) had no representation at all.
+    """
+    (rule,) = _series_rules(_fill_style_text(Theme(), mark_style="outlined"))
+
+    assert "stroke: #E69F00;" in rule
+    assert "fill: #E69F00;" in rule
+    assert "fill-opacity: 0.75;" in rule
+
+
+def test_outlined_keeps_the_stroke_opaque_while_softening_only_the_interior() -> None:
+    """The stroke is the shape's boundary and must stay at theme.opacity; only the
+    interior takes the fill factor. Pre-multiplying the two into one `opacity` would
+    fade the outline too, losing the boundary that makes the mark "outlined".
+    """
+    (rule,) = _series_rules(_fill_style_text(Theme(opacity=0.5, fill_opacity=0.4), mark_style="outlined"))
+
+    assert "opacity: 0.5;" in rule
+    assert "fill-opacity: 0.4;" in rule
+    assert "opacity: 0.2;" not in rule  # the pre-multiplied product must not appear
+
+
+def test_outlined_emits_no_marker_companion_rule() -> None:
+    """Unlike "stroke", an outlined mark already fills itself — a separate `-marker`
+    fill rule would be dead CSS."""
+    css = _fill_style_text(Theme(), mark_style="outlined")
+
+    assert "-marker" not in css
+
+
+def test_render_theme_style_rejects_an_unknown_mark_style() -> None:
+    document = SvgDocument()
+
+    with pytest.raises(ValueError, match="mark_style"):
+        render_theme_style(document, Theme(), ["series-1"], mark_style="dotted")
+
+
+def test_level_colors_emit_one_rule_per_class_from_the_given_color() -> None:
+    """A heatmap cell's color comes from its value, not from a palette cycle position,
+    so the caller supplies the color explicitly rather than by index."""
+    document = SvgDocument()
+    render_theme_style(document, Theme(), [], level_colors={"level-1": "#08519c", "level-2": "#6baed6"})
+    css = _style_text(document)
+
+    assert ".level-1 { fill: #08519c; stroke: none; opacity: 1; }" in css
+    assert ".level-2 { fill: #6baed6; stroke: none; opacity: 1; }" in css
+
+
+def test_level_colors_are_not_dimmed_by_fill_opacity() -> None:
+    """A level color *is* the data encoding — blending the background into it reports a
+    different value for every cell, uniformly enough that the distortion is invisible.
+    fill_opacity exists to stop overlapping marks occluding each other; tiled cells
+    never had that problem. Pinned against the CSS text because a regression here is
+    silently wrong output rather than an error.
+    """
+    document = SvgDocument()
+    render_theme_style(document, Theme(opacity=0.8, fill_opacity=0.5), [], level_colors={"level-1": "#08519c"})
+
+    (rule,) = _series_rules(_style_text(document), "level-1")
+    assert "opacity: 0.8;" in rule
+    assert "opacity: 0.4;" not in rule  # 0.8 * 0.5, the product used by mark_style="fill"
+
+
+def test_level_colors_work_alongside_palette_colored_series() -> None:
+    document = SvgDocument()
+    render_theme_style(document, Theme(), ["series-1"], mark_style="fill", level_colors={"level-1": "#08519c"})
+    css = _style_text(document)
+
+    assert _series_rules(css, "series-1")
+    assert _series_rules(css, "level-1")
+
+
+def test_a_class_in_both_series_and_level_colors_is_rejected() -> None:
+    """Two rules for one class would leave the winner decided by emission order — a
+    silent, position-dependent override rather than a visible error."""
+    document = SvgDocument()
+
+    with pytest.raises(ValueError, match="both series_classes and level_colors"):
+        render_theme_style(document, Theme(), ["series-1"], level_colors={"series-1": "#08519c"})
+
+
+@pytest.mark.parametrize("bad_key", ["level}1", "level 1", ".level-1", "1level", "level{}x", ""])
+def test_level_colors_reject_a_css_unsafe_class_name(bad_key: str) -> None:
+    """Same breakout vector as an unvalidated series class: _svg.py's XML-only class
+    validation permits `{`/`}`/`;`, which are CSS-unsafe."""
+    document = SvgDocument()
+
+    with pytest.raises(ValueError, match="class name"):
+        render_theme_style(document, Theme(), [], level_colors={bad_key: "#08519c"})
+
+
+@pytest.mark.parametrize("bad_color", ["red", "#08519", "#08519cc", "} body { background: red", 42, None])
+def test_level_colors_reject_a_non_hex_color(bad_color: object) -> None:
+    document = SvgDocument()
+
+    with pytest.raises(ValueError, match="level_colors"):
+        render_theme_style(document, Theme(), [], level_colors={"level-1": bad_color})  # type: ignore[dict-item]
+
+
+def test_level_rules_survive_composition_namespacing() -> None:
+    """The whole reason level colors go through CSS classes rather than a `fill=`
+    presentation attribute: composition rewrites child selectors so two charts can't
+    cross-theme each other. A `fill=` attribute would be invisible to that rewrite and
+    would silently mis-theme a composed pair.
+    """
+    from svgplot.chart.base import Chart
+    from svgplot.chart.composition import Placement, compose
+
+    document = SvgDocument(width=100, height=100)
+    document.add_node(None, "rect", attrib={"x": 0, "y": 0, "width": 10, "height": 10}, classes=["level-1"])
+    render_theme_style(document, Theme(), [], level_colors={"level-1": "#08519c"})
+
+    composed = compose([Placement(Chart(document), x=0, y=0, width=100, height=100)], width=100, height=100)
+    svg = composed.to_string()
+
+    assert ".c0-level-1 {" in svg
+    assert 'class="c0-level-1"' in svg
+    assert ".level-1 {" not in svg

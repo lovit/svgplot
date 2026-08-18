@@ -61,19 +61,26 @@ def _validate_css_font_family(value: object, *, field: str) -> str:
     return value
 
 
-def _validate_css_class_name(value: str) -> str:
-    """``series_classes`` entries are also caller-controlled data, not just Theme's
-    fields — an unvalidated class name (e.g. ``"x{}body{background:red}.y"``) is just
-    as much a CSS-breakout vector as an unvalidated color, so it needs the same
+def _validate_css_class_name(value: str, *, kind: str = "series") -> str:
+    """``series_classes``/``level_colors`` entries are also caller-controlled data, not
+    just Theme's fields — an unvalidated class name (e.g. ``"x{}body{background:red}.y"``)
+    is just as much a CSS-breakout vector as an unvalidated color, so it needs the same
     up-front rejection rather than trusting ``_svg.py``'s XML-only class validation
     (which permits characters like ``{``/``}``/``;`` that are CSS-unsafe but XML-safe).
     """
-    if not _CSS_CLASS_NAME_RE.fullmatch(value):
-        raise ValueError(f"series class name must match {_CSS_CLASS_NAME_RE.pattern!r} for safe CSS embedding, got {value!r}")
+    if not isinstance(value, str) or not _CSS_CLASS_NAME_RE.fullmatch(value):
+        raise ValueError(f"{kind} class name must match {_CSS_CLASS_NAME_RE.pattern!r} for safe CSS embedding, got {value!r}")
     return value
 
 
-def render_theme_style(document: SvgDocument, theme: Theme, series_classes: list[str], *, mark_style: str = "stroke") -> None:
+def render_theme_style(
+    document: SvgDocument,
+    theme: Theme,
+    series_classes: list[str],
+    *,
+    mark_style: str = "stroke",
+    level_colors: dict[str, str] | None = None,
+) -> None:
     """Emit one ``<style>`` element (child of ``document``'s root) with CSS rules for
     the shared static chart elements (background/grid/spine/tick/tick-label/legend-text)
     plus one rule per entry in ``series_classes``, colored by cycling through
@@ -87,10 +94,31 @@ def render_theme_style(document: SvgDocument, theme: Theme, series_classes: list
     future scatter/line-with-markers chart); ``"fill"`` (solid marks like bars/areas/
     pie slices) sets ``fill``/leaves ``stroke: none`` and emits no separate marker
     rule, since a fill-based mark has no meaningful separate "marker" companion.
-    Filled marks are also emitted at ``theme.opacity * theme.fill_opacity`` rather than
+    ``"outlined"`` sets *both* — a visible ``stroke`` outline plus a translucent
+    ``fill`` (via ``fill-opacity``) — for shapes that are simultaneously bounded and
+    filled (violin bodies, filled KDE curves, treemap tiles, radar polygons, gauge
+    arcs). That shape is inexpressible with the other two, which force ``fill: none``
+    and ``stroke: none`` respectively, and it can't borrow the ``-marker`` rule
+    either: that rule carries no opacity, so overlapping hue groups would fully
+    occlude, and adding opacity to it would silently change ``boxplot``'s already
+    shipped rendering.
+
+    Filled marks are emitted at ``theme.opacity * theme.fill_opacity`` rather than
     ``theme.opacity`` alone, so overlapping fills stay mutually visible by default —
     see :attr:`Theme.fill_opacity <svgplot.theme.base.Theme>` for why fills need that
-    and strokes don't.
+    and strokes don't. ``"outlined"`` keeps the two factors separate instead of
+    pre-multiplying them: its stroke is the shape's boundary and must stay as opaque
+    as ``theme.opacity`` says, while only the interior is softened, so the fill
+    factor rides on ``fill-opacity`` and the whole-mark factor on ``opacity``.
+
+    ``level_colors`` maps a CSS class name to an explicit ``#rrggbb``, for marks whose
+    color encodes a *value* rather than a series identity — a heatmap cell's color
+    comes from its datum, not from its position in ``theme.palette``. There is no other
+    legal way to express that: ``_svg.py`` rejects ``style=`` attributes outright, and a
+    ``fill=`` presentation attribute would both regress the CSS-class-only styling
+    contract (docs/research/12-aesthetics.md §4) and be invisible to
+    ``chart.composition``'s selector-namespacing rewrite, so composing two
+    value-colored charts would silently cross-theme them.
 
     Meant to be called once per document, after all data marks/axes/legend have been
     added (order doesn't matter for correctness — CSS class rules apply regardless of
@@ -100,11 +128,13 @@ def render_theme_style(document: SvgDocument, theme: Theme, series_classes: list
     Raises:
         ValueError: if any theme color isn't a strict ``#rrggbb`` hex string, if
             ``theme.font_family`` contains a character outside the safe allow-list,
-            if any numeric style field isn't finite, or if ``mark_style`` isn't
-            ``"stroke"`` or ``"fill"``.
+            if any numeric style field isn't finite, if ``mark_style`` isn't
+            ``"stroke"``/``"fill"``/``"outlined"``, if a ``level_colors`` key or value
+            fails the same validation ``series_classes``/theme colors get, or if a
+            class name appears in both ``series_classes`` and ``level_colors``.
     """
-    if mark_style not in ("stroke", "fill"):
-        raise ValueError(f"mark_style must be 'stroke' or 'fill', got {mark_style!r}")
+    if mark_style not in ("stroke", "fill", "outlined"):
+        raise ValueError(f"mark_style must be 'stroke', 'fill', or 'outlined', got {mark_style!r}")
     background = _validate_css_color(theme.background, field="theme.background")
     foreground = _validate_css_color(theme.foreground, field="theme.foreground")
     grid_color = _validate_css_color(theme.grid_color, field="theme.grid_color")
@@ -119,6 +149,11 @@ def render_theme_style(document: SvgDocument, theme: Theme, series_classes: list
     # Filled marks occlude each other, so they carry an extra factor (see Theme.fill_opacity).
     # Multiplied, not substituted, so theme.opacity still dims every mark type uniformly.
     fill_opacity = format_coord(theme.opacity * theme.fill_opacity)
+    # "outlined" keeps the factors on separate properties rather than pre-multiplying:
+    # its stroke is the shape's boundary and stays at theme.opacity, while fill-opacity
+    # softens only the interior. CSS multiplies them for the fill anyway, so the rendered
+    # interior alpha still matches the "fill" branch's product.
+    mark_fill_opacity = format_coord(theme.fill_opacity)
     tick_label_size = format_coord(theme.tick_label_font_size)
     legend_size = format_coord(theme.legend_font_size)
 
@@ -144,7 +179,30 @@ def render_theme_style(document: SvgDocument, theme: Theme, series_classes: list
         if mark_style == "stroke":
             rules.append(f".{class_name} {{ stroke: {color}; fill: none; stroke-width: {line_width}; opacity: {opacity}; }}")
             rules.append(f".{class_name}-marker {{ fill: {color}; stroke: none; }}")
+        elif mark_style == "outlined":
+            rules.append(
+                f".{class_name} {{ stroke: {color}; stroke-width: {line_width}; "
+                f"fill: {color}; fill-opacity: {mark_fill_opacity}; opacity: {opacity}; }}"
+            )
         else:
             rules.append(f".{class_name} {{ fill: {color}; stroke: none; opacity: {fill_opacity}; }}")
+
+    for class_name, raw_color in (level_colors or {}).items():
+        _validate_css_class_name(class_name, kind="level")
+        if class_name in seen_classes:
+            # Two rules for one class would leave the winner decided by emission order —
+            # a silent, position-dependent override. A caller mixing a palette-colored
+            # series with a value-colored level under one name is confused, not clever.
+            raise ValueError(f"class name {class_name!r} appears in both series_classes and level_colors")
+        seen_classes.add(class_name)
+        color = _validate_css_color(raw_color, field=f"level_colors[{class_name!r}]")
+        # theme.opacity only — deliberately NOT multiplied by theme.fill_opacity, unlike
+        # every other filled mark above. A level color *is* the data encoding: the reader
+        # decodes the cell's value from its hue, so blending 25% of the background into it
+        # doesn't merely soften the look, it reports a different value for every cell, and
+        # uniformly enough that the distortion is invisible. fill_opacity exists to stop
+        # overlapping marks from occluding one another (issue #45); level-colored marks
+        # tile rather than overlap, so they never had that problem to solve.
+        rules.append(f".{class_name} {{ fill: {color}; stroke: none; opacity: {opacity}; }}")
 
     document.add_text(None, "\n".join(rules), tag="style")
