@@ -37,23 +37,29 @@ def _point(cx: float, cy: float, r: float, angle: float) -> tuple[float, float]:
     return (cx + r * math.cos(angle), cy + r * math.sin(angle))
 
 
+def _circle_loop(cx: float, cy: float, r: float) -> str:
+    """One closed circle, drawn as two 180-degree arcs: 9 o'clock -> 3 o'clock -> back.
+
+    Each arc must *end* somewhere other than where it started -- an ``A`` whose start
+    and end points coincide is dropped entirely by the renderer (SVG spec F.6.2), so
+    sweeping straight back to the start point silently yields half a circle.
+    """
+    return f"M {format_coord(cx - r)},{format_coord(cy)} " + " ".join(
+        f"A {format_coord(r)},{format_coord(r)} 0 1 1 {format_coord(x)},{format_coord(y)}"
+        for x, y in (_point(cx, cy, r, 0.0), _point(cx, cy, r, math.pi))
+    )
+
+
 def _full_circle_path(cx: float, cy: float, outer_r: float, inner_r: float) -> str:
     """A 360-degree slice degenerates for a single ``A`` arc command (its start and
     end points coincide), so a full circle is drawn as two 180-degree arcs instead
     -- and, for a donut, the inner boundary is a second such loop combined via
     ``fill-rule="evenodd"`` to punch the hole.
     """
-    outer_loop = f"M {format_coord(cx - outer_r)},{format_coord(cy)} " + " ".join(
-        f"A {format_coord(outer_r)},{format_coord(outer_r)} 0 1 1 {format_coord(x)},{format_coord(y)}"
-        for x, y in (_point(cx, cy, outer_r, math.pi), _point(cx, cy, outer_r, 0.0))
-    )
+    outer_loop = _circle_loop(cx, cy, outer_r)
     if inner_r <= 0:
         return outer_loop + " Z"
-    inner_loop = f"M {format_coord(cx - inner_r)},{format_coord(cy)} " + " ".join(
-        f"A {format_coord(inner_r)},{format_coord(inner_r)} 0 1 1 {format_coord(x)},{format_coord(y)}"
-        for x, y in (_point(cx, cy, inner_r, math.pi), _point(cx, cy, inner_r, 0.0))
-    )
-    return f"{outer_loop} Z {inner_loop} Z"
+    return f"{outer_loop} Z {_circle_loop(cx, cy, inner_r)} Z"
 
 
 def _slice_path(cx: float, cy: float, outer_r: float, inner_r: float, start_angle: float, end_angle: float) -> str:
