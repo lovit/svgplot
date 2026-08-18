@@ -7,9 +7,13 @@ from pathlib import Path
 from svgplot._svg import SvgDocument
 
 
-def to_string(document: SvgDocument, *, pretty: bool = True) -> str:
-    """Serialize an SvgDocument to an SVG string."""
-    return document.to_string(pretty=pretty)
+def to_string(document: SvgDocument, *, pretty: bool = True, declaration: bool = True) -> str:
+    """Serialize an SvgDocument to an SVG string.
+
+    ``declaration=False`` drops the XML prolog while keeping the indentation — what
+    markdown embedding needs. See :meth:`svgplot._svg.SvgDocument.to_string`.
+    """
+    return document.to_string(pretty=pretty, declaration=declaration)
 
 
 def save_svg(document: SvgDocument, path: str, *, pretty: bool = True) -> None:
