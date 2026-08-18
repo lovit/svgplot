@@ -351,16 +351,19 @@ def test_set_attribute_class_rejects_control_character_in_a_class_token() -> Non
         doc.set_attribute(node, "class", "a\x00b")
 
 
-def test_add_text_rejects_script_and_style_tags() -> None:
+def test_add_text_rejects_script_tag() -> None:
+    """ "script" must never be allowed here, unlike "style" (issue #12 added "style"
+    to the allow-list — see this module's "Security note (issue #12)" — because it
+    has a sanctioned, self-validating caller; "script" has no such caller and never
+    should, since this package emits no JS.
+    """
     doc = SvgDocument()
 
     with pytest.raises(ValueError, match="text-bearing tags"):
         doc.add_text(None, "fetch('//evil/')", tag="script")
-    with pytest.raises(ValueError, match="text-bearing tags"):
-        doc.add_text(None, "@import url('//evil/x.css')", tag="style")
 
 
-@pytest.mark.parametrize("tag", ["text", "tspan", "title", "desc", "textPath"])
+@pytest.mark.parametrize("tag", ["text", "tspan", "title", "desc", "textPath", "style"])
 def test_add_text_allows_every_text_bearing_tag(tag: str) -> None:
     doc = SvgDocument()
 

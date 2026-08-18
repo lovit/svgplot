@@ -27,6 +27,18 @@ validity — it does not vet attribute *values* for XSS-relevant semantics
 (e.g. a ``javascript:`` URI in ``href``). No current caller in this package
 emits URI-bearing attributes; a future caller that does must validate the
 URI scheme itself before calling into this module.
+
+Security note (issue #12): ``"style"`` is allowed in ``_TEXT_BEARING_TAGS``
+(``"script"`` is not, and never should be — this package emits no JS).
+Unlike every other text-bearing tag here, this module's own escaping is
+*not* sufficient for ``<style>``: XML text escaping stops ``<``/``&`` from
+breaking out of the element, but does nothing to stop ``}``/``;``/``@import``/
+``url(...)`` from breaking out of a CSS *rule* once inside. The only sanctioned
+caller is ``theme.css.render_theme_style``, which independently validates
+every value it embeds (colors via a strict ``#rrggbb`` regex, font family via
+an allowlisted character set) before ever reaching ``add_text`` — this module
+still only guarantees XML-structural safety for ``<style>`` content, exactly
+as it does for every other tag; CSS-semantic safety is the caller's job.
 """
 
 from __future__ import annotations
@@ -41,7 +53,7 @@ SVG_NS = "http://www.w3.org/2000/svg"
 _NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*(:[A-Za-z_][A-Za-z0-9_.-]*)?$")
 _INVALID_XML_CHAR_RE = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 _BLOCKED_ATTRIBUTE_LOCAL_NAMES = frozenset({"style"})
-_TEXT_BEARING_TAGS = frozenset({"text", "tspan", "title", "desc", "textPath"})
+_TEXT_BEARING_TAGS = frozenset({"text", "tspan", "title", "desc", "textPath", "style"})
 
 
 def _validate_name(name: str, kind: str) -> str:
@@ -164,11 +176,16 @@ class SvgDocument:
         restricted to a fixed allow-list of text-bearing SVG elements (not the general
         tag-name validation :meth:`add_node` uses): unlike attribute values, text
         *content* has no further escaping once inside an element, so allowing an
-        arbitrary tag here would let ``<script>``/``<style>`` carry attacker-influenced
-        content straight through — the value-escaping ElementTree does still applies,
-        but it's meaningless for those two elements' semantics. ``tag`` is keyword-only
-        so a caller can never accidentally pass a positional ``attrib``/``classes``
-        argument that lands in this slot instead.
+        arbitrary tag here would let ``<script>`` carry attacker-influenced content
+        straight through as executable JS — the value-escaping ElementTree does still
+        apply, but it's meaningless for that element's semantics, so ``"script"`` is
+        never in the allow-list. ``"style"`` *is* allowed (see this module's top-level
+        "Security note (issue #12)") but only because its one sanctioned caller
+        (``theme.css.render_theme_style``) independently validates every value it
+        embeds before calling this method — this method itself still only guarantees
+        XML-structural safety, not CSS-semantic safety, for ``<style>`` content.
+        ``tag`` is keyword-only so a caller can never accidentally pass a positional
+        ``attrib``/``classes`` argument that lands in this slot instead.
         """
         if tag not in _TEXT_BEARING_TAGS:
             raise ValueError(f"add_text only supports text-bearing tags {sorted(_TEXT_BEARING_TAGS)}, got {tag!r}")
