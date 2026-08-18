@@ -8,8 +8,13 @@ so there is one placement algorithm here, not three.
 Track sizes come from the children's own canvas sizes (a chart knows how big it
 wants to be), so a grid of equally-sized charts lays out on an exact pixel
 lattice with no scaling. A child whose cell ends up larger — because it spans
-tracks, or shares a track with a bigger sibling — scales to fill its cell via
-its nested ``<svg>``'s viewBox (see ``chart.composition``).
+tracks, or shares a track with a bigger sibling — scales up via its nested
+``<svg>``'s viewBox (see ``chart.composition``), but *letterboxed*, not
+stretched: SVG's default ``preserveAspectRatio="xMidYMid meet"`` keeps the
+child's aspect ratio and centers it, so a chart in a cell of a different
+aspect ratio is padded rather than distorted. Distorting a chart would
+misrepresent its data (a circle in a pie chart must stay circular), so the
+padding is the deliberate trade-off.
 """
 
 from __future__ import annotations

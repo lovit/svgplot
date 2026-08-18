@@ -215,6 +215,16 @@ def compose(placements: list[Placement], width: float, height: float) -> SvgDocu
             if key in ("x", "y", "width", "height", "xmlns"):
                 continue  # the outer placement owns position/size; xmlns is inherited
             document.set_attribute(nested, key, value)
+        if "viewBox" not in nested.attrib:
+            # Nesting scales a child to its cell only via viewBox — without one, the
+            # child keeps its intrinsic coordinates and is clipped whenever the cell
+            # is smaller than it. apply_size(chart, "fixed") deliberately strips
+            # viewBox, so restore it here from the child's own size rather than
+            # forbidding fixed-then-compose: composition owns cell fitting, and a
+            # caller shouldn't have to know the two features interact.
+            child_document = chart_document(placement.chart)
+            viewbox = f"0 0 {format_coord(child_document.width)} {format_coord(child_document.height)}"
+            document.set_attribute(nested, "viewBox", viewbox)
         nested.extend(list(child_root))
     _render_composition_style(document)
     return document
