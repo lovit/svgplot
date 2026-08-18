@@ -33,6 +33,17 @@ def _is_missing(value: object) -> bool:
     return value is None or (isinstance(value, float) and value != value)
 
 
+def _format_value_label(value: float) -> str:
+    """Render a data value as label text, shortest-round-trip.
+
+    Not ``format_coord``: that rounds to 6 decimals because it formats *coordinates*,
+    which silently rewrites the data it is labelling (``1e-7`` -> ``"0"``,
+    ``0.123456789`` -> ``"0.123457"``). Integral values still lose the ``.0`` so the
+    common case reads as ``30``, not ``30.0``.
+    """
+    return str(int(value)) if value.is_integer() else str(value)
+
+
 def _point(cx: float, cy: float, r: float, angle: float) -> tuple[float, float]:
     return (cx + r * math.cos(angle), cy + r * math.sin(angle))
 
@@ -133,6 +144,11 @@ def pieplot(
     if not pairs:
         raise ValueError("no rows with both a non-missing label and value present after dropping missing values")
     for label, value in pairs:
+        # Checked here rather than left to format_coord: an inf/-inf survives the
+        # negative check, becomes nan inside the trig, and only then fails -- with a
+        # message about a coordinate, naming neither the offending value nor its row.
+        if not math.isfinite(value):
+            raise ValueError(f"pie values must be finite, got {value!r} for label {label!r}")
         if value < 0:
             raise ValueError(f"pie values must be non-negative, got {value!r} for label {label!r}")
     total = sum(value for _, value in pairs)
@@ -180,7 +196,7 @@ def pieplot(
         label_x, label_y = _point(cx, cy, label_radius, mid_angle)
         document.add_text(
             None,
-            format_coord(value),
+            _format_value_label(value),
             tag="text",
             attrib={"x": format_coord(label_x), "y": format_coord(label_y), "text-anchor": "middle"},
             classes=["legend-text"],

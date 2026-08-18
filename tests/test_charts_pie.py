@@ -213,6 +213,25 @@ def test_pieplot_rejects_negative_value() -> None:
         pieplot(data, values="value", labels="label")
 
 
+@pytest.mark.parametrize("bad_value", [float("inf"), float("-inf")])
+def test_pieplot_rejects_non_finite_value(bad_value: float) -> None:
+    """Without an explicit check these survive validation, become nan inside the
+    trig, and surface as an opaque coordinate-formatting error naming neither the
+    offending value nor its row."""
+    data = {"label": ["a", "b"], "value": [10.0, bad_value]}
+    with pytest.raises(ValueError, match="finite"):
+        pieplot(data, values="value", labels="label")
+
+
+def test_pieplot_value_label_preserves_small_magnitudes() -> None:
+    """Value labels must not be rounded by the *coordinate* formatter, which would
+    render these as "0" and "0.123457"."""
+    data = {"label": ["tiny", "precise"], "value": [1e-7, 0.123456789]}
+    svg = pieplot(data, values="value", labels="label").to_string()
+    assert ">1e-07<" in svg
+    assert ">0.123456789<" in svg
+
+
 def test_pieplot_rejects_all_zero_values() -> None:
     data = {"label": ["a", "b"], "value": [0.0, 0.0]}
     with pytest.raises(ValueError, match="zero"):
