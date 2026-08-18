@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ from svgplot.layout import apply_size, facet
 
 NUMERIC = {"day": [1.0, 2.0, 3.0], "sales": [1200.0, 3400.0, 2500.0]}
 SPEC = [("Day", "@day{0.0}"), ("Sales", "@sales{0,0}")]
+BAD_SPEC = [("Z", "@not_a_column{%s}")]
 
 
 def _table_rows(markdown: str) -> list[str]:
@@ -40,7 +42,7 @@ def test_a_line_chart_with_info_renders_a_footnote_table() -> None:
         (lambda info: sp.pieplot(NUMERIC, values="sales", labels="day", info=info), 3),
     ],
 )
-def test_every_row_per_mark_chart_accepts_info(build, expected: int) -> None:
+def test_every_row_per_mark_chart_accepts_info(build: Callable[[object], sp.Chart], expected: int) -> None:
     """The three charts where one input row *is* one mark. ``bar``/``area``/``box``/
     ``hist`` are deliberately excluded: they aggregate, so an original-row table beside
     them would contradict the marks rather than annotate them."""
@@ -93,9 +95,20 @@ def test_saving_svg_with_info_is_unchanged(tmp_path: Path) -> None:
     assert plain.read_text(encoding="utf-8") == annotated.read_text(encoding="utf-8")
 
 
-def test_info_is_keyword_only() -> None:
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda: sp.lineplot(NUMERIC, "day", "sales", None, SPEC), id="lineplot"),
+        pytest.param(lambda: sp.scatterplot(NUMERIC, "day", "sales", None, None, SPEC), id="scatterplot"),
+        pytest.param(lambda: sp.pieplot(NUMERIC, "sales", "day", SPEC), id="pieplot"),
+    ],
+)
+def test_info_is_keyword_only(call: Callable[[], sp.Chart]) -> None:
+    """Each call passes exactly one positional argument more than the signature allows, so
+    it fails only while ``info`` stays behind the ``*``. Overshooting by several arguments
+    would raise ``TypeError`` either way and prove nothing."""
     with pytest.raises(TypeError):
-        sp.lineplot(NUMERIC, "day", "sales", None, "linear", SPEC)  # type: ignore[misc]
+        call()
 
 
 # ---------------------------------------------------------------------------
@@ -127,11 +140,22 @@ def test_an_unknown_field_fails_at_plot_time_not_at_save_time() -> None:
         sp.lineplot(NUMERIC, x="day", y="sales", info=[("Z", "@nope{0.0}")])
 
 
-def test_the_chart_s_own_errors_still_come_first() -> None:
-    """Collection happens after the existing validation, so a bad ``x`` reports the chart's
-    error rather than a confusing label error."""
-    with pytest.raises(KeyError, match="x column not found"):
-        sp.lineplot(NUMERIC, x="nope", y="sales", info=SPEC)
+@pytest.mark.parametrize(
+    ("call", "match"),
+    [
+        pytest.param(lambda: sp.lineplot(NUMERIC, x="nope", y="sales", info=BAD_SPEC), "x column not found", id="line"),
+        pytest.param(lambda: sp.scatterplot(NUMERIC, x="nope", y="sales", info=BAD_SPEC), "x column not found", id="scatter"),
+        pytest.param(
+            lambda: sp.pieplot(NUMERIC, values="nope", labels="day", info=BAD_SPEC), "values column not found", id="pie"
+        ),
+    ],
+)
+def test_the_chart_s_own_errors_still_come_first(call: Callable[[], sp.Chart], match: str) -> None:
+    """Collection sits after the existing validation in all three charts, so a bad channel
+    column reports the chart's own error rather than a confusing label error. ``BAD_SPEC``
+    names a missing field too, so whichever check runs first is the one that speaks."""
+    with pytest.raises(KeyError, match=match):
+        call()
 
 
 # ---------------------------------------------------------------------------
@@ -155,10 +179,12 @@ def test_facet_forwards_info_to_every_panel() -> None:
 
 def test_apply_size_keeps_the_labels() -> None:
     """``apply_size`` mutates in place and returns the same chart, so the snapshot has to
-    survive it -- a returned-copy implementation would silently drop the table."""
+    survive the in-place pass. The identity assertion is part of the claim: without it this
+    test inspects the original object and would pass even against an implementation that
+    returned a fresh, table-less copy."""
     chart = sp.scatterplot(NUMERIC, x="day", y="sales", info=SPEC)
-    apply_size(chart, "responsive")
 
+    assert apply_size(chart, "responsive") is chart
     assert _body_rows(chart.to_markdown()) == ["| 1.0 | 1,200 |", "| 2.0 | 3,400 |", "| 3.0 | 2,500 |"]
 
 
@@ -205,20 +231,47 @@ def test_a_newline_in_a_value_cannot_split_a_table_row() -> None:
 
 
 @pytest.mark.parametrize(
-    ("build", "channel"),
+    "build",
     [
-        (lambda data, info: sp.lineplot(data, x="x", y="y", hue="g", info=info), "hue"),
-        (lambda data, info: sp.scatterplot(data, x="x", y="y", hue="g", info=info), "hue"),
-        (lambda data, info: sp.scatterplot(data, x="x", y="y", size="g", info=info), "size"),
+        pytest.param(lambda data, info: sp.lineplot(data, x="x", y="y", hue="g", info=info), id="line-hue"),
+        pytest.param(lambda data, info: sp.scatterplot(data, x="x", y="y", hue="g", info=info), id="scatter-hue"),
+        pytest.param(lambda data, info: sp.scatterplot(data, x="x", y="y", size="g", info=info), id="scatter-size"),
     ],
 )
-def test_an_optional_channel_still_drops_its_missing_rows(build, channel: str) -> None:
+def test_an_optional_channel_still_drops_its_missing_rows(build: Callable[[object, object], sp.Chart]) -> None:
     """``hue``/``size`` are optional, so it is easy to leave them out of the collected
     channels -- and then the table lists a row the chart refused to draw. Only a fixture
     whose *only* hole is in that channel can tell the difference."""
     data = {"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0], "g": [1.0, None, 3.0]}
 
     assert _body_rows(build(data, [("X", "@x{0.0}")]).to_markdown()) == ["| 1.0 |", "| 3.0 |"]
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        pytest.param(lambda data, info: sp.lineplot(data, x="a", y="b", info=info), id="line"),
+        pytest.param(lambda data, info: sp.scatterplot(data, x="a", y="b", info=info), id="scatter"),
+    ],
+)
+@pytest.mark.parametrize("holed", ["a", "b"])
+def test_every_required_channel_drops_its_own_missing_rows(build: Callable[[object, object], sp.Chart], holed: str) -> None:
+    """One fixture per channel, each with a hole in *only* that channel. A shared fixture
+    holed in several at once cannot tell a forgotten channel from a remembered one -- the
+    surviving rows come out the same either way."""
+    data = {"a": [1.0, 2.0, 3.0], "b": [1.0, 2.0, 3.0]}
+    data[holed] = [1.0, None, 3.0]
+
+    assert len(_body_rows(build(data, [("A", "@a{0.0}")]).to_markdown())) == 2
+
+
+def test_pieplot_drops_rows_whose_value_is_missing() -> None:
+    """The mirror of the labels case: ``values`` is a required channel too, and a slice
+    with no value is not drawn."""
+    data = {"v": [1.0, None, 3.0], "l": ["a", "b", "c"]}
+    chart = sp.pieplot(data, values="v", labels="l", info=[("L", "@l{%s}")])
+
+    assert _body_rows(chart.to_markdown()) == ["| a |", "| c |"]
 
 
 def test_an_absent_optional_channel_drops_nothing() -> None:
@@ -245,3 +298,33 @@ def test_pieplot_without_labels_keeps_every_valued_row() -> None:
     chart = sp.pieplot(data, values="v", info=[("V", "@v{0.0}")])
 
     assert len(_body_rows(chart.to_markdown())) == 3
+
+
+@pytest.mark.parametrize(
+    ("data", "info"),
+    [
+        pytest.param({"x": [1.0, 2.0], "y": [1.0, 2.0], "n": [float("inf"), 1.0]}, [("N", "@n{0.0}")], id="infinite"),
+        pytest.param({"x": [1.0, 2.0], "y": [1.0, 2.0], "n": ["5", "6"]}, [("N", "@n{0,0}")], id="numeric-string"),
+        pytest.param({"x": [1.0, 2.0], "y": [1.0, 2.0]}, [("X", "@x{%Y-%m-%d}")], id="float-under-datetime-spec"),
+    ],
+)
+def test_a_value_the_spec_cannot_format_fails_at_markdown_time(data: dict[str, list], info: list) -> None:
+    """A *missing* value gets a dash; a present-but-unformattable one has no substitute, so
+    it raises. Pinned because the failure lands at ``to_markdown()``/``save()`` rather than
+    where ``info=`` was passed -- the chart itself builds and renders to SVG fine."""
+    chart = sp.scatterplot(data, x="x", y="y", info=info)
+
+    assert chart.to_string()
+    with pytest.raises(ValueError):
+        chart.to_markdown()
+
+
+def test_a_composition_carries_no_table_even_when_its_children_have_one() -> None:
+    """Today's deliberate behaviour, pinned so the follow-up that gathers children's tables
+    has to change this test on purpose. Each panel *does* hold the right snapshot -- that is
+    what ``test_facet_forwards_info_to_every_panel`` checks -- but the composition's own
+    markdown shows the charts only."""
+    data = {"x": [1.0, 2.0, 3.0, 4.0], "y": [1.0, 2.0, 3.0, 4.0], "region": ["n", "n", "s", "s"]}
+    composition = facet(sp.lineplot, data, col="region", x="x", y="y", info=[("X", "@x{0.0}")])
+
+    assert _table_rows(composition.to_markdown()) == []
