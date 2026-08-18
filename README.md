@@ -56,7 +56,8 @@ sp.ecdfplot(data, x="sales", hue="region").save("ecdf.svg")
 # hue 그룹은 하나의 x 그리드를 공유하므로 곡선끼리 직접 비교된다
 sp.kdeplot(data, x="sales", hue="region", fill=True).save("kde.svg")
 
-# 바이올린 — boxplot과 같은 시그니처. inner="box"면 사분위 상자와 중앙값을 겹친다
+# 바이올린 — boxplot과 위치 인자 (data, x, y)가 같다(키워드는 다르다 — mode= 없음)
+# inner="box"면 사분위 상자와 중앙값을 겹친다
 # 모든 카테고리가 하나의 y 도메인과 하나의 peak을 공유해 폭이 비교 가능하다
 sp.violinplot(data, x="region", y="sales", inner="box").save("violin.svg")
 
