@@ -400,3 +400,88 @@ def test_add_text_allows_every_text_bearing_tag(tag: str) -> None:
     doc.add_text(None, "hi", tag=tag)
 
     assert f"<{tag}>hi</{tag}>" in doc.to_string()
+
+
+# ---------------------------------------------------------------------------
+# newlines in text content
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("a\n\nb", "a b"),
+        ("a\nb", "a b"),
+        ("a\r\n\r\nb", "a b"),
+        ("a\rb", "a b"),
+        ("a\n\n\n\n\nb", "a b"),  # one space per run, not one per newline
+        ("\na", " a"),
+        ("a\n", "a "),
+    ],
+)
+def test_a_newline_run_in_text_content_becomes_one_space(raw: str, expected: str) -> None:
+    """A blank line inside a text node ends the SVG's markdown HTML block at that point and
+    leaves the rest of its own source to be parsed as prose. No renderer draws a newline in
+    a text node as a line break anyway, so folding costs nothing visible."""
+    doc = SvgDocument()
+
+    doc.add_text(None, raw, tag="text")
+
+    assert f"<text>{expected}</text>" in doc.to_string()
+
+
+def test_a_style_block_keeps_its_line_breaks() -> None:
+    """One CSS rule per line is what makes a nine-line hand edit possible, and it is the
+    one text-bearing tag whose content this package writes itself rather than accepting
+    from a caller."""
+    doc = SvgDocument()
+
+    doc.add_text(None, ".a { fill: red; }\n.b { fill: blue; }", tag="style")
+
+    assert ".a { fill: red; }\n.b { fill: blue; }" in doc.to_string()
+
+
+def test_the_style_exemption_still_cannot_produce_a_blank_line() -> None:
+    """The exemption is safe only because rule text never contains one. If a caller ever
+    passes a blank line through it, the markdown block breaks exactly as before -- so this
+    records the obligation rather than pretending the exemption is unconditional."""
+    doc = SvgDocument()
+
+    doc.add_text(None, ".a { fill: red; }\n\n.b { fill: blue; }", tag="style")
+
+    assert "\n\n" in doc.to_string()
+
+
+@pytest.mark.parametrize("bad", ["a\x0b\nb", "a\n\x0cb", "\n\x00\n", "a\r\x1fb"])
+def test_folding_never_launders_an_xml_forbidden_character(bad: str) -> None:
+    """The fold and the validity check are order-independent -- ``\r`` and ``\n`` are legal
+    XML, which is exactly why ``_validate_text`` passes them through, so folding can neither
+    remove a forbidden character nor create one. What must not change is that a forbidden
+    character *next to* a line break is still rejected, whichever runs first."""
+    doc = SvgDocument()
+
+    with pytest.raises(ValueError, match="not allowed in XML 1.0"):
+        doc.add_text(None, bad)
+
+
+def test_a_text_node_of_only_newlines_does_not_vanish() -> None:
+    """Folding to the empty string would leave ``<text/>``, which is a different element
+    from one holding a space and would silently drop a (pathological) label."""
+    doc = SvgDocument()
+
+    doc.add_text(None, "\n\n\n", tag="text")
+
+    assert "<text> </text>" in doc.to_string()
+
+
+def test_attribute_values_were_never_the_problem() -> None:
+    """``xml.etree`` already escapes a newline in an attribute value to ``&#10;``, which
+    occupies no line of its own -- so the fold deliberately does not touch them, and this
+    pins the assumption that makes that safe."""
+    doc = SvgDocument()
+
+    doc.add_node(None, "rect", attrib={"data-note": "a\n\nb"})
+    output = doc.to_string()
+
+    assert "&#10;&#10;" in output
+    assert "\n\n" not in output

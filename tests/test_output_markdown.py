@@ -9,7 +9,7 @@ import svgplot.chart.base as sp_chart_module
 from svgplot._svg import SvgDocument
 from svgplot.charts.bar import barplot
 from svgplot.layout import row
-from svgplot.output.markdown import MARKDOWN_SUFFIXES, save_markdown, to_markdown
+from svgplot.output.markdown import MARKDOWN_SUFFIXES, _reject_blank_lines, save_markdown, to_markdown
 
 DATA = {"x": ["a", "b", "c"], "y": [1.0, 2.0, 3.0]}
 TABLE = "| X | Y |\n| --- | --- |\n| a | 1.0 |"
@@ -97,54 +97,55 @@ def test_the_table_is_not_followed_by_stray_blank_lines() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_a_blank_line_inside_the_svg_is_refused() -> None:
-    """The measured risk this format exists around. ``xml.etree`` escapes ``<`` and ``&``
-    in a text node but passes newlines through, so a label containing a blank line ends
-    the HTML block mid-document and the rest of the SVG is parsed as markdown."""
-    document = _document()
-    document.add_text(None, "first\n\nsecond", attrib={"x": "1", "y": "1"})
+def test_the_guard_refuses_a_blank_line_and_names_the_cause() -> None:
+    """``_svg`` now folds newlines out of text content, so no chart can reach this guard.
+    It stays as the last line of defence -- a future ``add_text`` caller with a new
+    multi-line tag, or a document assembled by hand -- and is exercised directly rather
+    than through a chart, because going through a chart would now silently test nothing."""
+    svg = '<svg xmlns="http://www.w3.org/2000/svg">\n  <text>first\n\nsecond</text>\n</svg>'
 
     with pytest.raises(ValueError, match="blank line"):
-        to_markdown(document)
+        _reject_blank_lines(svg)
 
 
-def test_the_refusal_names_the_cause() -> None:
+def test_the_refusal_points_at_the_data_rather_than_the_serializer() -> None:
     """The fix is in the caller's data, so the message has to point there rather than
     reporting an opaque serialization failure."""
-    document = _document()
-    document.add_text(None, "a\n\nb", attrib={"x": "1", "y": "1"})
+    svg = "<svg>\n  <text>a\n\nb</text>\n</svg>"
 
     with pytest.raises(ValueError, match="newline inside a label or title"):
-        to_markdown(document)
+        _reject_blank_lines(svg)
 
 
 def test_the_refusal_reports_the_offending_line_number() -> None:
     """The line number is the whole diagnostic value of the message -- without it the
     caller is told only that a blank line exists somewhere in a few hundred lines."""
-    document = _document()
-    document.add_text(None, "a\n\nb", attrib={"x": "1", "y": "1"})
+    svg = "<svg>\n  <text>a\n\nb</text>\n</svg>"
 
-    with pytest.raises(ValueError, match=r"line 4\b"):
-        to_markdown(document)
+    with pytest.raises(ValueError, match=r"line 3\b"):
+        _reject_blank_lines(svg)
 
 
 def test_a_whitespace_only_line_counts_as_blank() -> None:
     """CommonMark ends an HTML block on a line containing only whitespace, not just on an
     empty one, so checking ``line == ""`` would let the break through."""
-    document = _document()
-    document.add_text(None, "a\n   \nb", attrib={"x": "1", "y": "1"})
-
     with pytest.raises(ValueError, match="blank line"):
-        to_markdown(document)
+        _reject_blank_lines("<svg>\n  <text>a\n   \nb</text>\n</svg>")
 
 
-def test_a_single_newline_in_a_label_is_allowed() -> None:
-    """One newline doesn't produce a blank line, so it doesn't break the block -- refusing
-    it would reject legitimate multi-line labels."""
+def test_a_document_with_no_blank_line_passes_the_guard() -> None:
+    """Otherwise the three tests above would pass against a guard that rejected
+    everything."""
+    assert _reject_blank_lines("<svg>\n  <text>a b</text>\n</svg>") is None
+
+
+def test_a_label_with_newlines_no_longer_reaches_the_guard_at_all() -> None:
+    """The real fix for the risk this guard was written around: the newlines are gone
+    before serialization, so the markdown output is produced rather than refused."""
     document = _document()
-    document.add_text(None, "first\nsecond", attrib={"x": "1", "y": "1"})
+    document.add_text(None, "first\n\nsecond", attrib={"x": "1", "y": "1"})
 
-    assert "first\nsecond" in to_markdown(document)
+    assert ">first second<" in to_markdown(document)
 
 
 # ---------------------------------------------------------------------------
