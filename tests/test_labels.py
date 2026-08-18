@@ -418,3 +418,93 @@ def test_render_table_collapses_newline_in_markdown_cell() -> None:
 
 def test_table_formats_constant() -> None:
     assert set(TABLE_FORMATS) == {"markdown", "html"}
+
+
+# ---------------------------------------------------------------------------
+# non-ASCII field names (issue #57)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "field"),
+    [
+        ("@매출{0,0}", "매출"),
+        ("@売上{%d}", "売上"),
+        ("@café{%s}", "café"),
+        ("@Привет{%s}", "Привет"),
+        ("@x{%s}", "x"),
+        ("@_x{%s}", "_x"),
+        ("@x2{%s}", "x2"),
+    ],
+)
+def test_a_field_name_may_be_any_python_identifier(raw: str, field: str) -> None:
+    """The original character class was ``[A-Za-z_][A-Za-z0-9_]*``, which rejected every
+    non-ASCII column name — in a Korean-first project, the first thing a user tries."""
+    assert LabelSpec.parse([("L", raw)]).fields[0].field == field
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "@1field{%s}",
+        "@my-field{%s}",
+        "@{%s}",
+        "@x y{%s}",
+        "@매출 합계{%s}",
+        "@x.y{%s}",
+        "x{%s}",
+        "@x{%s",
+        "@x%s}",
+        "@xyz}",
+        "@매출}",
+        "@x",
+        "",
+    ],
+)
+def test_a_field_name_that_is_not_an_identifier_is_still_rejected(raw: str) -> None:
+    """Widening to Unicode must not widen to *anything*: a name with a space or a hyphen
+    is not a column reference, and letting it through would defer the failure to a
+    confusing lookup error later.
+
+    @xyz} is the case that only the explicit opening-brace check catches: with no
+    { at all the name still looks like an identifier, so it would parse with the
+    whole string as its own format spec."""
+    with pytest.raises(ValueError, match="invalid label spec"):
+        LabelSpec.parse([("L", raw)])
+
+
+@pytest.mark.parametrize("name", ["매출", "売上", "café", "x", "_", "x1", "1x", "my-field", "", "class", "αβγ", "🎉"])
+def test_acceptance_agrees_with_str_isidentifier(name: str) -> None:
+    """The point of deferring to the interpreter rather than restating XID_Start/
+    XID_Continue as a regex: the two answers cannot drift apart as Unicode grows.
+
+    ``class`` is accepted on purpose — it is a keyword in Python source, but a perfectly
+    ordinary column name in someone's data."""
+    accepted = True
+    try:
+        LabelSpec.parse([("L", f"@{name}{{%s}}")])
+    except ValueError:
+        accepted = False
+
+    assert accepted == name.isidentifier()
+
+
+def test_a_field_name_is_not_unicode_normalised() -> None:
+    """The name has to match a column key exactly. NFKC-folding it here would make
+    ``@ﬁeld`` silently look up ``field`` — and then fail on data that really does have a
+    ``ﬁeld`` column."""
+    assert LabelSpec.parse([("L", "@ﬁeld{%s}")]).fields[0].field == "ﬁeld"
+
+
+def test_braces_inside_the_format_spec_still_belong_to_the_format() -> None:
+    """The split is at the first ``{`` and the last ``}``, matching what the greedy regex
+    did — a format spec containing braces must not be truncated."""
+    assert LabelSpec.parse([("L", "@x{%s}}")]).fields[0].format_spec == "%s}"
+
+
+def test_a_korean_field_name_renders_through_to_the_table() -> None:
+    """End-to-end: parsing was only the first gate, and the value still has to survive
+    formatting and escaping."""
+    table = render_table({"매출": [1200.0, 3400.0]}, LabelSpec.parse([("매출", "@매출{0,0}")]))
+
+    assert table.splitlines() == ["| 매출 |", "| --- |", "| 1,200 |", "| 3,400 |"]
