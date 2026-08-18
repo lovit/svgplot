@@ -18,9 +18,30 @@ _CAPTION_LOCATIONS = ("above", "below")
 _CAPTION_BASELINE_INSET = CAPTION_HEIGHT / 3
 
 
+def _caption_node_kwargs(x: float, y: float) -> dict[str, object]:
+    """The node arguments shared by the validation probe and the real write.
+
+    Built in one place so the probe cannot quietly become weaker than the write it stands
+    in for -- today only ``text`` carries caller data, but the moment a caption node grows
+    a user-derived attribute, a probe that had been assembled separately would stop
+    covering it and nothing would fail.
+    """
+    return {
+        "tag": "text",
+        "attrib": {"x": format_coord(x), "y": format_coord(y), "text-anchor": "middle"},
+        "classes": [_CAPTION_CLASS],
+    }
+
+
 def _validate_caption_text(text: str) -> None:
-    """Raise ``ValueError`` if ``text`` would be rejected as a text node, without touching
-    the real document -- checked on a throwaway one instead.
+    """Raise ``ValueError`` if ``text`` would be rejected as a caption node, without
+    touching the real document -- checked on a throwaway one instead.
+
+    ``text`` is probed exactly as given. Stripping it first would look tidier next to the
+    emptiness check above and would silently reopen this function's own bug: ``\x0b``,
+    ``\x0c`` and ``\x1c``-``\x1f`` are characters ``str.strip()`` removes *and* XML 1.0
+    forbids, so a stripped probe accepts a caption the real write then rejects -- after the
+    canvas has already grown.
 
     Every mutation below this point is unconditional, so a caption rejected *after* them
     left the canvas permanently taller with no caption in it, and a retry grew it again.
@@ -29,7 +50,7 @@ def _validate_caption_text(text: str) -> None:
     direct reuse, because ``_svg.py`` is the escape chokepoint and this module is not.
     """
     scratch = SvgDocument()
-    scratch.add_text(None, text, tag="text", classes=[_CAPTION_CLASS])
+    scratch.add_text(None, text, **_caption_node_kwargs(0.0, 0.0))
 
 
 def add_caption(composition: Composition, text: str, location: str = "below") -> Composition:
@@ -79,13 +100,7 @@ def add_caption(composition: Composition, text: str, location: str = "below") ->
     document.height = new_height
     document.set_attribute(document.root, "height", format_coord(new_height))
     document.set_attribute(document.root, "viewBox", f"0 0 {format_coord(width)} {format_coord(new_height)}")
-    document.add_text(
-        None,
-        text,
-        tag="text",
-        attrib={"x": format_coord(width / 2), "y": format_coord(caption_y), "text-anchor": "middle"},
-        classes=[_CAPTION_CLASS],
-    )
+    document.add_text(None, text, **_caption_node_kwargs(width / 2, caption_y))
     if composition_title(composition) is None:
         composition.set_title(text)
     return composition
