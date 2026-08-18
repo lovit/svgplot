@@ -526,10 +526,32 @@ def test_the_dial_geometry_is_pinned_to_literal_pixels() -> None:
 def test_a_range_whose_span_overflows_is_named_rather_than_deferred() -> None:
     """Both bounds are finite here; only their difference is not. ``LinearScale`` rejects it
     too, but with a message about a domain span that names neither argument."""
-    with pytest.raises(ValueError, match=r"too wide to measure.*vmin=-1e\+308"):
+    with pytest.raises(ValueError, match=r"too wide to measure.*vmin=-1e\+308.*vmax=1e\+308"):
         _svg({"score": [0.0]}, vmin=-1e308, vmax=1e308)
+
+
+def test_an_inverted_range_is_called_inverted_even_when_its_span_also_overflows() -> None:
+    """``vmin=1e308, vmax=-1e308`` overflows *and* is backwards. Reporting the width first
+    would send the caller to fix the wrong thing."""
+    with pytest.raises(ValueError, match="non-empty and increasing"):
+        _svg({"score": [0.0]}, vmin=1e308, vmax=-1e308)
 
 
 def test_a_wide_but_representable_range_still_renders() -> None:
     """Otherwise the guard above could be an unconditional refusal of large ranges."""
     assert _value_sweep(_svg({"score": [0.0]}, vmin=-1e307, vmax=1e307)) == pytest.approx(_SWEEP / 2)
+
+
+@pytest.mark.parametrize(
+    ("vmax", "labels"),
+    [
+        (3e-7, ["0", "5e-08", "1e-07", "1.5e-07", "2e-07", "2.5e-07", "3e-07"]),
+        (1e-5, ["0", "2e-06", "4e-06", "6e-06", "8e-06", "1e-05"]),
+    ],
+)
+def test_tick_labels_survive_a_domain_smaller_than_six_decimal_places(vmax: float, labels: list[str]) -> None:
+    """The same reason the printed value avoids ``format_coord``, at the other call site --
+    and this one was left unpinned. ``format_coord`` rounds to six places, so on a domain
+    this small every tick label collapses to "0" and the whole ring stops naming anything.
+    Every other tick assertion in this file uses whole numbers, where the two agree."""
+    assert _texts(_svg({"score": [vmax]}, vmin=0, vmax=vmax), "tick-label") == labels
