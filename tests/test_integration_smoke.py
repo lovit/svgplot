@@ -19,6 +19,8 @@ import pytest
 
 import svgplot as sp
 from svgplot.chart.base import Chart
+from svgplot.charts._layout import format_coord
+from svgplot.charts._legend import _SWATCH_HEIGHT, _SWATCH_WIDTH
 from svgplot.theme.presets import PRESETS
 
 # One long-form frame every chart type can read, so the parametrized cases below
@@ -78,13 +80,14 @@ def _themed_marks(svg: str) -> list[str]:
 
 
 def _looks_like_a_swatch(tag: str) -> bool:
-    """A legend swatch is a 16x10 rect or a 16-long line, at the fixed offsets
-    ``_legend.py`` uses. Matched by shape rather than by class, because the whole problem
-    is that it shares the mark's class."""
-    return bool(re.search(r'width="16" height="10"', tag)) or bool(
-        re.search(r'<line x1="([\d.]+)"[^>]*x2="([\d.]+)"', tag)
-        and abs(float(re.search(r'x2="([\d.]+)"', tag).group(1)) - float(re.search(r'x1="([\d.]+)"', tag).group(1))) == 16.0
-    )
+    """A legend swatch is a ``_SWATCH_WIDTH`` x ``_SWATCH_HEIGHT`` rect, or a line of that
+    width. Matched by shape rather than by class, because the whole problem is that it
+    shares the mark's class -- and by **importing** the constants rather than repeating
+    them, because a hardcoded 16 silently stops matching if ``_legend.py`` ever changes its
+    swatch size, which puts every swatch back in the count and reverts this narrowing."""
+    size = re.search(rf'width="{format_coord(_SWATCH_WIDTH)}" height="{format_coord(_SWATCH_HEIGHT)}"', tag)
+    span = re.search(r'<line x1="(-?[\d.]+)"[^>]*x2="(-?[\d.]+)"', tag)
+    return bool(size) or bool(span and float(span.group(2)) - float(span.group(1)) == _SWATCH_WIDTH)
 
 
 def assert_renders_a_real_chart(svg: str) -> None:
