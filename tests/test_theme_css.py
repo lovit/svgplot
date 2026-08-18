@@ -337,3 +337,19 @@ def test_level_rules_survive_composition_namespacing() -> None:
     assert ".c0-level-1 {" in svg
     assert 'class="c0-level-1"' in svg
     assert ".level-1 {" not in svg
+
+
+@pytest.mark.parametrize("mark_style", ["stroke", "fill", "outlined"])
+def test_level_rules_are_identical_regardless_of_mark_style(mark_style: str) -> None:
+    """Level rules are mark_style-independent by design — a value-encoding mark is a
+    filled region, and an outline would read as a second visual channel carrying no
+    data. Pinned across all three styles because five downstream charts will read this
+    contract, and `outlined` + `level_colors` silently producing un-outlined marks
+    would look like a bug rather than the intended behavior.
+    """
+    document = SvgDocument()
+    render_theme_style(document, Theme(), ["series-1"], mark_style=mark_style, level_colors={"level-1": "#08519c"})
+    css = next(element.text or "" for element in document.root if element.tag == "style")
+
+    level_rule = next(line for line in css.split("\n") if line.startswith(".level-1 "))
+    assert level_rule == ".level-1 { fill: #08519c; stroke: none; opacity: 1; }"

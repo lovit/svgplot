@@ -120,6 +120,16 @@ def render_theme_style(
     ``chart.composition``'s selector-namespacing rewrite, so composing two
     value-colored charts would silently cross-theme them.
 
+    Level rules are **``mark_style``-independent by design**: they always emit
+    ``fill``/``stroke: none``, whatever ``mark_style`` the series marks use. A
+    value-encoding mark is a filled region — an outline would read as a second visual
+    channel carrying no data. So a caller passing ``mark_style="outlined"`` alongside
+    ``level_colors`` gets outlined *series* marks and flat-filled *level* marks, which
+    is intended rather than an oversight. Duplicate handling differs between the two
+    for the same kind of reason: a class repeated inside ``series_classes`` is skipped
+    (it would re-emit an identical rule), while a class in both ``series_classes`` and
+    ``level_colors`` raises, because those two rules would disagree about the color.
+
     Meant to be called once per document, after all data marks/axes/legend have been
     added (order doesn't matter for correctness — CSS class rules apply regardless of
     where in the document the matching elements sit — but calling it last keeps a
