@@ -7,7 +7,15 @@ from dataclasses import replace
 import pytest
 
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, format_coord, plot_area
-from svgplot.charts.heatmap import _BYTES_PER_CELL, _BYTES_PER_TICK, _WARN_CELL_COUNT, LEVELS, _readable_ink, heatmap
+from svgplot.charts.heatmap import (
+    _BYTES_PER_CELL,
+    _BYTES_PER_TICK,
+    _WARN_CELL_COUNT,
+    LEVELS,
+    _composited,
+    _readable_ink,
+    heatmap,
+)
 from svgplot.palette._color import hex_to_rgb01
 from svgplot.palette.diverging import DIVERGING_PALETTES
 from svgplot.palette.normalize import Normalize
@@ -537,6 +545,24 @@ def test_the_ink_does_not_take_the_theme_s_opacity() -> None:
     assert len(ink_rules) == LEVELS
     for rule in ink_rules:
         assert "opacity" not in rule, rule
+
+
+@pytest.mark.parametrize("opacity", [1.0, 0.8, 0.5, 0.3])
+def test_the_ink_is_readable_against_what_the_reader_actually_sees(opacity: float) -> None:
+    """Dropping ``opacity`` from the ink rule was necessary but not sufficient: the *cell*
+    still carries it, so the colour on screen is the colormap blended toward the plot
+    background, and ink chosen against the unblended colour is chosen for a cell nobody
+    sees. Asserting "the ink rule has no opacity" passed at ``opacity=0.5`` while the
+    rendered contrast was 2.23:1 -- a green test for an unreadable chart. Measuring the
+    composite is what makes this test mean something."""
+    theme = replace(PRESETS["light"], opacity=opacity)
+    style = _style_of(_render(_ramp(), annot=True, theme=theme))
+    fills = dict(re.findall(r"\.(level-\d+(?:-annotation)?) \{ fill: (#[0-9a-f]{6})", style))
+
+    for index in range(1, LEVELS + 1):
+        seen = _composited(fills[f"level-{index}"], over=theme.background, opacity=opacity)
+        ratio = _contrast(seen, fills[f"level-{index}-annotation"])
+        assert ratio >= 4.5, f"opacity={opacity} level-{index}: {ratio:.2f}:1"
 
 
 def test_the_theme_s_opacity_still_reaches_the_cells() -> None:
