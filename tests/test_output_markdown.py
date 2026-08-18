@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import svgplot.chart.base as sp_chart_module
 from svgplot._svg import SvgDocument
 from svgplot.charts.bar import barplot
 from svgplot.layout import row
@@ -43,18 +44,29 @@ def test_markdown_keeps_the_svg_indented() -> None:
     assert "\n  <rect" in body
 
 
-def test_the_svg_opens_the_line_it_is_on() -> None:
-    """``<svg ...>`` alone on a line is what makes the whole element a CommonMark type-7
-    HTML block, passed through verbatim. Anything before it on that line would turn the
-    block into a paragraph and the SVG source into visible text."""
-    assert to_markdown(_document()).splitlines()[0].startswith("<svg ")
+def test_the_block_opens_with_a_bare_div_on_its_own_line() -> None:
+    """A block-level tag alone on a line is what makes the whole thing a CommonMark HTML
+    block, passed through verbatim. ``<div>`` rather than ``<svg>`` because
+    Python-Markdown (MkDocs' default engine) has no ``svg`` in its block-level tag list
+    and would treat a multi-line one as an inline paragraph -- inserting a ``<br/>`` and a
+    paragraph break that lift the ``<style>`` element out of the SVG subtree."""
+    lines = to_markdown(_document()).splitlines()
+
+    assert lines[0] == "<div>"
+    assert lines[1].startswith("<svg ")
+
+
+def test_the_div_closes_after_the_svg() -> None:
+    lines = to_markdown(_document()).splitlines()
+
+    assert lines[lines.index("</svg>") + 1] == "</div>"
 
 
 def test_exactly_one_blank_line_separates_the_svg_from_the_table() -> None:
     """The blank line is the boundary that *closes* the HTML block, so the table that
     follows is parsed as markdown rather than swallowed into the block."""
     lines = to_markdown(_document(), TABLE).splitlines()
-    closing = lines.index("</svg>")
+    closing = lines.index("</div>")
 
     assert lines[closing + 1] == ""
     assert lines[closing + 2] == "| X | Y |"
@@ -62,11 +74,18 @@ def test_exactly_one_blank_line_separates_the_svg_from_the_table() -> None:
 
 def test_a_chart_without_a_table_is_still_markdown() -> None:
     """Not an error: markdown is a *format*, not a feature flag, and a typo'd field name
-    is already caught at plot time."""
-    body = to_markdown(_document())
+    is already caught at plot time.
 
-    assert body.startswith("<svg ")
-    assert body.rstrip().endswith("</svg>")
+    The trailing newline is asserted rather than stripped -- this repo enforces
+    end-of-file newlines with a hook, so the files it *writes* should have one too."""
+    assert to_markdown(_document()).endswith("</div>\n")
+
+
+def test_an_empty_table_does_not_leave_trailing_blank_lines() -> None:
+    """``render_table`` of an empty selection is still a string. Falling into the table
+    branch with it would append a blank line and nothing else."""
+    assert to_markdown(_document(), "") == to_markdown(_document())
+    assert to_markdown(_document(), "   \n\n") == to_markdown(_document())
 
 
 def test_the_table_is_not_followed_by_stray_blank_lines() -> None:
@@ -96,6 +115,16 @@ def test_the_refusal_names_the_cause() -> None:
     document.add_text(None, "a\n\nb", attrib={"x": "1", "y": "1"})
 
     with pytest.raises(ValueError, match="newline inside a label or title"):
+        to_markdown(document)
+
+
+def test_the_refusal_reports_the_offending_line_number() -> None:
+    """The line number is the whole diagnostic value of the message -- without it the
+    caller is told only that a blank line exists somewhere in a few hundred lines."""
+    document = _document()
+    document.add_text(None, "a\n\nb", attrib={"x": "1", "y": "1"})
+
+    with pytest.raises(ValueError, match=r"line 4\b"):
         to_markdown(document)
 
 
@@ -148,12 +177,16 @@ def test_declaration_is_moot_for_compact_output() -> None:
 
 
 def test_serializing_for_markdown_does_not_mutate_the_document() -> None:
+    """Compared through the *compact* form as well: ``ET.indent`` is idempotent, so two
+    pretty renders agree even when the indentation was applied to the stored tree."""
     document = _document()
-    before = hashlib.sha256(document.to_string().encode()).hexdigest()
+    before_pretty = hashlib.sha256(document.to_string().encode()).hexdigest()
+    before_compact = hashlib.sha256(document.to_string(pretty=False).encode()).hexdigest()
 
     to_markdown(document)
 
-    assert hashlib.sha256(document.to_string().encode()).hexdigest() == before
+    assert hashlib.sha256(document.to_string().encode()).hexdigest() == before_pretty
+    assert hashlib.sha256(document.to_string(pretty=False).encode()).hexdigest() == before_compact
 
 
 # ---------------------------------------------------------------------------
@@ -167,14 +200,47 @@ def test_save_routes_every_markdown_extension(tmp_path: Path, suffix: str) -> No
     path = tmp_path / f"chart{suffix}"
     _chart().save(str(path))
 
-    assert path.read_text(encoding="utf-8").startswith("<svg ")
+    assert path.read_text(encoding="utf-8").startswith("<div>\n<svg ")
 
 
 def test_save_markdown_writes_utf8(tmp_path: Path) -> None:
     path = tmp_path / "chart.md"
     save_markdown(_document(), "| — |", str(path))
 
-    assert "—" in path.read_text(encoding="utf-8")
+    assert "—".encode() in path.read_bytes()
+
+
+def test_save_markdown_pins_the_encoding_and_line_endings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Asserted on the *call*, not on the resulting bytes, because neither argument has an
+    observable effect on this platform: ``os.linesep`` is already "\n" and the default
+    encoding is already UTF-8. Both matter on Windows -- and ``newline`` matters for
+    correctness, not tidiness: the default rewrites every "\n" to ``os.linesep``, so a
+    label holding a CRLF passes ``_reject_blank_lines`` in memory and still lands CR +
+    CRLF -- a real blank line -- on disk, reopening the injection this module refuses."""
+    captured: dict[str, object] = {}
+    original = Path.write_text
+
+    def spy(self: Path, data: str, **kwargs: object) -> int:
+        captured.update(kwargs)
+        return original(self, data, encoding="utf-8")
+
+    monkeypatch.setattr(Path, "write_text", spy)
+    save_markdown(_document(), None, str(tmp_path / "chart.md"))
+
+    assert captured["encoding"] == "utf-8"
+    assert captured["newline"] == "\n"
+
+
+def test_a_crlf_label_cannot_produce_a_blank_line_on_disk(tmp_path: Path) -> None:
+    """The end-to-end companion to the check above, on platforms where it can be observed."""
+    document = _document()
+    document.add_text(None, "row1\r\nrow2", attrib={"x": "1", "y": "1"})
+    path = tmp_path / "chart.md"
+    save_markdown(document, None, str(path))
+
+    raw = path.read_bytes()
+    assert b"\r\n\r\n" not in raw
+    assert b"\n\n" not in raw
 
 
 def test_chart_to_markdown_matches_what_save_writes(tmp_path: Path) -> None:
@@ -195,10 +261,11 @@ def test_an_unknown_extension_still_lists_the_markdown_options(tmp_path: Path) -
 # ---------------------------------------------------------------------------
 
 
-def test_composition_supports_markdown_too(tmp_path: Path) -> None:
+@pytest.mark.parametrize("suffix", [*MARKDOWN_SUFFIXES, ".MD"])
+def test_composition_supports_markdown_too(tmp_path: Path, suffix: str) -> None:
     """``Composition`` documents that it exposes the same serialization surface as
     ``Chart``; supporting markdown on only one of them would break that invariant."""
-    path = tmp_path / "composition.md"
+    path = tmp_path / f"composition{suffix}"
     composition = row([_chart(), _chart()])
     composition.save(str(path))
 
@@ -208,9 +275,43 @@ def test_composition_supports_markdown_too(tmp_path: Path) -> None:
 
 def test_composition_markdown_carries_no_table_yet() -> None:
     """Gathering the children's tables is a follow-up; the format still works without."""
-    assert row([_chart(), _chart()]).to_markdown().rstrip().endswith("</svg>")
+    assert row([_chart(), _chart()]).to_markdown().endswith("</div>\n")
 
 
 def test_composition_unknown_extension_lists_the_markdown_options(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match=r"\.md"):
         row([_chart(), _chart()]).save(str(tmp_path / "composition.txt"))
+
+
+# ---------------------------------------------------------------------------
+# the _label_table hook
+# ---------------------------------------------------------------------------
+
+
+class _LabelledChart(sp_chart_module.Chart):
+    """A chart that has a table, standing in for what issue #69 wires up.
+
+    The hook returns ``None`` for every real chart today, so without a subclass the
+    "with a table" branch of both output paths is unreachable and untested — the wiring
+    would be a claim nobody checks.
+    """
+
+    def _label_table(self) -> str | None:
+        return TABLE
+
+
+def test_to_markdown_emits_the_hook_s_table() -> None:
+    chart = _LabelledChart(_document())
+
+    assert chart.to_markdown().splitlines()[-3:] == ["| X | Y |", "| --- | --- |", "| a | 1.0 |"]
+
+
+def test_save_writes_the_hook_s_table_too(tmp_path: Path) -> None:
+    """``save()`` builds its own arguments rather than calling ``to_markdown``, so the two
+    paths can drift apart."""
+    path = tmp_path / "chart.md"
+    chart = _LabelledChart(_document())
+    chart.save(str(path))
+
+    assert path.read_text(encoding="utf-8") == chart.to_markdown()
+    assert "| a | 1.0 |" in path.read_text(encoding="utf-8")

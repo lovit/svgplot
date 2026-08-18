@@ -6,10 +6,20 @@ Assembling the table belongs to ``Chart``/``Composition``, not here.
 Layout
 ======
 
-The file is the pretty-printed SVG with its XML prolog dropped, one blank line, then the
-table. That shape is load-bearing rather than cosmetic: a ``<svg ...>`` alone on its own
-line opens a CommonMark **type-7 HTML block**, which passes through verbatim and ends at
-the first blank line -- exactly the boundary the table needs in front of it.
+The file is the pretty-printed SVG wrapped in a bare ``<div>``, one blank line, then the
+table. That shape is load-bearing rather than cosmetic: a block-level tag alone on its own
+line opens a CommonMark **HTML block**, which passes through verbatim and ends at the
+first blank line -- exactly the boundary the table needs in front of it.
+
+The ``<div>`` is why the wrapper exists rather than emitting ``<svg>`` directly. Under
+CommonMark either works (``svg`` opens a type-7 block, ``div`` a type-6), but
+Python-Markdown -- what MkDocs runs by default -- has no ``svg`` in its block-level tag
+list, so a multi-line ``<svg>`` is treated as an *inline* HTML paragraph: it inserts a
+``<br/>`` before the ``<style>`` line and splits the paragraph at ``</style>``. Both tags
+break out of foreign content in the HTML parser, which lifts the ``<style>`` block --
+every colour in the chart -- out of the ``<svg>`` subtree. Wrapping in ``<div>`` makes the
+whole thing verbatim in both engines, and keeps the "ends at the first blank line"
+contract this module's guard depends on.
 
 A single file with both is the requirement, so neither an ``<img>`` reference nor a
 sidecar ``.svg`` will do, and a ``data:`` URI would give up the hand-editability this
@@ -19,10 +29,12 @@ Renderer support
 ================
 
 **GitHub strips inline SVG** from rendered markdown (its sanitizer removes the element
-entirely), so a ``.md`` written here shows the table but not the chart on github.com.
-MkDocs, Sphinx, VS Code's preview, and most static-site pipelines render it fine. For
+entirely), so a ``.md`` written here shows the table but not the chart on github.com. For
 GitHub specifically, write the chart with ``save("x.svg")`` and reference it as an image
 instead -- at the cost of the two-file split this format exists to avoid.
+
+Verified to pass through verbatim under markdown-it-py (VS Code's preview, MyST/Sphinx)
+and under Python-Markdown with MkDocs' default extensions.
 """
 
 from __future__ import annotations
@@ -30,6 +42,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from svgplot._svg import SvgDocument
+from svgplot.output.svg import to_string
 
 MARKDOWN_SUFFIXES = (".md", ".markdown")
 """Extensions ``save()`` routes here. Compared against a lower-cased suffix, so ``.MD``
@@ -65,17 +78,20 @@ def to_markdown(document: SvgDocument, table: str | None = None) -> str:
         document: the chart to inline.
         table: a pre-rendered table (see :func:`svgplot.labels.render_table`), or ``None``
             for the SVG alone. ``None`` is not an error: markdown is a *format*, not a
-            feature flag, and a chart without labels is a perfectly good markdown file.
+            feature flag, and a chart without labels is a perfectly good markdown file. A
+            blank string is treated the same way, so an empty table cannot leave a
+            trailing run of blank lines behind the chart.
 
     Raises:
         ValueError: if the serialized SVG contains a blank line -- see
             :func:`_reject_blank_lines`.
     """
-    svg = document.to_string(pretty=True, declaration=False).rstrip("\n")
+    svg = to_string(document, pretty=True, declaration=False).rstrip("\n")
     _reject_blank_lines(svg)
-    if table is None:
-        return f"{svg}\n"
-    return f"{svg}\n\n{table.rstrip(chr(10))}\n"
+    block = f"<div>\n{svg}\n</div>"
+    if table is None or not table.strip():
+        return f"{block}\n"
+    return f"{block}\n\n{table.rstrip(chr(10))}\n"
 
 
 def save_markdown(document: SvgDocument, table: str | None, path: str) -> None:
@@ -85,4 +101,7 @@ def save_markdown(document: SvgDocument, table: str | None, path: str) -> None:
     web endpoint. Callers embedding user-supplied filenames (e.g. in a web service) are
     responsible for validating/resolving them.
     """
-    Path(path).write_text(to_markdown(document, table), encoding="utf-8")
+    # newline="\n" is not cosmetic: the default translates every "\n" to os.linesep, so on
+    # Windows a label holding a CRLF would pass the in-memory guard above and still land a
+    # real blank line on disk -- reopening the very injection this module refuses.
+    Path(path).write_text(to_markdown(document, table), encoding="utf-8", newline="\n")
