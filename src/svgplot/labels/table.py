@@ -18,6 +18,14 @@ function inserts later to form an unintended escape), a literal ``|`` column
 separator is then backslash-escaped, and a literal newline (which would
 otherwise terminate the row early and desynchronize the table) is collapsed
 to a space — that order matters, see :func:`_escape_markdown_cell`.
+
+Known limit (issue #97): only *structure* is neutralized. Markdown **inline**
+syntax in a cell is passed through and renders live — a value of
+``[click](https://elsewhere/)`` becomes a real link, ``![x](https://…)`` a
+remote image (an IP beacon for whoever opens the document), and backticks or
+asterisks restyle the cell. That is not an XSS vector — ``html.escape`` still
+neutralizes ``<`` — but it does mean a table built from untrusted data can
+carry active content into the rendered document.
 """
 
 from __future__ import annotations
