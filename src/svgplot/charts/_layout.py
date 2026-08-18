@@ -1,9 +1,10 @@
 """Plot-area layout math shared by every chart type.
 
-Two responsibilities: (1) a CSS-box-model-like margin (single value applies
+Three responsibilities: (1) the default canvas size and margin presets every
+chart starts from, (2) a CSS-box-model-like margin (single value applies
 to all 4 sides, or a 4-tuple for per-side control — pygal precedent,
 docs/research/12-aesthetics.md:31) resolved into a plot-area rect, and
-(2) SVG-literal coordinate formatting, so every chart's path/line/rect
+(3) SVG-literal coordinate formatting, so every chart's path/line/rect
 coordinates stay clean literals rather than floating-point noise (mirrors
 ``_svg.py``'s private ``_format_number`` — that function isn't reusable
 outside its own module, so this is a deliberate, minimal duplication of its
@@ -19,6 +20,20 @@ import math
 from dataclasses import dataclass
 
 Margin = float | tuple[float, float, float, float]
+
+DEFAULT_WIDTH = 800.0
+DEFAULT_HEIGHT = 600.0
+"""Default canvas size. Every chart type starts here; ``layout.sizing.apply_size``
+and ``chart.composition`` scale from it rather than each chart choosing its own."""
+
+MARGIN_WITH_LEGEND = (30.0, 160.0, 50.0, 60.0)  # top, right, bottom, left
+MARGIN_WITHOUT_LEGEND = (30.0, 40.0, 50.0, 60.0)
+"""The two margin presets an axed chart picks between: the wide right margin reserves
+legend space, the narrow one doesn't. Both leave the same room at bottom/left for tick
+labels. A chart with no axes (see ``charts/pie.py``) needs neither and defines its own."""
+
+LEGEND_X_OFFSET = 20.0
+"""Gap between the plot area's right edge and the legend's left edge."""
 
 
 @dataclass(frozen=True)

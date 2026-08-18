@@ -5,7 +5,15 @@ from __future__ import annotations
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
-from svgplot.charts._layout import format_coord, plot_area
+from svgplot.charts._layout import (
+    DEFAULT_HEIGHT,
+    DEFAULT_WIDTH,
+    LEGEND_X_OFFSET,
+    MARGIN_WITH_LEGEND,
+    MARGIN_WITHOUT_LEGEND,
+    format_coord,
+    plot_area,
+)
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data.ingest import ingest_longform
@@ -13,12 +21,6 @@ from svgplot.data.semantic import extract_channels
 from svgplot.scales import CategoricalScale, LinearScale
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
-
-_WIDTH = 800.0
-_HEIGHT = 600.0
-_MARGIN_WITH_LEGEND = (30.0, 160.0, 50.0, 60.0)  # top, right, bottom, left
-_MARGIN_WITHOUT_LEGEND = (30.0, 40.0, 50.0, 60.0)
-_LEGEND_X_OFFSET = 20.0  # past the plot area's right edge
 
 # A category's full band is never filled edge-to-edge — some of it is inset as
 # whitespace so adjacent bands read as visually distinct, and (in grouped mode)
@@ -117,12 +119,12 @@ def barplot(
         value_max = max(all_values) if all_values else 0.0
     value_max = value_max or 1.0  # an all-zero chart still needs a non-degenerate axis
 
-    document = SvgDocument(width=_WIDTH, height=_HEIGHT)
-    area = plot_area(_WIDTH, _HEIGHT, margin=_MARGIN_WITH_LEGEND if hue is not None else _MARGIN_WITHOUT_LEGEND)
+    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
+    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
     document.add_node(
         None,
         "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(_WIDTH), "height": format_coord(_HEIGHT)},
+        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
         classes=["plot-background"],
     )
 
@@ -188,7 +190,7 @@ def barplot(
 
     if hue is not None:
         legend_entries = [(str(label), series_classes[index]) for index, (label, _) in enumerate(group_items)]
-        render_legend(document, legend_entries, x=area.right + _LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+        render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 

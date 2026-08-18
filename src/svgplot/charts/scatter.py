@@ -12,7 +12,15 @@ from collections.abc import Callable
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
-from svgplot.charts._layout import format_coord, plot_area
+from svgplot.charts._layout import (
+    DEFAULT_HEIGHT,
+    DEFAULT_WIDTH,
+    LEGEND_X_OFFSET,
+    MARGIN_WITH_LEGEND,
+    MARGIN_WITHOUT_LEGEND,
+    format_coord,
+    plot_area,
+)
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data.ingest import ingest_longform
@@ -21,11 +29,6 @@ from svgplot.scales import LinearScale
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
-_WIDTH = 800.0
-_HEIGHT = 600.0
-_MARGIN_WITH_LEGEND = (30.0, 160.0, 50.0, 60.0)  # top, right, bottom, left
-_MARGIN_WITHOUT_LEGEND = (30.0, 40.0, 50.0, 60.0)
-_LEGEND_X_OFFSET = 20.0  # past the plot area's right edge
 _SIZE_LEGEND_GAP = 24.0  # vertical gap between the hue legend and the size legend
 _SIZE_LEGEND_ROW_PADDING = 8.0  # vertical breathing room between size-legend rows
 _SIZE_LEGEND_LABEL_GAP = 6.0
@@ -173,12 +176,12 @@ def scatterplot(
     y_domain = (min(all_y), max(all_y))
 
     has_legend = hue is not None or size is not None
-    document = SvgDocument(width=_WIDTH, height=_HEIGHT)
-    area = plot_area(_WIDTH, _HEIGHT, margin=_MARGIN_WITH_LEGEND if has_legend else _MARGIN_WITHOUT_LEGEND)
+    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
+    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND if has_legend else MARGIN_WITHOUT_LEGEND)
     document.add_node(
         None,
         "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(_WIDTH), "height": format_coord(_HEIGHT)},
+        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
         classes=["plot-background"],
     )
 
@@ -211,14 +214,14 @@ def scatterplot(
 
     legend_bottom = area.top
     if legend_entries:
-        render_legend(document, legend_entries, x=area.right + _LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+        render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
         legend_bottom = area.top + len(legend_entries) * 20.0 + _SIZE_LEGEND_GAP
     if size is not None:
         _render_size_legend(
             document,
             [row[2] for row in all_rows],
             radius_of,
-            x=area.right + _LEGEND_X_OFFSET,
+            x=area.right + LEGEND_X_OFFSET,
             y=legend_bottom,
             marker_class=series_classes[0],
         )

@@ -5,17 +5,13 @@ from __future__ import annotations
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
-from svgplot.charts._layout import format_coord, plot_area
+from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, format_coord, plot_area
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import CategoricalScale, LinearScale
 from svgplot.stats.box import BoxStats, box_stats
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
-
-_WIDTH = 800.0
-_HEIGHT = 600.0
-_MARGIN = (30.0, 40.0, 50.0, 60.0)  # top, right, bottom, left — no legend, x-axis labels the categories
 
 _BOX_WIDTH_FRACTION = 0.6  # of the category band
 _WHISKER_CAP_FRACTION = 0.3  # of the category band, centered
@@ -79,12 +75,12 @@ def boxplot(
     ]
     y_domain = (min(all_low), max(all_high))
 
-    document = SvgDocument(width=_WIDTH, height=_HEIGHT)
-    area = plot_area(_WIDTH, _HEIGHT, margin=_MARGIN)
+    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
+    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITHOUT_LEGEND)
     document.add_node(
         None,
         "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(_WIDTH), "height": format_coord(_HEIGHT)},
+        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
         classes=["plot-background"],
     )
 

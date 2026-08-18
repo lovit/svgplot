@@ -7,7 +7,15 @@ import bisect
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
-from svgplot.charts._layout import format_coord, plot_area
+from svgplot.charts._layout import (
+    DEFAULT_HEIGHT,
+    DEFAULT_WIDTH,
+    LEGEND_X_OFFSET,
+    MARGIN_WITH_LEGEND,
+    MARGIN_WITHOUT_LEGEND,
+    format_coord,
+    plot_area,
+)
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data.ingest import ingest_longform
@@ -16,12 +24,6 @@ from svgplot.scales import LinearScale
 from svgplot.stats.binning import histogram_bins
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
-
-_WIDTH = 800.0
-_HEIGHT = 600.0
-_MARGIN_WITH_LEGEND = (30.0, 160.0, 50.0, 60.0)  # top, right, bottom, left
-_MARGIN_WITHOUT_LEGEND = (30.0, 40.0, 50.0, 60.0)
-_LEGEND_X_OFFSET = 20.0
 
 
 def _clean_values(columns: dict[str, list], x: str) -> list[float]:
@@ -95,12 +97,12 @@ def histplot(
     series_counts = [(label, _count_in_bins(values, edges)) for label, values in series_values]
     max_count = max((count for _, counts in series_counts for count in counts), default=0)
 
-    document = SvgDocument(width=_WIDTH, height=_HEIGHT)
-    area = plot_area(_WIDTH, _HEIGHT, margin=_MARGIN_WITH_LEGEND if hue is not None else _MARGIN_WITHOUT_LEGEND)
+    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
+    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
     document.add_node(
         None,
         "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(_WIDTH), "height": format_coord(_HEIGHT)},
+        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
         classes=["plot-background"],
     )
 
@@ -134,7 +136,7 @@ def histplot(
             legend_entries.append((str(label), series_class))
 
     if legend_entries:
-        render_legend(document, legend_entries, x=area.right + _LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+        render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
