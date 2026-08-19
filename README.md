@@ -33,7 +33,7 @@ sp.scatterplot(data, x="day", y="sales", hue="region", size="size").save("scatte
 # 막대 — orient="v"|"h", stacked=True면 누적, hue=만 주면 그룹(dodge)
 sp.barplot(data, x="region", y="sales", hue="region", stacked=True).save("bar.svg")
 
-# 히스토그램 — bins는 정수 또는 numpy 전략 문자열("auto" 기본)
+# 히스토그램 — bins는 정수 또는 전략 문자열("auto" 기본)
 sp.histplot(data, x="sales", bins=5).save("hist.svg")
 
 # 영역 — stacked=True면 누적 영역
