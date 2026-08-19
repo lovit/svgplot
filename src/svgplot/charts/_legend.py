@@ -36,37 +36,37 @@ def render_legend(
     font_size: float,
 ) -> float:
     """Draw a vertical legend starting at ``(x, y)``, one row per ``entries`` item,
-        and return the y coordinate just past the last row.
+    and return the y coordinate just past the last row.
 
-        Returning the consumed height keeps row spacing owned by this module: a caller
-        stacking something beneath the legend (e.g. ``charts.scatter``'s size legend)
-        derives its offset from this value instead of re-deriving it from a copy of
-        ``_ROW_HEIGHT``, which would silently overlap if that constant ever changed.
+    Returning the consumed height keeps row spacing owned by this module: a caller
+    stacking something beneath the legend (e.g. ``charts.scatter``'s size legend)
+    derives its offset from this value instead of re-deriving it from a copy of
+    ``_ROW_HEIGHT``, which would silently overlap if that constant ever changed.
 
-        Each entry is ``(label, css_class)`` — ``css_class`` is reused as-is (e.g. the
-        same class a series' ``<path>`` already carries), so this function only
-        positions a swatch + text per entry; it never chooses or emits any color
-        itself — that's ``theme.css.render_theme_style``'s job, which already styles
-        ``css_class`` via its ``<style>`` block. ``mark_style`` must match whatever was
-        passed to ``render_theme_style`` for these same classes (``"stroke"``, the
-        default, draws a ``<line>`` swatch matching a stroked mark like a line chart's
-        path; ``"fill"`` draws a small ``<rect>`` swatch matching a filled mark like a
-        bar/area/pie slice) — a mismatch doesn't error, but the swatch shape/CSS
-        property pairing would look wrong (e.g. a ``<line>`` swatch has no visible
-        color under a ``fill``-only CSS rule).
+    Each entry is ``(label, css_class)`` — ``css_class`` is reused as-is (e.g. the
+    same class a series' ``<path>`` already carries), so this function only
+    positions a swatch + text per entry; it never chooses or emits any color
+    itself — that's ``theme.css.render_theme_style``'s job, which already styles
+    ``css_class`` via its ``<style>`` block. ``mark_style`` must match whatever was
+    passed to ``render_theme_style`` for these same classes (``"stroke"``, the
+    default, draws a ``<line>`` swatch matching a stroked mark like a line chart's
+    path; ``"fill"`` draws a small ``<rect>`` swatch matching a filled mark like a
+    bar/area/pie slice) — a mismatch doesn't error, but the swatch shape/CSS
+    property pairing would look wrong (e.g. a ``<line>`` swatch has no visible
+    color under a ``fill``-only CSS rule).
 
     The room a label has is read off ``document.width`` and ``x`` rather than passed in. An
-        earlier version took it as a parameter and every one of the twelve callers wrote the
-        same expression -- correct today only because every one of those charts happens to use
-        the default canvas, and all twelve would be wrong together the moment a chart could be
-        given a size. It is the same reason the returned height exists.
+    earlier version took it as a parameter and every one of the twelve callers wrote the
+    same expression -- correct today only because every one of those charts happens to use
+    the default canvas, and all twelve would be wrong together the moment a chart could be
+    given a size. It is the same reason the returned height exists.
 
-        A label estimated not to fit is shortened with an ellipsis, and its full text kept in a
-        ``<title>`` child -- which both browsers and assistive technology read. The full text is
-        also kept for a label merely *close* to the budget, because the width estimate can be
-        wrong in the direction that says "this fits", and that is the case with no fallback.
+    A label estimated not to fit is shortened with an ellipsis, and its full text kept in a
+    ``<title>`` child -- which both browsers and assistive technology read. The full text is
+    also kept for a label merely *close* to the budget, because the width estimate can be
+    wrong in the direction that says "this fits", and that is the case with no fallback.
 
-        Raises:
+    Raises:
             ValueError: if ``mark_style`` isn't ``"stroke"`` or ``"fill"``.
     """
     if mark_style not in ("stroke", "fill"):

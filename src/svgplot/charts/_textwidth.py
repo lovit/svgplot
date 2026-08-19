@@ -32,7 +32,7 @@ charge** -- verified against the font's own ``hmtx`` table, not asserted from me
 in Western text -- follows the same case rule. It renders wide only in a terminal font chosen
 for CJK, which is not where an SVG lands.
 
-Ten glyphs whose real advance exceeds their class charge are listed individually in
+The glyphs whose real advance exceeds their class charge are listed individually in
 :data:`_MEASURED`; see there for why a class-wide margin would be worse.
 
 What the model is bounded on
@@ -63,14 +63,14 @@ _WIDE_RATIO = 1.0
 """Charge for an East Asian wide/fullwidth form, and for the punctuation that is em-width."""
 
 _CAPITAL_RATIO = 0.73
-"""Charge for uppercase letters and digits. The measured worst case of the class once
-:data:`_MEASURED` takes the outliers out: ``C D H N R U`` at 0.722, rounded up. 0.72 sat
-just under them."""
+"""Charge for uppercase letters and digits. Above the measured worst case of the class once
+:data:`_MEASURED` takes the outliers out -- ``Ŋ`` at 0.7231, then ``Ŗ Ĉ Ć`` and the ASCII
+``C D H N R U`` at 0.7222. 0.72 sat under all of them."""
 
 _NARROW_RATIO = 0.59
-"""Charge for everything else. The measured worst case once :data:`_MEASURED` takes the
-outliers out: ``+ < = > ~`` at 0.584, rounded up. 0.55 sat under those *and* under a digit's
-0.556, which is how a label of digits ran past the canvas edge."""
+"""Charge for everything else. Above the measured worst case once :data:`_MEASURED` takes the
+outliers out: ``+ < = > ~``, U+00AC and U+00D7, all at 0.584. 0.55 sat under those *and* under a digit's 0.556,
+which is how a label of digits ran past the canvas edge."""
 
 _MEASURED = {
     "@": 1.02,
@@ -172,19 +172,24 @@ preserved anyway, as a fraction of the budget.
 Derived from the fonts, not chosen -- and the fonts it is derived from are named here,
 because that list *is* the guarantee's scope:
 
-=====================  ======================================  =========
-face                   worst ratio of real advance to charge   needs
-=====================  ======================================  =========
-Arial                  1.0000  (``Æ``)                          <= 1.000
-Trebuchet MS           1.0538  (``&``)                          <= 0.949
-Helvetica Bold         1.1194  (``ď``)                          <= 0.893
-SF NS                  1.1448  (``©``)                          <= 0.873
-Tahoma                 1.2550  (``©``)                          <= 0.797
-Verdana                1.3870  (``÷``)                          <= 0.721
-Comic Sans MS          1.4442  (``Ĳ``)                          <= 0.692
-Geneva                 1.4536  (``ŉ``)                          <= 0.688
-**Helvetica Neue Medium**  **1.5560**  (``―``)                  <= 0.643
-=====================  ======================================  =========
+=================  ==========================================  =========
+family             worst ratio across **every weight it ships**  needs
+=================  ==========================================  =========
+SF NS              1.1448  (``©``, System Font)                  <= 0.873
+Trebuchet MS       1.1198  (``ŉ``, Bold)                          <= 0.893
+Tahoma             1.3870  (``>``, Negreta)                       <= 0.721
+Arial              1.4408  (``¶``, Black)                         <= 0.694
+Geneva             1.4536  (``ŉ``)                                <= 0.688
+Verdana            1.4698  (``>``, Bold)                          <= 0.680
+Comic Sans MS      1.5068  (``Ĳ``, Bold)                          <= 0.664
+**Helvetica / Helvetica Neue**  **1.5560**  (``―``, HN Medium)    <= 0.643
+=================  ==========================================  =========
+
+Every weight, not the regular one. An earlier version of this table listed the regular face
+of each family and put Arial at 1.0000 -- Arial Black runs ``¶`` at 1.4408, and Comic Sans
+Bold at 1.5068 was the second-worst face in the whole set and absent from the table entirely.
+The threshold happened to survive that, because the family whose *regular* face was worst is
+also the family with the worst face overall; that is luck, not method.
 
 A label estimated at fraction *f* of the budget renders at up to 1.5560 *f*, so it stays
 inside only while *f* is under 0.643. 0.60 sits under that with room.
