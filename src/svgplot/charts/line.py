@@ -11,7 +11,7 @@ reuse rather than duplicate.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
@@ -38,8 +38,53 @@ from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
 
-def _numeric_x(value: object) -> float:
-    return value.timestamp() if isinstance(value, datetime) else float(value)
+def _as_datetime(value: object) -> datetime:
+    """A ``date`` promoted to midnight, a ``datetime`` unchanged.
+
+    ``datetime`` is a subclass of ``date``, which is why the check reads this way round and
+    why ``isinstance(value, datetime)`` alone silently missed every plain ``date`` -- the
+    commonest thing a CSV or a pandas column holds. The two mix freely in one column for the
+    same reason: promoting is lossless, and a column of dates with one timestamp in it is a
+    real shape, not a mistake worth refusing.
+    """
+    return value if isinstance(value, datetime) else datetime(value.year, value.month, value.day)  # type: ignore[union-attr]
+
+
+def _time_values(values: list[object], column: str) -> list[datetime] | None:
+    """``values`` as datetimes if this is a time axis, ``None`` if it is a numeric one.
+
+    Raises:
+        ValueError: if the column mixes dates with anything else, or holds a type with no
+            position on a time axis. ``datetime.time`` is the one worth naming: it is a
+            time of day with no day, so two ``time`` values a week apart are the same point
+            and there is no domain to draw. Without this the failure is
+            ``TypeError: float() argument must be a string or a real number``, which names
+            neither the column nor the type.
+    """
+    dated = [value for value in values if isinstance(value, date)]
+    if not dated:
+        return None
+    if len(dated) != len(values):
+        others = {type(value).__name__ for value in values if not isinstance(value, date)}
+        raise ValueError(f"column {column!r} mixes dates with {', '.join(sorted(others))}; a time axis needs dates throughout")
+    return [_as_datetime(value) for value in dated]
+
+
+def _numeric_x(value: object, column: str) -> float:
+    """``value`` as a number the x axis can position, or a ``ValueError`` naming the column.
+
+    The column name is threaded through rather than added by the caller because the first
+    call happens while *sorting*, before the chart has looked at the domain -- so a bad value
+    surfaced as ``TypeError: float() argument must be a string or a real number, not
+    'datetime.time'``, from inside a ``sorted`` key, naming neither the column nor what to do
+    about it.
+    """
+    if isinstance(value, date):
+        return _as_datetime(value).timestamp()
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise ValueError(f"column {column!r} holds {type(value).__name__}, which has no position on an x axis") from None
 
 
 def _series_points(columns: dict[str, list], x: str, y: str) -> list[tuple[object, float]]:
@@ -49,7 +94,7 @@ def _series_points(columns: dict[str, list], x: str, y: str) -> list[tuple[objec
     points = [
         (xv, float(yv)) for xv, yv in zip(columns[x], columns[y], strict=True) if not is_missing(xv) and not is_missing(yv)
     ]
-    return sorted(points, key=lambda point: _numeric_x(point[0]))
+    return sorted(points, key=lambda point: _numeric_x(point[0], x))
 
 
 def _path_data(xs: list[float], ys: list[float]) -> str:
@@ -108,8 +153,9 @@ def lineplot(
     all_y = [point[1] for _, points in series_points for point in points]
     if not all_x:
         raise ValueError("no rows with both x and y present after dropping missing values")
-    is_time = isinstance(all_x[0], datetime)
-    numeric_x_domain = (min(_numeric_x(v) for v in all_x), max(_numeric_x(v) for v in all_x))
+    time_x = _time_values(all_x, x)
+    is_time = time_x is not None
+    numeric_x_domain = (min(_numeric_x(v, x) for v in all_x), max(_numeric_x(v, x) for v in all_x))
     y_domain = (min(all_y), max(all_y))
 
     # After the checks above, so a bad column still reports the chart's own error first.
@@ -142,7 +188,7 @@ def lineplot(
         series_class = document.semantic_class("series")
         series_classes.append(series_class)
         if points:
-            raw_x = [_numeric_x(px) for px, _ in points]
+            raw_x = [_numeric_x(px, x) for px, _ in points]
             raw_y = [py for _, py in points]
             if interpolate == "linear":
                 curve_x, curve_y = raw_x, raw_y
