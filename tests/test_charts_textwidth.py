@@ -374,19 +374,20 @@ def test_every_measured_entry_is_pinned_by_a_literal() -> None:
     assert set(_MEASURED) == set(_MEASURED_ADVANCES)
 
 
-# Worst digit advance per face, from each font's own ``hmtx``. Arial's 0.5562 sits under
-# ``_NARROW_RATIO``, so every Arial-based assertion here passes with digits charged as narrow
-# -- and four of the nine faces the threshold covers put a digit above it.
-_WORST_DIGIT_BY_FACE = {
+# Worst digit advance per FAMILY across every weight it ships, from each font's own ``hmtx``.
+# Per family for the same reason as ``_WORST_RATIO_BY_FAMILY`` above -- and this table is why
+# that reason has to be applied twice: the first version of it listed regular faces, and five
+# of the nine were wrong. Arial's regular digits are 0.5562 and Arial Black's are 0.6670.
+_WORST_DIGIT_BY_FAMILY = {
+    "Verdana": 0.7109,  # Bold
+    "Arial": 0.6670,  # Black
     "Geneva": 0.6665,
-    "Verdana": 0.6357,
-    "SF NS": 0.6172,
+    "Tahoma": 0.6367,  # Bold
+    "SF NS": 0.6274,  # Italic
     "Comic Sans MS": 0.6104,
-    "Arial": 0.5562,
+    "Trebuchet MS": 0.5859,  # Bold Italic
     "Helvetica": 0.5562,
     "Helvetica Neue": 0.5560,
-    "Tahoma": 0.5459,
-    "Trebuchet MS": 0.5244,
 }
 
 
@@ -394,12 +395,16 @@ _WORST_DIGIT_BY_FACE = {
 def test_a_digit_is_charged_as_a_capital_not_as_narrow(digit: str) -> None:
     """Filing digits with the capitals is load-bearing outside Arial, and only outside it.
 
-    Arial's digits are 0.5562, under ``_NARROW_RATIO``, so every measured-literal assertion
-    in this file is satisfied either way -- and moving digits to the narrow class left the
-    suite green. Four of the nine faces :data:`_TITLE_THRESHOLD` covers disagree, the worst
-    by 13%: Geneva 0.6665, Verdana 0.6357, SF NS 0.6172, Comic Sans 0.6104."""
+    Arial's *regular* digits are 0.5562, under ``_NARROW_RATIO``, so every measured-literal
+    assertion in this file is satisfied either way -- and moving digits to the narrow class
+    left the suite green. Six of the nine families disagree once their bold and italic weights
+    are counted, the worst by 20%: Verdana Bold 0.7109, Arial Black 0.6670, Geneva 0.6665,
+    Tahoma Bold 0.6367, SF NS Italic 0.6274, Comic Sans 0.6104.
+
+    The margin this leaves is 0.73 - 0.7109 = 0.019 em, not the 0.064 the regular-only table
+    implied. Anyone lowering ``_CAPITAL_RATIO`` should read this number and not that one."""
     assert text_width(digit, 10.0) == pytest.approx(10.0 * _CAPITAL_RATIO)
-    assert max(_WORST_DIGIT_BY_FACE.values()) <= _CAPITAL_RATIO
+    assert max(_WORST_DIGIT_BY_FAMILY.values()) <= _CAPITAL_RATIO
 
 
 def test_the_trusted_repertoire_stops_where_the_measurements_stop() -> None:
@@ -408,7 +413,7 @@ def test_the_trusted_repertoire_stops_where_the_measurements_stop() -> None:
     Widening the range by one hex digit -- ``0x180`` to ``0x200``, taking in Latin Extended-B
     unmeasured -- left the whole suite green while ``ǅ`` x10 rendered 16.4px past the canvas
     with neither truncation nor a ``<title>``. U+01C5 is titlecase, so ``isupper()`` is False
-    and it is charged 0.59 against a measured 2.07 in Arial.
+    and it is charged 0.59 against a measured 1.222 in Arial -- 2.07 times its charge.
 
     The same guard shape as ``test_every_measured_entry_is_pinned_by_a_literal``: a count and
     the edges, so the set cannot drift without saying so."""
