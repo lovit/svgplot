@@ -50,24 +50,26 @@ def _as_datetime(value: object) -> datetime:
     return value if isinstance(value, datetime) else datetime(value.year, value.month, value.day)  # type: ignore[union-attr]
 
 
-def _time_values(values: list[object], column: str) -> list[datetime] | None:
-    """``values`` as datetimes if this is a time axis, ``None`` if it is a numeric one.
+def _is_time_axis(values: list[object], column: str) -> bool:
+    """Whether ``column`` holds dates, and therefore wants a time axis.
+
+    Returns ``bool`` rather than the promoted values because nothing needs them: the domain
+    is computed by :func:`_numeric_x`, which promotes as it goes. An earlier version built
+    and returned a ``list[datetime]`` that every caller threw away.
 
     Raises:
-        ValueError: if the column mixes dates with anything else, or holds a type with no
-            position on a time axis. ``datetime.time`` is the one worth naming: it is a
-            time of day with no day, so two ``time`` values a week apart are the same point
-            and there is no domain to draw. Without this the failure is
-            ``TypeError: float() argument must be a string or a real number``, which names
-            neither the column nor the type.
+        ValueError: if the column mixes dates with values that are *numbers*. Anything else
+            mixed in -- a ``str``, a ``time`` -- is refused earlier, by :func:`_numeric_x`
+            during the sort, and reported by type rather than as a mixture. Both messages
+            name the column, which is the part that matters.
     """
     dated = [value for value in values if isinstance(value, date)]
     if not dated:
-        return None
+        return False
     if len(dated) != len(values):
-        others = {type(value).__name__ for value in values if not isinstance(value, date)}
-        raise ValueError(f"column {column!r} mixes dates with {', '.join(sorted(others))}; a time axis needs dates throughout")
-    return [_as_datetime(value) for value in dated]
+        others = sorted({type(value).__name__ for value in values if not isinstance(value, date)})
+        raise ValueError(f"column {column!r} mixes dates with {', '.join(others)}; a time axis needs dates throughout")
+    return True
 
 
 def _numeric_x(value: object, column: str) -> float:
@@ -80,7 +82,15 @@ def _numeric_x(value: object, column: str) -> float:
     about it.
     """
     if isinstance(value, date):
-        return _as_datetime(value).timestamp()
+        try:
+            return _as_datetime(value).timestamp()
+        except (OverflowError, ValueError, OSError):
+            # ``timestamp()`` probes around the value to resolve the local offset, so the
+            # last hours before ``datetime.max`` are unreachable whatever this package does.
+            # A raw "year 10000 is out of range" names neither the column nor the reason.
+            raise ValueError(
+                f"column {column!r} holds {value!r}, which is too close to datetime.max to place on a time axis"
+            ) from None
     try:
         return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
@@ -118,15 +128,26 @@ def lineplot(
     """Draw a line chart from long-form data.
 
     With ``hue=``, one line per distinct hue value is drawn (colors cycling
-    through the theme's palette) with an auto-generated legend. Datetime ``x``
-    values automatically use a time axis (``scales.TimeScale``) instead of a
-    linear one. ``interpolate="linear"`` (the default) connects the raw points
+    through the theme's palette) with an auto-generated legend.
+
+    An ``x`` column of ``datetime.date`` or ``datetime.datetime`` values automatically uses a
+    time axis (``scales.TimeScale``) instead of a linear one, and its tick labels take their
+    resolution from the domain -- clock time inside a day, dates across days, year-month
+    across months, years beyond that. A ``date`` is read as midnight, and a column holding
+    both kinds is promoted the same way rather than refused: promoting is lossless, and a
+    column of dates with one timestamp in it is an ordinary shape.
+
+    ``interpolate="linear"`` (the default) connects the raw points
     with straight segments; any other value is passed to
     ``stats.interpolate.interpolate`` as its ``method=`` (e.g. ``"cubic"``) to
     smooth the line — see that function for the full set of supported methods
     and its own validation of ``method``/point-count/finiteness.
 
     Raises:
+        ValueError: if ``x`` holds a type with no position on an axis (``datetime.time`` is
+            a time of day with no day, so two values a week apart are the same point), if it
+            mixes dates with numbers, or if a value sits too close to ``datetime.max`` for
+            ``timestamp()`` to place. Every one of these names the column.
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
             is a string that isn't a registered preset name.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
@@ -153,8 +174,7 @@ def lineplot(
     all_y = [point[1] for _, points in series_points for point in points]
     if not all_x:
         raise ValueError("no rows with both x and y present after dropping missing values")
-    time_x = _time_values(all_x, x)
-    is_time = time_x is not None
+    is_time = _is_time_axis(all_x, x)
     numeric_x_domain = (min(_numeric_x(v, x) for v in all_x), max(_numeric_x(v, x) for v in all_x))
     y_domain = (min(all_y), max(all_y))
 

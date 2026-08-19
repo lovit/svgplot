@@ -62,9 +62,10 @@ def _time_format(ticks: list[datetime]) -> str:
     for candidate in ladder:
         if len({tick.strftime(candidate) for tick in ticks}) == len(ticks):
             return candidate
-    # Two ticks the finest format cannot separate are two ticks under a microsecond apart,
-    # which ``make_ticks`` already dedups. Reaching here means the axis is degenerate; the
-    # finest format at least shows the most it can.
+    # Two ticks the finest format cannot separate are under a microsecond apart, which is
+    # finer than ``datetime`` resolves -- so they are the same instant, and ``make_ticks``
+    # returns one of them. Reaching here means something upstream produced ticks it should
+    # not have; the finest format at least shows the most it can rather than raising.
     return ladder[-1]
 
 
