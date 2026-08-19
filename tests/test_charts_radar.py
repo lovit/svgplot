@@ -28,7 +28,6 @@ HUED_OUTER = min(HUED_AREA.right - HUED_AREA.left, HUED_AREA.bottom - HUED_AREA.
 
 CATEGORIES = ["a", "b", "c", "d", "e"]
 
-_ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 _VERTEX_RE = re.compile(r"[ML] (-?[\d.]+),(-?[\d.]+)")
 
 

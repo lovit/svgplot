@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from _svg_probe import tags as _tags
+from _svg_probe import tags as _tags, texts as _texts
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, plot_area
 from svgplot.charts.violin import _EVALUATION_GRID, _VIOLIN_PADDING, _group_by_x, shared_grid_range, violinplot
 from svgplot.scales import CategoricalScale, LinearScale
@@ -15,7 +15,6 @@ from svgplot.stats.kde import kde
 AREA = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITHOUT_LEGEND)
 
 _VERTEX_RE = re.compile(r"[ML] (-?[\d.]+),(-?[\d.]+)")
-_ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 
 CATEGORIES = ["a", "b", "c"]
 
@@ -452,8 +451,10 @@ def test_every_category_is_named_on_the_axis() -> None:
     categories are unlabelled is three shapes in a row with no way to tell which is which."""
     data = {"c": ["가", "가", "가", "나", "나", "나"], "v": [1.0, 2.0, 3.0, 4.0, 5.0, 7.0]}
     svg = violinplot(data, x="c", y="v").to_string()
-    drawn = re.findall(r'<text[^>]*class="[^"]*tick-label[^"]*"[^>]*>([^<]*)</text>', svg)
+    drawn = _texts(svg, "text", "tick-label")
 
-    # The probe sees them now; before, this list was empty whatever the chart drew.
-    assert _tags(svg, "text", "tick-label"), "the probe cannot see a tag with content"
+    # Through the probe, not a hand-written class regex. ``class="[^"]*tick-label[^"]*"`` is
+    # the substring form this consolidation exists to remove, and reintroducing it here would
+    # have made the argument in the same diff that disproves it.
+    assert drawn, "the probe cannot see a tag with content"
     assert {"가", "나"} <= set(drawn), f"a category went unnamed: {drawn}"

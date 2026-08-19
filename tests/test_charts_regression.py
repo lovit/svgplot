@@ -5,6 +5,7 @@ import re
 
 import pytest
 
+from _svg_probe import tags as _tags
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, plot_area
 from svgplot.charts.regression import regplot
 from svgplot.scales import LinearScale
@@ -34,16 +35,23 @@ def _band_widths(svg: str) -> list[float]:
 
 
 def _paths(svg: str, css_class: str) -> list[list[tuple[float, float]]]:
-    tags = [dict(_ATTR_RE.findall(tag)) for tag in re.findall(r"<path\b[^>]*/>", svg)]
-    return [
-        [(float(vx), float(vy)) for vx, vy in _VERTEX_RE.findall(tag["d"])]
-        for tag in tags
-        if css_class in tag.get("class", "")
-    ]
+    """The vertices of each matching ``<path>``.
+
+    Through the shared probe. This used to be a fifth copy of ``_tags`` with all three of the
+    defects issue #117 names -- ``/>``-only, so a ``<path>`` with content was invisible; and
+    substring matching twice over, on the class attribute and on the whole tag. Measured, it
+    counted ``regression-line-dashed`` as ``regression-line``.
+    """
+    return [[(float(vx), float(vy)) for vx, vy in _VERTEX_RE.findall(tag["d"])] for tag in _tags(svg, "path", css_class)]
 
 
 def _raw_path(svg: str, css_class: str) -> str:
-    return next(dict(_ATTR_RE.findall(tag))["d"] for tag in re.findall(r"<path\b[^>]*/>", svg) if css_class in tag)
+    """The ``d`` of the first matching ``<path>``.
+
+    The substring form here searched the *whole tag*, so it matched a class it was not asked
+    about and returned that path's ``d`` instead -- silently, since a ``d`` is a ``d``.
+    """
+    return _tags(svg, "path", css_class)[0]["d"]
 
 
 # ---------------------------------------------------------------------------
