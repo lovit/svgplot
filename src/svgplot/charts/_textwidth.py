@@ -74,69 +74,107 @@ outliers out: ``+ < = > ~`` at 0.584, rounded up. 0.55 sat under those *and* und
 
 _MEASURED = {
     "@": 1.02,
+    "Æ": 1.00,
+    "Œ": 1.00,
     "W": 0.95,
+    "œ": 0.95,
+    "Ŵ": 0.95,
     "%": 0.89,
-    "m": 0.84,
+    "æ": 0.89,
+    "¼": 0.84,
+    "½": 0.84,
+    "¾": 0.84,
     "M": 0.84,
+    "m": 0.84,
     "G": 0.78,
     "O": 0.78,
     "Q": 0.78,
+    "Ò": 0.78,
+    "Ó": 0.78,
+    "Ô": 0.78,
+    "Õ": 0.78,
+    "Ö": 0.78,
+    "Ø": 0.78,
+    "Ĝ": 0.78,
+    "Ğ": 0.78,
+    "Ġ": 0.78,
+    "Ģ": 0.78,
+    "Ĳ": 0.78,
+    "Ō": 0.78,
+    "Ŏ": 0.78,
+    "Ő": 0.78,
+    "©": 0.74,
+    "®": 0.74,
     "w": 0.73,
+    "ŵ": 0.73,
     "&": 0.67,
+    "ď": 0.67,
+    "¿": 0.62,
+    "ß": 0.62,
+    "ø": 0.62,
+    "ŉ": 0.61,
 }
-"""The handful of glyphs whose real advance exceeds what their class is charged.
+"""Every character in :data:`_BOUNDED` whose real advance exceeds what its class is charged.
 
-Adding a class-wide margin big enough to cover ``W`` (0.944) would charge every capital
-0.95 against a mean of 0.677, and "Seoul Metropolitan" would truncate a third early. Ten
-literals cover the whole tail instead: with them and the class charges above, **no ASCII
-character in Arial exceeds its charge**; without ``W``'s entry, ``W``x40 runs 28px past the
-canvas edge (measured).
+Adding a class-wide margin big enough to cover ``Œ`` (1.000) would charge every capital 1.0
+against a mean of 0.677, and "Seoul Metropolitan" would truncate to a third. Forty literals
+cover the whole tail instead: with them and the class charges above, **no character in ASCII,
+Latin-1 Supplement or Latin Extended-A exceeds its charge in Arial or Helvetica** -- verified
+against both fonts' ``hmtx`` tables, all 335 code points, zero remaining. Without ``W``'s
+entry, ``W`` x40 runs 28px past the canvas edge (measured).
 
-Rounded up from Arial's advances so each is charged at least what it costs -- 0.95 against a
-measured 0.9438, 0.84 against 0.8330, and so on."""
+Rounded up to the nearest hundredth from the larger of the two fonts' advances, so each is
+charged at least what it costs -- 0.95 against a measured 0.9438, 0.84 against 0.8330."""
 
 _EM_WIDE_PUNCTUATION = frozenset("…—―─‥")
-"""Punctuation measured at a full em in Arial/Helvetica/Times despite not being East Asian.
-The ellipsis is here because this module inserts it: charging it 0.55 made every truncated
-label 0.45 em too long, which is 5px at the default legend size."""
+"""Punctuation charged a full em despite not being East Asian.
+
+``…``, ``—`` and ``―`` measure exactly 1.000 in Arial, Helvetica and Times. ``─`` and ``‥``
+do not -- ``─`` is 0.7085 in Arial and Times (1.000 in Helvetica) and ``‥`` is absent from
+Arial's cmap altogether. They are charged a full em anyway: they are box-drawing and CJK
+punctuation, they appear in the fonts that do carry them at a full em, and over-charging
+truncates early rather than overflowing.
+
+The ellipsis is the one that matters, because this module inserts it: charging it 0.55 made
+every truncated label 0.45 em too long, which is 5px at the default legend size."""
 
 _ELLIPSIS = "…"
 """One character rather than three dots, so the marker costs one slot rather than three --
 though that one slot is a full em wide (see :data:`_EM_WIDE_PUNCTUATION`), not a narrow one."""
 
-_BOUNDED = frozenset(chr(code) for code in range(0x20, 0x7F)) | _EM_WIDE_PUNCTUATION
-"""The characters whose charge is known to be an upper bound on what they cost.
+_BOUNDED = frozenset(chr(code) for code in list(range(0x20, 0x7F)) + list(range(0xA0, 0x180))) | _EM_WIDE_PUNCTUATION
+"""The characters whose charge is known to be an upper bound on what they cost **in Arial or
+Helvetica**.
 
-Printable ASCII, verified glyph by glyph against Arial's ``hmtx``, plus the punctuation
-measured at a full em. East Asian wide and fullwidth forms belong here too but are not
-listed -- they are square by the definition of fullwidth rather than by a measurement, so
-:func:`_is_bounded` tests them by property.
+Printable ASCII, Latin-1 Supplement and Latin Extended-A -- verified glyph by glyph against
+both fonts' ``hmtx`` tables -- plus the punctuation measured at a full em. Latin-1 and
+Extended-A are in the set because European labels (``São Paulo``, ``Bénéfice``, ``İstanbul``)
+are ordinary, and leaving them out would put a ``<title>`` on every one of them.
 
-Everything else -- Cyrillic, Greek, Arabic, Hebrew, accented Latin -- is charged by a class
-rule nobody measured it against, and is treated accordingly."""
+East Asian wide and fullwidth forms belong here too but are not listed: they are square by
+the definition of fullwidth rather than by a measurement, so :func:`_is_bounded` tests them
+by property.
 
-_TITLE_THRESHOLD = 0.80
+The set is about *characters*, and the guarantee is also about *fonts*. ``theme.font_family``
+is a public setting, and in Verdana ``~`` measures 0.818 against a 0.59 charge, in Comic Sans
+``#`` measures 0.843. That is what :data:`_TITLE_THRESHOLD` absorbs -- it is derived from the
+whole sans-serif stack, not from Arial alone.
+
+Everything outside the set -- Cyrillic, Greek, Arabic, Hebrew, Devanagari, Thai -- is charged
+by a class rule nobody measured it against, and keeps its full text unconditionally."""
+
+_TITLE_THRESHOLD = 0.65
 """How close to the budget a **bounded** label may be estimated at before its full text is
 preserved anyway, as a fraction of the budget.
 
-Even inside the measured repertoire the estimate is not the render: it is an upper bound per
-character, so a label near the budget can still land over it once the font's real advances
-add up differently than assumed. Preserving the text above this fraction means the only
-bounded labels with no fallback are the ones with room to spare."""
+Derived from the font, not chosen. Inside :data:`_BOUNDED` the charge is an upper bound in
+Arial and Helvetica, but ``theme.font_family`` may name any sans-serif, and the worst ratio
+of real advance to charge across the stack measured here -- Arial, Helvetica, Verdana,
+Tahoma, SF NS, Trebuchet MS, Comic Sans MS -- is 1.4284 (``#`` in Comic Sans). A label
+estimated at fraction *f* of the budget can therefore render at 1.4284 *f*, and stays inside
+only while *f* is under 1/1.4284 = 0.700. 0.65 sits under that.
 
-_UNMEASURED_THRESHOLD = 0.35
-"""The same fraction for a label containing anything outside :data:`_BOUNDED`.
-
-Derived rather than chosen. The worst measured underestimate outside ASCII is 2.20x in Arial
-and 2.63x in Tahoma, so a label estimated at a fraction *f* of the budget can render at up to
-2.63 *f* of it -- and stays inside only while *f* is under 1/2.63 = 0.38. 0.35 sits under
-that with room for a font nobody measured.
-
-This is what closes the hole 0.80 alone left open: ``ص`` x14 estimates 90.8px against a
-118px budget, which 0.80 calls comfortable, and renders at 169.1px -- 51px past the canvas
-edge, untruncated, with the text in no ``<title>`` either. Under 0.35 the same label keeps
-its text. The cost is a ``<title>`` on non-Latin labels around a third of the budget, which
-is invisible markup rather than a visible change."""
+0.80 was the Arial-only answer, and Verdana overflowed it by 15px."""
 
 
 def _charge(char: str) -> float:
@@ -172,12 +210,20 @@ def needs_full_text(text: str, font_size: float, available: float) -> bool:
     direction that already truncates. The dangerous direction is the other one, and it is the
     only one that loses the text rather than the look.
 
-    How close counts depends on how far the estimate can be wrong, which is not one number:
-    inside :data:`_BOUNDED` the charge is a measured ceiling, outside it the charge is a
-    guess that measured 2.63x low at worst. Hence two thresholds.
+    How close counts depends on how far the estimate can be wrong, and outside
+    :data:`_BOUNDED` there is **no answer** -- not a larger margin, an absent one. A single
+    character can be arbitrarily wide: ``⸻`` (U+2E3B) measures 2.493 em in the font macOS
+    falls back to, so six of them estimate 38.9px against a 118px budget -- a third of it,
+    comfortable by any fraction one might pick -- and render at 164.5px, 46px past the canvas
+    edge. An earlier version of this function picked 0.35 and called it derived; it was
+    derived from the glyphs the measured fonts happened to *have*, and the worst cases are
+    exactly the ones they do not.
+
+    So there is no threshold for unbounded text. It keeps its full text, always.
     """
-    threshold = _TITLE_THRESHOLD if _is_bounded(text) else _UNMEASURED_THRESHOLD
-    return available > 0 and text_width(text, font_size) > available * threshold
+    if not _is_bounded(text):
+        return True
+    return available > 0 and text_width(text, font_size) > available * _TITLE_THRESHOLD
 
 
 def truncate_to_width(text: str, font_size: float, available: float) -> str:

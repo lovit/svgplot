@@ -163,8 +163,8 @@ def test_the_room_is_read_from_the_document_not_a_constant() -> None:
 @pytest.mark.parametrize("label", ["W" * 40, "0123456789" * 4], ids=["W", "digits"])
 def test_a_treemap_tile_label_is_cut_to_its_tile(label: str) -> None:
     """Tile labels are centred in their tile and reuse ``legend-text``, so they were not
-    covered by the legend fix at all -- measured, a 40-character label ran 137px past the
-    canvas edge while the legend beside it was correctly cut."""
+    covered by the legend fix at all -- measured on ``main``, ``"W" * 40`` rendered 415.3px
+    across a 196.7px tile, overrunning it by 218.6px, while the legend beside it was cut."""
     svg = sp.treemap({"v": [1.0, 2.0], "g": [label, "짧음"]}, values="v", labels="g").to_string()
     centred = re.findall(r'<text x="([\d.]+)"[^>]*text-anchor="middle"[^>]*class="legend-text"[^>]*>([^<]*)<', svg)
 
@@ -232,14 +232,28 @@ def test_a_label_in_an_unmeasured_script_keeps_its_text_well_before_the_budget(n
     assert any("<title>" in entry for entry in carrying), f"{name}: full text kept nowhere"
 
 
+def _tile_labels(svg: str) -> list[str]:
+    """Tile labels only -- ``text-anchor="middle"`` is what distinguishes them.
+
+    Matching every ``<text>`` containing the label catches the *legend* entry for the same
+    series, which sits beside the treemap and is titled by ``render_legend``. An ``any(...)``
+    over that set passes on the legend even when the tile has no title at all, which is
+    exactly how the tile's ``needs_full_text`` call stayed unprotected through a round that
+    was meant to protect it."""
+    return [
+        entry for entry in re.findall(r"<text[^>]*>(?:(?!</text>).)*?</text>", svg, re.S) if 'text-anchor="middle"' in entry
+    ]
+
+
 def test_a_treemap_tile_label_the_estimate_calls_a_fit_keeps_its_text() -> None:
     """Same gap on the tile-label path, which reuses ``legend-text`` but not
     ``render_legend``: its ``needs_full_text`` call could be deleted with the suite green."""
-    svg = sp.treemap({"v": [90.0, 10.0], "g": ["\u0409" * 20, "짧음"]}, values="v", labels="g").to_string()
-    tiles = [entry for entry in re.findall(r"<text[^>]*>(?:(?!</text>).)*?</text>", svg, re.S) if "\u0409" in entry]
+    svg = sp.treemap({"v": [1.0, 1.0], "g": ["\u0409" * 12, "짧음"]}, values="v", labels="g").to_string()
+    tiles = [tile for tile in _tile_labels(svg) if "\u0409" in tile]
 
     assert tiles, "the tile label was not drawn"
-    assert any("<title>" in tile for tile in tiles), "full text kept nowhere"
+    assert "\u2026" not in tiles[0], "must be a label the estimate did not truncate"
+    assert "<title>" in tiles[0], "full text kept nowhere"
 
 
 def test_a_comfortably_short_label_still_gets_no_title() -> None:

@@ -249,9 +249,10 @@ def treemap(
             classes=[series_class],
         )
         if tile.width >= _MIN_LABEL_WIDTH and tile.height >= _MIN_LABEL_HEIGHT:
-            # Centred in its tile, so a long label runs out both sides -- past the
-            # neighbouring tiles and, for a tile near the right edge, past the canvas.
-            # Measured before this, a 40-character label ran 137px beyond it.
+            # Centred in its tile, so a long label runs out both sides, over the neighbouring
+            # tiles and their labels. Measured before this, ``"W" * 40`` on a 196.7px tile
+            # rendered 415.3px wide and overran the tile by 218.6px -- 109.3px each side.
+            # A tile near the right edge takes that past the canvas as well.
             shown = truncate_to_width(tile.label, resolved_theme.legend_font_size, tile.width)
             label_node = document.add_text(
                 None,

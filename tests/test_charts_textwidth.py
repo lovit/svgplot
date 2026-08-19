@@ -14,7 +14,6 @@ from svgplot.charts._textwidth import (
     _ELLIPSIS,
     _NARROW_RATIO,
     _TITLE_THRESHOLD,
-    _UNMEASURED_THRESHOLD,
     needs_full_text,
     text_width,
     truncate_to_width,
@@ -131,10 +130,11 @@ def test_a_budget_too_small_for_anything_still_says_something_was_cut() -> None:
 def test_a_trailing_space_is_not_left_before_the_ellipsis() -> None:
     """``"long name …"`` reads as a gap rather than a cut.
 
-    The budget matters: at 60.0 the kept prefix ends in a letter anyway, so ``rstrip()``
-    never runs and removing it passes. This budget keeps a prefix that really does end in a
-    space."""
-    result = truncate_to_width("abcdefgh ijklmnop", 11.0, 66.0)
+    The budget matters, and 66.0 was still the wrong one: it keeps ``"abcdefgh"``, which ends
+    in a letter, so ``rstrip()`` never ran and deleting it passed. At 70.0 the kept prefix is
+    ``"abcdefgh "`` -- verified by stepping the accumulator by hand -- and the call is
+    actually exercised."""
+    result = truncate_to_width("abcdefgh ijklmnop", 11.0, 70.0)
 
     assert not result.removesuffix("…").endswith(" ")
     assert result.endswith("h…")
@@ -160,20 +160,36 @@ def test_a_label_near_the_budget_keeps_its_full_text_even_when_it_was_not_cut() 
     The label has to be one that is *not* truncated, or this proves nothing: ``"W" * 19``
     estimates 198.6px against a 118px budget, so it is cut and gets its title from that
     branch instead, and every threshold from 0.10 to 1.68 passed. ``"a" * 15`` estimates
-    97.4px -- inside the budget, above 0.80 of it."""
+    97.4px -- inside the budget, above 0.65 of it (76.7px)."""
     assert text_width("a" * 15, 11.0) < 118.0, "must not be a truncated label"
     assert needs_full_text("a" * 15, 11.0, 118.0)
-    assert not needs_full_text("a" * 12, 11.0, 118.0)
+    assert not needs_full_text("a" * 10, 11.0, 118.0)
 
 
-def test_the_bounded_threshold_is_where_the_docstring_says() -> None:
-    """Pinned as a literal for the same reason the ratios are. The band between them is what
-    the test above walks, and a single call cannot fix both ends."""
-    assert _TITLE_THRESHOLD == 0.80
+def test_the_bounded_threshold_covers_the_worst_font_in_the_stack() -> None:
+    """Pinned as a literal for the same reason the ratios are, and to the number it is
+    derived from: the worst ratio of real advance to charge across the sans-serif stack is
+    1.4284 (``#`` in Comic Sans MS), so a label estimated at fraction *f* renders at up to
+    1.4284 *f* and stays inside only below 1/1.4284. 0.80 was the Arial-only answer and
+    Verdana overflowed it by 15px."""
+    assert _TITLE_THRESHOLD <= 1 / 1.4284
+    assert _TITLE_THRESHOLD == 0.65
 
 
-@pytest.mark.parametrize("text", ["\u0635" * 14, "\u00a9" * 14, "\u00e6" * 14, "\u2030" * 14, "\u2116" * 14])
-def test_a_label_outside_the_measured_repertoire_keeps_its_text_far_sooner(text: str) -> None:
+@pytest.mark.parametrize(
+    "text",
+    [
+        "\u0635" * 14,
+        "\u2030" * 14,
+        "\u2116" * 14,
+        "\u2e3b" * 6,
+        "a" + "\u0635" * 8,
+        "H\u00e0 N\u1ed9i",
+        "\u03a9-1",
+    ],
+    ids=["arabic", "permille", "numero", "three-em-dash", "mixed-with-ascii", "hanoi", "short-greek"],
+)
+def test_a_label_outside_the_measured_repertoire_always_keeps_its_text(text: str) -> None:
     """The hole 0.80 alone left open, and the one case that breaks the module's contract:
     not truncated, no ``<title>``, and 51px past the canvas edge (``ص`` x14 estimates 90.8px
     and renders at 169.1px in Arial).
@@ -182,24 +198,31 @@ def test_a_label_outside_the_measured_repertoire_keeps_its_text_far_sooner(text:
     94.4px -- and all five render between 1.3x and 2.0x that. The fix is not a smaller threshold for everyone;
     it is a smaller one for the characters the estimate was never measured against."""
     assert text_width(text, 11.0) < 118.0, "must not be a truncated label"
-    assert text_width(text, 11.0) < 118.0 * _TITLE_THRESHOLD, "the bounded threshold calls this comfortable"
     assert needs_full_text(text, 11.0, 118.0)
 
 
-@pytest.mark.parametrize("text", ["caf\u00e9", "\ub9e4\ucd9c \ucd94\uc774", "Seoul"])
-def test_a_short_label_gets_no_title_whatever_script_it_is_in(text: str) -> None:
-    """The stricter threshold buys its safety with markup, so it has to stop somewhere. A
-    label at a quarter of the budget is not a candidate for overflow in any font measured,
-    and burying it in a ``<title>`` would trade a real problem for a cluttered file (핵심
-    원칙 1: the output stays hand-editable)."""
+@pytest.mark.parametrize(
+    "text",
+    ["caf\u00e9", "S\u00e3o Paulo", "B\u00e9n\u00e9fice", "\u0130stanbul", "\ub9e4\ucd9c \ucd94\uc774", "Seoul"],
+    ids=["cafe", "sao-paulo", "benefice", "istanbul", "korean", "ascii"],
+)
+def test_an_ordinary_european_or_korean_label_gets_no_title(text: str) -> None:
+    """The rule above buys its safety with markup, so it has to stop somewhere, and where it
+    stops is why Latin-1 Supplement and Latin Extended-A are in :data:`_BOUNDED`: labels like
+    these are ordinary, and titling every one of them would trade a real problem for a
+    cluttered file (핵심 원칙 1: the output stays hand-editable). They are in the set because
+    they were measured, not because they look Latin -- all 335 code points of ASCII, Latin-1
+    and Extended-A are covered in Arial and Helvetica with zero exceeding their charge."""
     assert not needs_full_text(text, 11.0, 118.0)
 
 
-def test_the_unmeasured_threshold_is_below_the_worst_measured_error() -> None:
-    """Derived, not chosen: a label estimated at fraction *f* of the budget renders at up to
-    2.63 *f* of it (Tahoma's worst), so it stays inside only while *f* < 1/2.63 = 0.380."""
-    assert _UNMEASURED_THRESHOLD < 1 / 2.63
-    assert _UNMEASURED_THRESHOLD == 0.35
+def test_an_unbounded_label_keeps_its_text_at_any_budget_at_all() -> None:
+    """No fraction, not a small one. A single unmeasured character can be arbitrarily wide,
+    so the size of the budget cannot make one safe -- a rule keyed off any fraction would
+    have to pick a number, and picking one is what let ``⸻`` x6 through at a third of the
+    budget."""
+    assert all(needs_full_text("\u2e3b", 11.0, room) for room in (1.0, 118.0, 10_000.0))
+    assert not needs_full_text("a", 11.0, 10_000.0), "bounded text still gets to be comfortable"
 
 
 def test_an_empty_label_in_no_room_at_all_stays_empty() -> None:
