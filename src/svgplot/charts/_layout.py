@@ -19,6 +19,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from svgplot._svg import SvgDocument
+
 Margin = float | tuple[float, float, float, float]
 
 DEFAULT_WIDTH = 800.0
@@ -115,3 +117,41 @@ def format_coord(value: float) -> str:
         return str(int(rounded))
     text = f"{rounded:.6f}".rstrip("0").rstrip(".")
     return text
+
+
+MARGIN_WITH_SIDE_LEGEND = (30.0, 180.0, 30.0, 30.0)
+"""Margin for a chart that has no axes but does have a legend down the right side.
+
+``pieplot``, ``treemap`` and ``gaugeplot`` all drew from this tuple. Wider on the right than
+:data:`MARGIN_WITH_LEGEND` because there is no y axis to leave room for on the left, so the
+plot can start further in and give the legend more."""
+
+
+def format_value_label(value: float) -> str:
+    """Render a data value as label text, shortest-round-trip.
+
+    Not :func:`format_coord`: that rounds to 6 decimals because it formats *coordinates*, and
+    rounding a label silently rewrites the data it names (``1e-7`` -> ``"0"``, ``0.123456789``
+    -> ``"0.123457"``). Integral values still lose the ``.0`` so the common case reads as
+    ``30`` rather than ``30.0``.
+    """
+    return str(int(value)) if value.is_integer() else str(value)
+
+
+def new_canvas(margin: Margin) -> tuple[SvgDocument, PlotArea]:
+    """A default-sized document with its background drawn, and the plot area inside ``margin``.
+
+    Sixteen charts opened with the same six lines and differed only in the margin. The
+    background rect is the part worth centralising: it carries the ``plot-background`` class
+    every theme styles, and a chart that forgot it would render on whatever the host page's
+    background happens to be -- a difference nobody notices until the page is dark.
+    """
+    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
+    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=margin)
+    document.add_node(
+        None,
+        "rect",
+        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
+        classes=["plot-background"],
+    )
+    return document, area
