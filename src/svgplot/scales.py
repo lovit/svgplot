@@ -13,7 +13,7 @@ means round numbers/round time steps, not "however many fit visually".
 from __future__ import annotations
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 
 _MAX_TICK_COUNT = 1000
 
@@ -199,6 +199,95 @@ def _nice_linear_ticks(domain_min: float, domain_max: float, count: int) -> list
 Scale = LinearScale | CategoricalScale | TimeScale
 
 
+_SUB_MONTH_STEPS = (
+    1,
+    2,
+    5,
+    10,
+    15,
+    30,  # seconds
+    60,
+    120,
+    300,
+    600,
+    900,
+    1800,  # minutes
+    3600,
+    7200,
+    10800,
+    21600,
+    43200,  # hours
+    86400,
+    172800,
+    604800,
+    1209600,  # days and weeks
+)
+"""Tick intervals in seconds that a reader recognises, coarsest last.
+
+Nice *numbers* are not nice *times*. Treating a timestamp as a plain number gives steps like
+50,000 seconds, which lands ticks at 04:13 and 18:06 and forces every label to spell out a
+time nobody chose. These are the intervals a clock and a calendar actually have -- and the
+reason they stop at two weeks is that longer ones are not fixed durations: a month is 28 to
+31 days and a year 365 or 366, so :func:`_calendar_ticks` steps those by field instead.
+"""
+
+_MONTH_STEPS = (1, 2, 3, 6)
+_YEAR_STEPS = (1, 2, 5, 10, 25, 50, 100, 250, 500, 1000)
+
+
+def _aligned_ticks(low: datetime, high: datetime, count: int) -> list[datetime] | None:
+    """Ticks on a recognisable clock interval, or ``None`` if the span is past two weeks.
+
+    Aligned to the interval rather than to the domain's start: a reader looking for "the
+    Tuesday" wants midnight, not midnight-plus-however-long-the-data-happens-to-start-after.
+    """
+    span = (high - low).total_seconds()
+    step = next((candidate for candidate in _SUB_MONTH_STEPS if span / candidate <= count), None)
+    if step is None:
+        return None
+    # Aligned against local midnight of the first day rather than the Unix epoch, so a
+    # 6-hour step lands on 00:00/06:00/12:00/18:00 wherever this runs.
+    origin = low.replace(hour=0, minute=0, second=0, microsecond=0)
+    if step >= 86400:
+        origin = origin.replace(day=1)
+    offset = (low - origin).total_seconds()
+    first = origin + timedelta(seconds=step * math.ceil(offset / step))
+    ticks, current = [], first
+    while current <= high:
+        ticks.append(current)
+        current += timedelta(seconds=step)
+    return ticks
+
+
+def _calendar_ticks(low: datetime, high: datetime, count: int) -> list[datetime]:
+    """Ticks on whole months or whole years, for spans where a fixed interval cannot be one.
+
+    Stepping by field rather than by duration is the whole point: 30-day steps drift a day
+    per month and turn a year of monthly ticks into twelve different days of the month.
+    """
+    months = (high.year - low.year) * 12 + high.month - low.month
+    step = next((candidate for candidate in _MONTH_STEPS if months / candidate <= count), None)
+    if step is not None:
+        first = low.year * 12 + (low.month - 1)
+        first += -first % step
+        ticks = []
+        while True:
+            moment = datetime(first // 12, first % 12 + 1, 1)
+            if moment > high:
+                return ticks
+            if moment >= low:
+                ticks.append(moment)
+            first += step
+    years = high.year - low.year
+    step = next((candidate for candidate in _YEAR_STEPS if years / candidate <= count), _YEAR_STEPS[-1])
+    ticks, year = [], low.year + -low.year % step
+    while datetime(year, 1, 1) <= high:
+        if datetime(year, 1, 1) >= low:
+            ticks.append(datetime(year, 1, 1))
+        year += step
+    return ticks
+
+
 def make_ticks(scale: Scale, count: int = 5) -> list[float] | list[str] | list[datetime]:
     """Generate "nice" tick positions for the given scale (no text-width measurement).
 
@@ -218,11 +307,13 @@ def make_ticks(scale: Scale, count: int = 5) -> list[float] | list[str] | list[d
         return list(scale.categories)
     if isinstance(scale, TimeScale):
         domain_min, domain_max = scale.domain
-        numeric_ticks = _nice_linear_ticks(domain_min.timestamp(), domain_max.timestamp(), count)
-        # datetime only has microsecond resolution, so distinct numeric ticks (already
-        # deduped above) can still collapse to the same datetime once truncated — dedup
-        # again after conversion.
-        return list(dict.fromkeys(datetime.fromtimestamp(tick) for tick in numeric_ticks))
+        # Time is not a number line with prettier labels. See ``_SUB_MONTH_STEPS``.
+        ticks = _aligned_ticks(domain_min, domain_max, count)
+        if ticks is None:
+            ticks = _calendar_ticks(domain_min, domain_max, count)
+        # A span shorter than the finest step (one second) leaves nothing aligned inside it;
+        # the endpoints are still true and still distinct.
+        return ticks or [domain_min, domain_max]
     if isinstance(scale, LinearScale):
         domain_min, domain_max = scale.domain
         return _nice_linear_ticks(domain_min, domain_max, count)
