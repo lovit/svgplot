@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime, time, timedelta
+from itertools import pairwise
 
 import pytest
 
@@ -399,7 +400,7 @@ def test_ticks_are_evenly_spaced_on_an_interval_a_calendar_has(start: datetime, 
     differ by a day or two -- 730 days then 731 across a leap year -- and what is regular
     instead is where the ticks land: the first of a month, or the first of a year."""
     ticks = make_ticks(TimeScale((start, start + span), (0.0, 700.0)))
-    gaps = {(later - earlier).total_seconds() for earlier, later in zip(ticks, ticks[1:], strict=False)}
+    gaps = {(later - earlier).total_seconds() for earlier, later in pairwise(ticks)}
 
     if not gaps:
         pytest.skip("a single tick has no spacing to check")
@@ -416,7 +417,7 @@ def test_sub_day_ticks_sit_on_a_multiple_of_their_own_step(span: timedelta) -> N
     for "the top of the hour" wants 09:00, not 09:23 because the first row was 07:23."""
     start = datetime(2024, 1, 20, 7, 23, 45)
     ticks = make_ticks(TimeScale((start, start + span), (0.0, 700.0)))
-    gaps = {(later - earlier).total_seconds() for earlier, later in zip(ticks, ticks[1:], strict=False)}
+    gaps = {(later - earlier).total_seconds() for earlier, later in pairwise(ticks)}
 
     if not gaps or max(gaps) > 86400:
         pytest.skip("month/year stepping is checked by its own test")
