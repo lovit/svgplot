@@ -6,6 +6,7 @@ from itertools import pairwise
 
 import pytest
 
+from _svg_probe import tags as _tags
 from svgplot.charts._polar import polar_point
 from svgplot.charts.gauge import (
     _END_ANGLE,
@@ -39,12 +40,6 @@ def _svg(data: object = DATA, **kwargs: object) -> str:
 
 def _paths(svg: str, css_class: str) -> list[str]:
     return [d for d, classes in _PATH_RE.findall(svg) if css_class in classes.split()]
-
-
-def _tags(svg: str, element: str, css_class: str) -> list[dict[str, str]]:
-    """Opening tags of ``element`` whose class list contains ``css_class`` as a token."""
-    tags = [dict(re.findall(r'([\w-]+)="([^"]*)"', tag)) for tag in re.findall(rf"<{element}\b[^>]*?/?>", svg)]
-    return [tag for tag in tags if css_class in tag.get("class", "").split()]
 
 
 def _texts(svg: str, css_class: str) -> list[str]:

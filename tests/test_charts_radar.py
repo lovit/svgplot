@@ -6,6 +6,7 @@ from itertools import pairwise
 
 import pytest
 
+from _svg_probe import tags as _tags
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, plot_area
 from svgplot.charts.radar import (
     _LABEL_GAP,
@@ -41,12 +42,6 @@ def _two_series() -> dict[str, list]:
 
 def _one_series() -> dict[str, list]:
     return {"stat": CATEGORIES, "v": [8.0, 6.0, 7.0, 5.0, 4.0]}
-
-
-def _tags(svg: str, element: str, css_class: str) -> list[dict[str, str]]:
-    tags = [dict(_ATTR_RE.findall(tag)) for tag in re.findall(rf"<{element}\b[^>]*?/?>", svg)]
-    # Token-wise, not substring: "grid-line" must not also match a future "grid-line-major".
-    return [tag for tag in tags if css_class in tag.get("class", "").split()]
 
 
 def _vertices(tag: dict[str, str]) -> list[tuple[float, float]]:

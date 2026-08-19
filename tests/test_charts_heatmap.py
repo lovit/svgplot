@@ -6,6 +6,7 @@ from dataclasses import replace
 
 import pytest
 
+from _svg_probe import tags as _tags
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, format_coord, plot_area
 from svgplot.charts.heatmap import (
     _BYTES_PER_CELL,
@@ -43,12 +44,6 @@ def _square(side: int) -> dict[str, list]:
         "row": [row for _ in columns for row in rows],
         "v": [float(index) for index in range(side * side)],
     }
-
-
-def _tags(svg: str, element: str, css_class: str) -> list[dict[str, str]]:
-    """Opening tags of ``element`` carrying ``css_class``. Matches both self-closing forms
-    (``<rect …/>``) and ones with content (``<text …>…</text>``)."""
-    return [dict(_ATTR_RE.findall(tag)) for tag in re.findall(rf"<{element}\b[^>]*?/?>", svg) if css_class in tag]
 
 
 def _annotations(svg: str) -> list[str]:
