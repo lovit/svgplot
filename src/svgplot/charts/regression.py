@@ -6,15 +6,12 @@ and the band into geometry.
 
 from __future__ import annotations
 
-from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
-    DEFAULT_HEIGHT,
-    DEFAULT_WIDTH,
     MARGIN_WITHOUT_LEGEND,
     format_coord,
-    plot_area,
+    new_canvas,
 )
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
@@ -110,14 +107,7 @@ def regplot(
     x_domain = (min(xs), max(xs))
     y_domain = (min(y_candidates), max(y_candidates))
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITHOUT_LEGEND)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
-    )
+    document, area = new_canvas(MARGIN_WITHOUT_LEGEND)
 
     pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))

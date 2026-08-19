@@ -10,10 +10,13 @@ cases and is a refinement on top of this, not part of it.
 
 from __future__ import annotations
 
-from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
-from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, format_coord, plot_area
+from svgplot.charts._layout import (
+    MARGIN_WITHOUT_LEGEND,
+    format_coord,
+    new_canvas,
+)
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
@@ -164,14 +167,7 @@ def violinplot(
     peak = max(value for curve in curves.values() for value in curve.y)
 
     categories = list(groups)
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITHOUT_LEGEND)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
-    )
+    document, area = new_canvas(MARGIN_WITHOUT_LEGEND)
 
     x_scale = CategoricalScale(categories, (area.left, area.right), padding=_VIOLIN_PADDING)
     y_scale = LinearScale(grid_range, (area.bottom, area.top))
