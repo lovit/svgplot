@@ -320,8 +320,9 @@ def test_an_all_constant_axis_still_renders() -> None:
 
 
 def test_an_explicit_limit_wins_over_the_computed_union() -> None:
-    """Passing ``ylim=`` through ``facet`` used to be a ``TypeError`` for a duplicate
-    keyword -- the parameter this feature added could not be used with the feature."""
+    """Passing ``ylim=`` through ``facet`` used to be ``TypeError: lineplot() got an
+    unexpected keyword argument 'ylim'`` -- the parameter this feature added could not be
+    used with the feature."""
     svg = sp.facet(sp.lineplot, SPLIT, col="g", x="x", y="y", ylim=(0.0, 500.0)).to_string()
     panels = _panels(svg)
 
@@ -398,8 +399,9 @@ def test_histogram_bins_are_shared_on_the_strategies_not_only_on_a_fixed_count(b
 
     ``bin_range=`` only tells numpy which *range* to cover; ``bins="auto"`` still derives the
     bin **width** from each panel's own values and lays that width across the range, so the
-    counts and therefore the boundaries still disagree. Measured before this fix: 15 bars of
-    5.072464px against 14 of 4.794521px, under an axis whose ticks matched exactly.
+    boundaries still disagree. On this fixture the panels choose widths of 0.600000 and
+    0.200000 for the same shared span -- a three-to-one difference in what one bar means,
+    under an axis whose ticks matched exactly.
 
     ``bins=4`` -- the only case the first regression test covered -- can never catch this: a
     fixed count is shared by construction, whatever the range. Every case here goes through
@@ -418,38 +420,71 @@ def test_histogram_bins_are_shared_on_the_strategies_not_only_on_a_fixed_count(b
     assert widths[0] and widths[0] == widths[1], f"bin widths still disagree: {widths}"
 
 
-def test_an_explicit_bin_count_keeps_its_division_across_the_shared_pass() -> None:
-    """``bins`` is exempt from "the caller named it, so the caller wins", so it has to be
-    shown that the exemption does not change what an explicit count draws. Each panel is
-    still divided into six across its own span; the shared pass re-derives the width against
-    the union, which is the same width."""
+@pytest.mark.parametrize("count", [3, 6, 20])
+def test_an_explicit_bin_count_is_the_number_of_bins_the_panels_get(count: int) -> None:
+    """The count the caller wrote, not one re-derived from it.
+
+    The union carries a bin *width*, and turning that back into a count across the whole
+    shared span made ``bins=6`` mean 156 and ``bins=3`` mean 78 -- both a surprise and a
+    change from what the same call drew before panels shared anything. An integer needs no
+    help: once ``xlim`` is shared, every panel divides the same range into the same number,
+    so the edges line up on their own.
+
+    Counting bars would not show this, because most of these bins are empty. The edges are
+    what the caller asked about, so the edges are what is checked."""
     values = [float(n % 7) for n in range(300)] + [50.0 + (n % 3) for n in range(300)]
     data = {"v": values, "g": ["a"] * 300 + ["b"] * 300}
-    alone = sp.histplot({"v": values[:300]}, x="v", bins=6).domains
-    panels = _panels(sp.facet(sp.histplot, data, col="g", x="v", bins=6).to_string())
+    panels = _panels(sp.facet(sp.histplot, data, col="g", x="v", bins=count).to_string())
+    plot_width = 700.0
     widths = {width for panel in panels for width in re.findall(r'<rect[^>]*width="([\d.]+)"[^>]*class="c\d+-series', panel)}
 
     assert _ticks(panels[0]) == _ticks(panels[1])
     assert len(widths) == 1, f"panels drew bars of different widths: {widths}"
-    assert alone.x_step == pytest.approx((max(values[:300]) - min(values[:300])) / 6)
+    # One bin's width in pixels is the plot area divided by the number of bins across it.
+    assert float(next(iter(widths))) == pytest.approx(plot_width / count, rel=0.02)
+
+
+def test_a_shared_span_far_wider_than_a_panels_own_does_not_overflow() -> None:
+    """``round`` before ``min`` meant the cap could not do its job: a panel whose own span is
+    a e-308 fraction of the shared one produces a ratio past the integer range, and rounding
+    it first raises ``OverflowError: cannot convert float infinity to integer`` on input that
+    rendered before sharing existed."""
+    data = {"v": [0.0, 5e-324, 1e-323, 0.0, 1.0], "g": ["a"] * 3 + ["b"] * 2}
+    panels = _panels(sp.facet(sp.histplot, data, col="g", x="v").to_string())
+
+    assert len(panels) == 2
+    assert all(re.search(r'class="c\d+-series', panel) for panel in panels), "a panel drew no bars"
+
+
+def test_a_degenerate_x_union_is_left_for_each_panel_to_handle() -> None:
+    """Every panel showing one constant unions to a zero-width span, which ``apply_limit``
+    rightly refuses from a caller -- so forwarding it turns a facet that rendered into a
+    ``ValueError: axis limits must be increasing``. The y-side guard was covered and the
+    x-side was not."""
+    data = {"x": [5.0] * 4, "y": [1.0, 2.0, 3.0, 4.0], "g": ["a", "a", "b", "b"]}
+
+    assert sp.facet(sp.lineplot, data, col="g", x="x", y="y").to_string().count("<svg") > 1
 
 
 def test_the_shared_division_is_the_finest_a_panel_chose_and_survives_the_wider_span() -> None:
     """``min`` on widths rather than ``max`` on counts, and the difference is visible.
 
-    Sharing the largest *count* re-spreads it over the union: two panels of three bars, one
-    at 1..3 and one at 100..102, both chose 3, and 3 bins across 1..102 collapses each panel
-    to a single bar. That is what ``main`` drew as 3 and 3. Both panels agree either way, so
-    the panels-agree assertions elsewhere cannot see it -- only comparing against what a
-    panel drew alone can."""
+    Sharing the largest *count* re-spreads it over the union: two panels at 1..3 and
+    100..102 each chose the same handful of bins for their own two-unit span, and that many
+    bins across 1..102 collapses each panel to a single bar. Both panels agree either way, so the panels-agree
+    assertions elsewhere cannot see it -- only counting the bars can.
+
+    No explicit ``bins=`` here on purpose. An integer is the caller's decision and is left
+    alone (see ``_may_override``), so it would take this test through a different branch and
+    prove nothing about the union."""
     data = {"v": [1.0, 2.0, 3.0, 100.0, 101.0, 102.0], "g": ["a"] * 3 + ["b"] * 3}
-    panels = _panels(sp.facet(sp.histplot, data, col="g", x="v", bins=3).to_string())
+    panels = _panels(sp.facet(sp.histplot, data, col="g", x="v").to_string())
     bars = [len(re.findall(r'<rect[^>]*class="c\d+-series', panel)) for panel in panels]
     widths = {width for panel in panels for width in re.findall(r'<rect[^>]*width="([\d.]+)"[^>]*class="c\d+-series', panel)}
 
     assert _ticks(panels[0]) == _ticks(panels[1]), "the axis was not shared, so this proves nothing"
     assert len(widths) == 1, f"panels drew bars of different widths: {widths}"
-    assert bars == [3, 3], f"sharing coarsened the panels to {bars}"
+    assert bars == [3, 3], f"sharing collapsed the panels to {bars}"
 
 
 def test_a_strategy_that_chose_more_bins_than_a_caller_may_ask_for_still_renders() -> None:
@@ -532,3 +567,46 @@ def test_a_distribution_chart_files_its_categories_under_sharex(plot_fn: object)
 
     assert _axis_labels(kept[0])[1] == _axis_labels(kept[1])[1], "sharex should line up the categories"
     assert _axis_labels(dropped[0])[1] != _axis_labels(dropped[1])[1], "sharex=False should have left them alone"
+
+
+@pytest.mark.parametrize("plot_fn", [sp.barplot, sp.boxplot, sp.violinplot], ids=["barplot", "boxplot", "violinplot"])
+@pytest.mark.parametrize(
+    ("bad", "message"),
+    [((), "at least one"), ("ab", "single string"), ((1, 2), "sequence of names"), (5, "sequence of names")],
+    ids=["empty", "string", "numbers", "scalar"],
+)
+def test_every_chart_taking_categories_validates_it(plot_fn: object, bad: object, message: str) -> None:
+    """The validator had tests and the wiring had none, so replacing
+    ``require_categories(categories)`` with ``list(categories)`` in any of the three charts
+    left the whole suite green -- and ``categories="ab"`` went back to silently drawing bars
+    for ``a`` and ``b`` that nobody asked for.
+
+    Testing a helper is not testing the code that calls it. This is the same gap that let
+    ``histplot(xlim=)``'s validation be deleted unnoticed a round earlier."""
+    data = {"cat": ["a", "a", "b", "b", "c", "c"], "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]}
+
+    with pytest.raises(ValueError, match=message):
+        plot_fn(data, x="cat", y="v", categories=bad)  # type: ignore[operator]
+
+
+@pytest.mark.parametrize("plot_fn", [sp.barplot, sp.boxplot, sp.violinplot], ids=["barplot", "boxplot", "violinplot"])
+def test_categories_naming_one_a_panel_has_no_rows_for_still_draws(plot_fn: object) -> None:
+    """The guard on the test above. This is what the parameter exists for -- a facet panel is
+    handed every category any panel drew -- so a validator that refused unknown names would
+    pass the rejection tests and break the feature."""
+    data = {"cat": ["a", "a", "b", "b"], "v": [1.0, 2.0, 3.0, 4.0]}
+    svg = plot_fn(data, x="cat", y="v", categories=("a", "b", "z")).to_string()  # type: ignore[operator]
+
+    assert "z" in svg, "the absent category should still take a band on the axis"
+
+
+def test_the_derived_bin_count_rounds_rather_than_truncates() -> None:
+    """``round`` versus ``int`` on the ratio, which differ by one bin whenever the shared span
+    is not a whole multiple of the width. Truncating loses the last division, so the panel
+    that chose the finest width does not quite get it back -- and no assertion about the
+    panels agreeing can see that, because they agree on either number."""
+    from svgplot.layout.facet import _bins_covering
+
+    assert _bins_covering((1.0, 102.0), 2.0 / 3) == 152
+    assert _bins_covering((0.0, 10.0), 3.0) == 3
+    assert _bins_covering((0.0, 1.0), 5e-311) == 10_000, "the cap has to apply before rounding"

@@ -49,7 +49,9 @@ class Domains:
 
     A shared *range* is not enough. ``bins="auto"`` derives its bin width from each panel's
     own values, so two panels covering one range still land their boundaries in different
-    places -- measured, 15 bars of 5.07px against 14 of 4.79px. Pinning the edges needs the
+    places -- measured on this module's own fixture, widths of 0.600000 against 0.200000 for
+    the same shared span, a three-to-one difference in what one bar means. Pinning the edges
+    needs the
     division shared too, because ``histogram_bins`` with an integer count and a range returns
     exactly ``linspace(low, high, count + 1)``.
 
@@ -148,7 +150,7 @@ def require_categories(value: object) -> tuple[str, ...]:
     as one name and unpacks into two.
 
     Non-string members are rejected here rather than at the scale, which raises
-    ``KeyError: "category not found in scale: '1'"`` -- a message about an internal lookup,
+    ``KeyError: 'category not found in scale: 1'`` -- a message about an internal lookup,
     quoting a value the caller wrote as ``1``.
     """
     if isinstance(value, str):

@@ -103,8 +103,8 @@ def test_the_union_takes_the_narrowest_bin_width_not_the_largest_count() -> None
 
     Two panels of three bars each, one over 1..3 and one over 100..102, both chose 3. Three
     bins across the shared 1..102 puts every value of each panel into one bar -- measured,
-    3 bars per panel on ``main`` became 1. The width survives the change of range: 0.667
-    across 1..102 is 151 divisions, and each panel still resolves its own three."""
+    3 bars per panel became 1. The width survives the change of range: 0.667 across 1..102 is
+    152 divisions, and each panel still resolves its own three."""
     narrow = Domains(x=(1.0, 3.0), x_step=2.0 / 3)
     wide = Domains(x=(100.0, 102.0), x_step=2.0 / 1)
 

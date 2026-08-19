@@ -45,7 +45,7 @@ from svgplot.chart.base import Chart
 from svgplot.chart.composition import Composition
 from svgplot.data.semantic import extract_channels
 from svgplot.layout.grid import column as arrange_column, grid as arrange_grid, row as arrange_row
-from svgplot.stats.binning import MAX_BINS as _MAX_BINS
+from svgplot.stats.binning import MAX_BINS
 
 
 def _sorted_unique(values: list[object]) -> list[object]:
@@ -79,29 +79,36 @@ def _bins_covering(span: tuple[float, float], step: float) -> int:
     division still draws.
 
     Capped, and this is the one place the cap is not a caller's mistake. ``histogram_bins``
-    refuses an integer above ``_MAX_BINS`` because a caller asking for a million bins wants
+    refuses an integer above ``MAX_BINS`` because a caller asking for a million bins wants
     something a chart cannot show -- but a *strategy* has no such ceiling, so a panel is free
     to choose 16,021 bins and ``main`` renders it. Re-deriving that as an integer put it back
     through the caller's gate and turned a chart that rendered into a ``ValueError`` naming a
     number nobody wrote (measured: ``bins="fd"`` on 500 values plus one outlier). Coarsening
     to the ceiling keeps the panels agreeing and keeps the chart on the page.
     """
-    return max(1, min(_MAX_BINS, round((span[1] - span[0]) / step)))
+    # ``min`` before ``round``: a ratio past the integer range is exactly what the cap is
+    # for, and rounding it first raises ``OverflowError: cannot convert float infinity to
+    # integer`` on input that rendered before sharing existed.
+    return max(1, round(min(float(MAX_BINS), (span[1] - span[0]) / step)))
 
 
 def _may_override(name: str, explicit: dict[str, object]) -> bool:
     """Whether the caller left ``name`` for the union to decide.
 
-    ``bins`` is exempt, because naming it is not a decision the union can contradict.
-    ``histogram_bins`` takes a string or an int and nothing else: an int already pins every
-    panel to that many, so the union carries it back unchanged, and a *strategy* --
-    ``"auto"``, ``"sturges"`` -- names how each panel should choose **alone**, which is the
-    thing that has to stop when the panels are being made to agree. Either way the count the
-    union carries is the one the caller's own setting produced.
+    ``bins`` is exempt only when the caller named a *strategy*. ``"auto"``/``"sturges"``
+    say how each panel should choose **alone**, which is the thing that has to stop when the
+    panels are being made to agree.
+
+    An integer is the opposite: it already pins every panel to that many, and once ``xlim``
+    is shared every panel divides the *same* range into the same number, so the edges line up
+    with nothing added. Overriding it is not a no-op either -- the union carries a bin
+    *width*, and re-deriving a count from the narrowest panel's width across the whole shared
+    span turned ``bins=6`` into 156 (measured), which is both a surprise and a regression
+    against what the same call drew before panels shared anything.
     """
     if name not in explicit or explicit[name] is None:
         return True
-    return name == "bins"
+    return name == "bins" and isinstance(explicit[name], str)
 
 
 def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool, explicit: dict[str, object]) -> dict[str, object]:
@@ -114,12 +121,13 @@ def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool, explicit:
 
     ``explicit`` is what the caller already passed through to ``plot_fn``. Anything named
     there wins: ``facet(..., ylim=(0, 500))`` is a caller stating the window they want, and
-    a computed union has no business overruling it. The filter is belt-and-braces rather
-    than load-bearing -- the first render already applied the caller's limit, so the union
-    of the panels hands the same value straight back, and dropping the filter changes no
-    output over the 102-case matrix it was checked against. It stays because that identity
-    holds only while every chart records the domain it drew, and a chart that clamps or
-    rounds its own limit would break it silently.
+    a computed union has no business overruling it.
+
+    For ``xlim``/``ylim``/``categories`` the filter is belt-and-braces: the first render
+    already applied the caller's limit, so the union hands the same value straight back. For
+    an integer ``bins`` it is **load-bearing** -- the union carries a bin *width*, and
+    re-deriving a count from it across the shared span turns ``bins=6`` into 156. This filter
+    is the only thing standing between that and the caller.
 
     ``ylim=None`` is not such a statement. It is what a wrapper passes when it has nothing
     to say, and every chart here already reads it as "no override" -- so keying off the name
