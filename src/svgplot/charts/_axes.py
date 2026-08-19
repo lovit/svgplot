@@ -33,11 +33,46 @@ def _tick_position(scale: Scale, tick: object) -> float:
     return scale(tick)
 
 
-def _tick_label_text(scale: Scale, tick: object) -> str:
+_DATE_FORMATS = ("%Y", "%Y-%m", "%Y-%m-%d", "%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S")
+"""Time-axis label formats for a domain spanning a day or more, coarsest first."""
+
+_CLOCK_FORMATS = ("%H:%M", "%H:%M:%S", "%H:%M:%S.%f")
+"""The same for ticks that all fall on one calendar date, where repeating that date on every
+tick would spend the axis' width saying what the chart title already says.
+
+One date, not one day's worth of hours: ticks running 12:00, 18:00, 00:00, 06:00 span
+eighteen hours but two dates, and dropping the date there leaves a reader to guess which
+midnight ``00:00`` is."""
+
+
+def _time_format(ticks: list[datetime]) -> str:
+    """The coarsest format that still tells the ticks apart.
+
+    A fixed ``"%Y-%m-%d"`` is right for a domain of months and wrong either way outside it.
+    Measured on a three-hour domain it labelled all five ticks ``2024-01-01``; on a three-year
+    domain it spent eleven characters on a day nobody asked about. Both are the same bug --
+    the resolution has to come from the domain, which is what matplotlib's locator/formatter
+    pair does and what this is the small version of.
+
+    Choosing by *distinctness* rather than by a span-to-format table is what makes the "no
+    duplicate labels" property hold rather than be approximated: a table has to guess how many
+    ticks will land in a span, and the ticks are right there.
+    """
+    ladder = _CLOCK_FORMATS if len({tick.date() for tick in ticks}) == 1 else _DATE_FORMATS
+    for candidate in ladder:
+        if len({tick.strftime(candidate) for tick in ticks}) == len(ticks):
+            return candidate
+    # Two ticks the finest format cannot separate are two ticks under a microsecond apart,
+    # which ``make_ticks`` already dedups. Reaching here means the axis is degenerate; the
+    # finest format at least shows the most it can.
+    return ladder[-1]
+
+
+def _tick_label_text(scale: Scale, tick: object, *, time_format: str) -> str:
     if isinstance(scale, CategoricalScale):
         return str(tick)
     if isinstance(tick, datetime):
-        return tick.strftime("%Y-%m-%d")
+        return tick.strftime(time_format)
     return format_coord(float(tick))
 
 
@@ -63,7 +98,9 @@ def render_x_axis(
         classes=["spine"],
     )
     label_offset = tick_length + _TICK_LABEL_OFFSET
-    for tick in make_ticks(scale, count=tick_count):
+    ticks = make_ticks(scale, count=tick_count)
+    time_format = _time_format(ticks) if ticks and isinstance(ticks[0], datetime) else ""
+    for tick in ticks:
         x = _tick_position(scale, tick)
         document.add_node(
             None,
@@ -89,7 +126,7 @@ def render_x_axis(
         )
         document.add_text(
             None,
-            _tick_label_text(scale, tick),
+            _tick_label_text(scale, tick, time_format=time_format),
             tag="text",
             attrib={"x": format_coord(x), "y": format_coord(area.bottom + label_offset), "text-anchor": "middle"},
             classes=["tick-label"],
@@ -118,7 +155,9 @@ def render_y_axis(
         classes=["spine"],
     )
     label_x_offset = tick_length + 2
-    for tick in make_ticks(scale, count=tick_count):
+    ticks = make_ticks(scale, count=tick_count)
+    time_format = _time_format(ticks) if ticks and isinstance(ticks[0], datetime) else ""
+    for tick in ticks:
         y = _tick_position(scale, tick)
         document.add_node(
             None,
@@ -144,7 +183,7 @@ def render_y_axis(
         )
         document.add_text(
             None,
-            _tick_label_text(scale, tick),
+            _tick_label_text(scale, tick, time_format=time_format),
             tag="text",
             attrib={
                 "x": format_coord(area.left - label_x_offset),
