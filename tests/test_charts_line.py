@@ -6,7 +6,7 @@ from datetime import date, datetime, time, timedelta
 import pytest
 
 from svgplot.charts.line import lineplot
-from svgplot.scales import TimeScale, make_ticks
+from svgplot.scales import _SUB_MONTH_STEPS, TimeScale, _aligned_ticks, make_ticks
 
 SINGLE_SERIES = {"day": [1, 2, 3, 4, 5], "value": [10.0, 15.0, 7.0, 20.0, 12.0]}
 HUE_SERIES = {
@@ -353,3 +353,161 @@ def test_a_column_with_no_place_on_an_x_axis_names_the_column(values: list, mess
         lineplot({"t": values, "y": [1.0, 2.0, 3.0]}, x="t", y="y")
 
     assert "'t'" in str(raised.value)
+
+
+# ---------------------------------------------------------------------------
+# where the ticks land (issue #113, locator)
+# ---------------------------------------------------------------------------
+
+_SPANS = [
+    timedelta(seconds=3),
+    timedelta(seconds=45),
+    timedelta(minutes=7),
+    timedelta(hours=1),
+    timedelta(hours=5),
+    timedelta(days=1),
+    timedelta(days=6),
+    timedelta(days=45),
+    timedelta(days=400),
+    timedelta(days=4000),
+    timedelta(days=40000),
+]
+_STARTS = [datetime(2024, 1, 1), datetime(2024, 1, 20, 12, 0), datetime(2023, 7, 3, 23, 59, 30), datetime(2024, 2, 29, 6, 17)]
+
+
+@pytest.mark.parametrize("span", _SPANS, ids=[str(span) for span in _SPANS])
+@pytest.mark.parametrize("start", _STARTS, ids=[start.isoformat() for start in _STARTS])
+def test_every_tick_lands_inside_the_domain_it_describes(start: datetime, span: timedelta) -> None:
+    """A tick outside the domain is a label for data that is not there, and it renders past
+    the plot area's edge. Dropping the ``moment >= low`` filters produces exactly that -- and
+    every other assertion about ticks stays green, because the axis still looks like an axis."""
+    ticks = make_ticks(TimeScale((start, start + span), (0.0, 700.0)))
+
+    assert ticks, f"no ticks for {span}"
+    assert all(start <= tick <= start + span for tick in ticks), (start, span, ticks[:3], ticks[-3:])
+
+
+@pytest.mark.parametrize("span", _SPANS, ids=[str(span) for span in _SPANS])
+@pytest.mark.parametrize("start", _STARTS, ids=[start.isoformat() for start in _STARTS])
+def test_ticks_are_evenly_spaced_on_an_interval_a_calendar_has(start: datetime, span: timedelta) -> None:
+    """Even spacing is what makes an axis readable, and the interval being a *calendar* one
+    is what makes the labels short. Nice numbers over a timestamp give 50,000-second steps --
+    even, and meaningless.
+
+    Two shapes are allowed because a calendar has two. Below a month the step is a fixed
+    duration and every gap is identical. At a month or more it is a *field*, so the gaps
+    differ by a day or two -- 730 days then 731 across a leap year -- and what is regular
+    instead is where the ticks land: the first of a month, or the first of a year."""
+    ticks = make_ticks(TimeScale((start, start + span), (0.0, 700.0)))
+    gaps = {(later - earlier).total_seconds() for earlier, later in zip(ticks, ticks[1:], strict=False)}
+
+    if not gaps:
+        pytest.skip("a single tick has no spacing to check")
+    if max(gaps) <= 14 * 86400:
+        assert gaps <= set(_SUB_MONTH_STEPS), f"{gaps} is not an interval a clock has"
+        assert len(gaps) == 1, f"a fixed-duration step should give one gap, got {gaps}"
+    else:
+        assert all(tick.day == 1 and tick.hour == 0 for tick in ticks), ticks
+
+
+@pytest.mark.parametrize("span", _SPANS, ids=[str(span) for span in _SPANS])
+def test_sub_day_ticks_sit_on_a_multiple_of_their_own_step(span: timedelta) -> None:
+    """Aligned to the interval, not to wherever the data happens to start. A reader looking
+    for "the top of the hour" wants 09:00, not 09:23 because the first row was 07:23."""
+    start = datetime(2024, 1, 20, 7, 23, 45)
+    ticks = make_ticks(TimeScale((start, start + span), (0.0, 700.0)))
+    gaps = {(later - earlier).total_seconds() for earlier, later in zip(ticks, ticks[1:], strict=False)}
+
+    if not gaps or max(gaps) > 86400:
+        pytest.skip("month/year stepping is checked by its own test")
+    step = int(max(gaps))
+    midnight = ticks[0].replace(hour=0, minute=0, second=0, microsecond=0)
+    assert all(int((tick - midnight).total_seconds()) % step == 0 for tick in ticks), ticks
+
+
+def test_a_domain_of_one_instant_draws_one_tick_not_two_with_the_same_name() -> None:
+    """``datetime.now()`` for a single row is the commonest degenerate domain there is, and
+    nothing aligned falls inside it -- so the endpoints stand in, and both endpoints are the
+    same instant. Two ticks carrying identical text is the defect this change exists to
+    remove, reappearing at the one place the aligned path gives up."""
+    moment = datetime(2024, 3, 4, 5, 6, 7, 890123)
+    ticks = make_ticks(TimeScale((moment, moment), (0.0, 700.0)))
+    labels = _x_tick_labels(lineplot({"t": [moment], "y": [1.0]}, x="t", y="y").to_string())
+
+    assert ticks == [moment]
+    assert len(labels) == len(set(labels)) == 1, labels
+
+
+@pytest.mark.parametrize(
+    ("low", "high"),
+    [
+        (datetime(2000, 1, 1), datetime(9999, 1, 1)),
+        (datetime(9000, 1, 1), datetime(9999, 1, 1)),
+        (datetime(9999, 6, 1), datetime(9999, 12, 1)),
+        (datetime(9999, 12, 30), datetime(9999, 12, 31)),
+    ],
+    ids=["2000-9999", "9000-9999", "months-in-9999", "last-day"],
+)
+def test_a_domain_reaching_the_last_representable_year_still_draws(low: datetime, high: datetime) -> None:
+    """Both loops used to step one past the end and look, which is a ``ValueError`` rather
+    than a value past ``high`` once the step crosses year 9999. ``main`` rendered these."""
+    ticks = make_ticks(TimeScale((low, high), (0.0, 700.0)))
+
+    assert ticks, f"no ticks for {low}..{high}"
+    assert all(low <= tick <= high for tick in ticks)
+
+
+def test_a_year_domain_too_wide_for_any_listed_step_stays_a_readable_number_of_ticks() -> None:
+    """The year fallback is the only thing standing between an 8,000-year domain and 8,001
+    ticks -- the coarsest listed step, not the finest."""
+    ticks = make_ticks(TimeScale((datetime(1000, 1, 1), datetime(9000, 1, 1)), (0.0, 700.0)))
+
+    assert 2 <= len(ticks) <= 12, len(ticks)
+
+
+def test_the_last_hours_before_the_maximum_datetime_still_draw() -> None:
+    """The sub-day loop steps forward and then tests, so the step past the last tick is the
+    one that leaves the representable range -- ``OverflowError: date value out of range``
+    from inside a tick loop, which ``_nice_step``'s docstring says this module does not do.
+
+    The helper is called directly because no public path reaches it: ``TimeScale.__init__``
+    calls ``timestamp()`` on both ends, and that is itself a ``ValueError`` this close to
+    ``datetime.max``. The guard is therefore defensive rather than load-bearing -- which is
+    exactly why it needs a test, since nothing else would notice it going."""
+    low, high = datetime(9999, 12, 31, 20, 0), datetime(9999, 12, 31, 23, 59, 59)
+    ticks = _aligned_ticks(low, high, 5)
+
+    assert ticks, "no ticks in the last hours of the last day"
+    assert all(low <= tick <= high for tick in ticks)
+
+
+def test_a_year_step_landing_on_the_domains_own_year_does_not_reach_back_before_it() -> None:
+    """``low.year + -low.year % step`` is already a multiple when the domain starts in one,
+    so the first candidate is January of that year -- which is *before* a domain starting in
+    June. Only the ``>= low`` filter keeps it out, and every earlier start in this file has a
+    year the step rounds forward, so none of them exercise it."""
+    low, high = datetime(2000, 6, 1), datetime(2110, 6, 1)
+    ticks = make_ticks(TimeScale((low, high), (0.0, 700.0)))
+
+    assert ticks, "no ticks"
+    assert all(tick >= low for tick in ticks), [tick.isoformat() for tick in ticks]
+
+
+@pytest.mark.parametrize(
+    ("low", "high", "expected_last"),
+    [
+        (datetime(2024, 1, 1), datetime(2024, 1, 1, 4, 0), datetime(2024, 1, 1, 4, 0)),
+        (datetime(2024, 1, 1), datetime(2024, 6, 1), datetime(2024, 6, 1)),
+        (datetime(2020, 1, 1), datetime(2040, 1, 1), datetime(2040, 1, 1)),
+    ],
+    ids=["hours", "months", "years"],
+)
+def test_a_domain_ending_exactly_on_a_step_keeps_that_last_tick(
+    low: datetime, high: datetime, expected_last: datetime
+) -> None:
+    """``<=`` versus ``<`` at the top of each loop. An axis that stops one step short of its
+    own maximum leaves the last of the data past the last tick -- and every other assertion
+    here still passes, because the remaining ticks are correct."""
+    ticks = make_ticks(TimeScale((low, high), (0.0, 700.0)))
+
+    assert ticks[-1] == expected_last, [tick.isoformat() for tick in ticks]
