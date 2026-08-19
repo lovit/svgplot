@@ -10,10 +10,12 @@ from __future__ import annotations
 import pytest
 
 from svgplot.charts._textwidth import (
+    _BOUNDED,
     _CAPITAL_RATIO,
     _ELLIPSIS,
     _NARROW_RATIO,
     _TITLE_THRESHOLD,
+    _is_bounded,
     needs_full_text,
     text_width,
     truncate_to_width,
@@ -164,36 +166,40 @@ def test_a_label_near_the_budget_keeps_its_full_text_even_when_it_was_not_cut() 
     The label has to be one that is *not* truncated, or this proves nothing: ``"W" * 19``
     estimates 198.6px against a 118px budget, so it is cut and gets its title from that
     branch instead, and every threshold from 0.10 to 1.68 passed. ``"a" * 15`` estimates
-    97.4px -- inside the budget, above 0.65 of it (76.7px)."""
+    97.4px -- inside the budget, above 0.60 of it (70.8px)."""
     assert text_width("a" * 15, 11.0) < 118.0, "must not be a truncated label"
     assert needs_full_text("a" * 15, 11.0, 118.0)
     assert not needs_full_text("a" * 10, 11.0, 118.0)
 
 
-# Worst ratio of real advance to charge, per face, from each font's own ``hmtx`` over
-# ``_BOUNDED``. A single number here is what let 0.65 through: it was the worst of the
-# *regular* faces, and the bold and medium ones the same families ship are worse.
-_WORST_RATIO_BY_FACE = {
-    "Arial": 1.0000,
-    "Trebuchet MS": 1.0538,
-    "Helvetica Bold": 1.1194,
+# Worst ratio of real advance to charge, per FAMILY across every weight it ships, from each
+# font's own ``hmtx`` over ``_BOUNDED``. Per family and not per face, because listing one
+# face per family is what let 0.65 through and then survived into the next round with Arial
+# recorded at 1.0000 -- Arial Black runs 1.4408, and Comic Sans Bold 1.5068 was the
+# second-worst face in the set and not in the table at all.
+_WORST_RATIO_BY_FAMILY = {
+    "Trebuchet MS": 1.1198,
     "SF NS": 1.1448,
-    "Tahoma": 1.2550,
-    "Verdana": 1.3870,
-    "Comic Sans MS": 1.4442,
+    "Tahoma": 1.3870,
+    "Arial": 1.4408,
     "Geneva": 1.4536,
-    "Helvetica Neue Medium": 1.5560,
+    "Verdana": 1.4698,
+    "Comic Sans MS": 1.5068,
+    "Helvetica": 1.5560,
+    "Helvetica Neue": 1.5560,
 }
 
 
 def test_the_bounded_threshold_covers_every_face_it_claims_to() -> None:
-    """Pinned to the numbers it is derived from, per face rather than in aggregate.
+    """Pinned to the numbers it is derived from, per family rather than in aggregate.
 
     A single worst-case number is how 0.65 got in: it came from the regular weights of the
     listed families and missed that Helvetica Neue *Medium* -- which the default
     ``font-family: sans-serif`` reaches -- runs ``―`` at 1.5560 against a 1.0 charge. Listing
-    the faces makes adding one a visible change rather than a silent widening of a claim."""
-    assert 1 / max(_WORST_RATIO_BY_FACE.values()) >= _TITLE_THRESHOLD
+    the families makes adding one a visible change rather than a silent widening of a claim,
+    and each entry is the worst across **every weight that family ships**, which is the part
+    the first version of this table got wrong twice."""
+    assert 1 / max(_WORST_RATIO_BY_FAMILY.values()) >= _TITLE_THRESHOLD
     assert _TITLE_THRESHOLD == 0.60
 
 
@@ -394,3 +400,22 @@ def test_a_digit_is_charged_as_a_capital_not_as_narrow(digit: str) -> None:
     by 13%: Geneva 0.6665, Verdana 0.6357, SF NS 0.6172, Comic Sans 0.6104."""
     assert text_width(digit, 10.0) == pytest.approx(10.0 * _CAPITAL_RATIO)
     assert max(_WORST_DIGIT_BY_FACE.values()) <= _CAPITAL_RATIO
+
+
+def test_the_trusted_repertoire_stops_where_the_measurements_stop() -> None:
+    """``_BOUNDED`` *is* the safety argument, and its bounds had no test at all.
+
+    Widening the range by one hex digit -- ``0x180`` to ``0x200``, taking in Latin Extended-B
+    unmeasured -- left the whole suite green while ``ǅ`` x10 rendered 16.4px past the canvas
+    with neither truncation nor a ``<title>``. U+01C5 is titlecase, so ``isupper()`` is False
+    and it is charged 0.59 against a measured 2.07 in Arial.
+
+    The same guard shape as ``test_every_measured_entry_is_pinned_by_a_literal``: a count and
+    the edges, so the set cannot drift without saying so."""
+    assert len(_BOUNDED) == 324
+    assert _is_bounded(chr(0x7E)), "the top of printable ASCII belongs"
+    assert _is_bounded(chr(0x17F)), "the top of Latin Extended-A belongs"
+    assert not _is_bounded(chr(0x180)), "Latin Extended-B was never measured"
+    assert not _is_bounded(chr(0x1C5)), "a titlecase letter is charged narrow and runs 2.07 in Arial"
+    assert not _is_bounded(chr(0x1F)), "below printable ASCII"
+    assert not _is_bounded(chr(0x80)), "the C1 controls are not printable"

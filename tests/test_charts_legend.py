@@ -272,7 +272,7 @@ def test_a_comfortably_short_label_still_gets_no_title() -> None:
 # computes its expectation with ``text_width`` -- the estimator under test -- so it verifies
 # that truncation honours the estimate and is blind to the estimate being wrong. Measured:
 # charging digits as narrow under-counts them 24%, and the whole suite stays green.
-_ARIAL_EM = {"a": 0.5562, "0": 0.5562, "W": 0.9438, "M": 0.8330, "\u0153": 0.9443, "\u00c6": 1.0000, "@": 1.0151}
+_ARIAL_EM = {"a": 0.5562, "0": 0.5562, "W": 0.9438, "M": 0.8330, "\u0153": 0.9438, "\u00c6": 1.0000, "@": 1.0151}
 
 
 @pytest.mark.parametrize("char", sorted(_ARIAL_EM), ids=sorted(_ARIAL_EM))
@@ -291,3 +291,37 @@ def test_a_legend_label_stays_inside_the_canvas_by_the_fonts_own_numbers(char: s
         assert (
             float(start) + real <= DEFAULT_WIDTH
         ), f"{text!r} renders {float(start) + real - DEFAULT_WIDTH:.1f}px past the canvas"
+
+
+# A corpus of labels a real chart might carry, kept here rather than in a CHANGELOG sentence
+# so the cost of the unmeasured-script rule can be re-measured rather than believed.
+_REALISTIC_LABELS = {
+    "korean": ["매출", "영업이익", "신규 가입자 수", "서울특별시", "2024년 상반기 실적"],
+    "ascii": ["Revenue", "Gross margin", "Q1", "North America", "Monthly active users"],
+    "european": ["São Paulo", "Bénéfice", "İstanbul", "Umsätze", "Châteauroux"],
+    "unmeasured": ["Выручка", "Αθήνα", "الربح", "רווח", "กำไร", "लाभ"],
+}
+
+
+def test_an_unmeasured_label_is_titled_however_much_room_it_has() -> None:
+    """The unconditional rule, and the whole of what it costs. Every one of these is well
+    under the budget -- ``רווח`` estimates 22px against 118 -- and every one keeps its text,
+    because outside the measured repertoire the estimate carries no bound at all."""
+    from svgplot.charts._textwidth import needs_full_text, text_width
+
+    for label in _REALISTIC_LABELS["unmeasured"]:
+        assert text_width(label, 11.0) < 118.0 * 0.5, f"{label!r} must have room to spare for this to mean anything"
+        assert needs_full_text(label, 11.0, 118.0), label
+
+
+@pytest.mark.parametrize("group", ["korean", "ascii", "european"])
+def test_a_measured_label_is_titled_only_when_it_is_near_the_budget(group: str) -> None:
+    """The other path, and the reason the two must not be confused. A Korean or European
+    label is measured, so it is judged by the threshold like any Latin one -- ``매출`` stays
+    clean and ``2024년 상반기 실적`` does not, because the second one really is close to the
+    edge. Stating a cost in a CHANGELOG without a way to re-run it is how a number becomes
+    folklore; this is the way to re-run it."""
+    from svgplot.charts._textwidth import needs_full_text, text_width
+
+    for label in _REALISTIC_LABELS[group]:
+        assert needs_full_text(label, 11.0, 118.0) == (text_width(label, 11.0) > 118.0 * 0.60), label
