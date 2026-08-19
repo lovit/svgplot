@@ -69,6 +69,21 @@ def _is_drawable(span: tuple[float, float] | None) -> bool:
     return span is not None and span[0] < span[1]
 
 
+def _may_override(name: str, explicit: dict[str, object]) -> bool:
+    """Whether the caller left ``name`` for the union to decide.
+
+    ``bins`` is exempt, because naming it is not a decision the union can contradict.
+    ``histogram_bins`` takes a string or an int and nothing else: an int already pins every
+    panel to that many, so the union carries it back unchanged, and a *strategy* --
+    ``"auto"``, ``"sturges"`` -- names how each panel should choose **alone**, which is the
+    thing that has to stop when the panels are being made to agree. Either way the count the
+    union carries is the one the caller's own setting produced.
+    """
+    if name not in explicit or explicit[name] is None:
+        return True
+    return name == "bins"
+
+
 def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool, explicit: dict[str, object]) -> dict[str, object]:
     """The overrides that make every panel agree, or ``{}`` if there is nothing to share.
 
@@ -81,6 +96,11 @@ def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool, explicit:
     there wins: ``facet(..., ylim=(0, 500))`` is a caller stating the window they want, and
     a computed union has no business overruling it -- nor may it be passed alongside, which
     is a ``TypeError`` for a duplicate keyword rather than anything the caller can read.
+
+    ``ylim=None`` is not such a statement. It is what a wrapper passes when it has nothing
+    to say, and every chart here already reads it as "no override" -- so keying off the name
+    alone would let ``facet(plot_fn, data, col="g", ylim=None)`` silently turn sharing off
+    while both flags still read ``True``.
     """
     if len(panels) < 2 or not (sharex or sharey):
         return {}
@@ -96,13 +116,17 @@ def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool, explicit:
     overrides: dict[str, object] = {}
     if sharex and _is_drawable(shared.x):
         overrides["xlim"] = shared.x
+        if shared.x_steps is not None:
+            # A binned x axis needs its division shared as well as its range; see
+            # ``Domains.x_steps``. ``bins`` is the name every binned chart already uses.
+            overrides["bins"] = shared.x_steps
     if sharey and _is_drawable(shared.y):
         overrides["ylim"] = shared.y
     # Under whichever flag names the axis the categories were actually drawn on -- a
     # horizontal bar chart puts them up the left edge, where "sharex" has no business.
     if shared.categories is not None and (sharex if shared.categories_axis == "x" else sharey):
         overrides["categories"] = shared.categories
-    return {name: value for name, value in overrides.items() if name not in explicit}
+    return {name: value for name, value in overrides.items() if _may_override(name, explicit)}
 
 
 def facet(
@@ -163,7 +187,7 @@ def facet(
                         cells.append(None)
                         titles.append(None)
                         continue
-                    cells.append(plot_fn(group, **kwargs, **extra))  # type: ignore[arg-type]
+                    cells.append(plot_fn(group, **{**kwargs, **extra}))  # type: ignore[arg-type]
                     titles.append(f"{row} = {row_value}, {col} = {col_value}")
                 matrix.append(cells)
             return matrix, titles
@@ -180,7 +204,7 @@ def facet(
     charts: list[Chart | None] = [plot_fn(groups[value], **kwargs) for value in values]  # type: ignore[arg-type,misc]
     overrides = _shared_kwargs([chart for chart in charts if chart is not None], sharex=sharex, sharey=sharey, explicit=kwargs)
     if overrides:
-        charts = [plot_fn(groups[value], **kwargs, **overrides) for value in values]  # type: ignore[arg-type,misc]
+        charts = [plot_fn(groups[value], **{**kwargs, **overrides}) for value in values]  # type: ignore[arg-type,misc]
     titles = [f"{channel} = {value}" for value in values]
     if col is not None:
         return arrange_row(charts, titles=titles)

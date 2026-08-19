@@ -104,7 +104,17 @@ def histplot(
     # sharing an axis but not their bin boundaries draw bars of different widths, and a
     # count of 3 covers a different amount of data in each. Same rule this chart already
     # applies across hue= groups.
-    edges = histogram_bins(all_values, bins=bins, bin_range=xlim)
+    # Binned over xlim when one is given, not over this chart's own values: two charts
+    # sharing an axis but not their bin boundaries draw bars of different widths, and a
+    # count of 3 covers a different amount of data in each. Same rule this chart already
+    # applies across hue= groups. The range alone does not settle it -- a strategy like
+    # "auto" still picks its width from the values -- so the count is shared too.
+    # ``xlim`` is validated here rather than left to ``bin_range``, so a bad value reports
+    # the argument the caller wrote and gets the same message every other chart gives.
+    # ``bin_range=None`` when there is no xlim: a constant column has a zero-width range,
+    # which numpy handles by widening and ``apply_limit`` rightly refuses from a caller.
+    bin_range = apply_limit((min(all_values), max(all_values)), xlim) if xlim is not None else None
+    edges = histogram_bins(all_values, bins=bins, bin_range=bin_range)
     series_counts = [(label, _count_in_bins(values, edges)) for label, values in series_values]
     max_count = max((count for _, counts in series_counts for count in counts), default=0)
 
@@ -146,4 +156,4 @@ def histplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document, domains=Domains(x=x_domain, y=y_domain))
+    return Chart(document, domains=Domains(x=x_domain, y=y_domain, x_steps=len(edges) - 1))

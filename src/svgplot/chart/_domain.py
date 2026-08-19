@@ -44,6 +44,17 @@ class Domains:
     x: tuple[float, float] | None = None
     y: tuple[float, float] | None = None
     categories: tuple[str, ...] | None = None
+    x_steps: int | None = None
+    """How many discrete steps the chart divided its x axis into, if it did.
+
+    A shared *range* is not enough for a chart whose x axis is binned. ``bins="auto"``
+    derives its bin **width** from each panel's own values, so two panels covering one range
+    still land their boundaries in different places -- measured, 15 bars of 5.07px against
+    14 of 4.79px. Sharing the count as well pins the edges, because ``histogram_bins`` with
+    an integer count and a range returns exactly ``linspace(low, high, count + 1)``.
+
+    ``None`` for a continuous axis, which is most of them."""
+
     categories_axis: str = "x"
     """Which **screen** axis the categories occupy. ``barplot(orient="h")`` draws them up
     the left edge, and a caller sharing "the x axis" means the one it can see -- so the
@@ -79,9 +90,14 @@ def union(domains: list[Domains]) -> Domains:
     if len(axes) > 1:
         raise ValueError(f"charts disagree about which axis holds their categories: {sorted(axes)}")
 
+    steps = [domain.x_steps for domain in domains if domain.x_steps is not None]
+
     return Domains(
         x=(min(low for low, _ in xs), max(high for _, high in xs)) if xs else None,
         y=(min(low for low, _ in ys), max(high for _, high in ys)) if ys else None,
+        # The finest division any panel asked for, so sharing never coarsens a panel that
+        # had more to show.
+        x_steps=max(steps) if steps else None,
         categories=tuple(categories) or None,
         categories_axis=axes.pop() if axes else "x",
     )
