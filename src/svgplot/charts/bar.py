@@ -186,7 +186,14 @@ def barplot(
 
     if hue is not None:
         legend_entries = [(str(label), series_classes[index]) for index, (label, _) in enumerate(group_items)]
-        render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+        render_legend(
+            document,
+            legend_entries,
+            x=area.right + LEGEND_X_OFFSET,
+            y=area.top,
+            mark_style="fill",
+            font_size=resolved_theme.legend_font_size,
+        )
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 

@@ -185,6 +185,7 @@ def kdeplot(
             x=area.right + LEGEND_X_OFFSET,
             y=area.top,
             mark_style="fill" if fill else "stroke",
+            font_size=resolved_theme.legend_font_size,
         )
 
     render_theme_style(document, resolved_theme, series_classes, mark_style=mark_style)

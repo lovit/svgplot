@@ -227,6 +227,7 @@ def gaugeplot(
             # render_legend knows "stroke" (a line swatch) and "fill" (a rect) only; an
             # outlined arc reads as a filled swatch, and passing "outlined" through raises.
             mark_style="fill",
+            font_size=resolved_theme.legend_font_size,
         )
     render_theme_style(document, resolved_theme, series_classes, mark_style="outlined")
 
