@@ -13,6 +13,7 @@ import re
 import pytest
 
 import svgplot as sp
+from svgplot.chart._domain import Domains, union
 
 # Two groups whose y ranges do not overlap at all, so an unshared axis is unmistakable.
 SPLIT = {
@@ -389,3 +390,111 @@ def test_a_facet_whose_panels_mix_chart_kinds_shares_what_it_can() -> None:
     sp.facet(mixed, data, col="g")
 
     assert len(calls) == 4, "a panel that recorded a domain should still get a second pass"
+
+
+@pytest.mark.parametrize("bins", [None, "auto", "sturges"])
+def test_histogram_bins_are_shared_on_the_strategies_not_only_on_a_fixed_count(bins: object) -> None:
+    """The default path, which the first fix missed entirely.
+
+    ``bin_range=`` only tells numpy which *range* to cover; ``bins="auto"`` still derives the
+    bin **width** from each panel's own values and lays that width across the range, so the
+    counts and therefore the boundaries still disagree. Measured before this fix: 15 bars of
+    5.072464px against 14 of 4.794521px, under an axis whose ticks matched exactly.
+
+    ``bins=4`` -- the only case the first regression test covered -- can never catch this: a
+    fixed count is shared by construction, whatever the range. Every case here goes through
+    a strategy instead, including the one where the caller names it themselves.
+    """
+    values = [float(n % 7) for n in range(300)] + [50.0 + (n % 3) for n in range(300)]
+    data = {"v": values, "g": ["a"] * 300 + ["b"] * 300}
+    kwargs = {} if bins is None else {"bins": bins}
+    panels = _panels(sp.facet(sp.histplot, data, col="g", x="v", **kwargs).to_string())  # type: ignore[arg-type]
+    widths = [
+        {width for _, width in re.findall(r'<rect x="([\d.]+)"[^>]*width="([\d.]+)"[^>]*class="c\d+-series', panel)}
+        for panel in panels
+    ]
+
+    assert _ticks(panels[0]) == _ticks(panels[1]), "the axis was not shared, so this proves nothing"
+    assert widths[0] and widths[0] == widths[1], f"bin widths still disagree: {widths}"
+
+
+def test_an_explicit_bin_count_survives_the_shared_pass_unchanged() -> None:
+    """``bins`` is exempt from "the caller named it, so the caller wins", so it has to be
+    shown that the exemption cannot change an explicit count. It cannot, and the reason is
+    a property of the type: ``histogram_bins`` takes a string or an int, so ``bins=6`` makes
+    every panel report six and the union hands six back."""
+    values = [float(n % 7) for n in range(300)] + [50.0 + (n % 3) for n in range(300)]
+    data = {"v": values, "g": ["a"] * 300 + ["b"] * 300}
+    panels = _panels(sp.facet(sp.histplot, data, col="g", x="v", bins=6).to_string())
+    widths = {width for panel in panels for width in re.findall(r'<rect[^>]*width="([\d.]+)"[^>]*class="c\d+-series', panel)}
+
+    assert _ticks(panels[0]) == _ticks(panels[1])
+    # Six equal bins across the plot area, whichever of them a panel actually filled.
+    assert len(widths) == 1, f"panels drew bars of different widths: {widths}"
+    span = float(next(iter(widths))) * 6
+    assert 400.0 < span < 800.0, f"six bins should span the plot area, got {span}"
+
+
+def test_the_shared_bin_count_is_one_a_panel_actually_chose() -> None:
+    """``max`` rather than ``min``, and a count rather than an edge count.
+
+    Handing back the *coarsest* division would throw away detail a panel had already shown,
+    and being off by one would hand every panel a division none of them picked -- neither of
+    which the panels-agree assertions can see, because both panels agree on the wrong number
+    just as readily as on the right one."""
+    fine = sp.histplot({"v": [float(n % 40) for n in range(400)]}, x="v", bins=17)
+    coarse = sp.histplot({"v": [float(n % 40) for n in range(400)]}, x="v", bins=4)
+
+    assert fine.domains.x_steps == 17, "x_steps is the number of bins, not of edges"
+    assert union([coarse.domains, fine.domains]).x_steps == 17
+    assert union([fine.domains, coarse.domains]).x_steps == 17
+
+
+@pytest.mark.parametrize("name", ["xlim", "ylim"])
+def test_passing_an_override_as_none_does_not_switch_sharing_off(name: str) -> None:
+    """``ylim=None`` is what a wrapper forwards when it has nothing to say, and every chart
+    reads it as "no override". Keying the caller-wins rule off the *name* alone let it turn
+    sharing off while ``sharey`` still read ``True`` -- and nothing in the output said so."""
+    data = {"x": [1, 2, 3, 4], "y": [1.0, 2.0, 300.0, 400.0], "g": ["a", "a", "b", "b"]}
+    shared = _panels(sp.facet(sp.lineplot, data, col="g", x="x", y="y").to_string())
+    with_none = _panels(sp.facet(sp.lineplot, data, col="g", x="x", y="y", **{name: None}).to_string())  # type: ignore[arg-type]
+
+    assert _ticks(with_none[0]) == _ticks(with_none[1])
+    assert [_ticks(panel) for panel in with_none] == [_ticks(panel) for panel in shared]
+
+
+def test_a_chart_with_no_categories_does_not_vote_on_which_axis_holds_them() -> None:
+    """``categories_axis`` defaults to ``"x"``, and a chart that recorded no categories
+    carries that default. Letting it into the vote makes a facet mixing ``barplot(orient="h")``
+    with anything cartesian raise "charts disagree", which is a claim about data neither
+    chart holds."""
+    horizontal = Domains(x=(0.0, 1.0), categories=("a",), categories_axis="y")
+    plain = Domains(y=(0.0, 1.0))
+
+    assert union([horizontal, plain]).categories_axis == "y"
+    assert union([plain, horizontal]).categories_axis == "y"
+
+
+def test_charts_that_disagree_about_the_category_axis_say_so() -> None:
+    """Without the check, ``axes.pop()`` picks one at random from a set -- so the same input
+    lines the categories up along x on one run and y on the next."""
+    with pytest.raises(ValueError, match="disagree"):
+        union([Domains(categories=("a",), categories_axis="x"), Domains(categories=("b",), categories_axis="y")])
+
+
+@pytest.mark.parametrize("plot_fn", [sp.boxplot, sp.violinplot])
+def test_a_distribution_chart_files_its_categories_under_sharex(plot_fn: object) -> None:
+    """``boxplot``/``violinplot`` pass ``Domains(y=..., categories=...)`` and lean on the
+    ``"x"`` default for the axis. Nothing checked that, so flipping the default would have
+    quietly filed their categories under ``sharey`` -- where ``sharex=False`` stops lining up
+    the axis the categories are actually drawn on."""
+    data = {
+        "cat": ["a", "a", "b", "b", "c", "c", "c", "d", "d"],
+        "v": [1.0, 2.0, 3.0, 5.0, 4.0, 6.0, 9.0, 7.0, 8.0],
+        "g": ["L"] * 4 + ["R"] * 5,
+    }
+    kept = _panels(sp.facet(plot_fn, data, col="g", x="cat", y="v", sharex=True, sharey=False).to_string())  # type: ignore[arg-type]
+    dropped = _panels(sp.facet(plot_fn, data, col="g", x="cat", y="v", sharex=False, sharey=True).to_string())  # type: ignore[arg-type]
+
+    assert _axis_labels(kept[0])[1] == _axis_labels(kept[1])[1], "sharex should line up the categories"
+    assert _axis_labels(dropped[0])[1] != _axis_labels(dropped[1])[1], "sharex=False should have left them alone"
