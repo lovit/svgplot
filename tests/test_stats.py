@@ -329,3 +329,51 @@ def test_box_stats_rejects_unknown_mode() -> None:
 def test_box_stats_rejects_non_finite_values() -> None:
     with pytest.raises(ValueError, match="finite"):
         box_stats([1.0, float("nan"), 3.0])
+
+
+@pytest.mark.parametrize("strategy", ["auto", "fd", "doane", "scott", "rice", "sturges", "sqrt"])
+def test_every_strategy_numpy_accepted_is_still_accepted(strategy: str) -> None:
+    """The list is the public surface. Delegating meant numpy decided it; now this module
+    does, and dropping one would turn a working call into a ``ValueError`` at import time for
+    nobody's benefit."""
+    assert len(histogram_bins([float(index % 13) for index in range(200)], strategy)) > 1
+
+
+def test_an_unknown_strategy_says_what_the_known_ones_are() -> None:
+    """numpy used to answer this, with its own vocabulary. Now the message has to come from
+    here, and a message that only says "no" leaves the caller to guess."""
+    with pytest.raises(ValueError, match="doane, fd, rice, scott, sqrt, sturges") as raised:
+        histogram_bins([1.0, 2.0, 3.0], "freedman")
+
+    assert "freedman" in str(raised.value)
+
+
+def test_a_constant_column_gets_one_bin_widened_around_its_value() -> None:
+    """The case the two spans come apart on. The edges are widened by half a unit either side
+    so the bar has somewhere to be drawn, but the *selectors* still see a span of zero -- feed
+    them the widened span instead and a constant column comes back with five bins of nothing."""
+    assert histogram_bins([3.5] * 10, "sturges") == [3.0, 4.0]
+    assert histogram_bins([3.5], "auto") == [3.0, 4.0]
+
+
+def test_the_last_edge_is_the_maximum_and_not_a_float_that_drifted_past_it() -> None:
+    """Accumulating the step would leave the last edge slightly short of the data's maximum,
+    and a value sitting exactly on that maximum would fall outside every bin."""
+    values = [index * 0.1 for index in range(1000)]
+    edges = histogram_bins(values, 7)
+
+    assert edges[0] == min(values)
+    assert edges[-1] == max(values)
+    assert len(edges) == 8
+
+
+def test_scotts_coefficient_is_the_exact_one_and_not_the_rounded_3_49() -> None:
+    """``(24 * sqrt(pi)) ** (1/3)`` is 3.4906, and every textbook writes it as 3.49. The two
+    agree to four places and disagree about the bin *count* whenever the quotient lands near
+    an integer -- ``range(224)`` gives six bins by the exact coefficient and seven by 3.49.
+
+    Nothing else here notices: every other dataset in this file and in the numpy-parity sweep
+    rounds the same way either way, so the rounded constant survives them all."""
+    values = [float(index) for index in range(224)]
+
+    assert len(histogram_bins(values, "scott")) - 1 == 6
