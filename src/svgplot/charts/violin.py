@@ -10,7 +10,7 @@ cases and is a refinement on top of this, not part of it.
 
 from __future__ import annotations
 
-from svgplot.chart._domain import Domains, apply_limit
+from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
@@ -178,7 +178,7 @@ def violinplot(
     curves = {category: _density(values, category, bandwidth, grid_range) for category, values in groups.items()}
     peak = max(value for curve in curves.values() for value in curve.y)
 
-    drawn_categories = list(categories) if categories is not None else list(groups)
+    drawn_categories = list(require_categories(categories)) if categories is not None else list(groups)
     document, area = new_canvas(MARGIN_WITHOUT_LEGEND)
 
     x_scale = CategoricalScale(drawn_categories, (area.left, area.right), padding=_VIOLIN_PADDING)

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from svgplot.chart._domain import Domains, apply_limit, union
+from svgplot.chart._domain import Domains, apply_limit, require_categories, union
 
 
 def test_a_chart_with_no_axes_records_nothing() -> None:
-    assert Domains().is_empty()
-    assert not Domains(y=(0.0, 1.0)).is_empty()
+    """``pieplot``/``treemap``/``gaugeplot`` report this, and ``facet`` reads it as "there is
+    nothing to share" -- so the all-``None`` default has to stay all-``None``."""
+    assert Domains() == Domains(x=None, y=None, x_step=None, categories=None, categories_axis="x")
 
 
 def test_the_union_takes_the_outermost_bounds_of_each_axis() -> None:
@@ -95,3 +96,45 @@ def test_something_that_is_not_a_pair_is_refused(bad: object) -> None:
     without a type check would accept it and hand ``"0"`` to a scale."""
     with pytest.raises(ValueError, match="must be a \\(low, high\\) pair|must be finite numbers"):
         apply_limit((0.0, 1.0), bad)  # type: ignore[arg-type]
+
+
+def test_the_union_takes_the_narrowest_bin_width_not_the_largest_count() -> None:
+    """A count means nothing away from the range it was chosen for.
+
+    Two panels of three bars each, one over 1..3 and one over 100..102, both chose 3. Three
+    bins across the shared 1..102 puts every value of each panel into one bar -- measured,
+    3 bars per panel on ``main`` became 1. The width survives the change of range: 0.667
+    across 1..102 is 151 divisions, and each panel still resolves its own three."""
+    narrow = Domains(x=(1.0, 3.0), x_step=2.0 / 3)
+    wide = Domains(x=(100.0, 102.0), x_step=2.0 / 1)
+
+    assert union([narrow, wide]).x_step == pytest.approx(2.0 / 3)
+    assert union([wide, narrow]).x_step == pytest.approx(2.0 / 3)
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ((), "at least one"),
+        ("ab", "single string"),
+        ((1, 2), "sequence of names"),
+        (5, "sequence of names"),
+    ],
+)
+def test_a_categories_override_that_would_draw_nothing_says_so(value: object, message: str) -> None:
+    """The same reasoning ``apply_limit`` uses to refuse a zero-width window: a chart that
+    renders axes and a legend and no marks is worse than one that says why.
+
+    ``"ab"`` is the case worth naming -- it reads as one category and unpacks into two, so
+    without this it silently draws bars for ``a`` and ``b`` that the caller never asked for.
+    A non-string member otherwise reaches the scale, which raises ``KeyError: "category not
+    found in scale: '1'"`` about an internal lookup."""
+    with pytest.raises(ValueError, match=message):
+        require_categories(value)
+
+
+def test_a_categories_override_naming_absent_categories_is_allowed() -> None:
+    """Not an error, and this is the case the parameter exists for: a facet panel is handed
+    every category any panel drew, and the ones it has no rows for are meant to leave a gap
+    in the axis rather than shift its neighbours."""
+    assert require_categories(("a", "z")) == ("a", "z")

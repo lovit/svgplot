@@ -6,7 +6,7 @@ import math
 
 import numpy as np
 
-_MAX_BINS = 10_000
+MAX_BINS = 10_000
 """Sane upper bound on an explicit int ``bins`` count — without this, e.g.
 ``bins=10**8`` returns ~800MB of edges from a single call, matching the spirit
 of ``_MAX_PRECISION`` in ``stats.interpolate``."""
@@ -31,15 +31,15 @@ def histogram_bins(
             finite values, e.g. ``-1e308`` and ``1e308``, can still overflow when numpy
             computes the range internally — surfacing as a confusing internal numpy error
             if not caught here first), if ``bins`` isn't a ``str``/``int`` or an int
-            ``bins`` exceeds :data:`_MAX_BINS`, or if ``bins`` isn't a value numpy accepts
+            ``bins`` exceeds :data:`MAX_BINS`, or if ``bins`` isn't a value numpy accepts
             (surfaces numpy's own error message in that case).
     """
     if not values:
         raise ValueError("values must not be empty")
     if not isinstance(bins, str | int) or isinstance(bins, bool):
         raise ValueError(f"bins must be a string or int, got {bins!r}")
-    if isinstance(bins, int) and bins > _MAX_BINS:
-        raise ValueError(f"bins must be at most {_MAX_BINS}, got {bins}")
+    if isinstance(bins, int) and bins > MAX_BINS:
+        raise ValueError(f"bins must be at most {MAX_BINS}, got {bins}")
     for value in values:
         try:
             finite = math.isfinite(value)

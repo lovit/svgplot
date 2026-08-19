@@ -103,12 +103,8 @@ def histplot(
     # Binned over xlim when one is given, not over this chart's own values: two charts
     # sharing an axis but not their bin boundaries draw bars of different widths, and a
     # count of 3 covers a different amount of data in each. Same rule this chart already
-    # applies across hue= groups.
-    # Binned over xlim when one is given, not over this chart's own values: two charts
-    # sharing an axis but not their bin boundaries draw bars of different widths, and a
-    # count of 3 covers a different amount of data in each. Same rule this chart already
     # applies across hue= groups. The range alone does not settle it -- a strategy like
-    # "auto" still picks its width from the values -- so the count is shared too.
+    # "auto" still picks its width from the values -- so the division is shared too.
     # ``xlim`` is validated here rather than left to ``bin_range``, so a bad value reports
     # the argument the caller wrote and gets the same message every other chart gives.
     # ``bin_range=None`` when there is no xlim: a constant column has a zero-width range,
@@ -156,4 +152,4 @@ def histplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document, domains=Domains(x=x_domain, y=y_domain, x_steps=len(edges) - 1))
+    return Chart(document, domains=Domains(x=x_domain, y=y_domain, x_step=(edges[-1] - edges[0]) / (len(edges) - 1)))

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from svgplot._svg import SvgDocument
-from svgplot.chart._domain import Domains, apply_limit
+from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
@@ -81,7 +81,7 @@ def boxplot(
     if not groups:
         raise ValueError("no rows with both x and y present after dropping missing values")
 
-    drawn_categories = list(categories) if categories is not None else list(groups.keys())
+    drawn_categories = list(require_categories(categories)) if categories is not None else list(groups.keys())
     stats_by_category: dict[str, BoxStats] = {category: box_stats(values, mode=mode) for category, values in groups.items()}
 
     all_low = [s.whisker_low for s in stats_by_category.values()] + [o for s in stats_by_category.values() for o in s.outliers]

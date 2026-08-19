@@ -45,6 +45,7 @@ from svgplot.chart.base import Chart
 from svgplot.chart.composition import Composition
 from svgplot.data.semantic import extract_channels
 from svgplot.layout.grid import column as arrange_column, grid as arrange_grid, row as arrange_row
+from svgplot.stats.binning import MAX_BINS as _MAX_BINS
 
 
 def _sorted_unique(values: list[object]) -> list[object]:
@@ -67,6 +68,25 @@ def _is_drawable(span: tuple[float, float] | None) -> bool:
     handling, which is identical across panels anyway when the data is constant.
     """
     return span is not None and span[0] < span[1]
+
+
+def _bins_covering(span: tuple[float, float], step: float) -> int:
+    """How many divisions of width ``step`` the shared span needs.
+
+    ``Domains.x_step`` carries a width because a count means nothing away from the range it
+    was chosen for; ``bins=`` takes a count, so the width is converted back here against the
+    span the panels will actually share. At least one, so a span narrower than a single
+    division still draws.
+
+    Capped, and this is the one place the cap is not a caller's mistake. ``histogram_bins``
+    refuses an integer above ``_MAX_BINS`` because a caller asking for a million bins wants
+    something a chart cannot show -- but a *strategy* has no such ceiling, so a panel is free
+    to choose 16,021 bins and ``main`` renders it. Re-deriving that as an integer put it back
+    through the caller's gate and turned a chart that rendered into a ``ValueError`` naming a
+    number nobody wrote (measured: ``bins="fd"`` on 500 values plus one outlier). Coarsening
+    to the ceiling keeps the panels agreeing and keeps the chart on the page.
+    """
+    return max(1, min(_MAX_BINS, round((span[1] - span[0]) / step)))
 
 
 def _may_override(name: str, explicit: dict[str, object]) -> bool:
@@ -94,8 +114,12 @@ def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool, explicit:
 
     ``explicit`` is what the caller already passed through to ``plot_fn``. Anything named
     there wins: ``facet(..., ylim=(0, 500))`` is a caller stating the window they want, and
-    a computed union has no business overruling it -- nor may it be passed alongside, which
-    is a ``TypeError`` for a duplicate keyword rather than anything the caller can read.
+    a computed union has no business overruling it. The filter is belt-and-braces rather
+    than load-bearing -- the first render already applied the caller's limit, so the union
+    of the panels hands the same value straight back, and dropping the filter changes no
+    output over the 102-case matrix it was checked against. It stays because that identity
+    holds only while every chart records the domain it drew, and a chart that clamps or
+    rounds its own limit would break it silently.
 
     ``ylim=None`` is not such a statement. It is what a wrapper passes when it has nothing
     to say, and every chart here already reads it as "no override" -- so keying off the name
@@ -116,10 +140,8 @@ def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool, explicit:
     overrides: dict[str, object] = {}
     if sharex and _is_drawable(shared.x):
         overrides["xlim"] = shared.x
-        if shared.x_steps is not None:
-            # A binned x axis needs its division shared as well as its range; see
-            # ``Domains.x_steps``. ``bins`` is the name every binned chart already uses.
-            overrides["bins"] = shared.x_steps
+        if shared.x_step is not None:
+            overrides["bins"] = _bins_covering(shared.x, shared.x_step)
     if sharey and _is_drawable(shared.y):
         overrides["ylim"] = shared.y
     # Under whichever flag names the axis the categories were actually drawn on -- a

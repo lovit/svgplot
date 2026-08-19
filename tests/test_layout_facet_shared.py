@@ -418,36 +418,70 @@ def test_histogram_bins_are_shared_on_the_strategies_not_only_on_a_fixed_count(b
     assert widths[0] and widths[0] == widths[1], f"bin widths still disagree: {widths}"
 
 
-def test_an_explicit_bin_count_survives_the_shared_pass_unchanged() -> None:
+def test_an_explicit_bin_count_keeps_its_division_across_the_shared_pass() -> None:
     """``bins`` is exempt from "the caller named it, so the caller wins", so it has to be
-    shown that the exemption cannot change an explicit count. It cannot, and the reason is
-    a property of the type: ``histogram_bins`` takes a string or an int, so ``bins=6`` makes
-    every panel report six and the union hands six back."""
+    shown that the exemption does not change what an explicit count draws. Each panel is
+    still divided into six across its own span; the shared pass re-derives the width against
+    the union, which is the same width."""
     values = [float(n % 7) for n in range(300)] + [50.0 + (n % 3) for n in range(300)]
     data = {"v": values, "g": ["a"] * 300 + ["b"] * 300}
+    alone = sp.histplot({"v": values[:300]}, x="v", bins=6).domains
     panels = _panels(sp.facet(sp.histplot, data, col="g", x="v", bins=6).to_string())
     widths = {width for panel in panels for width in re.findall(r'<rect[^>]*width="([\d.]+)"[^>]*class="c\d+-series', panel)}
 
     assert _ticks(panels[0]) == _ticks(panels[1])
-    # Six equal bins across the plot area, whichever of them a panel actually filled.
     assert len(widths) == 1, f"panels drew bars of different widths: {widths}"
-    span = float(next(iter(widths))) * 6
-    assert 400.0 < span < 800.0, f"six bins should span the plot area, got {span}"
+    assert alone.x_step == pytest.approx((max(values[:300]) - min(values[:300])) / 6)
 
 
-def test_the_shared_bin_count_is_one_a_panel_actually_chose() -> None:
-    """``max`` rather than ``min``, and a count rather than an edge count.
+def test_the_shared_division_is_the_finest_a_panel_chose_and_survives_the_wider_span() -> None:
+    """``min`` on widths rather than ``max`` on counts, and the difference is visible.
 
-    Handing back the *coarsest* division would throw away detail a panel had already shown,
-    and being off by one would hand every panel a division none of them picked -- neither of
-    which the panels-agree assertions can see, because both panels agree on the wrong number
-    just as readily as on the right one."""
-    fine = sp.histplot({"v": [float(n % 40) for n in range(400)]}, x="v", bins=17)
-    coarse = sp.histplot({"v": [float(n % 40) for n in range(400)]}, x="v", bins=4)
+    Sharing the largest *count* re-spreads it over the union: two panels of three bars, one
+    at 1..3 and one at 100..102, both chose 3, and 3 bins across 1..102 collapses each panel
+    to a single bar. That is what ``main`` drew as 3 and 3. Both panels agree either way, so
+    the panels-agree assertions elsewhere cannot see it -- only comparing against what a
+    panel drew alone can."""
+    data = {"v": [1.0, 2.0, 3.0, 100.0, 101.0, 102.0], "g": ["a"] * 3 + ["b"] * 3}
+    panels = _panels(sp.facet(sp.histplot, data, col="g", x="v", bins=3).to_string())
+    bars = [len(re.findall(r'<rect[^>]*class="c\d+-series', panel)) for panel in panels]
+    widths = {width for panel in panels for width in re.findall(r'<rect[^>]*width="([\d.]+)"[^>]*class="c\d+-series', panel)}
 
-    assert fine.domains.x_steps == 17, "x_steps is the number of bins, not of edges"
-    assert union([coarse.domains, fine.domains]).x_steps == 17
-    assert union([fine.domains, coarse.domains]).x_steps == 17
+    assert _ticks(panels[0]) == _ticks(panels[1]), "the axis was not shared, so this proves nothing"
+    assert len(widths) == 1, f"panels drew bars of different widths: {widths}"
+    assert bars == [3, 3], f"sharing coarsened the panels to {bars}"
+
+
+def test_a_strategy_that_chose_more_bins_than_a_caller_may_ask_for_still_renders() -> None:
+    """``histogram_bins`` caps an integer ``bins`` at ``MAX_BINS`` because a caller asking
+    for a million wants something a chart cannot show. A *strategy* has no such ceiling, so
+    a panel is free to choose 16,021 -- and ``main`` renders it.
+
+    Re-deriving that as an integer put it back through the caller's gate: measured, this
+    exact input raised ``ValueError: bins must be at most 10000, got 16021``, naming a number
+    the caller never wrote, on a facet that rendered on ``main``."""
+    spike = [n / 500.0 for n in range(500)] + [2000.0]
+    data = {"v": spike + [n / 500.0 for n in range(500)], "g": ["a"] * 501 + ["b"] * 500}
+
+    assert sp.histplot({"v": spike}, x="v", bins="fd").domains.x_step is not None
+    panels = _panels(sp.facet(sp.histplot, data, col="g", x="v", bins="fd").to_string())
+
+    assert _ticks(panels[0]) == _ticks(panels[1])
+    assert all(re.search(r'class="c\d+-series', panel) for panel in panels), "a panel drew no bars"
+
+
+def test_both_share_flags_off_skips_the_second_pass_entirely() -> None:
+    """The guard is not only an optimisation. ``union`` refuses panels that disagree about
+    which axis holds their categories, and with both flags off there is nothing to union --
+    so a facet whose ``plot_fn`` varies ``orient`` per panel renders instead of raising."""
+
+    def mixed(data: object, **kwargs: object) -> object:
+        rows = data["cat"]  # type: ignore[index]
+        return sp.barplot(data, orient="h" if rows[0] == "a" else "v", **kwargs)  # type: ignore[arg-type]
+
+    data = {"cat": ["a", "a", "b", "b"], "v": [1.0, 2.0, 3.0, 4.0], "g": ["L", "L", "R", "R"]}
+
+    assert sp.facet(mixed, data, col="g", x="cat", y="v", sharex=False, sharey=False).to_string().count("<svg") > 1
 
 
 @pytest.mark.parametrize("name", ["xlim", "ylim"])

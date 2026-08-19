@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from svgplot.chart._domain import Domains, apply_limit
+from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
@@ -104,7 +104,7 @@ def barplot(
     own_categories = _unique_categories(longform.columns[x])
     if not own_categories:
         raise ValueError("no rows with a non-missing category value")
-    drawn_categories = list(categories) if categories is not None else own_categories
+    drawn_categories = list(require_categories(categories)) if categories is not None else own_categories
 
     group_lookups = [(label, _category_value_lookup(columns, x, y)) for label, columns in group_items]
     all_values = [value for _, lookup in group_lookups for value in lookup.values()]

@@ -44,14 +44,20 @@ class Domains:
     x: tuple[float, float] | None = None
     y: tuple[float, float] | None = None
     categories: tuple[str, ...] | None = None
-    x_steps: int | None = None
-    """How many discrete steps the chart divided its x axis into, if it did.
+    x_step: float | None = None
+    """How wide each division of the x axis is, for a chart whose x axis is binned.
 
-    A shared *range* is not enough for a chart whose x axis is binned. ``bins="auto"``
-    derives its bin **width** from each panel's own values, so two panels covering one range
-    still land their boundaries in different places -- measured, 15 bars of 5.07px against
-    14 of 4.79px. Sharing the count as well pins the edges, because ``histogram_bins`` with
-    an integer count and a range returns exactly ``linspace(low, high, count + 1)``.
+    A shared *range* is not enough. ``bins="auto"`` derives its bin width from each panel's
+    own values, so two panels covering one range still land their boundaries in different
+    places -- measured, 15 bars of 5.07px against 14 of 4.79px. Pinning the edges needs the
+    division shared too, because ``histogram_bins`` with an integer count and a range returns
+    exactly ``linspace(low, high, count + 1)``.
+
+    The width rather than the count, because the count is only meaningful against the range
+    it was chosen for. Sharing a *count* re-spreads it over the wider union: two panels of
+    three bars each, one at 1..3 and one at 100..102, both chose 3 -- and 3 bins across
+    1..102 puts every value of each panel in one bar. Measured, that turned 3 bars per panel
+    on ``main`` into 1. A width survives the change of range unharmed.
 
     ``None`` for a continuous axis, which is most of them."""
 
@@ -59,9 +65,6 @@ class Domains:
     """Which **screen** axis the categories occupy. ``barplot(orient="h")`` draws them up
     the left edge, and a caller sharing "the x axis" means the one it can see -- so the
     field has to record where they landed, not which data role they play."""
-
-    def is_empty(self) -> bool:
-        return self.x is None and self.y is None and self.categories is None
 
 
 def union(domains: list[Domains]) -> Domains:
@@ -90,14 +93,14 @@ def union(domains: list[Domains]) -> Domains:
     if len(axes) > 1:
         raise ValueError(f"charts disagree about which axis holds their categories: {sorted(axes)}")
 
-    steps = [domain.x_steps for domain in domains if domain.x_steps is not None]
+    steps = [domain.x_step for domain in domains if domain.x_step is not None]
 
     return Domains(
         x=(min(low for low, _ in xs), max(high for _, high in xs)) if xs else None,
         y=(min(low for low, _ in ys), max(high for _, high in ys)) if ys else None,
         # The finest division any panel asked for, so sharing never coarsens a panel that
-        # had more to show.
-        x_steps=max(steps) if steps else None,
+        # had more to show -- the narrowest width, not the largest count.
+        x_step=min(steps) if steps else None,
         categories=tuple(categories) or None,
         categories_axis=axes.pop() if axes else "x",
     )
@@ -133,3 +136,29 @@ def _require_finite_pair(value: object) -> tuple[float, float]:
         if isinstance(bound, bool) or not isinstance(bound, int | float) or not math.isfinite(bound):
             raise ValueError(f"axis limits must be finite numbers, got {value!r}")
     return (float(low), float(high))
+
+
+def require_categories(value: object) -> tuple[str, ...]:
+    """A caller's ``categories=`` as a tuple, or a ``ValueError`` naming what they passed.
+
+    The same reasoning as :func:`_require_finite_pair`, which refuses a zero-width window
+    because a chart that renders but shows nothing is worse than one that says why. An empty
+    sequence, or one naming categories none of the rows carry, produces exactly that: axes,
+    a legend, and no marks. A bare string is worse than useless -- ``categories="ab"`` reads
+    as one name and unpacks into two.
+
+    Non-string members are rejected here rather than at the scale, which raises
+    ``KeyError: "category not found in scale: '1'"`` -- a message about an internal lookup,
+    quoting a value the caller wrote as ``1``.
+    """
+    if isinstance(value, str):
+        raise ValueError(f"categories must be a sequence of names, not a single string, got {value!r}")
+    try:
+        names = tuple(value)  # type: ignore[call-overload]
+    except TypeError:
+        raise ValueError(f"categories must be a sequence of names, got {value!r}") from None
+    if not names:
+        raise ValueError("categories must name at least one category, got an empty sequence")
+    if not all(isinstance(name, str) for name in names):
+        raise ValueError(f"categories must be a sequence of names, got {names!r}")
+    return names
