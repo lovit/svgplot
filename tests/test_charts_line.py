@@ -545,18 +545,30 @@ def test_the_label_format_resolves_the_domain_and_not_merely_the_ticks() -> None
     assert _time_format(ticks, (low, low)) == "%H:%M", "a domain of one instant has no date to tell apart"
 
 
-def test_a_value_timestamp_cannot_place_is_refused_by_column_and_not_by_year() -> None:
+@pytest.mark.parametrize("extreme", [datetime(1, 1, 1, 0, 30), datetime(9999, 12, 31, 23, 30)], ids=["near-min", "near-max"])
+def test_a_value_timestamp_cannot_place_is_refused_by_column_and_not_by_year(extreme: datetime) -> None:
     """The behaviour a whole commit is named after, and nothing exercised it.
 
-    ``timestamp()`` probes around a value to resolve the local offset, so the last hours
-    before ``datetime.max`` are unreachable -- on ``main`` too, which is why this is a message
-    and not a fix. The message is the point: ``year 10000 is out of range`` names neither the
-    column nor the reason, and a caller with twelve columns learns nothing from it."""
-    with pytest.raises(ValueError, match="timestamp") as raised:
-        lineplot({"t": [date(9999, 1, 1), datetime(9999, 12, 31, 22)], "y": [1.0, 2.0]}, x="t", y="y")
+    ``timestamp()`` probes around a naive value to resolve the local offset, so the last hours
+    before ``datetime.max`` and the first after ``datetime.min`` can fall outside the
+    representable range -- on ``main`` too, which is why this is a message and not a fix.
 
-    assert "'t'" in str(raised.value)
-    assert "10000" not in str(raised.value)
+    **Which** end is unreachable depends on the running timezone: east of UTC it is the top,
+    west of UTC the bottom, and in UTC itself neither. So the assertion is the implication
+    rather than the failure -- if ``timestamp()`` cannot place the value, ``lineplot`` says so
+    by column; if it can, the chart draws. A test that simply expected a raise passed in KST
+    and failed in CI's UTC."""
+    other = datetime(2024, 1, 1)
+    try:
+        extreme.timestamp()
+    except (OverflowError, ValueError, OSError):
+        with pytest.raises(ValueError, match="timestamp") as raised:
+            lineplot({"t": [extreme, other], "y": [1.0, 2.0]}, x="t", y="y")
+
+        assert "'t'" in str(raised.value), "the message has to name the column"
+        assert "out of range" not in str(raised.value), "the raw message names neither column nor reason"
+        return
+    assert lineplot({"t": [extreme, other], "y": [1.0, 2.0]}, x="t", y="y").to_string().count("<text") > 0
 
 
 def test_year_ticks_land_on_multiples_of_their_step_not_on_the_domains_own_year() -> None:
