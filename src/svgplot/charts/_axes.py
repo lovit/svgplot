@@ -38,14 +38,14 @@ _DATE_FORMATS = ("%Y", "%Y-%m", "%Y-%m-%d", "%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S
 
 _CLOCK_FORMATS = ("%H:%M", "%H:%M:%S", "%H:%M:%S.%f")
 """The same for ticks that all fall on one calendar date, where repeating that date on every
-tick would spend the axis' width saying what the chart title already says.
+tick would spend the axis' width on a date the reader can only read once.
 
 One date, not one day's worth of hours: ticks running 12:00, 18:00, 00:00, 06:00 span
 eighteen hours but two dates, and dropping the date there leaves a reader to guess which
 midnight ``00:00`` is."""
 
 
-def _time_format(ticks: list[datetime]) -> str:
+def _time_format(ticks: list[datetime], domain: tuple[datetime, datetime]) -> str:
     """The coarsest format that still tells the ticks apart.
 
     A fixed ``"%Y-%m-%d"`` is right for a domain of months and wrong either way outside it.
@@ -58,14 +58,22 @@ def _time_format(ticks: list[datetime]) -> str:
     duplicate labels" property hold rather than be approximated: a table has to guess how many
     ticks will land in a span, and the ticks are right there.
     """
-    ladder = _CLOCK_FORMATS if len({tick.date() for tick in ticks}) == 1 else _DATE_FORMATS
+    # The *domain*, not the ticks. A domain spanning two weeks that happens to receive one
+    # tick has one tick date, and choosing by the ticks then dropped the date from a label
+    # standing for thirteen days -- ``00:00``, with the year nowhere in the file.
+    ladder = _CLOCK_FORMATS if domain[0].date() == domain[1].date() else _DATE_FORMATS
     for candidate in ladder:
-        if len({tick.strftime(candidate) for tick in ticks}) == len(ticks):
+        # The domain's ends as well as the ticks. A single tick is distinguished by every
+        # format including ``%Y``, so an eleven-day axis came out labelled "2024" -- coarsest
+        # is only the right answer among formats that still resolve what the axis spans.
+        if len({tick.strftime(candidate) for tick in ticks}) == len(ticks) and (
+            domain[0].strftime(candidate) != domain[1].strftime(candidate) or domain[0] == domain[1]
+        ):
             return candidate
-    # Two ticks the finest format cannot separate are under a microsecond apart, which is
-    # finer than ``datetime`` resolves -- so they are the same instant, and ``make_ticks``
-    # returns one of them. Reaching here means something upstream produced ticks it should
-    # not have; the finest format at least shows the most it can rather than raising.
+    # Reaching here means no format in the ladder both separates the ticks and resolves the
+    # domain. The date ladder stops at seconds, so two ticks less than a second apart on a
+    # multi-date domain would land here -- ``make_ticks`` does not produce that, but the
+    # finest format showing the most it can beats raising.
     return ladder[-1]
 
 
@@ -100,7 +108,7 @@ def render_x_axis(
     )
     label_offset = tick_length + _TICK_LABEL_OFFSET
     ticks = make_ticks(scale, count=tick_count)
-    time_format = _time_format(ticks) if ticks and isinstance(ticks[0], datetime) else ""
+    time_format = _time_format(ticks, scale.domain) if ticks and isinstance(ticks[0], datetime) else ""
     for tick in ticks:
         x = _tick_position(scale, tick)
         document.add_node(
@@ -157,7 +165,7 @@ def render_y_axis(
     )
     label_x_offset = tick_length + 2
     ticks = make_ticks(scale, count=tick_count)
-    time_format = _time_format(ticks) if ticks and isinstance(ticks[0], datetime) else ""
+    time_format = _time_format(ticks, scale.domain) if ticks and isinstance(ticks[0], datetime) else ""
     for tick in ticks:
         y = _tick_position(scale, tick)
         document.add_node(

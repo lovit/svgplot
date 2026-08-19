@@ -219,6 +219,8 @@ _SUB_MONTH_STEPS = (
     43200,  # hours
     86400,
     172800,
+    259200,
+    345600,
     604800,
     1209600,  # days and weeks
 )
@@ -229,6 +231,11 @@ Nice *numbers* are not nice *times*. Treating a timestamp as a plain number give
 time nobody chose. These are the intervals a clock and a calendar actually have -- and the
 reason they stop at two weeks is that longer ones are not fixed durations: a month is 28 to
 31 days and a year 365 or 366, so :func:`_calendar_ticks` steps those by field instead.
+
+Three and four days are here because the ladder used to jump from two days to a week, and an
+eleven-to-thirteen-day domain -- twelve daily rows, an ordinary shape -- fell into the gap:
+the two-day step no longer fit inside ``count`` and the week step fit only once, so the axis
+drew a **single** tick labelled ``00:00``, with the date nowhere in the file.
 """
 
 _MONTH_STEPS = (1, 2, 3, 6)
