@@ -13,7 +13,7 @@ means round numbers/round time steps, not "however many fit visually".
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta
+from datetime import MAXYEAR, datetime, timedelta
 
 _MAX_TICK_COUNT = 1000
 
@@ -240,6 +240,12 @@ def _aligned_ticks(low: datetime, high: datetime, count: int) -> list[datetime] 
 
     Aligned to the interval rather than to the domain's start: a reader looking for "the
     Tuesday" wants midnight, not midnight-plus-however-long-the-data-happens-to-start-after.
+
+    The origin is the first day's midnight (the first of its month, for steps of a day or
+    more), so alignment is exact against that origin and only *approximately* against later
+    calendar boundaries -- a two-week step runs 01-01, 01-15, 01-29, 02-12, which is not the
+    first of February. That is the price of a fixed duration, and it is why anything longer
+    than two weeks is handed to :func:`_calendar_ticks` instead of extended here.
     """
     span = (high - low).total_seconds()
     step = next((candidate for candidate in _SUB_MONTH_STEPS if span / candidate <= count), None)
@@ -253,8 +259,14 @@ def _aligned_ticks(low: datetime, high: datetime, count: int) -> list[datetime] 
     offset = (low - origin).total_seconds()
     first = origin + timedelta(seconds=step * math.ceil(offset / step))
     ticks, current = [], first
+    limit = datetime.max - timedelta(seconds=step)
     while current <= high:
         ticks.append(current)
+        if current > limit:
+            # One more step would leave the representable range. Stopping is the same answer
+            # as running out of domain, and raising ``OverflowError`` from inside a tick loop
+            # is what ``_nice_step``'s docstring already promises this module does not do.
+            break
         current += timedelta(seconds=step)
     return ticks
 
@@ -271,17 +283,21 @@ def _calendar_ticks(low: datetime, high: datetime, count: int) -> list[datetime]
         first = low.year * 12 + (low.month - 1)
         first += -first % step
         ticks = []
-        while True:
+        while first // 12 <= MAXYEAR:
             moment = datetime(first // 12, first % 12 + 1, 1)
             if moment > high:
                 return ticks
             if moment >= low:
                 ticks.append(moment)
             first += step
+        return ticks
     years = high.year - low.year
     step = next((candidate for candidate in _YEAR_STEPS if years / candidate <= count), _YEAR_STEPS[-1])
+    # ``year <= MAXYEAR`` first, because the loop's own test builds a ``datetime`` and
+    # ``datetime(10000, 1, 1)`` is a ``ValueError`` rather than a value past ``high``. A
+    # domain reaching 9999 rendered on ``main`` and has to keep rendering.
     ticks, year = [], low.year + -low.year % step
-    while datetime(year, 1, 1) <= high:
+    while year <= MAXYEAR and datetime(year, 1, 1) <= high:
         if datetime(year, 1, 1) >= low:
             ticks.append(datetime(year, 1, 1))
         year += step
@@ -311,9 +327,12 @@ def make_ticks(scale: Scale, count: int = 5) -> list[float] | list[str] | list[d
         ticks = _aligned_ticks(domain_min, domain_max, count)
         if ticks is None:
             ticks = _calendar_ticks(domain_min, domain_max, count)
-        # A span shorter than the finest step (one second) leaves nothing aligned inside it;
-        # the endpoints are still true and still distinct.
-        return ticks or [domain_min, domain_max]
+        # A span shorter than the finest step (one second) leaves nothing aligned inside it,
+        # so the endpoints stand in. ``dict.fromkeys`` because they are the *same* endpoint
+        # when the domain is a single instant -- one row, or several rows sharing a timestamp,
+        # which ``datetime.now()`` makes the commonest case there is. Two ticks carrying the
+        # same label is the defect this whole change exists to remove.
+        return ticks or list(dict.fromkeys([domain_min, domain_max]))
     if isinstance(scale, LinearScale):
         domain_min, domain_max = scale.domain
         return _nice_linear_ticks(domain_min, domain_max, count)
