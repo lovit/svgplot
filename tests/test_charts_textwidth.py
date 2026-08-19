@@ -56,9 +56,13 @@ def test_ambiguous_capitals_are_charged_as_capitals(char: str, ratio: float) -> 
 
 @pytest.mark.parametrize("dash", ["\u2026", "\u2014", "\u2015", "\u2500"])
 def test_em_wide_punctuation_is_charged_a_full_em(dash: str) -> None:
-    """Measured at exactly 1.0 em in Arial, Helvetica and Times despite not being East
-    Asian. The ellipsis is the one that matters: this module inserts it, and charging it
-    0.55 made every truncated label 0.45 em too long -- 5px at the default legend size."""
+    """Charged a full em despite not being East Asian, which is exact for some of them and
+    deliberate over-charging for the rest -- ``…`` and ``—`` measure 1.000 in Arial,
+    Helvetica and Times Roman, while ``―`` and ``─`` are absent from Times and ``─`` is
+    0.7085 in Arial. Over-charging truncates early rather than overflowing.
+
+    The ellipsis is the one that matters: this module inserts it, and charging it 0.55 made
+    every truncated label 0.45 em too long -- 5px at the default legend size."""
     assert text_width(dash, 10.0) == 10.0
 
 
@@ -166,14 +170,31 @@ def test_a_label_near_the_budget_keeps_its_full_text_even_when_it_was_not_cut() 
     assert not needs_full_text("a" * 10, 11.0, 118.0)
 
 
-def test_the_bounded_threshold_covers_the_worst_font_in_the_stack() -> None:
-    """Pinned as a literal for the same reason the ratios are, and to the number it is
-    derived from: the worst ratio of real advance to charge across the sans-serif stack is
-    1.4284 (``#`` in Comic Sans MS), so a label estimated at fraction *f* renders at up to
-    1.4284 *f* and stays inside only below 1/1.4284. 0.80 was the Arial-only answer and
-    Verdana overflowed it by 15px."""
-    assert _TITLE_THRESHOLD <= 1 / 1.4284
-    assert _TITLE_THRESHOLD == 0.65
+# Worst ratio of real advance to charge, per face, from each font's own ``hmtx`` over
+# ``_BOUNDED``. A single number here is what let 0.65 through: it was the worst of the
+# *regular* faces, and the bold and medium ones the same families ship are worse.
+_WORST_RATIO_BY_FACE = {
+    "Arial": 1.0000,
+    "Trebuchet MS": 1.0538,
+    "Helvetica Bold": 1.1194,
+    "SF NS": 1.1448,
+    "Tahoma": 1.2550,
+    "Verdana": 1.3870,
+    "Comic Sans MS": 1.4442,
+    "Geneva": 1.4536,
+    "Helvetica Neue Medium": 1.5560,
+}
+
+
+def test_the_bounded_threshold_covers_every_face_it_claims_to() -> None:
+    """Pinned to the numbers it is derived from, per face rather than in aggregate.
+
+    A single worst-case number is how 0.65 got in: it came from the regular weights of the
+    listed families and missed that Helvetica Neue *Medium* -- which the default
+    ``font-family: sans-serif`` reaches -- runs ``―`` at 1.5560 against a 1.0 charge. Listing
+    the faces makes adding one a visible change rather than a silent widening of a claim."""
+    assert 1 / max(_WORST_RATIO_BY_FACE.values()) >= _TITLE_THRESHOLD
+    assert _TITLE_THRESHOLD == 0.60
 
 
 @pytest.mark.parametrize(
@@ -194,8 +215,8 @@ def test_a_label_outside_the_measured_repertoire_always_keeps_its_text(text: str
     not truncated, no ``<title>``, and 51px past the canvas edge (``ص`` x14 estimates 90.8px
     and renders at 169.1px in Arial).
 
-    All five estimate the same 90.8px -- comfortable under 0.80 of a 118px budget, which is
-    94.4px -- and all five render between 1.3x and 2.0x that. The fix is not a smaller threshold for everyone;
+    The single-character runs all estimate 90.8px, comfortable under any fraction one might
+    pick of a 118px budget, and render between 1.3x and 2.0x that. The fix is not a smaller threshold for everyone;
     it is a smaller one for the characters the estimate was never measured against."""
     assert text_width(text, 11.0) < 118.0, "must not be a truncated label"
     assert needs_full_text(text, 11.0, 118.0)
@@ -211,7 +232,7 @@ def test_an_ordinary_european_or_korean_label_gets_no_title(text: str) -> None:
     stops is why Latin-1 Supplement and Latin Extended-A are in :data:`_BOUNDED`: labels like
     these are ordinary, and titling every one of them would trade a real problem for a
     cluttered file (핵심 원칙 1: the output stays hand-editable). They are in the set because
-    they were measured, not because they look Latin -- all 335 code points of ASCII, Latin-1
+    they were measured, not because they look Latin -- all 319 code points of ASCII, Latin-1
     and Extended-A are covered in Arial and Helvetica with zero exceeding their charge."""
     assert not needs_full_text(text, 11.0, 118.0)
 
@@ -266,35 +287,110 @@ def test_a_kept_prefix_ending_in_a_space_is_stripped_not_the_leading_one() -> No
     assert truncate_to_width(" abcdefghijklmnop", 11.0, 66.0).startswith(" ")
 
 
-# Arial advances read from the font's own ``hmtx`` table at upm 2048, as literals. Computing
-# the expectation from ``_CAPITAL_RATIO``/``_NARROW_RATIO`` -- constants in the module under
-# test -- let every one of these be shrunk to its class charge plus a thousandth with the
-# suite still green, and ``W`` at 0.721 puts ``W`` x40 28px past the canvas edge.
-_ARIAL_ADVANCES = {
+# The larger of Arial's and Helvetica's advance for each entry, read from the fonts' own
+# ``hmtx`` tables, as literals. Computing the expectation from ``_CAPITAL_RATIO``/
+# ``_NARROW_RATIO`` -- constants in the module under test -- let every one of these be shrunk
+# to its class charge with the suite still green: ``W`` at 0.721 puts ``W`` x40 28px past the
+# canvas edge, and ``œ`` at 0.59 puts ``œ`` x18 68.9px past it.
+#
+# All forty, not the ten this table started with. The table stayed at ten while ``_MEASURED``
+# grew to forty, so thirty of the constants added to close a Critical had no test at all --
+# the same gap, one round later, in the code written to close it.
+_MEASURED_ADVANCES = {
     "@": 1.0151,
+    "Æ": 1.0000,
+    "Œ": 1.0000,
     "W": 0.9438,
+    "œ": 0.9438,
+    "Ŵ": 0.9438,
     "%": 0.8892,
-    "m": 0.8330,
+    "æ": 0.8892,
+    "¼": 0.8340,
+    "½": 0.8340,
+    "¾": 0.8340,
     "M": 0.8330,
+    "m": 0.8330,
     "G": 0.7778,
     "O": 0.7778,
     "Q": 0.7778,
+    "Ò": 0.7778,
+    "Ó": 0.7778,
+    "Ô": 0.7778,
+    "Õ": 0.7778,
+    "Ö": 0.7778,
+    "Ø": 0.7778,
+    "Ĝ": 0.7778,
+    "Ğ": 0.7778,
+    "Ġ": 0.7778,
+    "Ģ": 0.7778,
+    "Ĳ": 0.7778,
+    "Ō": 0.7778,
+    "Ŏ": 0.7778,
+    "Ő": 0.7778,
+    "©": 0.7368,
+    "®": 0.7368,
     "w": 0.7222,
+    "ŵ": 0.7222,
     "&": 0.6670,
+    "ď": 0.6602,
+    "¿": 0.6108,
+    "ß": 0.6108,
+    "ø": 0.6108,
+    "ŉ": 0.6040,
 }
 
 
-@pytest.mark.parametrize(("char", "advance"), sorted(_ARIAL_ADVANCES.items()))
+@pytest.mark.parametrize(("char", "advance"), sorted(_MEASURED_ADVANCES.items()))
 def test_each_measured_outlier_is_charged_at_least_what_it_costs(char: str, advance: float) -> None:
-    """The ten literals exist because their real advance exceeds what their class would be
-    charged, so each has to cover its own measurement -- not merely beat its class."""
+    """Each entry exists because its real advance exceeds what its class would be charged,
+    so each has to cover its own measurement -- not merely beat its class."""
     assert text_width(char, 10.0) >= 10.0 * advance
 
 
-@pytest.mark.parametrize(("char", "advance"), sorted(_ARIAL_ADVANCES.items()))
+@pytest.mark.parametrize(("char", "advance"), sorted(_MEASURED_ADVANCES.items()))
 def test_each_measured_outlier_is_still_an_outlier(char: str, advance: float) -> None:
     """The other half: an entry that no longer exceeds its class is dead weight in a table
-    whose whole cost is being ten hand-maintained literals."""
+    whose whole cost is being forty hand-maintained literals."""
     klass = _CAPITAL_RATIO if (char.isupper() or char.isdigit()) else _NARROW_RATIO
 
     assert advance > klass, f"{char!r} no longer needs its own entry"
+
+
+def test_every_measured_entry_is_pinned_by_a_literal() -> None:
+    """The guard that would have caught this round's defect a round earlier.
+
+    ``_MEASURED`` grew from ten entries to forty and the literal table did not, so thirty
+    constants sat unprotected -- and shrinking any of them left the suite green while the
+    label ran past the canvas. A count is the cheapest thing that notices the two drifting
+    apart."""
+    from svgplot.charts._textwidth import _MEASURED
+
+    assert set(_MEASURED) == set(_MEASURED_ADVANCES)
+
+
+# Worst digit advance per face, from each font's own ``hmtx``. Arial's 0.5562 sits under
+# ``_NARROW_RATIO``, so every Arial-based assertion here passes with digits charged as narrow
+# -- and four of the nine faces the threshold covers put a digit above it.
+_WORST_DIGIT_BY_FACE = {
+    "Geneva": 0.6665,
+    "Verdana": 0.6357,
+    "SF NS": 0.6172,
+    "Comic Sans MS": 0.6104,
+    "Arial": 0.5562,
+    "Helvetica": 0.5562,
+    "Helvetica Neue": 0.5560,
+    "Tahoma": 0.5459,
+    "Trebuchet MS": 0.5244,
+}
+
+
+@pytest.mark.parametrize("digit", list("0123456789"))
+def test_a_digit_is_charged_as_a_capital_not_as_narrow(digit: str) -> None:
+    """Filing digits with the capitals is load-bearing outside Arial, and only outside it.
+
+    Arial's digits are 0.5562, under ``_NARROW_RATIO``, so every measured-literal assertion
+    in this file is satisfied either way -- and moving digits to the narrow class left the
+    suite green. Four of the nine faces :data:`_TITLE_THRESHOLD` covers disagree, the worst
+    by 13%: Geneva 0.6665, Verdana 0.6357, SF NS 0.6172, Comic Sans 0.6104."""
+    assert text_width(digit, 10.0) == pytest.approx(10.0 * _CAPITAL_RATIO)
+    assert max(_WORST_DIGIT_BY_FACE.values()) <= _CAPITAL_RATIO

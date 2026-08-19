@@ -39,8 +39,8 @@ What the model is bounded on
 ============================
 
 "No ASCII character exceeds its charge" is a claim about ASCII, and it does not extend past
-it. Measured across Arial's whole BMP below U+3000, **588 characters still exceed their
-charge**, the worst by a factor of 2.20 (``\u0601``); in Tahoma 525 characters and 2.63.
+it. Measured across Arial's whole BMP below U+3000, **558 characters still exceed their
+charge**, the worst by a factor of 2.2031 (``\u0601``); in Tahoma 519 characters and 2.6268.
 Cyrillic ``Љ`` is charged 0.73 against 1.057, Arabic ``ص`` 0.59 against 1.098. No class-wide
 number fixes that -- charging every unlisted character 2.2x would truncate Latin prose to a
 third of its length for a script that is not on the page.
@@ -120,7 +120,7 @@ Adding a class-wide margin big enough to cover ``Œ`` (1.000) would charge every
 against a mean of 0.677, and "Seoul Metropolitan" would truncate to a third. Forty literals
 cover the whole tail instead: with them and the class charges above, **no character in ASCII,
 Latin-1 Supplement or Latin Extended-A exceeds its charge in Arial or Helvetica** -- verified
-against both fonts' ``hmtx`` tables, all 335 code points, zero remaining. Without ``W``'s
+against both fonts' ``hmtx`` tables, all 319 code points, zero remaining. Without ``W``'s
 entry, ``W`` x40 runs 28px past the canvas edge (measured).
 
 Rounded up to the nearest hundredth from the larger of the two fonts' advances, so each is
@@ -129,11 +129,12 @@ charged at least what it costs -- 0.95 against a measured 0.9438, 0.84 against 0
 _EM_WIDE_PUNCTUATION = frozenset("…—―─‥")
 """Punctuation charged a full em despite not being East Asian.
 
-``…``, ``—`` and ``―`` measure exactly 1.000 in Arial, Helvetica and Times. ``─`` and ``‥``
-do not -- ``─`` is 0.7085 in Arial and Times (1.000 in Helvetica) and ``‥`` is absent from
-Arial's cmap altogether. They are charged a full em anyway: they are box-drawing and CJK
-punctuation, they appear in the fonts that do carry them at a full em, and over-charging
-truncates early rather than overflowing.
+``…`` and ``—`` measure exactly 1.000 in Arial, Helvetica and Times Roman. The other three do
+not, and the exceptions are worth stating rather than rounding off: ``―`` is 1.000 in Arial
+and Helvetica and **absent from Times**; ``─`` is 0.7085 in Arial, 1.000 in Helvetica, absent
+from Times; ``‥`` is absent from Arial and 0.667 in Helvetica. They are charged a full em
+anyway -- they are box-drawing and CJK punctuation, they run to a full em in the fonts that
+carry them, and over-charging truncates early rather than overflowing.
 
 The ellipsis is the one that matters, because this module inserts it: charging it 0.55 made
 every truncated label 0.45 em too long, which is 5px at the default legend size."""
@@ -147,34 +148,57 @@ _BOUNDED = frozenset(chr(code) for code in list(range(0x20, 0x7F)) + list(range(
 Helvetica**.
 
 Printable ASCII, Latin-1 Supplement and Latin Extended-A -- verified glyph by glyph against
-both fonts' ``hmtx`` tables -- plus the punctuation measured at a full em. Latin-1 and
-Extended-A are in the set because European labels (``São Paulo``, ``Bénéfice``, ``İstanbul``)
-are ordinary, and leaving them out would put a ``<title>`` on every one of them.
+both fonts' ``hmtx`` tables, all 319 of them -- plus the five punctuation marks charged a
+full em, for 324. Latin-1 and Extended-A are in the set because European labels
+(``São Paulo``, ``Bénéfice``, ``İstanbul``) are ordinary, and leaving them out would put a
+``<title>`` on every one of them.
 
 East Asian wide and fullwidth forms belong here too but are not listed: they are square by
 the definition of fullwidth rather than by a measurement, so :func:`_is_bounded` tests them
 by property.
 
 The set is about *characters*, and the guarantee is also about *fonts*. ``theme.font_family``
-is a public setting, and in Verdana ``~`` measures 0.818 against a 0.59 charge, in Comic Sans
-``#`` measures 0.843. That is what :data:`_TITLE_THRESHOLD` absorbs -- it is derived from the
-whole sans-serif stack, not from Arial alone.
+is a public setting, and in Verdana ``÷`` measures 0.818 against a 0.59 charge, in Comic Sans
+``Ĳ`` measures 1.127 against 0.78. That is what :data:`_TITLE_THRESHOLD` absorbs, for the
+faces named there and no others.
 
 Everything outside the set -- Cyrillic, Greek, Arabic, Hebrew, Devanagari, Thai -- is charged
 by a class rule nobody measured it against, and keeps its full text unconditionally."""
 
-_TITLE_THRESHOLD = 0.65
+_TITLE_THRESHOLD = 0.60
 """How close to the budget a **bounded** label may be estimated at before its full text is
 preserved anyway, as a fraction of the budget.
 
-Derived from the font, not chosen. Inside :data:`_BOUNDED` the charge is an upper bound in
-Arial and Helvetica, but ``theme.font_family`` may name any sans-serif, and the worst ratio
-of real advance to charge across the stack measured here -- Arial, Helvetica, Verdana,
-Tahoma, SF NS, Trebuchet MS, Comic Sans MS -- is 1.4284 (``#`` in Comic Sans). A label
-estimated at fraction *f* of the budget can therefore render at 1.4284 *f*, and stays inside
-only while *f* is under 1/1.4284 = 0.700. 0.65 sits under that.
+Derived from the fonts, not chosen -- and the fonts it is derived from are named here,
+because that list *is* the guarantee's scope:
 
-0.80 was the Arial-only answer, and Verdana overflowed it by 15px."""
+=====================  ======================================  =========
+face                   worst ratio of real advance to charge   needs
+=====================  ======================================  =========
+Arial                  1.0000  (``Æ``)                          <= 1.000
+Trebuchet MS           1.0538  (``&``)                          <= 0.949
+Helvetica Bold         1.1194  (``ď``)                          <= 0.893
+SF NS                  1.1448  (``©``)                          <= 0.873
+Tahoma                 1.2550  (``©``)                          <= 0.797
+Verdana                1.3870  (``÷``)                          <= 0.721
+Comic Sans MS          1.4442  (``Ĳ``)                          <= 0.692
+Geneva                 1.4536  (``ŉ``)                          <= 0.688
+**Helvetica Neue Medium**  **1.5560**  (``―``)                  <= 0.643
+=====================  ======================================  =========
+
+A label estimated at fraction *f* of the budget renders at up to 1.5560 *f*, so it stays
+inside only while *f* is under 0.643. 0.60 sits under that with room.
+
+**Outside this list the bound does not hold**, and it is a short list on purpose -- these are
+what ``font-family: sans-serif`` resolves to plus the families a caller is likely to name.
+Setting ``theme.font_family`` to something else voids it: Heiti SC needs 0.590, Songti SC
+0.590, DejaVu Sans Bold 0.621, Ayuthaya 0.508. Chasing those would mean titling nearly every
+label, which trades a rare overflow for markup on all of them.
+
+Two earlier answers were wrong the same way, each by measuring too small a set: 0.80 came
+from Arial alone and Verdana overflowed it by 15px; 0.65 came from the stack above minus its
+bold and medium faces, and Helvetica Neue Medium -- which the *default* family reaches --
+overflowed that."""
 
 
 def _charge(char: str) -> float:

@@ -220,9 +220,11 @@ def test_a_label_the_estimate_calls_a_fit_still_keeps_its_text(name: str) -> Non
 
 @pytest.mark.parametrize("name", _LABEL_CHARTS, ids=_LABEL_CHARTS)
 def test_a_label_in_an_unmeasured_script_keeps_its_text_well_before_the_budget(name: str) -> None:
-    """Half the budget is comfortable for a Latin label and past the canvas edge for a
-    Cyrillic one, because ``Љ`` is charged 0.73 against a measured 1.057. Nothing about the
-    *chart* changes that -- which is why it is checked on all of them."""
+    """Half the budget is where a Latin label is comfortable and a Cyrillic one is charged
+    0.73 against a measured 1.057 -- two thirds of what it costs. This label does *not* reach
+    the canvas edge (measured, ``Љ`` x7 lands 36.6px inside it); it is here because the rule
+    for unmeasured text does not consult the budget at all, and a label well clear of the
+    edge is the case a threshold-shaped rule would wave through."""
     label = _label_filling(0.5, _room_for_the_label(name), "\u0409")
     data = {"x": ["a", "b"], "y": [1.0, 2.0], "v": [1.0, 2.0], "g": [label, "짧음"], "d": [1, 2]}
     svg = _LEGEND_CHARTS[name](data, label).to_string()
@@ -264,3 +266,28 @@ def test_a_comfortably_short_label_still_gets_no_title() -> None:
 
     assert entries, "no legend labels found"
     assert not any("<title>" in entry for entry in entries)
+
+
+# Measured Arial advances (upm 2048), as literals. Every other overflow check in this file
+# computes its expectation with ``text_width`` -- the estimator under test -- so it verifies
+# that truncation honours the estimate and is blind to the estimate being wrong. Measured:
+# charging digits as narrow under-counts them 24%, and the whole suite stays green.
+_ARIAL_EM = {"a": 0.5562, "0": 0.5562, "W": 0.9438, "M": 0.8330, "\u0153": 0.9443, "\u00c6": 1.0000, "@": 1.0151}
+
+
+@pytest.mark.parametrize("char", sorted(_ARIAL_EM), ids=sorted(_ARIAL_EM))
+def test_a_legend_label_stays_inside_the_canvas_by_the_fonts_own_numbers(char: str) -> None:
+    """The same property the other checks assert, measured against Arial rather than against
+    the estimate. ``œ`` is the case that motivated it: shrinking its entry to the class charge
+    left every existing assertion green while ``œ`` x18 rendered 68.9px past the canvas."""
+    label = char * 40
+    svg = sp.barplot({"x": ["a", "b"], "y": [1.0, 2.0], "g": [label, "짧음"]}, x="x", y="y", hue="g").to_string()
+    drawn = _legend_labels(svg)
+
+    assert drawn, "no legend labels found"
+    for start, text in drawn:
+        real = sum(_ARIAL_EM.get(glyph, 0.5562) for glyph in text.removesuffix("\u2026")) * 11.0
+        real += 11.0 if text.endswith("\u2026") else 0.0
+        assert (
+            float(start) + real <= DEFAULT_WIDTH
+        ), f"{text!r} renders {float(start) + real - DEFAULT_WIDTH:.1f}px past the canvas"
