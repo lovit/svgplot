@@ -3,7 +3,7 @@ multiple series: one color swatch + label per entry.
 
 A label longer than the room to the canvas edge used to run straight past it and out of the
 ``viewBox``, where nothing renders it -- 118px of room on the default canvas, which is about
-21 Latin characters or **11 CJK** at ``legend_font_size``. In a Korean-first package eleven
+18 Latin characters or **11 CJK** at ``legend_font_size``, by this module's own estimate. In a Korean-first package eleven
 characters is an ordinary label. Labels are now shortened to fit (see
 ``charts/_textwidth``), with the full text kept in a ``<title>`` so the shortening costs
 presentation rather than information.
@@ -55,11 +55,10 @@ def render_legend(
     property pairing would look wrong (e.g. a ``<line>`` swatch has no visible
     color under a ``fill``-only CSS rule).
 
-    The room a label has is read off ``document.width`` and ``x`` rather than passed in. An
-    earlier version took it as a parameter and every one of the twelve callers wrote the
-    same expression -- correct today only because every one of those charts happens to use
-    the default canvas, and all twelve would be wrong together the moment a chart could be
-    given a size. It is the same reason the returned height exists.
+    The room a label has is read off ``document.width`` and ``x`` rather than hardcoded. 800
+    is right for every chart today only because every one of them uses the default canvas, and
+    all twelve would be wrong together the moment a chart could be given a size (#120). It is
+    the same reason the returned height exists.
 
     A label estimated not to fit is shortened with an ellipsis, and its full text kept in a
     ``<title>`` child -- which both browsers and assistive technology read. The full text is
