@@ -85,11 +85,14 @@ def _numeric_x(value: object, column: str) -> float:
         try:
             return _as_datetime(value).timestamp()
         except (OverflowError, ValueError, OSError):
-            # ``timestamp()`` probes around the value to resolve the local offset, so the
-            # last hours before ``datetime.max`` are unreachable whatever this package does.
-            # A raw "year 10000 is out of range" names neither the column nor the reason.
+            # ``timestamp()`` probes around the value to resolve the local offset, so both
+            # ends of the representable range are unreachable whatever this package does --
+            # the last hours before ``datetime.max`` and, in a timezone west of UTC, the first
+            # after ``datetime.min``. A raw "year 10000 is out of range" names neither the
+            # column nor the reason, and saying "too close to datetime.max" points at the
+            # wrong end for half of them.
             raise ValueError(
-                f"column {column!r} holds {value!r}, which is too close to datetime.max to place on a time axis"
+                f"column {column!r} holds {value!r}, which is outside the range timestamp() can place on a time axis"
             ) from None
     try:
         return float(value)  # type: ignore[arg-type]
