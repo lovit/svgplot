@@ -157,7 +157,7 @@ def kdeplot(
     document, area = new_canvas(MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
 
     x_domain = apply_limit(grid_range, xlim)
-    y_domain = apply_limit((float((0.0, peak)[0]), float((0.0, peak)[1])), ylim)
+    y_domain = apply_limit((0.0, peak), ylim)
     pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
     render_x_axis(document, pixel_x_scale, area, tick_length=resolved_theme.tick_size)
