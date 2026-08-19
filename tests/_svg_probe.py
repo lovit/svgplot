@@ -13,6 +13,15 @@ import re
 _ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 
 
+def _matches(svg: str, element: str, css_class: str) -> list[tuple[str, dict[str, str]]]:
+    """Opening tags of ``element`` carrying ``css_class``, each with its own source text."""
+    return [
+        (tag, attributes)
+        for tag, attributes in ((tag, dict(_ATTR_RE.findall(tag))) for tag in re.findall(rf"<{element}\b[^>]*?/?>", svg))
+        if css_class in attributes.get("class", "").split()
+    ]
+
+
 def tags(svg: str, element: str, css_class: str) -> list[dict[str, str]]:
     """Opening tags of ``element`` whose class list carries ``css_class`` as a token.
 
@@ -26,8 +35,19 @@ def tags(svg: str, element: str, css_class: str) -> list[dict[str, str]]:
     alone, so every assertion it could have made about a ``<text>`` element was unwritable --
     and nothing said so, because the helper simply returned nothing to assert on.
     """
+    return [attributes for _, attributes in _matches(svg, element, css_class)]
+
+
+def texts(svg: str, element: str, css_class: str) -> list[str]:
+    """The text content of each matching ``element``, in document order.
+
+    Built on the same match as :func:`tags` rather than on a second regex. Writing the second
+    regex by hand is how the substring bug gets reintroduced -- a ``class="[^"]*X[^"]*"``
+    pattern is exactly the form this module exists to replace, and it reads as harmless right
+    up until a ``X-major`` class appears.
+    """
     return [
-        attributes
-        for attributes in (dict(_ATTR_RE.findall(tag)) for tag in re.findall(rf"<{element}\b[^>]*?/?>", svg))
-        if css_class in attributes.get("class", "").split()
+        svg[svg.index(tag) + len(tag) :].split("<", 1)[0]
+        for tag, _ in _matches(svg, element, css_class)
+        if not tag.endswith("/>")
     ]
