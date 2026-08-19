@@ -6,6 +6,7 @@ from itertools import pairwise
 
 import pytest
 
+from svgplot.charts._axes import _time_format
 from svgplot.charts.line import lineplot
 from svgplot.scales import _SUB_MONTH_STEPS, TimeScale, _aligned_ticks, make_ticks
 
@@ -512,3 +513,92 @@ def test_a_domain_ending_exactly_on_a_step_keeps_that_last_tick(
     ticks = make_ticks(TimeScale((low, high), (0.0, 700.0)))
 
     assert ticks[-1] == expected_last, [tick.isoformat() for tick in ticks]
+
+
+@pytest.mark.parametrize("days", [7, 9, 11, 12, 13, 14, 19, 25])
+def test_a_domain_of_days_gets_dated_labels_and_more_than_one_of_them(days: int) -> None:
+    """The gap the step ladder used to have, and what fell into it.
+
+    Two days then a week: an eleven-to-thirteen-day domain -- twelve daily rows, which is as
+    ordinary a shape as this package sees -- had no step that fit more than once, so the axis
+    drew a *single* tick. And a single tick has one date, so the format chooser dropped to the
+    clock ladder and labelled thirteen days ``00:00``, with the year nowhere in the file.
+
+    Neither half shows on its own. The no-duplicates test cannot fail on one label, and the
+    in-domain test asserts only that some tick exists."""
+    start = datetime(2024, 3, 2)
+    values = [start + timedelta(days=index) for index in range(days + 1)]
+    labels = _x_tick_labels(lineplot({"t": values, "y": [float(i) for i in range(len(values))]}, x="t", y="y").to_string())
+
+    assert len(labels) >= 3, f"{days} days drew {labels}"
+    assert all("-" in label for label in labels), f"{days} days lost the date: {labels}"
+
+
+def test_the_label_format_resolves_the_domain_and_not_merely_the_ticks() -> None:
+    """Coarsest-that-distinguishes is the rule, and with one tick every format distinguishes
+    it -- including ``%Y``, which is how an eleven-day axis came out reading ``2024``. The
+    format has to tell the domain's own ends apart too."""
+    low, high = datetime(2024, 3, 2, 6), datetime(2024, 3, 13, 6)
+    ticks = [datetime(2024, 3, 8)]
+
+    assert _time_format(ticks, (low, high)) == "%Y-%m-%d"
+    assert _time_format(ticks, (low, low)) == "%H:%M", "a domain of one instant has no date to tell apart"
+
+
+def test_a_value_timestamp_cannot_place_is_refused_by_column_and_not_by_year() -> None:
+    """The behaviour a whole commit is named after, and nothing exercised it.
+
+    ``timestamp()`` probes around a value to resolve the local offset, so the last hours
+    before ``datetime.max`` are unreachable -- on ``main`` too, which is why this is a message
+    and not a fix. The message is the point: ``year 10000 is out of range`` names neither the
+    column nor the reason, and a caller with twelve columns learns nothing from it."""
+    with pytest.raises(ValueError, match="timestamp") as raised:
+        lineplot({"t": [date(9999, 1, 1), datetime(9999, 12, 31, 22)], "y": [1.0, 2.0]}, x="t", y="y")
+
+    assert "'t'" in str(raised.value)
+    assert "10000" not in str(raised.value)
+
+
+def test_year_ticks_land_on_multiples_of_their_step_not_on_the_domains_own_year() -> None:
+    """Aligned, so a fifty-year axis reads 2030/2040/2050 rather than 2021/2031/2041. Every
+    other year-scale test in this file starts on a year the step rounds forward, so none of
+    them can tell the two apart."""
+    ticks = make_ticks(TimeScale((datetime(2021, 1, 1), datetime(2071, 1, 1)), (0.0, 700.0)))
+
+    assert ticks, "no ticks"
+    assert all(tick.year % 10 == 0 for tick in ticks), [tick.year for tick in ticks]
+
+
+def test_month_ticks_land_on_multiples_of_their_step_too() -> None:
+    """The same property one unit down: a fifteen-month axis steps by three months from a
+    quarter boundary, not from whichever month the data happens to start in."""
+    ticks = make_ticks(TimeScale((datetime(2024, 2, 1), datetime(2025, 5, 1)), (0.0, 700.0)))
+
+    assert ticks, "no ticks"
+    assert all(tick.month % 3 == 1 for tick in ticks), [tick.strftime("%Y-%m") for tick in ticks]
+
+
+def test_a_step_that_divides_the_domain_exactly_count_times_is_used() -> None:
+    """``span / candidate <= count`` and not ``<``. A five-hour domain divides into exactly
+    five one-hour steps, and rejecting that takes the next step up -- half the ticks, for a
+    domain the finer step fit perfectly."""
+    ticks = make_ticks(TimeScale((datetime(2024, 1, 1), datetime(2024, 1, 1, 5)), (0.0, 700.0)))
+
+    assert [tick.hour for tick in ticks] == [0, 1, 2, 3, 4, 5]
+
+
+def test_a_multi_day_step_is_aligned_to_the_month_and_not_to_the_first_row() -> None:
+    """A two-week step counts from the first of the starting month, so two charts of the same
+    period beginning on different days put their ticks in the same places. Counting from the
+    data's own start makes the axis depend on which row happened to come first.
+
+    Only against that origin -- a fixed duration cannot also land on later month boundaries,
+    which is why anything past two weeks is stepped by calendar field instead."""
+    low, high = datetime(2024, 3, 20), datetime(2024, 5, 20)
+    ticks = make_ticks(TimeScale((low, high), (0.0, 700.0)))
+    origin = low.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    assert len(ticks) >= 2, [tick.isoformat() for tick in ticks]
+    assert all((tick - origin).total_seconds() % (14 * 86400) == 0 for tick in ticks), [
+        tick.strftime("%m-%d") for tick in ticks
+    ]
