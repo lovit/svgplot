@@ -38,6 +38,7 @@ per panel until they are closed:
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable
 
 from svgplot.chart._domain import Domains, union
@@ -55,6 +56,21 @@ def _sorted_unique(values: list[object]) -> list[object]:
     would raise ``TypeError``.
     """
     return sorted(dict.fromkeys(values), key=str)
+
+
+_HORIZONTAL = ("xlim", "bins", "categories")
+"""The overrides that settle what each panel measures, as opposed to how tall it is.
+
+They have to be applied a pass before ``ylim``, because on a binned chart the y domain is a
+*consequence* of them. Sharing both at once takes the y union from the first pass's bin
+counts and then re-divides the x axis underneath it, so a bin can pick up a value the first
+division had split in two -- measured, panels peaking at 9 and 8 drew a bar of 10 against a
+``ylim`` of 9, which put it 57.8px above the plot area with nothing clipping it and no
+warning. Nothing later notices either: a chart handed a ``ylim`` records the ``ylim``, not
+what it drew, so the union cannot see the overflow.
+
+Three passes, then: measure, fix the x axis and measure again, fix the y axis. The third is
+stable because the division no longer moves."""
 
 
 def _is_drawable(span: tuple[float, float] | None) -> bool:
@@ -81,7 +97,7 @@ def _bins_covering(span: tuple[float, float], step: float) -> int:
     Capped, and this is the one place the cap is not a caller's mistake. ``histogram_bins``
     refuses an integer above ``MAX_BINS`` because a caller asking for a million bins wants
     something a chart cannot show -- but a *strategy* has no such ceiling, so a panel is free
-    to choose 16,021 bins and ``main`` renders it. Re-deriving that as an integer put it back
+    to choose 15,885 bins and ``main`` renders it. Re-deriving that as an integer put it back
     through the caller's gate and turned a chart that rendered into a ``ValueError`` naming a
     number nobody wrote (measured: ``bins="fd"`` on 500 values plus one outlier). Coarsening
     to the ceiling keeps the panels agreeing and keeps the chart on the page.
@@ -148,7 +164,10 @@ def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool, explicit:
     overrides: dict[str, object] = {}
     if sharex and _is_drawable(shared.x):
         overrides["xlim"] = shared.x
-        if shared.x_step is not None:
+        if shared.x_step is not None and all(panel.x_step is not None for panel in recorded):
+            # Every panel, not any: ``bins`` means nothing to a chart that does not bin, and a
+            # facet mixing ``histplot`` with ``lineplot`` used to hand the line chart the
+            # histogram's division and get ``TypeError: unexpected keyword argument 'bins'``.
             overrides["bins"] = _bins_covering(shared.x, shared.x_step)
     if sharey and _is_drawable(shared.y):
         overrides["ylim"] = shared.y
@@ -157,6 +176,36 @@ def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool, explicit:
     if shared.categories is not None and (sharex if shared.categories_axis == "x" else sharey):
         overrides["categories"] = shared.categories
     return {name: value for name, value in overrides.items() if _may_override(name, explicit)}
+
+
+def _accepted(plot_fn: Callable[..., object], overrides: dict[str, object]) -> dict[str, object]:
+    """The overrides ``plot_fn`` can actually be given.
+
+    ``facet``'s contract is that any function taking its data positionally works, and that no
+    chart type is special-cased. Sharing an axis broke that quietly: the second pass added
+    ``xlim``/``ylim``/``bins``/``categories`` to the call, so a hand-written panel function
+    that did not name them raised ``TypeError: got an unexpected keyword argument 'xlim'`` --
+    on the *default* path, since both share flags default to ``True``. Mixed chart types broke
+    the same way, ``lineplot`` being handed the ``bins`` that ``histplot`` asked for.
+
+    A function with ``**kwargs`` takes everything; anything else takes what it names. Reading
+    the signature rather than catching ``TypeError`` because catching it cannot tell a
+    rejected override from a ``TypeError`` raised inside the chart.
+    """
+    try:
+        parameters = inspect.signature(plot_fn).parameters
+    except (TypeError, ValueError):
+        # A builtin or C-implemented callable has no introspectable signature. Passing
+        # everything is what happened before this function existed.
+        return overrides
+    if any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters.values()):
+        return overrides
+    return {name: value for name, value in overrides.items() if name in parameters}
+
+
+def _horizontal_only(overrides: dict[str, object]) -> dict[str, object]:
+    """The part of ``overrides`` that settles what each panel measures. See :data:`_HORIZONTAL`."""
+    return {name: value for name, value in overrides.items() if name in _HORIZONTAL}
 
 
 def facet(
@@ -222,19 +271,36 @@ def facet(
                 matrix.append(cells)
             return matrix, titles
 
+        def share(cells: list[list[Chart | None]]) -> dict[str, object]:
+            drawn = [cell for row_cells in cells for cell in row_cells if cell is not None]
+            return _accepted(plot_fn, _shared_kwargs(drawn, sharex=sharex, sharey=sharey, explicit=kwargs))
+
         matrix, titles = build({})
-        drawn = [cell for cells in matrix for cell in cells if cell is not None]
-        overrides = _shared_kwargs(drawn, sharex=sharex, sharey=sharey, explicit=kwargs)
-        if overrides:
-            matrix, titles = build(overrides)
+        horizontal = _horizontal_only(share(matrix))
+        if horizontal:
+            matrix, titles = build(horizontal)
+        settled = share(matrix)
+        if settled and settled != horizontal:
+            matrix, titles = build({**horizontal, **settled})
         return arrange_grid(matrix, titles=titles)
 
     channel = col if col is not None else row
     values = _sorted_unique(list(groups))
-    charts: list[Chart | None] = [plot_fn(groups[value], **kwargs) for value in values]  # type: ignore[arg-type,misc]
-    overrides = _shared_kwargs([chart for chart in charts if chart is not None], sharex=sharex, sharey=sharey, explicit=kwargs)
-    if overrides:
-        charts = [plot_fn(groups[value], **{**kwargs, **overrides}) for value in values]  # type: ignore[arg-type,misc]
+
+    def draw(extra: dict[str, object]) -> list[Chart | None]:
+        return [plot_fn(groups[value], **{**kwargs, **extra}) for value in values]  # type: ignore[arg-type,misc]
+
+    def share(drawn: list[Chart | None]) -> dict[str, object]:
+        panels = [chart for chart in drawn if chart is not None]
+        return _accepted(plot_fn, _shared_kwargs(panels, sharex=sharex, sharey=sharey, explicit=kwargs))
+
+    charts: list[Chart | None] = draw({})
+    horizontal = _horizontal_only(share(charts))
+    if horizontal:
+        charts = draw(horizontal)
+    settled = share(charts)
+    if settled and settled != horizontal:
+        charts = draw({**horizontal, **settled})
     titles = [f"{channel} = {value}" for value in values]
     if col is not None:
         return arrange_row(charts, titles=titles)

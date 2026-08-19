@@ -241,8 +241,13 @@ def test_a_single_panel_is_not_rendered_twice() -> None:
     assert "ylim" not in calls[0]
 
 
-def test_sharing_renders_each_panel_exactly_twice() -> None:
-    """Pins the cost so a future change cannot quietly make it three passes."""
+def test_sharing_settles_the_horizontal_axis_before_the_vertical_one() -> None:
+    """Pins both the cost and the order.
+
+    Three passes, not two, and the order is the point: a binned chart's y domain is a
+    *consequence* of its x division, so fixing both at once takes the height from a division
+    that the same call is about to change underneath it. Measured, that drew a bar 57.8px
+    above the plot area. The middle pass carries ``xlim`` and no ``ylim``."""
     calls: list[dict[str, object]] = []
 
     def counting_lineplot(data: object, **kwargs: object) -> object:
@@ -251,9 +256,10 @@ def test_sharing_renders_each_panel_exactly_twice() -> None:
 
     sp.facet(counting_lineplot, SPLIT, col="g", x="x", y="y")
 
-    assert len(calls) == 4, "two panels, two passes"
-    assert all("ylim" not in call for call in calls[:2])
-    assert all("ylim" in call and "xlim" in call for call in calls[2:])
+    assert len(calls) == 6, "two panels, three passes"
+    assert all("xlim" not in call and "ylim" not in call for call in calls[:2]), "the first pass measures"
+    assert all("xlim" in call and "ylim" not in call for call in calls[2:4]), "the second settles x"
+    assert all("xlim" in call and "ylim" in call for call in calls[4:]), "the third settles y"
 
 
 @pytest.mark.parametrize("factory", [sp.barplot, sp.boxplot, sp.violinplot], ids=["barplot", "boxplot", "violinplot"])
@@ -390,7 +396,7 @@ def test_a_facet_whose_panels_mix_chart_kinds_shares_what_it_can() -> None:
 
     sp.facet(mixed, data, col="g")
 
-    assert len(calls) == 4, "a panel that recorded a domain should still get a second pass"
+    assert len(calls) == 6, "a panel that recorded a domain should still get the later passes"
 
 
 @pytest.mark.parametrize("bins", [None, "auto", "sturges"])
@@ -399,8 +405,8 @@ def test_histogram_bins_are_shared_on_the_strategies_not_only_on_a_fixed_count(b
 
     ``bin_range=`` only tells numpy which *range* to cover; ``bins="auto"`` still derives the
     bin **width** from each panel's own values and lays that width across the range, so the
-    boundaries still disagree. On this fixture the panels choose widths of 0.600000 and
-    0.200000 for the same shared span -- a three-to-one difference in what one bar means,
+    boundaries still disagree. On this fixture the panels choose widths of 0.650000 and
+    0.216667 for the same shared span -- a three-to-one difference in what one bar means,
     under an axis whose ticks matched exactly.
 
     ``bins=4`` -- the only case the first regression test covered -- can never catch this: a
@@ -490,10 +496,10 @@ def test_the_shared_division_is_the_finest_a_panel_chose_and_survives_the_wider_
 def test_a_strategy_that_chose_more_bins_than_a_caller_may_ask_for_still_renders() -> None:
     """``histogram_bins`` caps an integer ``bins`` at ``MAX_BINS`` because a caller asking
     for a million wants something a chart cannot show. A *strategy* has no such ceiling, so
-    a panel is free to choose 16,021 -- and ``main`` renders it.
+    a panel is free to choose 15,885 -- and ``main`` renders it.
 
     Re-deriving that as an integer put it back through the caller's gate: measured, this
-    exact input raised ``ValueError: bins must be at most 10000, got 16021``, naming a number
+    exact input raised ``ValueError: bins must be at most 10000, got 16032``, naming a number
     the caller never wrote, on a facet that rendered on ``main``."""
     spike = [n / 500.0 for n in range(500)] + [2000.0]
     data = {"v": spike + [n / 500.0 for n in range(500)], "g": ["a"] * 501 + ["b"] * 500}
@@ -610,3 +616,124 @@ def test_the_derived_bin_count_rounds_rather_than_truncates() -> None:
     assert _bins_covering((1.0, 102.0), 2.0 / 3) == 152
     assert _bins_covering((0.0, 10.0), 3.0) == 3
     assert _bins_covering((0.0, 1.0), 5e-311) == 10_000, "the cap has to apply before rounding"
+
+
+def test_a_bar_never_lands_above_the_plot_area_it_was_scaled_into() -> None:
+    """The failure the pass order exists to prevent, and one with no symptom in the file.
+
+    The shared ``ylim`` comes from bin counts, and re-dividing the x axis can merge two bins
+    the first division kept apart -- these panels peak at 9 and 8, and one bar of the redrawn
+    left panel holds 10. Scaled into a ``ylim`` of 9 it starts at y=-27.8, 57.8px above the
+    plot area, where the ``viewBox`` clips it: the axis says 9 and the bar means 10.
+
+    Nothing downstream can catch it. A chart handed a ``ylim`` records the ``ylim`` rather
+    than what it drew, so unioning the panels again reports no growth."""
+    left = [
+        0.296,
+        0.929,
+        0.894,
+        0.085,
+        0.507,
+        0.17,
+        0.905,
+        0.842,
+        0.203,
+        0.159,
+        0.915,
+        0.192,
+        0.389,
+        0.601,
+        0.379,
+        0.852,
+        0.922,
+        0.982,
+        0.842,
+        0.536,
+        0.472,
+        0.531,
+        0.006,
+        0.027,
+        0.956,
+        0.234,
+        0.885,
+        0.789,
+        0.392,
+        0.585,
+        0.565,
+        0.172,
+        0.033,
+        0.112,
+        0.622,
+        0.162,
+    ]
+    right = [
+        58.644,
+        42.044,
+        1.852,
+        8.304,
+        38.613,
+        2.559,
+        4.07,
+        2.801,
+        51.39,
+        45.706,
+        11.959,
+        57.274,
+        32.034,
+        39.85,
+        52.783,
+        45.346,
+        42.675,
+        23.031,
+        14.795,
+        12.19,
+        2.032,
+        56.955,
+        54.667,
+        45.225,
+        5.248,
+        45.086,
+        37.936,
+        28.627,
+        7.959,
+        47.518,
+        38.779,
+        17.668,
+        20.191,
+        15.67,
+        21.054,
+        55.806,
+    ]
+    data = {"v": left + right, "g": ["a"] * len(left) + ["b"] * len(right)}
+    svg = sp.facet(sp.histplot, data, col="g", x="v").to_string()
+    tops = [float(y) for y in re.findall(r'<rect[^>]*y="([\d.-]+)"[^>]*class="c\d+-series', svg)]
+
+    assert tops, "no bars were drawn"
+    assert min(tops) >= 30.0, f"a bar starts {30.0 - min(tops):.1f}px above the plot area"
+
+
+def test_a_panel_function_that_names_no_keywords_is_still_called() -> None:
+    """``facet``'s contract is that any function taking its data positionally works. Sharing
+    broke that on the *default* path -- both flags default to ``True``, so the second pass
+    added ``xlim`` to a hand-written panel function that never named it and raised
+    ``TypeError: got an unexpected keyword argument 'xlim'``. Every panel function in this
+    file takes ``**kwargs``, so none of them reached it."""
+
+    def plain(group: object) -> object:
+        return sp.lineplot(group, x="x", y="y")  # type: ignore[arg-type]
+
+    assert sp.facet(plain, SPLIT, col="g").to_string().count("<svg") > 1
+
+
+def test_a_division_is_shared_only_when_every_panel_has_one() -> None:
+    """``bins`` means nothing to a chart that does not bin. Sharing it from whichever panel
+    reported one handed ``lineplot`` the histogram's division, and a caller whose panel
+    function forwards its keywords got ``TypeError: unexpected keyword argument 'bins'``."""
+    data = {"x": [1, 2, 3, 4], "y": [1.0, 2.0, 300.0, 400.0], "g": ["a", "a", "b", "b"]}
+
+    def mixed(group: object, **kwargs: object) -> object:
+        if group["g"][0] == "a":  # type: ignore[index]
+            return sp.histplot(group, x="y", **kwargs)  # type: ignore[arg-type]
+        return sp.lineplot(group, x="x", y="y", **kwargs)  # type: ignore[arg-type]
+
+    assert sp.facet(mixed, data, col="g").to_string().count("<svg") > 1
