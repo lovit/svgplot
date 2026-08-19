@@ -24,10 +24,10 @@ from svgplot.charts._layout import (
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._polar import polar_point
+from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
-from svgplot.data.semantic import extract_channels
 from svgplot.scales import CategoricalScale, LinearScale, make_ticks
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
@@ -173,13 +173,7 @@ def radarplot(
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
 
-    if hue is not None:
-        groups = extract_channels(data, hue=hue)
-        if not groups:
-            raise ValueError(f"no rows with a non-missing {hue!r} value")
-        series_items = sorted(groups.items(), key=lambda item: str(item[0]))
-    else:
-        series_items = [(None, longform.columns)]
+    series_items = build_series(data, longform.columns, hue)
 
     series_values = [(label, _values_by_category(columns, x, y)) for label, columns in series_items]
     # Every category named by a row that belongs to some series is a spoke, whether or not

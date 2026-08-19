@@ -26,10 +26,10 @@ from svgplot.charts._layout import (
     plot_area,
 )
 from svgplot.charts._legend import render_legend
+from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
-from svgplot.data.semantic import extract_channels
 from svgplot.labels._source import collect_label_data
 from svgplot.labels.spec import LabelSpec
 from svgplot.scales import LinearScale, TimeScale
@@ -94,13 +94,7 @@ def lineplot(
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
 
-    if hue is not None:
-        groups = extract_channels(data, hue=hue)
-        if not groups:
-            raise ValueError(f"no rows with a non-missing {hue!r} value")
-        series_items = sorted(groups.items(), key=lambda item: str(item[0]))
-    else:
-        series_items = [(None, longform.columns)]
+    series_items = build_series(data, longform.columns, hue)
 
     series_points = [(label, _series_points(columns, x, y)) for label, columns in series_items]
 
