@@ -243,6 +243,9 @@ def test_declaration_is_keyword_only_and_composes_with_pretty() -> None:
 
     compact = chart.to_string(pretty=False, declaration=False)
 
-    assert compact.startswith("<svg") and "\n" not in compact
+    assert compact.startswith("<svg")
+    # ``declaration`` is a no-op in compact mode -- the clause ``_svg.py`` states, and a
+    # library property rather than a property of this fixture.
+    assert compact == chart.to_string(pretty=False)
     with pytest.raises(TypeError):
         chart.to_string(False)  # type: ignore[misc]

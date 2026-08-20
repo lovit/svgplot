@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import re
 
 import pytest
@@ -18,6 +19,8 @@ from svgplot.layout.caption import add_caption
 from svgplot.layout.facet import facet
 from svgplot.layout.grid import column, grid, row
 from svgplot.layout.sizing import SIZE_MODES, apply_size
+
+_PROLOG = '<?xml version="1.0" encoding="UTF-8"?>\n'
 
 DATA = {"x": [1, 2, 3], "y": [1.0, 2.0, 3.0]}
 HUE_DATA = {"x": [1, 2, 3, 1, 2, 3], "y": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], "g": ["a", "a", "a", "b", "b", "b"]}
@@ -839,14 +842,29 @@ def test_a_good_caption_still_applies_after_a_rejected_one(location: str) -> Non
     assert failed.to_string() == clean.to_string()
 
 
-def test_composition_to_string_matches_charts_declaration_contract() -> None:
-    """A composition is what a reader inlines when they want two panels, so it needs the same
-    door a single chart has. Kept in one test because the point is that the two agree."""
+def test_composition_to_string_has_the_same_signature_as_a_charts() -> None:
+    """The two drifting apart is the failure mode, and comparing prose in two docstrings does
+    not catch it. Dropping ``*`` from one of them leaves every other test in the suite green."""
+    assert inspect.signature(Composition.to_string) == inspect.signature(Chart.to_string)
+
+
+@pytest.mark.parametrize("pretty", [True, False])
+def test_composition_to_string_drops_only_the_prolog(pretty: bool) -> None:
+    """Both ``pretty`` values, because the prolog is written on a different branch in each and
+    an implementation can be right on one and wrong on the other."""
     composition = row([make_chart(), make_chart()])
 
-    with_prolog = composition.to_string()
-    without = composition.to_string(declaration=False)
+    with_prolog = composition.to_string(pretty=pretty)
+    without = composition.to_string(pretty=pretty, declaration=False)
 
-    assert with_prolog.startswith('<?xml version="1.0" encoding="UTF-8"?>\n')
     assert without.startswith("<svg")
-    assert with_prolog == '<?xml version="1.0" encoding="UTF-8"?>\n' + without
+    assert "<?xml" not in without
+    assert with_prolog == _PROLOG + without if pretty else with_prolog == without
+
+
+def test_composition_compact_output_never_carries_a_prolog() -> None:
+    """``declaration`` is a no-op when ``pretty=False`` -- the contract ``_svg.py`` states and
+    the one an implementation is most likely to get half-right."""
+    composition = row([make_chart(), make_chart()])
+
+    assert composition.to_string(pretty=False) == composition.to_string(pretty=False, declaration=False)
