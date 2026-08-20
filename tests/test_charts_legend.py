@@ -305,7 +305,7 @@ _REALISTIC_LABELS = {
 
 def test_an_unmeasured_label_is_titled_however_much_room_it_has() -> None:
     """The unconditional rule, and the whole of what it costs. Every one of these is well
-    under the budget -- ``רווח`` estimates 22px against 118 -- and every one keeps its text,
+    under the budget -- ``לאב`` estimates 19.5px against 118 -- and every one keeps its text,
     because outside the measured repertoire the estimate carries no bound at all."""
     from svgplot.charts._textwidth import needs_full_text, text_width
 

@@ -3,7 +3,7 @@ multiple series: one color swatch + label per entry.
 
 A label longer than the room to the canvas edge used to run straight past it and out of the
 ``viewBox``, where nothing renders it -- 118px of room on the default canvas, which is about
-18 Latin characters or **11 CJK** at ``legend_font_size``, by this module's own estimate. In a Korean-first package eleven
+18 Latin characters or **10 CJK** at ``legend_font_size``, by this module's own estimate. In a Korean-first package eleven
 characters is an ordinary label. Labels are now shortened to fit (see
 ``charts/_textwidth``), with the full text kept in a ``<title>`` so the shortening costs
 presentation rather than information.

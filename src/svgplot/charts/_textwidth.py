@@ -175,7 +175,7 @@ because that list *is* the guarantee's scope:
 =================  ==========================================  =========
 family             worst ratio across **every weight it ships**  needs
 =================  ==========================================  =========
-SF NS              1.1448  (``©``, System Font)                  <= 0.873
+SF NS              1.2430  (``¶``, Black Italic)                 <= 0.804
 Trebuchet MS       1.1198  (``ŉ``, Bold)                          <= 0.893
 Tahoma             1.3870  (``>``, Negreta)                       <= 0.721
 Arial              1.4408  (``¶``, Black)                         <= 0.694
@@ -185,7 +185,9 @@ Comic Sans MS      1.5068  (``Ĳ``, Bold)                          <= 0.664
 **Helvetica / Helvetica Neue**  **1.5560**  (``―``, HN Medium)    <= 0.643
 =================  ==========================================  =========
 
-Every weight, not the regular one. An earlier version of this table listed the regular face
+Every weight, not the regular one -- and for SF NS every *instance*, since it is a variable
+font whose ``hmtx`` describes one point in a design space rather than the nine weights it
+ships. An earlier version of this table listed the regular face
 of each family and put Arial at 1.0000 -- Arial Black runs ``¶`` at 1.4408, and Comic Sans
 Bold at 1.5068 was the second-worst face in the whole set and absent from the table entirely.
 The threshold happened to survive that, because the family whose *regular* face was worst is

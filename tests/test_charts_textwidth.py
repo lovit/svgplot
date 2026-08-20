@@ -28,7 +28,7 @@ def test_an_empty_string_costs_nothing() -> None:
 
 def test_a_cjk_character_costs_a_full_em_and_a_latin_one_costs_less() -> None:
     """The whole reason the estimate is not ``len(text)``: eleven Hangul syllables fill the
-    room that twenty-one Latin letters do, and charging them the same is what let a Korean
+    room that eighteen Latin letters do by this model, and charging them the same is what let a Korean
     label run off the canvas."""
     assert text_width("가", 10.0) == 10.0
     assert text_width("a", 10.0) == 10.0 * _NARROW_RATIO
@@ -108,7 +108,7 @@ def test_the_result_is_estimated_to_fit_the_budget(text: str) -> None:
 
 
 def test_wide_text_is_cut_sooner_than_narrow_text() -> None:
-    """Eleven CJK characters take the room twenty-one Latin ones do, so the same budget has
+    """Eleven CJK characters take the room eighteen Latin ones do by this model, so the same budget has
     to keep roughly half as many. A model that ignored width keeps the same count."""
     latin = truncate_to_width("a" * 40, 11.0, 96.0)
     cjk = truncate_to_width("가" * 40, 11.0, 96.0)
@@ -176,10 +176,12 @@ def test_a_label_near_the_budget_keeps_its_full_text_even_when_it_was_not_cut() 
 # font's own ``hmtx`` over ``_BOUNDED``. Per family and not per face, because listing one
 # face per family is what let 0.65 through and then survived into the next round with Arial
 # recorded at 1.0000 -- Arial Black runs 1.4408, and Comic Sans Bold 1.5068 was the
-# second-worst face in the set and not in the table at all.
+# second-worst face in the set and not in the table at all. SF NS needed a third pass on
+# top of that: it is a *variable* font, so its `hmtx` gives one instance and the nine named
+# weights it ships have to be instanced to be measured.
 _WORST_RATIO_BY_FAMILY = {
     "Trebuchet MS": 1.1198,
-    "SF NS": 1.1448,
+    "SF NS": 1.2430,  # Italic at wght 1000; SF NS is variable, not a set of static faces
     "Tahoma": 1.3870,
     "Arial": 1.4408,
     "Geneva": 1.4536,
@@ -383,7 +385,7 @@ _WORST_DIGIT_BY_FAMILY = {
     "Arial": 0.6670,  # Black
     "Geneva": 0.6665,
     "Tahoma": 0.6367,  # Bold
-    "SF NS": 0.6274,  # Italic
+    "SF NS": 0.7090,  # Italic at wght 1000
     "Comic Sans MS": 0.6104,
     "Trebuchet MS": 0.5859,  # Bold Italic
     "Helvetica": 0.5562,
@@ -398,8 +400,8 @@ def test_a_digit_is_charged_as_a_capital_not_as_narrow(digit: str) -> None:
     Arial's *regular* digits are 0.5562, under ``_NARROW_RATIO``, so every measured-literal
     assertion in this file is satisfied either way -- and moving digits to the narrow class
     left the suite green. Six of the nine families disagree once their bold and italic weights
-    are counted, the worst by 20%: Verdana Bold 0.7109, Arial Black 0.6670, Geneva 0.6665,
-    Tahoma Bold 0.6367, SF NS Italic 0.6274, Comic Sans 0.6104.
+    are counted, the worst by 20%: Verdana Bold 0.7109, SF NS Black Italic 0.7090, Arial Black
+    0.6670, Geneva 0.6665, Tahoma Bold 0.6367, Comic Sans 0.6104.
 
     The margin this leaves is 0.73 - 0.7109 = 0.019 em, not the 0.064 the regular-only table
     implied. Anyone lowering ``_CAPITAL_RATIO`` should read this number and not that one."""
