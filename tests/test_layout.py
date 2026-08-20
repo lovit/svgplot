@@ -98,6 +98,16 @@ def test_composed_children_keep_their_own_theme_colors() -> None:
     assert ".plot-background {" not in rules
 
 
+def _selector_of(rule: str) -> str:
+    """The chart-level selector of one CSS rule, with any document scope stripped.
+
+    ``svgplot.scope`` wraps every emitted rule as ``:where(.svgplot-fXXXXXXXX) .c0-series-1
+    { … }``. The namespacing this module tests is the ``.c0-`` part, which is a separate
+    mechanism, so the assertions read past the scope rather than around it.
+    """
+    return re.sub(r"^:where\(\.[\w-]+\)\s*", "", rule.strip())
+
+
 def test_composed_children_elements_carry_namespaced_classes() -> None:
     svg = row([make_chart(), make_chart()]).to_string(pretty=False)
 
@@ -116,10 +126,15 @@ def test_no_child_style_rule_escapes_its_namespace() -> None:
     """
     svg = row([lineplot(HUE_DATA, x="x", y="y", hue="g"), make_chart()]).to_string(pretty=False)
 
-    for block in style_blocks(svg):
-        for line in block.splitlines():
-            if line.startswith("."):
-                assert re.match(r"\.(c\d+-|composition-)", line), f"un-namespaced rule leaked: {line!r}"
+    rules = [_selector_of(line) for block in style_blocks(svg) for line in block.splitlines() if line.strip()]
+
+    # Without this the loop below silently guards nothing. Filtering rule lines by their first
+    # character is what this test used to do, and document scoping moved that character from
+    # "." to ":" -- every line stopped matching, the body stopped running, and the test kept
+    # passing while asserting nothing. A count is the cheapest way to notice.
+    assert len(rules) >= 4, f"expected the composition to emit rules, saw {rules}"
+    for selector in rules:
+        assert re.match(r"\.(c\d+-|composition-)", selector), f"un-namespaced rule leaked: {selector!r}"
 
 
 def test_composing_a_chart_does_not_mutate_it() -> None:

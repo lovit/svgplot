@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from _svg_probe import tags as _tags, texts as _texts
+from _svg_probe import style_rule, tags as _tags, texts as _texts
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, plot_area
 from svgplot.charts.box import NO_HUE
 from svgplot.charts.violin import _EVALUATION_GRID, _VIOLIN_PADDING, _group_by_x, shared_grid_range, violinplot
@@ -423,11 +423,7 @@ def test_the_theme_reaches_the_output() -> None:
 def test_the_series_style_keeps_a_stroke_and_a_translucent_fill() -> None:
     """One series class carries the body, the inner box and the median tick. A plain
     ``"fill"`` style emits ``stroke: none``, which erases the outline and the tick."""
-    rule = next(
-        line.strip()
-        for line in violinplot(_three_groups(), x="grp", y="v").to_string().splitlines()
-        if line.strip().startswith(".series-1 {")
-    )
+    rule = style_rule(violinplot(_three_groups(), x="grp", y="v").to_string(), ".series-1")
 
     assert "stroke: #" in rule
     assert "fill-opacity" in rule

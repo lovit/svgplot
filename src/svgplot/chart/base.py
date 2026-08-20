@@ -27,6 +27,7 @@ from svgplot.output.jupyter import repr_svg
 from svgplot.output.markdown import MARKDOWN_SUFFIXES, save_markdown, to_markdown
 from svgplot.output.png import to_png
 from svgplot.output.svg import save_svg, to_string
+from svgplot.scope import apply_scope, validate_css_class_name
 
 
 class Chart:
@@ -55,6 +56,7 @@ class Chart:
         self._labels = labels
         self._description = description
         self._table_id = self.DEFAULT_TABLE_ID
+        self._scope: str | None = None
         self._domains = domains or Domains()
 
     @property
@@ -94,6 +96,29 @@ class Chart:
         validate_element_id(table_id, parameter="table_id")
         self._table_id = table_id
         return self
+
+    def set_scope(self, scope: str) -> Chart:
+        """Set the CSS class this chart's own rules are confined to.
+
+        Unset, a deterministic one is derived from the document -- see
+        :func:`svgplot.scope.apply_scope`. Name it yourself when you want to target the
+        chart from a host stylesheet (``set_scope("sales")`` makes ``.sales .series-1`` yours
+        to override), or when two byte-identical charts on a page must be styled apart:
+        the derived token is a hash of the picture, so identical pictures share one.
+
+        Returns self for chaining.
+
+        Raises:
+            ValueError: if ``scope`` is not a valid CSS class name. The rule is
+                ``theme.css``'s, because that is where the name has to survive as a selector.
+        """
+        self._scope = validate_css_class_name(scope, kind="scope")
+        return self
+
+    @property
+    def scope(self) -> str | None:
+        """The scope class set by :meth:`set_scope`, or ``None`` while it is derived."""
+        return self._scope
 
     @property
     def table_id(self) -> str | None:
@@ -145,6 +170,9 @@ class Chart:
         so cannot carry the id the attribute would name — see :meth:`to_html_table`.
         """
         document = copy.deepcopy(self._svg_document)
+        # Before add_accessibility, so the derived token is a hash of the picture rather than
+        # of the picture plus its title -- otherwise set_title() would rewrite every CSS line.
+        apply_scope(document, self._scope)
         add_accessibility(
             document,
             title=(self._title or "").strip() or self.DEFAULT_TITLE,

@@ -11,13 +11,14 @@ from __future__ import annotations
 from svgplot.chart.base import Chart
 from svgplot.chart.composition import chart_document
 from svgplot.charts._layout import format_coord
+from svgplot.scope import RESPONSIVE_CLASS, RESPONSIVE_CSS
 
 SIZE_MODES = ("fixed", "responsive")
 
-_RESPONSIVE_CLASS = "svgplot-responsive"
-# No caller input reaches this CSS — it is a literal constant, the safest case of
-# the "CSS-semantic safety is the caller's job" contract in _svg.py's security note.
-_RESPONSIVE_CSS = f".{_RESPONSIVE_CLASS} {{ max-width: 100%; height: auto; }}"
+# Defined in svgplot.scope, which also has to recognise this rule in order to leave it
+# alone: the class sits on the root, so a scoped descendant selector could never match it.
+_RESPONSIVE_CLASS = RESPONSIVE_CLASS
+_RESPONSIVE_CSS = RESPONSIVE_CSS
 
 
 def apply_size(chart: Chart, mode: str = "fixed") -> Chart:

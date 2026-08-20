@@ -5,6 +5,7 @@ import re
 
 import pytest
 
+from _svg_probe import style_rule
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, MARGIN_WITHOUT_LEGEND, plot_area
 from svgplot.charts.kde import _shared_grid_range, kdeplot
 from svgplot.stats.kde import kde
@@ -36,7 +37,9 @@ def _curves(svg: str) -> list[list[tuple[float, float]]]:
 
 
 def _style_rule(svg: str, selector: str) -> str:
-    return next(line.strip() for line in svg.splitlines() if line.strip().startswith(selector))
+    """Kept as a wrapper so the call sites still read ``".series-1 {"``; the reading is the
+    shared probe's, which strips the document scope ``svgplot.scope`` now wraps rules in."""
+    return style_rule(svg, selector.removesuffix(" {"))
 
 
 # ---------------------------------------------------------------------------

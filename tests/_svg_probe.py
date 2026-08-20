@@ -85,3 +85,42 @@ def texts(svg: str, element: str, css_class: str) -> list[str]:
         for match, _ in _matches(svg, element, css_class)
         if not match.group().endswith("/>")
     ]
+
+
+_STYLE_BLOCK_RE = re.compile(r"<style>(.*?)</style>", re.S)
+_DOCUMENT_SCOPE_RE = re.compile(r"^:where\(\.[\w-]+\)\s*")
+
+
+def style_rules(svg: str) -> list[str]:
+    """Every CSS rule in ``svg``'s ``<style>`` blocks, with the document scope stripped.
+
+    Reading rules back by their first character is what six test modules each grew their own
+    copy of, and ``svgplot.scope`` moved that character from ``.`` to ``:`` in one commit. The
+    ones that filtered with ``startswith(".")`` did not fail -- they matched nothing, ran their
+    loop zero times, and passed while asserting nothing. That is the failure this helper
+    exists to make unrepeatable: strip the scope in one place, and a future change to its
+    shape breaks one function loudly instead of blinding several tests quietly.
+
+    The scope is dropped rather than returned because it is a separate mechanism with its own
+    tests (``tests/test_scope.py``); a caller asking about ``.series-1`` should not have to
+    know it is nested. Rules are returned in document order, stripped, blanks dropped.
+    """
+    return [
+        _DOCUMENT_SCOPE_RE.sub("", line.strip())
+        for block in _STYLE_BLOCK_RE.findall(svg)
+        for line in block.splitlines()
+        if line.strip()
+    ]
+
+
+def style_rule(svg: str, selector: str) -> str:
+    """The single rule whose selector is ``selector``, e.g. ``".series-1"``.
+
+    Raises rather than returning ``None`` when there is no match or more than one: a missing
+    rule means the assertion that follows would have compared against nothing, and a duplicate
+    means the caller's mental model of the output is already wrong.
+    """
+    matches = [rule for rule in style_rules(svg) if rule.startswith(f"{selector} {{")]
+    if len(matches) != 1:
+        raise AssertionError(f"expected exactly one {selector!r} rule, found {len(matches)}: {matches}")
+    return matches[0]

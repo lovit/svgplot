@@ -6,7 +6,7 @@ from itertools import pairwise
 
 import pytest
 
-from _svg_probe import tags as _tags
+from _svg_probe import style_rule, tags as _tags
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, plot_area
 from svgplot.charts._polar import label_anchor
 from svgplot.charts.radar import (
@@ -257,7 +257,7 @@ def test_series_share_one_radial_scale() -> None:
 
 
 def _series_rule(svg: str) -> str:
-    return next(line.strip() for line in svg.splitlines() if line.strip().startswith(".series-1 {"))
+    return style_rule(svg, ".series-1")
 
 
 def test_filling_uses_the_outlined_mark_style() -> None:

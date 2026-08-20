@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 import svgplot as sp
+from _svg_probe import style_rules
 from svgplot.chart.base import Chart
 from svgplot.charts._layout import DEFAULT_WIDTH, SPARKLINE_WIDTH, format_coord
 from svgplot.charts._legend import _SWATCH_HEIGHT, _SWATCH_WIDTH
@@ -430,11 +431,11 @@ def test_a_composition_places_a_narrow_child_right_after_its_neighbour() -> None
 def test_a_composition_of_differently_sized_children_keeps_its_namespaces() -> None:
     """The other half, kept separate so neither assertion can stand in for the other."""
     svg = _mixed_size_row()
-    rules = [
-        rule for block in re.findall(r"<style>(.*?)</style>", svg, re.S) for rule in re.findall(r"^\.([\w-]+)", block, re.M)
-    ]
+    rules = [match.group(1) for rule in style_rules(svg) if (match := re.match(r"\.([\w-]+)", rule))]
 
-    assert {match.group(1) for rule in rules if (match := re.match(r"(c\d+)-", rule))} == {"c0", "c1"}
+    assert len(rules) >= 4, f"expected the composition to emit rules, saw {rules}"
+    namespaces = {match.group(1) for rule in rules if (match := re.match(r"(c\d+)-", rule))}
+    assert namespaces == {"c0", "c1"}
     assert not [rule for rule in rules if rule.startswith(("level-", "series-"))]
     ET.fromstring(svg)
 
@@ -454,11 +455,11 @@ def test_a_mixed_composition_of_shape_charts_keeps_its_namespaces() -> None:
     # One <style> per child plus the composition's own, so the rules have to be gathered
     # from all of them -- reading only the first would report the first child's namespace
     # as the only one and pass against a document that never namespaced the others.
-    rules = [
-        rule for block in re.findall(r"<style>(.*?)</style>", svg, re.S) for rule in re.findall(r"^\.([\w-]+)", block, re.M)
-    ]
+    rules = [match.group(1) for rule in style_rules(svg) if (match := re.match(r"\.([\w-]+)", rule))]
+    assert len(rules) >= 4, f"expected the composition to emit rules, saw {rules}"
 
-    assert {match.group(1) for rule in rules if (match := re.match(r"(c\d+)-", rule))} == {"c0", "c1", "c2"}
+    namespaces = {match.group(1) for rule in rules if (match := re.match(r"(c\d+)-", rule))}
+    assert namespaces == {"c0", "c1", "c2"}
     # Nothing escaped the rewrite: no data-mark rule survives without a namespace, which
     # is what would let the second chart's palette repaint the first.
     assert not [rule for rule in rules if rule.startswith(("level-", "series-"))]

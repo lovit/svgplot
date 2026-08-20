@@ -59,26 +59,37 @@ LEVELS = 9
 """How many colour steps a value is quantised into. Odd, so a ``center=`` lands on a
 middle level with the same number of steps either side."""
 
-_BYTES_PER_CELL = 84
+_BYTES_PER_CELL = 85
 """Measured marginal output cost of one drawn cell."""
 
-_BYTES_PER_TICK = 168
+_BYTES_FIXED = 3800
+"""Output cost that does not scale with the grid: the ``<style>`` block, the axes, the
+legend, the accessibility nodes.
+
+Added when document scoping (#182) started wrapping every rule in ``:where(.svgplot-fXXXXXXXX)``.
+That is ~27 bytes times the rule count -- a constant, and a two-term model has nowhere to put
+a constant except by smearing it across the per-cell and per-tick terms. Doing so cost real
+accuracy: the best two-term refit lands at 4.90% worst error against a 5% assertion, which
+would leave the next person a test that fails for reasons unrelated to their change. With the
+constant named, the worst error is 2.40%."""
+
+_BYTES_PER_TICK = 159
 """Measured marginal output cost of one axis tick (a row or a column label).
 
 Two terms are needed because the two counts come apart on a sparse grid: a 100x100 grid
 holding a 100-cell diagonal draws 100 rects but still labels 200 ticks. Estimating from
 cells alone put that chart at 8 KB against a real 41 KB; from grid cells alone, at 859 KB.
 
-``drawn * 84 + (rows + cols) * 168`` was fitted on four measured points and is within 4% of
+``drawn * 85 + (rows + cols) * 159 + 3800`` was fitted on four measured points and is within 3% of
 all of them (estimate vs real, as the warning itself prints them -- so the fit is against the
-**integer-divided** KB the reader sees, not against the exact quotient): 50x50 dense 221 vs
-229 KB (-3.49%), 100x100 dense 853 vs 854 KB (-0.12%), 100x100 diagonal 41 vs 42 KB (-2.38%),
-200x200 diagonal 82 vs 79 KB (+3.80%). Worst case +3.80%, on the sparsest.
+**integer-divided** KB the reader sees, not against the exact quotient): 50x50 dense 226 vs
+230 KB (-1.92%), 100x100 dense 864 vs 855 KB (+1.01%), 100x100 diagonal 43 vs 43 KB (-0.77%),
+200x200 diagonal 82 vs 80 KB (+2.40%). Worst case +2.40%, on the sparsest.
 
-Refitted when axis labels gained rotation (#133): a turned tick carries a ``transform`` and a
-``<title>``, so the per-tick term rose from 163 to 168 while the per-cell term barely moved.
-The coefficients are the pair that minimises the worst relative error over those four points,
-searched exhaustively rather than guessed.
+Refitted when axis labels gained rotation (#133), and again when document scoping (#182) added
+a fixed cost the two-term model had been absorbing into these two. The coefficients are the
+triple that minimises the worst relative error over those four points, searched exhaustively
+rather than guessed.
 
 Refitted whenever the drawn output changes, because it is a fit and not a derivation. It has
 moved twice: once when label thinning stopped the tick count tracking the grid, and once when
@@ -149,7 +160,7 @@ def _warn_if_large(cell_count: int, *, drawn: int, ticks: int) -> None:
     """
     if cell_count <= _WARN_CELL_COUNT:
         return
-    estimate = (drawn * _BYTES_PER_CELL + ticks * _BYTES_PER_TICK) // 1024
+    estimate = (drawn * _BYTES_PER_CELL + ticks * _BYTES_PER_TICK + _BYTES_FIXED) // 1024
     warnings.warn(
         f"heatmap has {cell_count} cells (~{estimate} KB of SVG); "
         f"above {_WARN_CELL_COUNT} cells the output gets large and each cell too small to read. "

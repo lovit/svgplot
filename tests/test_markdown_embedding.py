@@ -10,12 +10,14 @@ without being checked.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 import pytest
 
 import svgplot as sp
 import svgplot.charts as charts
+from _svg_probe import style_rules
 from svgplot.chart.base import Chart
 
 # A label carrying every line ending Python recognises, in blank-line and lone forms, for
@@ -77,15 +79,29 @@ def test_no_chart_can_be_made_to_emit_a_blank_line(name: str) -> None:
     assert "before after tail end nel ls ps" in svg, "poison never reached the output"
 
 
+def _scope_stripped(line: str) -> str:
+    """The rule as :func:`style_rules` reports it, so the two can be compared.
+
+    The closing ``</style>`` rides on the last rule's line -- the serializer writes no
+    newline before it -- so it comes off too.
+    """
+    return re.sub(r"^:where\(\.[\w-]+\)\s*", "", line).removesuffix("</style>")
+
+
 @pytest.mark.parametrize("name", sorted(CHARTS), ids=sorted(CHARTS))
 def test_no_chart_leaves_a_stray_line_break_inside_an_element(name: str) -> None:
     """A single newline does not break CommonMark, but Python-Markdown -- MkDocs' default,
     and this package's own docs engine -- has no ``svg`` in its block-level tag list, so it
     treats a multi-line ``<svg>`` as a paragraph and inserts ``<br/>`` mid-element. The
     only line breaks left in the output must be the pretty-printer's own, between tags."""
-    for line in CHARTS[name]().to_string().splitlines():
+    svg = CHARTS[name]().to_string()
+    css = set(style_rules(svg))
+
+    for line in svg.splitlines():
         stripped = line.strip()
-        assert not stripped or stripped.startswith("<") or stripped.startswith(".") or stripped.startswith("?")
+        # A CSS rule is identified by being one, not by its first character. That test was
+        # "starts with . or < or ?", and document scoping moved rules to start with ":".
+        assert not stripped or stripped.startswith(("<", "?")) or _scope_stripped(stripped) in css, stripped
 
 
 def test_a_composition_of_poisoned_charts_is_clean_too() -> None:

@@ -56,6 +56,7 @@ from svgplot.output.jupyter import repr_svg
 from svgplot.output.markdown import MARKDOWN_SUFFIXES, save_markdown, to_markdown
 from svgplot.output.png import to_png
 from svgplot.output.svg import save_svg, to_string
+from svgplot.scope import apply_scope, validate_css_class_name
 
 # A CSS class selector in a child's <style>. Matching every ".identifier" is sound
 # only because theme/css.py is the sole producer of these blocks and validates every
@@ -271,6 +272,7 @@ class Composition:
         """
         self._svg_document = document
         self._charts = list(charts)
+        self._scope: str | None = None
         self._title: str | None = None
 
     def set_title(self, title: str) -> Composition:
@@ -299,6 +301,26 @@ class Composition:
         """
         return (self._title or "").strip() or None
 
+    def set_scope(self, scope: str) -> Composition:
+        """Set the CSS class this figure's own rules are confined to.
+
+        Same contract as :meth:`svgplot.chart.base.Chart.set_scope`. A composition needs it
+        for the same reason a chart does: two figures on one page both emit ``.c0-series-1``
+        and ``.composition-caption``, so without a scope the second repaints the first.
+
+        Returns self for chaining.
+
+        Raises:
+            ValueError: if ``scope`` is not a valid CSS class name.
+        """
+        self._scope = validate_css_class_name(scope, kind="scope")
+        return self
+
+    @property
+    def scope(self) -> str | None:
+        """The scope class set by :meth:`set_scope`, or ``None`` while it is derived."""
+        return self._scope
+
     def _accessible_document(self) -> SvgDocument:
         """Return a copy of the composed document with role/aria/title/desc applied.
 
@@ -317,6 +339,7 @@ class Composition:
         ``Composition``, so a blank never inflates the count a screen reader announces.
         """
         document = copy.deepcopy(self._svg_document)
+        apply_scope(document, self._scope)
         count = len(self._charts)
         add_accessibility(
             document,

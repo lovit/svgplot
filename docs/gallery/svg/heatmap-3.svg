@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Chart">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-fc18ed983" role="img" aria-label="Chart">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
   <line x1="118" y1="30" x2="118" y2="550" class="grid-line" />
@@ -77,30 +77,30 @@
   <text x="682" y="174" class="legend-text">20.555556</text>
   <rect x="660" y="185" width="16" height="10" class="level-9" />
   <text x="682" y="194" class="legend-text">28.777778</text>
-  <style>.plot-background { fill: #ffffff; }
-.grid-line { stroke: #e0e0e0; stroke-width: 1; }
-.spine { stroke: #333333; stroke-width: 1; fill: none; }
-.tick-line { stroke: #333333; }
-.tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
-.legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
-.level-1 { fill: #0072b2; stroke: none; opacity: 1; }
-.level-2 { fill: #3e93c3; stroke: none; opacity: 1; }
-.level-3 { fill: #7cb4d4; stroke: none; opacity: 1; }
-.level-4 { fill: #b9d6e6; stroke: none; opacity: 1; }
-.level-5 { fill: #f7f7f7; stroke: none; opacity: 1; }
-.level-6 { fill: #eed1b9; stroke: none; opacity: 1; }
-.level-7 { fill: #e6ab7c; stroke: none; opacity: 1; }
-.level-8 { fill: #de843e; stroke: none; opacity: 1; }
-.level-9 { fill: #d55e00; stroke: none; opacity: 1; }
-.level-1-annotation { fill: #ffffff; }
-.level-2-annotation { fill: #000000; }
-.level-3-annotation { fill: #000000; }
-.level-4-annotation { fill: #000000; }
-.level-5-annotation { fill: #000000; }
-.level-6-annotation { fill: #000000; }
-.level-7-annotation { fill: #000000; }
-.level-8-annotation { fill: #000000; }
-.level-9-annotation { fill: #000000; }</style>
+  <style>:where(.svgplot-fc18ed983) .plot-background { fill: #ffffff; }
+:where(.svgplot-fc18ed983) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-fc18ed983) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-fc18ed983) .tick-line { stroke: #333333; }
+:where(.svgplot-fc18ed983) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-fc18ed983) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-fc18ed983) .level-1 { fill: #0072b2; stroke: none; opacity: 1; }
+:where(.svgplot-fc18ed983) .level-2 { fill: #3e93c3; stroke: none; opacity: 1; }
+:where(.svgplot-fc18ed983) .level-3 { fill: #7cb4d4; stroke: none; opacity: 1; }
+:where(.svgplot-fc18ed983) .level-4 { fill: #b9d6e6; stroke: none; opacity: 1; }
+:where(.svgplot-fc18ed983) .level-5 { fill: #f7f7f7; stroke: none; opacity: 1; }
+:where(.svgplot-fc18ed983) .level-6 { fill: #eed1b9; stroke: none; opacity: 1; }
+:where(.svgplot-fc18ed983) .level-7 { fill: #e6ab7c; stroke: none; opacity: 1; }
+:where(.svgplot-fc18ed983) .level-8 { fill: #de843e; stroke: none; opacity: 1; }
+:where(.svgplot-fc18ed983) .level-9 { fill: #d55e00; stroke: none; opacity: 1; }
+:where(.svgplot-fc18ed983) .level-1-annotation { fill: #ffffff; }
+:where(.svgplot-fc18ed983) .level-2-annotation { fill: #000000; }
+:where(.svgplot-fc18ed983) .level-3-annotation { fill: #000000; }
+:where(.svgplot-fc18ed983) .level-4-annotation { fill: #000000; }
+:where(.svgplot-fc18ed983) .level-5-annotation { fill: #000000; }
+:where(.svgplot-fc18ed983) .level-6-annotation { fill: #000000; }
+:where(.svgplot-fc18ed983) .level-7-annotation { fill: #000000; }
+:where(.svgplot-fc18ed983) .level-8-annotation { fill: #000000; }
+:where(.svgplot-fc18ed983) .level-9-annotation { fill: #000000; }</style>
   <title>Chart</title>
   <desc>Heatmap, 5 columns (09시, 12시, 15시, 18시, 21시), 3 rows (월, 수, 금), 15 of 15 cells filled, values -33 to 37, quantised into 9 levels.</desc>
 </svg>

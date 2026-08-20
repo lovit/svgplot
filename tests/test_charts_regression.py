@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from _svg_probe import tags as _tags
+from _svg_probe import style_rule, tags as _tags
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, plot_area
 from svgplot.charts.regression import regplot
 from svgplot.scales import LinearScale
@@ -380,11 +380,7 @@ def test_the_seed_reaches_the_bootstrap_unchanged() -> None:
 def test_the_series_style_keeps_both_a_stroke_and_a_translucent_fill() -> None:
     """One series class carries the band, the line and the points. A plain ``"fill"`` style
     emits ``stroke: none``, which erases the fit line entirely."""
-    rule = next(
-        line.strip()
-        for line in regplot(_noisy_line(), x="x", y="y").to_string().splitlines()
-        if line.strip().startswith(".series-1 {")
-    )
+    rule = style_rule(regplot(_noisy_line(), x="x", y="y").to_string(), ".series-1")
 
     assert "stroke: #" in rule
     assert "fill-opacity" in rule
