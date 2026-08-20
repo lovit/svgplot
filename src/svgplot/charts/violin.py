@@ -10,10 +10,15 @@ cases and is a refinement on top of this, not part of it.
 
 from __future__ import annotations
 
-from svgplot._svg import SvgDocument
+from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import render_x_axis, render_y_axis
-from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, format_coord, plot_area
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._layout import (
+    DEFAULT_WIDTH,
+    MARGIN_WITHOUT_LEGEND,
+    format_coord,
+    new_canvas,
+)
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
@@ -128,6 +133,8 @@ def violinplot(
     bandwidth: float | str = "scott",
     inner: str | None = "box",
     theme: Theme | str | None = None,
+    categories: tuple[str, ...] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw one mirrored density per distinct ``x`` value, from that group's ``y`` values.
 
@@ -138,6 +145,14 @@ def violinplot(
 
     ``inner="box"`` overlays the quartile range and the median, matching what ``boxplot``
     would draw for the same data.
+
+    ``categories=`` replaces the category list this chart would take from its own data, and
+    ``ylim=`` its value domain. They exist so several charts can be made to agree -- see
+    :func:`~svgplot.layout.facet.facet`. A category with no rows still gets its band **and
+    its place in the palette**, so the same category is the same colour in every chart
+    sharing the list; it simply has no mark drawn in it. Minting the class for an undrawn
+    category is the point: skipping it would shift every later category's colour, and two
+    panels would disagree about what blue means.
 
     Raises:
         KeyError: if ``x``/``y`` isn't a column in ``data``, or if ``theme`` is a string
@@ -160,32 +175,32 @@ def violinplot(
         raise ValueError("no rows with both x and y present after dropping missing values")
 
     grid_range = shared_grid_range(groups, bandwidth)
+    y_domain = apply_limit(grid_range, ylim)
     curves = {category: _density(values, category, bandwidth, grid_range) for category, values in groups.items()}
     peak = max(value for curve in curves.values() for value in curve.y)
 
-    categories = list(groups)
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITHOUT_LEGEND)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
+    drawn_categories = list(require_categories(categories)) if categories is not None else list(groups)
+    document, area = new_canvas(
+        fit_left_margin(MARGIN_WITHOUT_LEGEND, y_domain, width=DEFAULT_WIDTH, font_size=resolved_theme.tick_label_font_size)
     )
 
-    x_scale = CategoricalScale(categories, (area.left, area.right), padding=_VIOLIN_PADDING)
-    y_scale = LinearScale(grid_range, (area.bottom, area.top))
-    render_x_axis(document, x_scale, area, tick_length=resolved_theme.tick_size)
-    render_y_axis(document, y_scale, area, tick_length=resolved_theme.tick_size)
+    x_scale = CategoricalScale(drawn_categories, (area.left, area.right), padding=_VIOLIN_PADDING)
+    y_scale = LinearScale(y_domain, (area.bottom, area.top))
+    render_x_axis(document, x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size)
+    render_y_axis(document, y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size)
 
     band = x_scale.step
     half_width = x_scale.bandwidth / 2 / peak
     series_classes: list[str] = []
-    for category in categories:
+    for category in drawn_categories:
+        # Minted even when this panel has no rows for the category, so a shared list keeps
+        # one colour per category across every chart using it.
         series_class = document.semantic_class("series")
         series_classes.append(series_class)
+        curve = curves.get(category)
+        if curve is None:
+            continue
         centre = x_scale.center(category)
-        curve = curves[category]
         document.add_node(
             None,
             "path",
@@ -231,4 +246,4 @@ def violinplot(
     # the inner box and median inherit the same colour at full strength.
     render_theme_style(document, resolved_theme, series_classes, mark_style="outlined")
 
-    return Chart(document)
+    return Chart(document, domains=Domains(y=y_domain, categories=tuple(drawn_categories)))

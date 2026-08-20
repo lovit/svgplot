@@ -12,9 +12,14 @@ from __future__ import annotations
 
 import math
 
-from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
-from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, LEGEND_X_OFFSET, format_coord, plot_area
+from svgplot.charts._layout import (
+    LEGEND_X_OFFSET,
+    MARGIN_WITH_SIDE_LEGEND,
+    format_coord,
+    format_value_label,
+    new_canvas,
+)
 from svgplot.charts._legend import render_legend
 from svgplot.charts._polar import FULL_CIRCLE_TOLERANCE, full_ring_path, polar_point, ring_path
 from svgplot.charts._theme_resolve import resolve_theme
@@ -25,19 +30,7 @@ from svgplot.labels.spec import LabelSpec
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
-_MARGIN = (30.0, 180.0, 30.0, 30.0)  # top, right, bottom, left -- right reserves legend space
 _LABEL_RADIUS_FRACTION = 0.65  # value-label distance from center, as a fraction between inner/outer radius
-
-
-def _format_value_label(value: float) -> str:
-    """Render a data value as label text, shortest-round-trip.
-
-    Not ``format_coord``: that rounds to 6 decimals because it formats *coordinates*,
-    which silently rewrites the data it is labelling (``1e-7`` -> ``"0"``,
-    ``0.123456789`` -> ``"0.123457"``). Integral values still lose the ``.0`` so the
-    common case reads as ``30``, not ``30.0``.
-    """
-    return str(int(value)) if value.is_integer() else str(value)
 
 
 def pieplot(
@@ -106,14 +99,7 @@ def pieplot(
     # After the checks above, so a bad column still reports the chart's own error first.
     label_data = collect_label_data(data, info, required=(values, labels))
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=_MARGIN)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
-    )
+    document, area = new_canvas(MARGIN_WITH_SIDE_LEGEND)
 
     cx, cy = area.left + area.width / 2, area.top + area.height / 2
     outer_radius = min(area.width, area.height) / 2
@@ -147,13 +133,20 @@ def pieplot(
         label_x, label_y = polar_point(cx, cy, label_radius, mid_angle)
         document.add_text(
             None,
-            _format_value_label(value),
+            format_value_label(value),
             tag="text",
             attrib={"x": format_coord(label_x), "y": format_coord(label_y), "text-anchor": "middle"},
             classes=["legend-text"],
         )
 
-    render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+    render_legend(
+        document,
+        legend_entries,
+        x=area.right + LEGEND_X_OFFSET,
+        y=area.top,
+        mark_style="fill",
+        font_size=resolved_theme.legend_font_size,
+    )
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
     return Chart(document, label_data)

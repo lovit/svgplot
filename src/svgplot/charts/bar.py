@@ -2,23 +2,25 @@
 
 from __future__ import annotations
 
-from svgplot._svg import SvgDocument
+from collections.abc import Callable
+
+from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator, warn_rows_discarded
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._layout import (
-    DEFAULT_HEIGHT,
     DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
     format_coord,
-    plot_area,
+    new_canvas,
 )
 from svgplot.charts._legend import render_legend
+from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
-from svgplot.data.semantic import extract_channels
 from svgplot.scales import CategoricalScale, LinearScale
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
@@ -41,18 +43,27 @@ def _unique_categories(values: list) -> list[str]:
     return list(seen)
 
 
-def _category_value_lookup(columns: dict[str, list], x: str, y: str) -> dict[str, float]:
-    """Map category -> value for one hue group, dropping missing rows. If a category
-    appears more than once within a group, the last row wins (no implicit aggregation
-    — this issue doesn't ask for one, and silently summing would be a surprising
-    default for a caller who didn't opt into stacking across duplicate rows).
+def _category_values(columns: dict[str, list], x: str, y: str) -> dict[str, list[float]]:
+    """Map category -> every value under it in one hue group, dropping missing rows.
+
+    Kept as a list rather than folded here so the caller can apply ``estimator=`` — and so
+    the default path can still report how many rows it is about to throw away.
     """
-    lookup: dict[str, float] = {}
+    values: dict[str, list[float]] = {}
     for xv, yv in zip(columns[x], columns[y], strict=True):
         if is_missing(xv) or is_missing(yv):
             continue
-        lookup[str(xv)] = float(yv)
-    return lookup
+        values.setdefault(str(xv), []).append(float(yv))
+    return values
+
+
+def _fold(values: dict[str, list[float]], estimate: Callable[[list[float]], float] | None) -> dict[str, float]:
+    """One value per category: the estimator's answer, or the last row (the historical
+    rule, kept as the default so no existing chart moves — see ``charts/_aggregate.py``).
+    """
+    if estimate is None:
+        return {category: group[-1] for category, group in values.items()}
+    return {category: apply_estimator(estimate, group, group=category) for category, group in values.items()}
 
 
 def barplot(
@@ -63,7 +74,11 @@ def barplot(
     *,
     orient: str = "v",
     stacked: bool = False,
+    estimator: Estimator | None = None,
     theme: Theme | str | None = None,
+    categories: tuple[str, ...] | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a bar chart from long-form data.
 
@@ -76,13 +91,35 @@ def barplot(
     ``stacked=True`` with no ``hue=`` has nothing to stack and renders a plain
     single-series bar per category.
 
+    ``categories=`` replaces the category list this chart would take from its own data, and
+    ``xlim=``/``ylim=`` its value domain -- whichever names the axis the values run along,
+    which ``orient=`` decides. They exist so several charts can be made to agree -- see
+    :func:`~svgplot.layout.facet.facet`. A category with no rows still gets its band and its
+    place in the palette, so the same category is the same colour in every chart sharing the
+    list; it simply has no mark drawn in it.
+
+    ``estimator=`` decides what happens when several rows share a category within one
+    series. The default, ``None``, keeps the historical rule — **the last row wins**, and
+    the others are discarded with an :class:`~svgplot.warnings.AggregationWarning` naming
+    how many. ``"mean"``/``"median"``/``"sum"``, or any callable taking the group's values
+    in row order and returning a number, fold them instead. ``None`` stays the default so
+    that no chart anyone has already built changes its output; see
+    ``charts/_aggregate.py`` for the fuller reasoning and for which charts take this
+    argument at all.
+
+    Warns:
+        AggregationWarning: when ``estimator=None`` and rows were actually discarded.
+            Once per call, not once per category.
+
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
             is a string that isn't a registered preset name.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
         ValueError: if ``data`` has no rows, if ``orient`` isn't ``"v"``/``"h"``, if
-            no category survives after dropping missing values, or if any value is
-            negative (bars below a zero baseline aren't supported yet).
+            no category survives after dropping missing values, if any value is
+            negative (bars below a zero baseline aren't supported yet), or if
+            ``estimator`` is an unknown name or returns a value that can't be plotted.
+        TypeError: if ``estimator`` is neither a name, a callable, nor ``None``.
     """
     if orient not in ("v", "h"):
         raise ValueError(f"orient must be 'v' or 'h', got {orient!r}")
@@ -91,51 +128,65 @@ def barplot(
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
 
-    if hue is not None:
-        groups = extract_channels(data, hue=hue)
-        if not groups:
-            raise ValueError(f"no rows with a non-missing {hue!r} value")
-        group_items = sorted(groups.items(), key=lambda item: str(item[0]))
-    else:
-        group_items = [(None, longform.columns)]
+    group_items = build_series(data, longform.columns, hue)
 
-    categories = _unique_categories(longform.columns[x])
-    if not categories:
+    own_categories = _unique_categories(longform.columns[x])
+    if not own_categories:
         raise ValueError("no rows with a non-missing category value")
+    drawn_categories = list(require_categories(categories)) if categories is not None else own_categories
 
-    group_lookups = [(label, _category_value_lookup(columns, x, y)) for label, columns in group_items]
+    estimate = resolve_estimator(estimator)
+    group_values = [(label, _category_values(columns, x, y)) for label, columns in group_items]
+    group_lookups = [(label, _fold(values, estimate)) for label, values in group_values]
+    if estimate is None:
+        warn_rows_discarded(
+            "barplot",
+            rows=sum(len(group) for _, values in group_values for group in values.values()),
+            marks=sum(len(values) for _, values in group_values),
+        )
     all_values = [value for _, lookup in group_lookups for value in lookup.values()]
     if any(value < 0 for value in all_values):
         raise ValueError("barplot doesn't support negative values yet")
 
     is_stacked = stacked
     if is_stacked:
-        totals = [sum(lookup.get(category, 0.0) for _, lookup in group_lookups) for category in categories]
+        totals = [sum(lookup.get(category, 0.0) for _, lookup in group_lookups) for category in drawn_categories]
         value_max = max(totals) if totals else 0.0
     else:
         value_max = max(all_values) if all_values else 0.0
     value_max = value_max or 1.0  # an all-zero chart still needs a non-degenerate axis
+    # xlim/ylim name the axis on screen, not the data role: a horizontal bar's values run
+    # along x. Taking ylim there would mean "share the y axis" moved the bars sideways.
+    value_domain = apply_limit((0.0, value_max), xlim if orient == "h" else ylim)
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
+    document, area = new_canvas(
+        fit_left_margin(
+            MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
+            drawn_categories if orient == "h" else value_domain,
+            width=DEFAULT_WIDTH,
+            font_size=resolved_theme.tick_label_font_size,
+        )
     )
 
     category_range = (area.left, area.right) if orient == "v" else (area.top, area.bottom)
     value_range = (area.bottom, area.top) if orient == "v" else (area.left, area.right)
-    category_scale = CategoricalScale(categories, category_range)
-    value_scale = LinearScale((0.0, value_max), value_range)
+    category_scale = CategoricalScale(drawn_categories, category_range)
+    value_scale = LinearScale(value_domain, value_range)
 
     if orient == "v":
-        render_x_axis(document, category_scale, area, tick_length=resolved_theme.tick_size)
-        render_y_axis(document, value_scale, area, tick_length=resolved_theme.tick_size)
+        render_x_axis(
+            document, category_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        )
+        render_y_axis(
+            document, value_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        )
     else:
-        render_y_axis(document, category_scale, area, tick_length=resolved_theme.tick_size)
-        render_x_axis(document, value_scale, area, tick_length=resolved_theme.tick_size)
+        render_y_axis(
+            document, category_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        )
+        render_x_axis(
+            document, value_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        )
 
     series_classes = [document.semantic_class("series") for _ in group_items]
     corner_radius = format_coord(resolved_theme.corner_radius) if resolved_theme.corner_radius > 0 else None
@@ -148,11 +199,11 @@ def barplot(
     bar_width = slot_width * (1 - _GROUP_GAP_FRACTION) if group_count > 1 else slot_width
     slot_gap = (slot_width - bar_width) / 2
 
-    stack_cumulative = dict.fromkeys(categories, 0.0)
+    stack_cumulative = dict.fromkeys(drawn_categories, 0.0)
     for group_index, (_, lookup) in enumerate(group_lookups):
         series_class = series_classes[group_index]
         slot_index = 0 if is_stacked else group_index
-        for category in categories:
+        for category in drawn_categories:
             value = lookup.get(category)
             if value is None:
                 continue
@@ -187,8 +238,23 @@ def barplot(
 
     if hue is not None:
         legend_entries = [(str(label), series_classes[index]) for index, (label, _) in enumerate(group_items)]
-        render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+        render_legend(
+            document,
+            legend_entries,
+            x=area.right + LEGEND_X_OFFSET,
+            y=area.top,
+            mark_style="fill",
+            font_size=resolved_theme.legend_font_size,
+        )
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document)
+    value_axis = "x" if orient == "h" else "y"
+    return Chart(
+        document,
+        domains=Domains(
+            **{value_axis: value_domain},
+            categories=tuple(drawn_categories),
+            categories_axis="y" if orient == "h" else "x",
+        ),
+    )
