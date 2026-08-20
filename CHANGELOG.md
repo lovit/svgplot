@@ -48,6 +48,7 @@
 - `warnings` — `SvgplotWarning` / `HeatmapSizeWarning`. 경고 정책의 첫 구현이다("출력은 유효하나 품질 저하"면 warn, 무효면 raise).
 - `charts/_polar.py` — `pie.py`에서 극좌표 기하 추출. `pie`/`radar`/`gauge`가 공유한다.
 - `theme.css`의 `ink_colors=` — 값으로 칠한 마크 **위에 얹는 글자** 색. `level_colors=`와 분리한 이유는 둘이 불투명도에 대해 정반대를 원하기 때문이다: 레벨 색은 다른 마크처럼 `theme.opacity`를 지니고, 잉크는 아래 마크와 대비되도록 고른 색이라 어떤 불투명도든 그 선택을 무효화한다.
+- `charts/_series.py` — 7개 차트에 글자 단위로 복제돼 있던 hue 그룹핑 블록을 하나로 모았다. 그 여덟 줄은 서식이 아니라 정책 셋을 담고 있다: **시리즈 순서**(팔레트 색 배정과 범례 순서), **빈 hue 거부**, **hue 없을 때의 표현**. 셋 중 하나를 바꾸면 7곳이 합의해야 했고, 한 곳을 빠뜨리면 차트마다 답이 갈렸다 — `radarplot`에서 실제로 한 번 갈렸다(#104).
 
 ### 알려진 제약
 
@@ -58,8 +59,6 @@
 - **연속 컬러바 미지원**(`charts/heatmap.py` 모듈 docstring) — `heatmap`이 양자화인 것의 이면이다. 연속 램프는 `<linearGradient>`/`stop-color`가 필요한데, 이는 CSS 클래스 계약 밖의 스타일링이고 합성 시 네임스페이싱 재작성에도 잡히지 않는다.
 - **여러 줄 라벨 미지원**(`_svg.py`의 `_fold_newlines` docstring) — 텍스트 노드의 개행은 공백으로 접힌다. 진짜 여러 줄 라벨은 `dy`를 가진 `<tspan>`이 필요하고 이 패키지는 글리프를 측정하지 않는다.
 - **markdown 표 셀의 GFM autolink**(`labels/table.py`의 `_escape_markdown_cell` docstring) — 맨 URL·`www.` 접두·이메일 주소는 마크업 없이 링크가 되므로 이스케이프로 막을 수 없다. 값을 고쳐 쓰는 것은 호출자가 주지 않은 데이터를 보고하는 일이라 하지 않는다.
-
-- `charts/_series.py` — 7개 차트에 글자 단위로 복제돼 있던 hue 그룹핑 블록을 하나로 모았다. 그 여덟 줄은 서식이 아니라 정책 셋을 담고 있다: **시리즈 순서**(팔레트 색 배정과 범례 순서), **빈 hue 거부**, **hue 없을 때의 표현**. 셋 중 하나를 바꾸면 7곳이 합의해야 했고, 한 곳을 빠뜨리면 차트마다 답이 갈렸다 — `radarplot`에서 실제로 한 번 갈렸다(#104).
 
 ### Fixed
 
