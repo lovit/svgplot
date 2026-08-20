@@ -88,10 +88,13 @@ sp.lineplot(data, x="day", y="sales", hue="region").save("sales.svg")
 ```bash
 curl https://mise.run | sh                       # 최초 1회
 curl -LsSf https://astral.sh/uv/install.sh | sh
+# gh: https://cli.github.com/ 설치 후 gh auth login — 이슈/PR 워크플로에 필요하다
 
 mise install && mise run install                 # Python + 의존성 + git hook
 mise run check                                   # lint + test (CI 와 동일)
 ```
+
+개인 override 가 필요하면 `.claude/settings.local.json`(예시는 [`.claude/settings.local.json.example`](.claude/settings.local.json.example))과 `mise.local.toml` 을 만든다. 둘 다 gitignore 대상이다.
 
 워크플로·커밋 규칙·스타일 규칙은 [`CLAUDE.md`](CLAUDE.md) 와 [`.claude/rules/`](.claude/rules/) 에 있다. 설계 배경(pygal·matplotlib·seaborn·Bokeh 기능 조사와 그로부터 도출한 결정)은 [`docs-research/00-overview.md`](docs-research/00-overview.md).
 
