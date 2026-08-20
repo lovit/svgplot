@@ -20,6 +20,7 @@ import math
 
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
+from svgplot.charts._describe import describe, group, span
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, LEGEND_X_OFFSET, format_coord, plot_area
 from svgplot.charts._legend import render_legend
 from svgplot.charts._polar import polar_point, ring_path
@@ -262,7 +263,14 @@ def gaugeplot(
         )
     render_theme_style(document, resolved_theme, series_classes, mark_style="outlined")
 
-    return Chart(document)
+    magnitudes = [magnitude for _, magnitude in pairs]
+    description = describe(
+        "Gauge",
+        group([label for label, _ in pairs], "arc"),
+        span("values", min(magnitudes), max(magnitudes)),
+        span("range", low, high),
+    )
+    return Chart(document, description=description)
 
 
 def _render_ticks(

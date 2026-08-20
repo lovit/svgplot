@@ -5,6 +5,7 @@ from __future__ import annotations
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, group, number, span
 from svgplot.charts._layout import (
     DEFAULT_HEIGHT,
     DEFAULT_WIDTH,
@@ -191,4 +192,12 @@ def barplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document)
+    shape = "horizontal bar chart" if orient == "h" else "bar chart"
+    description = describe(
+        f"Stacked {shape}" if is_stacked else shape.capitalize(),
+        group(categories, "category"),
+        group([str(label) for label, _ in group_items], "series") if hue is not None else None,
+        span("values", min(all_values), max(all_values)) if all_values else None,
+        f"stacked totals up to {number(max(totals))}" if is_stacked and totals else None,
+    )
+    return Chart(document, description=description)

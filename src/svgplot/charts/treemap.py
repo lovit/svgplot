@@ -25,6 +25,7 @@ from dataclasses import dataclass
 
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
+from svgplot.charts._describe import describe, group, number, span
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, LEGEND_X_OFFSET, PlotArea, format_coord, plot_area
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
@@ -268,4 +269,11 @@ def treemap(
     # style here so tile seams stay visible; "fill" is the closest thing available today.
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document)
+    magnitudes = [value for _, value in pairs]
+    description = describe(
+        "Treemap",
+        group([label for label, _ in pairs], "tile"),
+        span("values", min(magnitudes), max(magnitudes)),
+        f"total {number(total)}",
+    )
+    return Chart(document, description=description)

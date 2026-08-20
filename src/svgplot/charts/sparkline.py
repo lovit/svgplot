@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
+from svgplot.charts._describe import describe, plural, span
 from svgplot.charts._layout import SPARKLINE_HEIGHT, SPARKLINE_WIDTH, format_coord, plot_area
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
@@ -97,4 +98,5 @@ def sparkline(
 
     render_theme_style(document, resolved_theme, [series_class])
 
-    return Chart(document)
+    description = describe("Sparkline", plural(len(values), "point"), span("values", min(values), max(values)))
+    return Chart(document, description=description)

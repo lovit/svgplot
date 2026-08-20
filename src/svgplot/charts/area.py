@@ -12,6 +12,7 @@ from __future__ import annotations
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import (
     DEFAULT_HEIGHT,
     DEFAULT_WIDTH,
@@ -208,4 +209,11 @@ def areaplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document)
+    points = plural(len(all_x), "point")
+    description = describe(
+        "Stacked area chart" if do_stack else "Area chart",
+        f"{group([str(label) for label, _ in series_items], 'series')} over {points}" if hue is not None else points,
+        span("x", *x_domain),
+        span("y", *y_domain),
+    )
+    return Chart(document, description=description)

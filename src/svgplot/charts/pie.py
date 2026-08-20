@@ -14,6 +14,7 @@ import math
 
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
+from svgplot.charts._describe import describe, group, number, span
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, LEGEND_X_OFFSET, format_coord, plot_area
 from svgplot.charts._legend import render_legend
 from svgplot.charts._polar import FULL_CIRCLE_TOLERANCE, full_ring_path, polar_point, ring_path
@@ -156,4 +157,11 @@ def pieplot(
     render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document, label_data)
+    magnitudes = [value for _, value in pairs]
+    description = describe(
+        "Donut chart" if inner_radius > 0 else "Pie chart",
+        group([label for label, _ in pairs], "slice"),
+        span("values", min(magnitudes), max(magnitudes)),
+        f"total {number(total)}",
+    )
+    return Chart(document, label_data, description=description)

@@ -13,6 +13,7 @@ from __future__ import annotations
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, format_coord, plot_area
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
@@ -231,4 +232,11 @@ def violinplot(
     # the inner box and median inherit the same colour at full strength.
     render_theme_style(document, resolved_theme, series_classes, mark_style="outlined")
 
-    return Chart(document)
+    observations = plural(sum(len(values) for values in groups.values()), "observation")
+    description = describe(
+        "Violin plot",
+        f'{group(categories, "category")} over {observations}',
+        span("y", *grid_range),
+        "with an inner box" if inner == "box" else None,
+    )
+    return Chart(document, description=description)

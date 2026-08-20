@@ -36,11 +36,12 @@ class Chart:
     is worse than a generic one — assistive tech would announce ``role="img"`` with
     no usable name at all (see ``accessibility.add_accessibility``)."""
 
-    def __init__(self, svg_document: SvgDocument, labels: LabelData | None = None) -> None:
+    def __init__(self, svg_document: SvgDocument, labels: LabelData | None = None, *, description: str | None = None) -> None:
         self._svg_document = svg_document
         self._title: str | None = None
         self._palette: str | list[str] | None = None
         self._labels = labels
+        self._description = description
 
     def set_title(self, title: str) -> Chart:
         """Set the chart title. Returns self for chaining."""
@@ -69,7 +70,7 @@ class Chart:
         that caused it.
         """
         document = copy.deepcopy(self._svg_document)
-        add_accessibility(document, title=(self._title or "").strip() or self.DEFAULT_TITLE)
+        add_accessibility(document, title=(self._title or "").strip() or self.DEFAULT_TITLE, desc=self._description)
         return document
 
     def to_string(self, *, pretty: bool = True) -> str:

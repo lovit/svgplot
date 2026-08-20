@@ -34,7 +34,8 @@ def add_accessibility(document: SvgDocument, title: str, desc: str | None = None
     ``title`` is required — callers (e.g. ``Chart``) are expected to supply a
     reasonable fallback (e.g. ``"Chart"``) when the user hasn't set one via
     ``set_title()``. ``desc`` defaults to a short generic sentence mentioning
-    ``title`` when omitted.
+    ``title`` when omitted; every chart type supplies its own (see
+    ``charts/_describe.py``), so the fallback is what a hand-built document gets.
 
     Meant to be called once per document. Calling it again on the same
     document adds a second ``<title>``/``<desc>`` (ARIA readers still see only

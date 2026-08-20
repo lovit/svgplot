@@ -12,6 +12,7 @@ from collections.abc import Callable
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import (
     DEFAULT_HEIGHT,
     DEFAULT_WIDTH,
@@ -229,4 +230,12 @@ def scatterplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document, label_data)
+    points = plural(len(all_rows), "point")
+    description = describe(
+        "Scatter plot",
+        f"{group([str(label) for label, _ in series_items], 'series')} over {points}" if hue is not None else points,
+        span("x", *x_domain),
+        span("y", *y_domain),
+        f'marker size from "{size}"' if size is not None else None,
+    )
+    return Chart(document, label_data, description=description)
