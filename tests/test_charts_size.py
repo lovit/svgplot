@@ -52,6 +52,9 @@ SIZED_CHARTS: list[tuple[str, Callable[..., sp.Chart]]] = [
     ("lineplot", lambda **kw: sp.lineplot(DATA, x="day", y="value", **kw)),
     ("lineplot_hue", lambda **kw: sp.lineplot(DATA, x="day", y="value", hue="group", **kw)),
     ("scatterplot", lambda **kw: sp.scatterplot(DATA, x="day", y="value", size="weight", **kw)),
+    # hue *and* size: two legends stacked, which is the combination whose second legend
+    # used to start below the canvas while each legend on its own looked fine.
+    ("scatterplot_hue_size", lambda **kw: sp.scatterplot(DATA, x="day", y="value", hue="group", size="weight", **kw)),
     ("barplot", lambda **kw: sp.barplot(DATA, x="category", y="value", **kw)),
     ("barplot_hue", lambda **kw: sp.barplot(DATA, x="category", y="value", hue="group", **kw)),
     ("histplot", lambda **kw: sp.histplot(DATA, x="value", bins=4, **kw)),
@@ -76,12 +79,22 @@ _TAG_RE = re.compile(r"<(rect|line|circle|text|path)\b[^>]*>")
 _ATTR_RE = re.compile(r'([\w:-]+)="([^"]*)"')
 
 
+_PATH_COORD_RE = re.compile(r"-?\d+(?:\.\d+)?")
+
+
 def _worst_overflow(svg: str, width: float, height: float) -> float:
     """How far outside the canvas the furthest drawn element reaches, in pixels.
 
-    Anchor points and rect corners, not glyphs: this package has no font metrics, so a
-    text element's *extent* is unknowable here and only its anchor is checked. The plot
-    background is skipped because it is the canvas.
+    Covers rect corners, circle *edges* (centre plus radius), line endpoints, text anchors
+    and the coordinate pairs inside a ``<path>``'s ``d``. The last two were the holes: with
+    ``d`` unparsed this helper saw nothing at all of ``line``/``area``/``kde``/``ecdf``/
+    ``violin``/``radar``/``pie``/``gauge``'s data marks, and with ``r`` ignored it
+    under-reported a scatter overflow by the marker radius. An arc's ``A`` parameters are
+    swept up with its endpoints, which over-counts rather than under-counts — the safe
+    direction for a test whose job is to notice things leaving the canvas.
+
+    Glyph extents are still invisible: this package has no font metrics, so a text element
+    contributes only its anchor. The plot background is skipped because it is the canvas.
     """
     worst = 0.0
     for tag in _TAG_RE.finditer(svg):
@@ -105,6 +118,15 @@ def _worst_overflow(svg: str, width: float, height: float) -> float:
         if "height" in attrs and "y" in attrs:
             with contextlib.suppress(ValueError):
                 ys.append(float(attrs["y"]) + float(attrs["height"]))
+        if "r" in attrs:
+            with contextlib.suppress(ValueError):
+                radius = float(attrs["r"])
+                xs.extend([value + radius for value in xs] + [value - radius for value in xs])
+                ys.extend([value + radius for value in ys] + [value - radius for value in ys])
+        if "d" in attrs:
+            numbers = [float(number) for number in _PATH_COORD_RE.findall(attrs["d"])]
+            xs.extend(numbers[0::2])
+            ys.extend(numbers[1::2])
         worst = max([worst, *(value - width for value in xs), *(-value for value in xs)])
         worst = max([worst, *(value - height for value in ys), *(-value for value in ys)])
     return worst
@@ -113,9 +135,15 @@ def _worst_overflow(svg: str, width: float, height: float) -> float:
 def _tick_labels(svg: str, width: float, height: float, margin: object) -> tuple[list[str], list[str]]:
     """The drawn tick label texts, split into (x-axis, y-axis).
 
-    Split by **position** — an x label sits below the plot area's bottom edge — rather than
-    by ``text-anchor``, which is an attribute the tick code itself sets and so exactly the
-    thing a helper must not key on if it is to notice that code changing.
+    Split on the **x** coordinate: a y-axis label sits left of the plot area, an x-axis label
+    inside its width. Splitting on y instead looks right and is not — ``render_y_axis`` nudges
+    its labels down by half the tick offset, so the y label at the domain's minimum lands
+    *below* ``area.bottom`` and gets counted as an x label. ``lineplot`` happens to escape
+    that because its y domain has slack; ``regplot`` and ``histplot``, whose axes start
+    exactly at a data bound, do not.
+
+    Not ``text-anchor`` either, which is an attribute the tick code itself sets and so
+    exactly the thing a helper must not key on if it is to notice that code changing.
     """
     area = plot_area(width, height, margin=fit_margin(margin, width, height))
     xs: list[str] = []
@@ -124,7 +152,7 @@ def _tick_labels(svg: str, width: float, height: float, margin: object) -> tuple
         attrs = dict(_ATTR_RE.findall(match.group(1)))
         if "tick-label" not in attrs.get("class", "").split():
             continue
-        (xs if float(attrs["y"]) > area.bottom else ys).append(match.group(2))
+        (ys if float(attrs["x"]) < area.left else xs).append(match.group(2))
     return xs, ys
 
 
@@ -307,13 +335,69 @@ def test_a_legend_taller_than_the_canvas_is_refused_rather_than_clipped() -> Non
         sp.heatmap(DATA, x="day", y="group", values="value", width=400, height=MIN_HEIGHT)
 
 
-def test_the_legend_guard_is_exact_at_the_last_row() -> None:
-    """A guard that is one row out either refuses a legend that fits or admits one that
-    does not. ``heatmap``'s legend is always nine rows of 20 px starting at the top margin
-    of 30, so 210 px is the first height that holds it."""
-    assert sp.heatmap(DATA, x="day", y="group", values="value", width=400, height=210) is not None
+def test_the_legend_guard_measures_the_space_a_legend_claims() -> None:
+    """The guard checks the space the legend **claims**, which is more than its ink — the
+    difference is a row's own bottom padding. That is deliberate rather than slack: whatever
+    stacks below a legend starts exactly at the claimed end (``render_legend`` returns it for
+    that purpose), so allowing a legend to end past the edge is what put ``scatterplot``'s
+    second legend off the canvas. Read back from what is drawn, so the two stay related.
+    """
+    svg = sp.heatmap(DATA, x="day", y="group", values="value", width=400, height=210).to_string()
+    swatches = [tag for tag in re.finditer(r"<rect\b[^>]*/>", svg) if "level-" in tag.group()]
+    inked_bottom = max(
+        float(dict(_ATTR_RE.findall(tag.group()))["y"]) + float(dict(_ATTR_RE.findall(tag.group()))["height"])
+        for tag in swatches
+    )
+
+    assert inked_bottom <= 210
+    assert _worst_overflow(svg, 400, 210) == pytest.approx(0.0, abs=1e-6)
+    # One pixel less and the claimed space no longer fits, which is where the guard cuts.
     with pytest.raises(ValueError, match="a legend of 9 entries needs"):
         sp.heatmap(DATA, x="day", y="group", values="value", width=400, height=209)
+
+
+def test_a_second_legend_stacked_below_the_first_is_checked_too() -> None:
+    """``scatterplot(hue=, size=)`` draws two legends, one under the other. Each looked fine
+    on its own while the pair ran 46 px off a 400x180 canvas — the guard has to cover the
+    stack, not the first legend."""
+    # Six groups, not the fixture's two: the hue legend has to be long enough to push the
+    # size legend past the edge while still fitting itself. That is the whole shape of the
+    # bug, and it is why the shared fixture never caught it.
+    groups = 6
+    wide = {
+        "x": [float(index) for index in range(2 * groups)],
+        "y": [float(index % 5) for index in range(2 * groups)],
+        "w": [1.0 + index for index in range(2 * groups)],
+        "g": [chr(97 + index // 2) for index in range(2 * groups)],
+    }
+    with pytest.raises(ValueError, match="a size legend of"):
+        sp.scatterplot(wide, x="x", y="y", hue="g", size="w", width=400, height=180)
+
+    tall = sp.scatterplot(wide, x="x", y="y", hue="g", size="w", width=400, height=320).to_string()
+    assert _worst_overflow(tall, 400, 320) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_the_default_canvas_refuses_a_legend_it_used_to_clip() -> None:
+    """The one place this change is *not* transparent to an existing call, pinned to the
+    numbers rather than left to drift. Before, a 29-group chart drew its last rows past the
+    bottom of an 800x600 canvas; now it says so."""
+
+    def build(groups: int) -> sp.Chart:
+        rows = groups * 2
+        return sp.lineplot(
+            {
+                "x": [float(index % 2) for index in range(rows)],
+                "y": [float(index) for index in range(rows)],
+                "g": [f"group-{index // 2}" for index in range(rows)],
+            },
+            x="x",
+            y="y",
+            hue="g",
+        )
+
+    assert build(28) is not None
+    with pytest.raises(ValueError, match="a legend of 29 entries needs"):
+        build(29)
 
 
 def test_a_taller_canvas_takes_the_same_legend() -> None:
@@ -345,11 +429,13 @@ def test_the_minimum_width_is_the_boundary_the_legend_gutter_gives() -> None:
     a round number. Recomputed here, so the constant cannot drift away from its own
     justification -- if the margin fraction or the legend geometry changes, this fails."""
     needed = minimum_legend_text_width(11.0)
-    boundary = min(
+    fitting = [
         width / 100
-        for width in range(20_000, 30_000)
+        for width in range(10_000, 60_000)
         if legend_text_room(fit_margin(MARGIN_WITH_LEGEND, width / 100, 600)[1] - LEGEND_X_OFFSET) >= needed
-    )
+    ]
+    assert fitting, "the boundary left the 100-600px search window; widen it rather than trusting min()"
+    boundary = min(fitting)
 
     assert boundary == pytest.approx(239.25, abs=0.01)
     assert math.ceil(boundary) == MIN_WIDTH
@@ -360,10 +446,12 @@ def test_the_minimum_height_keeps_the_default_aspect_ratio() -> None:
 
 
 def test_the_minimum_canvas_still_holds_two_ticks_on_each_axis() -> None:
+    """Two, spelled out — the name of this test is a promise about a number, not about
+    whatever ``MIN_TICKS`` currently happens to be."""
     area = plot_area(MIN_WIDTH, MIN_HEIGHT, margin=fit_margin(MARGIN_WITH_LEGEND, MIN_WIDTH, MIN_HEIGHT))
 
-    assert ticks_for(area.width, TICK_SPACING_X) == MIN_TICKS
-    assert ticks_for(area.height, TICK_SPACING_Y) == MIN_TICKS
+    assert ticks_for(area.width, TICK_SPACING_X) == 2
+    assert ticks_for(area.height, TICK_SPACING_Y) == 2
 
 
 @pytest.mark.parametrize(("width", "height"), [(MIN_WIDTH - 1, MIN_HEIGHT), (MIN_WIDTH, MIN_HEIGHT - 1), (10, 10)])
@@ -412,8 +500,19 @@ def test_ticks_thin_out_as_the_canvas_shrinks() -> None:
 
 
 def test_the_tick_request_is_clamped_at_both_ends() -> None:
-    assert ticks_for(1.0, TICK_SPACING_X) == MIN_TICKS
-    assert ticks_for(100_000.0, TICK_SPACING_X) == MAX_TICKS
+    """Literals, not the constants themselves. Asserting ``== MIN_TICKS`` restates the code
+    and passes for any value it might drift to -- and both clamps really bite: the raw
+    request at the minimum canvas is 1 on each axis, and at 3000x2400 it is 23."""
+    assert (MIN_TICKS, MAX_TICKS) == (2, 10)
+    assert ticks_for(1.0, TICK_SPACING_X) == 2
+    assert ticks_for(100_000.0, TICK_SPACING_X) == 10
+    assert (
+        round(
+            plot_area(MIN_WIDTH, MIN_HEIGHT, margin=fit_margin(MARGIN_WITHOUT_LEGEND, MIN_WIDTH, MIN_HEIGHT)).width
+            / TICK_SPACING_X
+        )
+        == 1
+    )  # the clamp is what turns this into an axis
 
 
 def test_the_default_size_draws_exactly_the_ticks_it_always_drew() -> None:
@@ -423,6 +522,30 @@ def test_the_default_size_draws_exactly_the_ticks_it_always_drew() -> None:
     labels = _tick_labels(sp.lineplot(DATA, x="day", y="value").to_string(), 800, 600, MARGIN_WITHOUT_LEGEND)
 
     assert labels == (["1", "1.5", "2", "2.5", "3", "3.5", "4"], ["5", "10", "15", "20"])
+
+
+def test_the_y_spacing_constant_is_pinned_to_a_value_not_just_a_role() -> None:
+    """``TICK_SPACING_Y`` could drift from 104 to 96 with the whole suite still green: every
+    size the other tests use rounds both to the same request. At 800x330 the plot area is
+    250 px tall, where 104 asks for two ticks and 96 asks for three."""
+    labels = _tick_labels(
+        sp.lineplot(DATA, x="day", y="value", width=800, height=330).to_string(), 800, 330, MARGIN_WITHOUT_LEGEND
+    )
+
+    assert labels[1] == ["10", "20"]
+
+
+def test_the_x_axis_thins_by_its_own_spacing_too() -> None:
+    """The mirror of the test below, and the one that was missing. At 400x300 the plot area
+    is 300 px wide: the horizontal spacing asks for two ticks and the vertical one would ask
+    for three, and ``make_ticks`` answers those differently. Every other size in this file
+    rounds both requests to the same number, so swapping the two constants the other way
+    round left the whole suite green."""
+    labels = _tick_labels(
+        sp.lineplot(DATA, x="day", y="value", width=400, height=300).to_string(), 400, 300, MARGIN_WITHOUT_LEGEND
+    )
+
+    assert labels[0] == ["2", "4"]
 
 
 def test_each_axis_thins_by_its_own_spacing() -> None:
@@ -475,4 +598,62 @@ def test_a_composition_of_custom_sized_charts_serializes(tmp_path) -> None:
     path = tmp_path / "figure.svg"
     figure.save(str(path))
 
-    assert path.read_text(encoding="utf-8").count("<svg") >= 1
+    # The composed canvas has to be built from the children's own sizes. Counting <svg>
+    # elements cannot show that -- three of them come back for default-sized children too.
+    root = re.search(r"<svg\b[^>]*>", path.read_text(encoding="utf-8"))
+    assert root is not None
+    attrs = dict(_ATTR_RE.findall(root.group()))
+    assert (attrs["width"], attrs["height"]) == ("612", "240")
+
+
+# --- the validation the review found uneven ---------------------------------------------
+
+
+def test_a_numpy_size_is_a_size() -> None:
+    """A canvas size very often arrives from the same array library the data did, and
+    ``numpy.float32``/``numpy.int64`` are neither ``int`` nor ``float``."""
+    numpy = pytest.importorskip("numpy")
+
+    for value in (numpy.float32(400), numpy.int64(400), numpy.float64(400)):
+        assert _canvas(sp.lineplot(DATA, x="day", y="value", width=value).to_string())[0] == "400"
+
+
+def test_a_negative_margin_side_is_refused() -> None:
+    """The pair's *sum* can sit under the budget while one side is -500, which put the plot
+    area 500 px above the canvas. ``fit_margin`` documents itself as taking whatever margin
+    it is given, and this is what makes that true rather than merely unchecked."""
+    with pytest.raises(ValueError, match="must not be negative"):
+        fit_margin((-500.0, 10.0, 400.0, 10.0), 800, 400)
+
+
+@pytest.mark.parametrize("bad", ["120", float("nan"), float("inf"), True])
+def test_sparkline_refuses_an_unusable_size_by_name(bad: object) -> None:
+    """It is exempt from the *minimum*, not from the validation: these used to surface as a
+    ``TypeError`` about ``str`` minus ``float``, or as one about an SVG literal, neither
+    naming the argument."""
+    with pytest.raises(ValueError, match="must be a finite number"):
+        sp.sparkline(DATA, y="value", width=bad)
+
+
+def test_every_sized_chart_documents_the_two_new_arguments() -> None:
+    """They are public parameters; README and CHANGELOG are not where a caller looks first."""
+    functions = [
+        sp.lineplot,
+        sp.scatterplot,
+        sp.barplot,
+        sp.histplot,
+        sp.areaplot,
+        sp.pieplot,
+        sp.boxplot,
+        sp.ecdfplot,
+        sp.kdeplot,
+        sp.violinplot,
+        sp.regplot,
+        sp.heatmap,
+        sp.radarplot,
+        sp.treemap,
+        sp.gaugeplot,
+    ]
+
+    undocumented = [function.__name__ for function in functions if "240x180" not in (function.__doc__ or "")]
+    assert undocumented == []
