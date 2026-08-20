@@ -81,9 +81,11 @@ def _cells(svg: str) -> list[dict[str, str]]:
 def _swatches(svg: str) -> list[dict[str, str]]:
     """Legend swatches -- level-classed rects that are not cells.
 
-    ``level-`` is a prefix rather than a class, so this one genuinely wants a prefix test;
-    what it does not want is to run that test against the *whole tag*, where any attribute
-    containing those characters counts, nor to miss a swatch that carries content.
+    ``level-1`` through ``level-N`` are whole class tokens, so this enumerates them rather
+    than testing a prefix -- a prefix test against the *whole tag* counts any attribute that
+    happens to contain those characters, which is the defect this file's own ``_tags`` was
+    consolidated to remove. Enumerating also fixes the order to level number rather than
+    document order; the two agree today.
     """
     return [
         tag
