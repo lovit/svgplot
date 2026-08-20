@@ -854,12 +854,16 @@ def test_composition_to_string_drops_only_the_prolog(pretty: bool) -> None:
     an implementation can be right on one and wrong on the other."""
     composition = row([make_chart(), make_chart()])
 
-    with_prolog = composition.to_string(pretty=pretty)
+    default = composition.to_string(pretty=pretty)
     without = composition.to_string(pretty=pretty, declaration=False)
 
     assert without.startswith("<svg")
     assert "<?xml" not in without
-    assert with_prolog == _PROLOG + without if pretty else with_prolog == without
+    if pretty:
+        assert default == _PROLOG + without
+    else:
+        # Compact output never carries a prolog, so there is nothing for the flag to drop.
+        assert default == without
 
 
 def test_composition_compact_output_never_carries_a_prolog() -> None:
