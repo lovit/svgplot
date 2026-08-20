@@ -67,6 +67,11 @@ def _bar_value(chart: sp.Chart, *, index: int = 0, anchor: int = -1, anchor_valu
     return float(bars[index]["height"]) / float(bars[anchor]["height"]) * anchor_value
 
 
+def _axis_top(chart: sp.Chart) -> float:
+    """The largest numeric tick label, read from the text nodes rather than the raw string."""
+    return max(float(text) for text in re.findall(r">([-0-9.]+)</text>", chart.to_string()))
+
+
 def _quiet(build):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", sp.AggregationWarning)
@@ -81,8 +86,13 @@ def test_the_issue_s_example_still_draws_the_last_row_by_default() -> None:
     purpose: changing the default would silently redraw every chart already built."""
     chart = _quiet(lambda: sp.barplot({"x": ["a", "a", "a"], "y": [10.0, 20.0, 30.0]}, x="x", y="y"))
 
-    # One category, so the bar fills the axis; what is checkable here is the axis top.
-    assert "30" in chart.to_string()  # the y-axis tick for the value that won
+    # One category, so the bar fills the axis and there is no second bar to measure it
+    # against; the axis top is what carries the folded value. It has to be read off the tick
+    # *text nodes*: an earlier version of this test asked whether "30" appeared anywhere in
+    # the document, which is true under every estimator -- mean and median put the ticks at
+    # 0..20 and the substring still matched a coordinate. It passed with ``bar.py`` folding
+    # to the *first* row instead of the last, which is the one thing it exists to pin.
+    assert _axis_top(chart) == 30.0  # not 20.0 (mean, median) and not 60.0 (sum)
     assert len(_bars(chart.to_string())) == 1
 
 
@@ -447,9 +457,12 @@ def test_facet_carries_the_estimator_through_hue_as_well() -> None:
     """``facet`` and ``hue=`` know nothing about each other, and the fold happens per
     (panel, series, category). Each axis is pinned alone above; this is the three of them
     together."""
+    # Four folds, four different numbers, and none of them equal to any row that went in:
+    # panel q used to fold both of its series to 40, so swapping the two series was invisible
+    # there -- and only the *first* series of each panel was read at all.
     data = {
         "x": ["a", "a", "anchor"] * 4,
-        "y": [10.0, 20.0, 100.0, 60.0, 80.0, 100.0, 30.0, 50.0, 100.0, 10.0, 70.0, 100.0],
+        "y": [10.0, 20.0, 100.0, 60.0, 80.0, 100.0, 30.0, 50.0, 100.0, 10.0, 30.0, 100.0],
         "g": ["north"] * 3 + ["south"] * 3 + ["north"] * 3 + ["south"] * 3,
         "panel": ["p"] * 6 + ["q"] * 6,
     }
@@ -457,10 +470,11 @@ def test_facet_carries_the_estimator_through_hue_as_well() -> None:
 
     folded = []
     for chart in composed.charts:
+        # Per series: its category-"a" bar and then its own anchor bar, which is the ruler.
         bars = _bars(chart.to_string(), legend=True)
-        ruler = float(bars[1]["height"]) / ANCHOR_VALUE  # each series' anchor bar
-        folded.append(round(float(bars[0]["height"]) / ruler, 6))
-    assert folded == [15.0, 40.0]
+        folded += [round(float(bars[i]["height"]) / (float(bars[i + 1]["height"]) / ANCHOR_VALUE), 6) for i in (0, 2)]
+    assert folded == [15.0, 70.0, 40.0, 20.0]
+    assert len(set(folded)) == 4  # so no pair of them can stand in for another
 
 
 def test_facet_warns_once_per_panel_when_it_forwards_no_estimator() -> None:
@@ -558,6 +572,27 @@ def test_a_numpy_bool_is_refused_like_a_python_one() -> None:
         sp.barplot(DUPLICATED, x="x", y="y", estimator=lambda values: numpy.True_)
 
 
+def test_a_numpy_complex_is_refused_rather_than_silently_losing_its_imaginary_part() -> None:
+    """The same blind spot as ``numpy.bool_``, one type over. A plain ``complex`` is caught
+    either way -- ``float(3+2j)`` raises, so the fallback below the type check reports it with
+    the same message -- which left ``numbers.Real`` and ``numbers.Number`` indistinguishable
+    to this file. ``numpy.complex128`` separates them: ``float()`` accepts it and returns the
+    real part, so under ``numbers.Number`` a chart would quietly draw 3.0 for ``3+2j``."""
+    numpy = pytest.importorskip("numpy")
+
+    with pytest.raises(ValueError, match="non-numeric"):
+        sp.barplot(DUPLICATED, x="x", y="y", estimator=lambda values: numpy.complex128(3 + 2j))
+
+
+def test_a_zero_dimensional_numpy_array_is_refused() -> None:
+    """It is not a scalar, however much it prints like one -- and ``float()`` accepts it, so
+    nothing further down would have caught it."""
+    numpy = pytest.importorskip("numpy")
+
+    with pytest.raises(ValueError, match="non-numeric"):
+        sp.barplot(DUPLICATED, x="x", y="y", estimator=lambda values: numpy.array(3.0))
+
+
 def test_a_numpy_float_is_accepted_like_a_python_one() -> None:
     """The same rule must not shut out the numeric types it exists to admit."""
     numpy = pytest.importorskip("numpy")
@@ -609,3 +644,22 @@ def test_apply_passes_a_good_value_straight_through_as_a_float() -> None:
 
     assert result == 3.0
     assert isinstance(result, float)
+
+
+def test_a_real_number_too_large_for_a_float_is_reported_as_a_value_error() -> None:
+    """``Fraction`` is a ``numbers.Real``, so it passes the type check and reaches ``float()``,
+    which raises ``OverflowError`` -- a type this function's contract does not mention. Without
+    it in the ``except``, the raw ``OverflowError`` escapes past a message naming the group."""
+    from fractions import Fraction
+
+    with pytest.raises(ValueError, match="non-numeric"):
+        sp.barplot(DUPLICATED, x="x", y="y", estimator=lambda values: Fraction(10**400, 1))
+
+
+def test_the_discard_warning_points_at_the_callers_line_not_this_packages() -> None:
+    """``stacklevel`` is what makes a warning actionable: it has to name the ``sp.barplot(...)``
+    the reader wrote. Nothing else in this file would notice it pointing inside ``_aggregate``."""
+    with pytest.warns(sp.AggregationWarning) as caught:
+        sp.barplot(DUPLICATED, x="x", y="y")
+
+    assert caught[0].filename == __file__
