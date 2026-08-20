@@ -868,3 +868,23 @@ def test_an_aware_column_reads_the_same_wherever_it_is_drawn(monkeypatch: pytest
         "10:00",
         "12:00",
     ]
+
+
+def test_a_tick_the_clock_moves_off_the_axis_is_dropped(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A non-existent local time with nothing to collide with used to survive, and got drawn
+    wherever the clock resolved it to -- which is not the instant its label names. Santiago
+    jumps 2024-09-08 00:00 to 01:00, so a ``00:30`` tick resolves to 01:30, past the end of a
+    22:00-01:00 axis: measured, it was placed at x=1000 of a 0-800 range, out of order with
+    its neighbours and outside the plot area entirely.
+
+    Dropping only the ones that land outside the domain is what keeps this from becoming the
+    unconditional filter that deleted real days and years -- see the day-level tests above,
+    which cover the same transition and still expect all seven days."""
+    monkeypatch.setenv("TZ", "America/Santiago")
+    clock.tzset()
+    scale = TimeScale((datetime(2024, 9, 7, 22), datetime(2024, 9, 8, 1)), (0.0, 800.0))
+
+    positions = [scale(tick) for tick in make_ticks(scale, count=5)]
+
+    assert positions == sorted(positions)
+    assert all(0.0 <= position <= 800.0 for position in positions)

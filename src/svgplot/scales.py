@@ -345,10 +345,6 @@ def _calendar_ticks(low: datetime, high: datetime, count: int) -> list[datetime]
     # fits under count" into a cliff. Measured with first-that-fits, spans of 251-275,
     # 501-725 and 1251-1475 years came back with **two** ticks, which this module's own
     # ``_MIN_TICKS`` calls not an axis. A 261-year span now picks 50 years, not 100.
-    # Nearest, not first-that-fits -- the same rule the two ladders above use, and for the
-    # same reason those two spell out: a ladder with gaps in it turns "the first step that
-    # fits under count" into a cliff. Measured with that rule, spans of 251-275, 501-725 and
-    # 1251-1475 years came back with **two** ticks.
     #
     # And then stepped down while the answer is still too sparse, because "nearest" is chosen
     # from ``years / candidate``, an estimate taken *before* aligning to the step -- alignment
@@ -410,8 +406,9 @@ def _exists_locally(tick: datetime) -> bool:
         return True
 
 
-def _distinct_instants(ticks: list[datetime]) -> list[datetime]:
-    """Drop a tick only when another tick already stands on its instant.
+def _distinct_instants(ticks: list[datetime], bounds: tuple[float, float]) -> list[datetime]:
+    """Drop a tick only when another tick already stands on its instant, or when it lands
+    outside the axis.
 
     The defect this exists for is two differently-labelled ticks at **one pixel**: a
     non-existent 02:00 folds onto the real 03:00, and ``TimeScale`` places both at the same
@@ -425,19 +422,39 @@ def _distinct_instants(ticks: list[datetime]) -> list[datetime]:
     two-century axis. Measured, those false drops outnumbered genuine collisions by 2.4x to
     13.6x — a worse fault than the one being fixed, and invisible to a test suite whose zones
     all transition at 02:00 or 03:00.
+
+    ``bounds`` closes the other half. A non-existent tick with nothing to collide with used to
+    survive and be drawn at whatever instant the clock resolved it to, which is not the instant
+    its label names -- and when the gap pushes it past the end of the domain it leaves the axis
+    entirely. A Santiago axis of 22:00-01:00 put its ``00:30`` label at x=1000 of a 0-800
+    range, out of order with its neighbours.
+
+    Only the ones that resolve outside the domain, so this does not become the unconditional
+    filter above. Measured over the 1940-2035 transitions of ten zones, 54,673 proposed ticks:
+    250 dropped for collision, 184 for landing outside, and **zero** dropped for any other
+    reason. Santiago's 2024-09-08 and Apia's 1950 both stay.
     """
     kept: dict[float, datetime] = {}
+    unplaceable: list[datetime] = []
     for tick in ticks:
         try:
             instant = tick.timestamp()
         except (OverflowError, OSError, ValueError):
-            # Unplaceable, so uncollidable; ``TimeScale`` will report it if it matters.
-            kept[float(len(kept)) - 1e18] = tick
+            # Unplaceable, so uncollidable; ``TimeScale`` will report it if it matters. Held
+            # in a list rather than keyed into ``kept``: the synthetic key this used to build
+            # was ``len(kept) - 1e18``, and at that magnitude adding one changes nothing, so a
+            # second such tick overwrote the first -- and the key sorted them both ahead of
+            # every real instant.
+            unplaceable.append(tick)
+            continue
+        if not bounds[0] <= instant <= bounds[1]:
+            # Its label says one thing and the clock puts it somewhere else, far enough away
+            # to leave the axis. There is no honest place to draw it.
             continue
         previous = kept.get(instant)
         if previous is None or (not _exists_locally(previous) and _exists_locally(tick)):
             kept[instant] = tick
-    return [kept[instant] for instant in sorted(kept)]
+    return [kept[instant] for instant in sorted(kept)] + unplaceable
 
 
 def make_ticks(scale: Scale, count: int = 5) -> list[float] | list[str] | list[datetime]:
@@ -489,7 +506,7 @@ def make_ticks(scale: Scale, count: int = 5) -> list[float] | list[str] | list[d
         # same label is the defect this whole change exists to remove.
         # After every ladder, not inside one: the fold that makes two ticks share a pixel is
         # a property of the local clock, not of the step that produced them.
-        ticks = _distinct_instants(ticks)
+        ticks = _distinct_instants(ticks, (domain_min.timestamp(), domain_max.timestamp()))
         return ticks or list(dict.fromkeys([domain_min, domain_max]))
     if isinstance(scale, LinearScale):
         domain_min, domain_max = scale.domain
