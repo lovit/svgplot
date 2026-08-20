@@ -6,6 +6,7 @@ from svgplot._svg import SvgDocument
 from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import (
     MARGIN_WITHOUT_LEGEND,
     TICK_SPACING_X,
@@ -174,7 +175,14 @@ def boxplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="stroke")
 
-    return Chart(document, domains=Domains(y=y_domain, categories=tuple(drawn_categories)))
+    observations = plural(sum(len(values) for values in groups.values()), "observation")
+    description = describe(
+        "Box plot",
+        f'{group(drawn_categories, "category")} over {observations}',
+        span("y", *y_domain),
+        f"{mode} whiskers",
+    )
+    return Chart(document, description=description, domains=Domains(y=y_domain, categories=tuple(drawn_categories)))
 
 
 def _render_box(

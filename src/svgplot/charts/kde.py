@@ -11,6 +11,7 @@ from __future__ import annotations
 from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, over, plural, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
@@ -232,4 +233,11 @@ def kdeplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style=mark_style)
 
-    return Chart(document, domains=Domains(x=x_domain, y=y_domain))
+    observations = plural(sum(len(values) for _, values in series_values), "observation")
+    description = describe(
+        "Density plot",
+        over([str(label) for label, _ in series_items] if hue is not None else None, observations),
+        span("x", *grid_range),
+        span("density", 0.0, peak),
+    )
+    return Chart(document, description=description, domains=Domains(x=x_domain, y=y_domain))

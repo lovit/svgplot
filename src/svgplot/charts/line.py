@@ -18,6 +18,7 @@ from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, over, plural, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
@@ -344,4 +345,16 @@ def lineplot(
 
     render_theme_style(document, resolved_theme, series_classes)
 
-    return Chart(document, label_data, domains=Domains(x=numeric_x_domain, y=y_domain))
+    points = plural(len(all_x), "point")
+    description = describe(
+        "Line chart",
+        over([str(label) for label, _ in series_items] if hue is not None else None, points),
+        # ``time_domain``, not ``min(all_x)``: a column may hold both ``date`` and
+        # ``datetime`` values, which do not compare to each other, and that mixture is
+        # explicitly welcome. ``time_domain`` is already ordered by the numeric position
+        # each value maps to, which is the order the axis draws them in anyway.
+        span("x", _as_datetime(time_domain[0]), _as_datetime(time_domain[1])) if is_time else span("x", *numeric_x_domain),
+        span("y", *y_domain),
+        f"{interpolate} interpolation" if interpolate != "linear" else None,
+    )
+    return Chart(document, label_data, description=description, domains=Domains(x=numeric_x_domain, y=y_domain))

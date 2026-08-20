@@ -10,6 +10,7 @@ from __future__ import annotations
 from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, over, plural, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
@@ -207,4 +208,11 @@ def ecdfplot(
 
     render_theme_style(document, resolved_theme, series_classes)
 
-    return Chart(document, domains=Domains(x=x_domain, y=y_domain))
+    observations = plural(len(all_values), "observation")
+    description = describe(
+        "Complementary cumulative distribution plot" if complementary else "Cumulative distribution plot",
+        over([str(label) for label, _ in series_items] if hue is not None else None, observations),
+        span("x", *x_domain),
+        span(stat, *y_domain),
+    )
+    return Chart(document, description=description, domains=Domains(x=x_domain, y=y_domain))

@@ -7,6 +7,7 @@ import bisect
 from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, over, plural, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
@@ -201,4 +202,15 @@ def histplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document, domains=Domains(x=x_domain, y=y_domain, x_step=(edges[-1] - edges[0]) / (len(edges) - 1)))
+    observations = f'{plural(len(all_values), "observation")} in {plural(len(edges) - 1, "bin")}'
+    description = describe(
+        "Histogram",
+        over([str(label) for label, _ in series_items] if hue is not None else None, observations),
+        span("x", edges[0], edges[-1]),
+        span("counts", 0, max_count),
+    )
+    return Chart(
+        document,
+        description=description,
+        domains=Domains(x=x_domain, y=y_domain, x_step=(edges[-1] - edges[0]) / (len(edges) - 1)),
+    )

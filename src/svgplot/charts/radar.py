@@ -14,6 +14,7 @@ from __future__ import annotations
 import math
 
 from svgplot.chart.base import Chart
+from svgplot.charts._describe import describe, group, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     fit_margin,
@@ -272,4 +273,10 @@ def radarplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style=mark_style)
 
-    return Chart(document)
+    description = describe(
+        "Radar chart",
+        group(categories, "spoke"),
+        group([str(label) for label, _ in series_items], "series") if hue is not None else None,
+        span("values", 0.0, peak),
+    )
+    return Chart(document, description=description)

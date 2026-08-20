@@ -8,6 +8,7 @@ from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
 from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator, warn_rows_discarded
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, group, number, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
@@ -289,9 +290,18 @@ def barplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
+    shape = "horizontal bar chart" if orient == "h" else "bar chart"
+    description = describe(
+        f"Stacked {shape}" if is_stacked else shape.capitalize(),
+        group(drawn_categories, "category"),
+        group([str(label) for label, _ in group_items], "series") if hue is not None else None,
+        span("values", min(all_values), max(all_values)) if all_values else None,
+        f"stacked totals up to {number(max(totals))}" if is_stacked and totals else None,
+    )
     value_axis = "x" if orient == "h" else "y"
     return Chart(
         document,
+        description=description,
         domains=Domains(
             **{value_axis: value_domain},
             categories=tuple(drawn_categories),

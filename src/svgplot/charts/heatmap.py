@@ -30,6 +30,7 @@ import warnings
 
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
@@ -317,7 +318,15 @@ def heatmap(
     )
     render_theme_style(document, resolved_theme, [], mark_style="fill", level_colors=level_colors, ink_colors=ink_colors)
 
-    return Chart(document)
+    description = describe(
+        "Heatmap",
+        group(columns, "column"),
+        group(rows, "row"),
+        f"{len(cells)} of {len(columns) * len(rows)} cells filled",
+        span("values", min(magnitudes), max(magnitudes)),
+        f'quantised into {plural(LEVELS, "level")}',
+    )
+    return Chart(document, description=description)
 
 
 def _composited(color: str, *, over: str, opacity: float) -> str:

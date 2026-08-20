@@ -13,6 +13,7 @@ from svgplot._svg import SvgDocument
 from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, fits, over, plural, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
@@ -127,6 +128,20 @@ def _render_size_legend(
             classes=["legend-text"],
         )
         row_y += radius + _SIZE_LEGEND_ROW_PADDING
+
+
+def _size_clause(size: str | None) -> str | None:
+    """The ``size=`` clause, with the column name capped like every other caller string.
+
+    This is the one clause in the package that names something the caller typed rather
+    than something the data contains, and it was the only uncapped path into a ``<desc>``:
+    a 500,000-character column name produced a 500,064-character description. A name too
+    long to read out is dropped rather than truncated, for the same reason a category name
+    is — half a column name is a different column name.
+    """
+    if size is None:
+        return None
+    return f'marker size from "{size}"' if fits(size) else "marker size from another column"
 
 
 def scatterplot(
@@ -289,4 +304,12 @@ def scatterplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document, label_data, domains=Domains(x=x_domain, y=y_domain))
+    points = plural(len(all_rows), "point")
+    description = describe(
+        "Scatter plot",
+        over([str(label) for label, _ in series_items] if hue is not None else None, points),
+        span("x", *x_domain),
+        span("y", *y_domain),
+        _size_clause(size),
+    )
+    return Chart(document, label_data, description=description, domains=Domains(x=x_domain, y=y_domain))

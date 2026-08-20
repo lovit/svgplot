@@ -197,6 +197,35 @@ markdown = chart.to_markdown()
 
 GitHub는 렌더된 markdown에서 인라인 SVG를 제거하므로 github.com에서는 표만 보인다. MkDocs·Sphinx·VS Code 미리보기에서는 도판과 표가 함께 렌더된다.
 
+### 접근성
+
+모든 차트가 `role="img"` · `aria-label`(제목) · `<title>` · `<desc>`를 내보낸다. `<desc>`는 차트 종류, 데이터 규모, 값 범위를 실제로 말한다 — 제목을 되풀이하지 않는다.
+
+```python
+sp.barplot({"x": ["Mon", "Tue", "Wed"], "y": [1.0, 5.0, 9.0]}, x="x", y="y").to_string()
+# <desc>Bar chart, 3 categories (Mon, Tue, Wed), values 1 to 9.</desc>
+
+sales = {"region": ["east", "west", "east"], "quarter": ["Q1", "Q1", "Q2"], "amount": [1.0, 2.0, 3.0]}
+sp.heatmap(sales, x="region", y="quarter", values="amount").to_string()
+# <desc>Heatmap, 2 columns (east, west), 2 rows (Q1, Q2), 3 of 4 cells filled, values 1 to 3, quantised into 9 levels.</desc>
+```
+
+문장은 영어다(패키지의 다른 접근성 문구와 같다). 그 안의 카테고리·시리즈 이름은 데이터에 쓰인 언어 그대로이므로 `lang` 속성은 붙이지 않는다 — 섞인 문장에 한 언어를 못 박으면 나머지 절반을 잘못 읽게 만든다. 이름은 최대 6개, 합쳐서 60자까지만 나열하고 나머지는 `and N more`로 센다. 이름을 잘라 줄이는 일은 없다(잘린 이름은 다른 이름이다). 첫 이름조차 한도를 넘으면 괄호 전체를 생략하고 개수만 말한다.
+
+`info=`로 표를 붙이면 SVG root가 `aria-describedby`로 그 표를 참조한다. 참조는 **호스트 HTML 문서 안에서만** 성립하므로 표를 같은 페이지에 함께 내보내야 한다.
+
+```python
+chart = sp.lineplot(data, x="day", y="sales", info=[("날짜", "@day{0,0}"), ("매출", "@sales{0,0}")])
+page = chart.to_string() + chart.to_html_table()   # <svg aria-describedby="svgplot-data-table"> + <table id="svgplot-data-table">
+chart.set_table_id("sales-table")                  # 한 페이지에 차트가 둘 이상이면 id를 나눈다
+```
+
+`.md` 출력에는 이 속성이 붙지 않는다 — GFM 표는 `id`를 실을 요소가 없어서 참조가 허공을 가리키게 되기 때문이다. 그 경우 보조 기술은 `<desc>`를 읽는다.
+
+합성 도판(`row`/`column`/`grid`/`facet`)에는 이 참조가 붙지 않는다 — 자식 차트의 원본 문서를 중첩하므로 도판은 자기 이름 하나만 갖는다. 표를 함께 내보내도 가리키는 쪽이 없다.
+
+주의: `info=`가 있으면 `to_string()`은 표를 실제로 내보냈는지와 무관하게 참조를 붙인다. 표를 함께 내보내지 않으면 참조는 해소되지 않고(무해하게 무시된다) `<desc>`가 읽힌다. 그리고 기본 `id`는 모든 차트가 공유하므로, 한 페이지에 `info=` 차트가 둘 이상이면 반드시 `set_table_id()`로 나눠야 한다 — 그러지 않으면 두 번째 차트가 첫 번째 차트의 표로 설명된다.
+
 ## 부트스트랩
 
 ```bash

@@ -78,21 +78,28 @@ def test_markdown_without_info_is_the_svg_alone(tmp_path: Path) -> None:
     assert _table_rows(path.read_text(encoding="utf-8")) == []
 
 
-def test_info_does_not_change_the_svg_output() -> None:
+def test_info_does_not_change_the_drawn_svg() -> None:
     """The table lives beside the chart, never inside it -- adding ``info=`` must not
-    move a single coordinate."""
+    move a single coordinate.
+
+    Since issue #118 it *does* add one thing: ``aria-describedby``, pointing at the table
+    it now has to point at. That is the whole of the difference, which is what the second
+    assertion pins -- deleting the attribute leaves two byte-identical documents.
+    """
     without = sp.lineplot(NUMERIC, x="day", y="sales").to_string()
     with_info = sp.lineplot(NUMERIC, x="day", y="sales", info=SPEC).to_string()
 
-    assert without == with_info
+    assert 'aria-describedby="svgplot-data-table"' in with_info
+    assert without == with_info.replace(' aria-describedby="svgplot-data-table"', "")
 
 
-def test_saving_svg_with_info_is_unchanged(tmp_path: Path) -> None:
+def test_saving_svg_with_info_adds_only_the_table_reference(tmp_path: Path) -> None:
     plain, annotated = tmp_path / "a.svg", tmp_path / "b.svg"
     sp.lineplot(NUMERIC, x="day", y="sales").save(str(plain))
     sp.lineplot(NUMERIC, x="day", y="sales", info=SPEC).save(str(annotated))
 
-    assert plain.read_text(encoding="utf-8") == annotated.read_text(encoding="utf-8")
+    written = annotated.read_text(encoding="utf-8")
+    assert plain.read_text(encoding="utf-8") == written.replace(' aria-describedby="svgplot-data-table"', "")
 
 
 @pytest.mark.parametrize(
