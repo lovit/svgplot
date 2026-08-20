@@ -18,9 +18,11 @@ from __future__ import annotations
 
 import math
 import numbers
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from svgplot._svg import SvgDocument
+from svgplot.scales import LinearScale, LogScale
 
 Margin = float | tuple[float, float, float, float]
 
@@ -322,3 +324,50 @@ def ticks_for(extent: float, spacing: float) -> int:
     one fewer than asked for. What matters here is that the request tracks the canvas.
     """
     return max(MIN_TICKS, min(MAX_TICKS, round(extent / spacing)))
+
+
+AXIS_SCALES = ("linear", "log")
+"""What ``xscale=``/``yscale=`` accept. ``"linear"`` is the default everywhere."""
+
+
+def resolve_axis_scale(name: object, *, parameter: str) -> str:
+    """Validate an axis scale name, refusing anything else by name.
+
+    Named rather than boolean (``pygal``'s ``logarithmic=True``) because a boolean has room
+    for exactly two answers and this axis will want more than two -- and because at a call
+    site ``yscale="log"`` says which axis and which scale, where ``logarithmic=True`` says
+    neither.
+    """
+    if name not in AXIS_SCALES:
+        raise ValueError(f"{parameter} must be one of {', '.join(AXIS_SCALES)}, got {name!r}")
+    return str(name)
+
+
+def value_scale(
+    kind: str,
+    domain: tuple[float, float],
+    pixels: tuple[float, float],
+    *,
+    column: str,
+    values: Iterable[float] = (),
+) -> LinearScale | LogScale:
+    """The scale a value axis of ``kind`` uses over ``domain``.
+
+    The column is named here so a caller who put a zero in a log axis is told *which* column
+    to look at -- the error is about their data, and by the time it reaches ``LogScale`` the
+    only thing left to report is the number.
+
+    ``values`` as well as ``domain``, because the two come apart: ``ylim=(1, 100)`` narrows
+    the domain past a zero that is still in the data and still gets drawn, and ``LogScale``
+    would then be asked to place it. It refuses -- but from inside a class that has never
+    heard of columns, so the caller is told a number and left to find it.
+    """
+    if kind == "linear":
+        return LinearScale(domain, pixels)
+    for value in (*domain, *values):
+        if value <= 0.0:
+            raise ValueError(
+                f"column {column!r} holds {value!r}, which a log axis cannot place: "
+                "a logarithm is undefined at zero and below. Filter those rows, or use the default linear axis."
+            )
+    return LogScale(domain, pixels)

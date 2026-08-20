@@ -25,8 +25,10 @@ from svgplot.charts._layout import (
     fit_margin,
     format_coord,
     new_canvas,
+    resolve_axis_scale,
     resolve_size,
     ticks_for,
+    value_scale,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._series import series_items as build_series
@@ -110,6 +112,7 @@ def areaplot(
     theme: Theme | str | None = None,
     xlim: tuple[float, float] | None = None,
     ylim: tuple[float, float] | None = None,
+    xscale: str = "linear",
 ) -> Chart:
     """Draw a filled area chart from long-form data.
 
@@ -143,6 +146,17 @@ def areaplot(
     count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
     refused rather than clamped, and a chart may refuse a larger one if its own legend does
     not fit.
+
+    ``xscale=`` chooses the x axis' scale: ``"linear"`` (the default) or ``"log"``. Values at
+    or below zero are **refused by column name** rather than masked or clipped: a logarithm is
+    undefined there, and both alternatives silently draw a different chart than the data.
+
+    There is no ``yscale=``. An area chart's filled region *is* the quantity, measured from
+    zero -- which is why ``0.0`` is forced into the y domain a few lines below. A log axis has
+    no zero to measure from, so the fill would have to start somewhere arbitrary and its area
+    would stop being proportional to anything. That is not an area chart with a log axis; it
+    is a different chart, and offering the argument would only let a caller ask for it and get
+    a refusal about their data instead of an answer about the shape.
 
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
@@ -192,6 +206,7 @@ def areaplot(
     x_domain = apply_limit(x_domain, xlim)
     y_domain = apply_limit(y_domain, ylim)
 
+    resolved_xscale = resolve_axis_scale(xscale, parameter="xscale")
     canvas_width, canvas_height = resolve_size(width, height)
     document, area = new_canvas(
         fit_margin(
@@ -208,7 +223,7 @@ def areaplot(
         height=canvas_height,
     )
 
-    pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
+    pixel_x_scale = value_scale(resolved_xscale, x_domain, (area.left, area.right), column=x, values=all_x)
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
     render_x_axis(
         document,

@@ -23,8 +23,10 @@ from svgplot.charts._layout import (
     fit_margin,
     format_coord,
     new_canvas,
+    resolve_axis_scale,
     resolve_size,
     ticks_for,
+    value_scale,
 )
 from svgplot.charts._legend import render_legend, require_room, size_legend_ink_height
 from svgplot.charts._series import series_items as build_series
@@ -33,7 +35,6 @@ from svgplot.data._missing import numeric_or_none
 from svgplot.data.ingest import ingest_longform
 from svgplot.labels._source import collect_label_data
 from svgplot.labels.spec import LabelSpec
-from svgplot.scales import LinearScale
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
@@ -157,6 +158,8 @@ def scatterplot(
     theme: Theme | str | None = None,
     xlim: tuple[float, float] | None = None,
     ylim: tuple[float, float] | None = None,
+    xscale: str = "linear",
+    yscale: str = "linear",
 ) -> Chart:
     """Draw a scatter plot from long-form data.
 
@@ -177,6 +180,12 @@ def scatterplot(
     count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
     refused rather than clamped, and a chart may refuse a larger one if its own legend does
     not fit.
+
+    ``xscale=``/``yscale=`` choose that axis' scale: ``"linear"`` (the default) or ``"log"``.
+    A log axis is what makes response times, file sizes or populations legible -- on a linear
+    axis the small values collapse into one pixel. Values at or below zero are **refused by
+    column name** rather than masked or clipped: a logarithm is undefined there, and both of
+    the alternatives silently draw a different chart than the data describes.
 
     Raises:
         KeyError: if ``x``/``y``/``hue``/``size`` isn't a column in ``data``, or if
@@ -222,6 +231,8 @@ def scatterplot(
     # After the checks above, so a bad column still reports the chart's own error first.
     label_data = collect_label_data(data, info, required=(x, y, hue, size))
 
+    resolved_xscale = resolve_axis_scale(xscale, parameter="xscale")
+    resolved_yscale = resolve_axis_scale(yscale, parameter="yscale")
     canvas_width, canvas_height = resolve_size(width, height)
     document, area = new_canvas(
         fit_margin(
@@ -238,8 +249,8 @@ def scatterplot(
         height=canvas_height,
     )
 
-    pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
-    pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
+    pixel_x_scale = value_scale(resolved_xscale, x_domain, (area.left, area.right), column=x, values=all_x)
+    pixel_y_scale = value_scale(resolved_yscale, y_domain, (area.bottom, area.top), column=y, values=all_y)
     render_x_axis(
         document,
         pixel_x_scale,
