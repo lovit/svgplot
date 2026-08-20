@@ -36,6 +36,20 @@ def _matches(svg: str, element: str, css_class: str) -> list[tuple[re.Match[str]
     ]
 
 
+def every_tag(svg: str, element: str) -> list[dict[str, str]]:
+    """Every opening tag of ``element``, whatever classes it carries.
+
+    The class-filtered helpers below answer "where are the marks I asked about"; this one
+    answers "what is on the canvas at all", which is what a *completeness* assertion needs —
+    ``test_charts_gauge.py``'s check that every drawn class appears in the ``<style>`` block
+    cannot name the classes in advance, because the whole point is to catch one that nobody
+    named. Consolidating the four ``_tags`` copies dropped that check from the ``<text>``
+    elements for want of this function; it is here so the next completeness test does not
+    have to reach for a raw regex again.
+    """
+    return [dict(_ATTR_RE.findall(match.group())) for match in re.finditer(rf"<{element}\b[^>]*?/?>", svg)]
+
+
 def tags(svg: str, element: str, css_class: str) -> list[dict[str, str]]:
     """Opening tags of ``element`` whose class list carries ``css_class`` as a token.
 

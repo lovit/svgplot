@@ -6,7 +6,7 @@ from itertools import pairwise
 
 import pytest
 
-from _svg_probe import tags as _tags, texts as _texts
+from _svg_probe import every_tag, tags as _tags, texts as _texts
 from svgplot.charts._polar import polar_point
 from svgplot.charts.gauge import (
     _END_ANGLE,
@@ -448,6 +448,10 @@ def test_every_drawn_class_is_styled_by_the_theme() -> None:
     svg = _svg()
     style = svg[svg.index("<style>") : svg.index("</style>")]
     drawn = {name for _, classes in _PATH_RE.findall(svg) for name in classes.split()}
+    # <text> too, not only <path>. The class-filtered probe cannot express this -- a
+    # completeness check has to enumerate what is there rather than ask about a class it
+    # already knows -- which is why `every_tag` exists.
+    drawn |= {name for tag in every_tag(svg, "text") for name in tag.get("class", "").split()}
 
     unstyled = {name for name in drawn if f".{name} " not in style}
     assert unstyled <= {"gauge-track", "gauge-value"}, f"unstyled classes: {sorted(unstyled)}"
