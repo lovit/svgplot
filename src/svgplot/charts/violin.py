@@ -10,11 +10,15 @@ cases and is a refinement on top of this, not part of it.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, fit_rotated_labels, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import (
+    LEGEND_X_OFFSET,
+    MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
     TICK_SPACING_X,
     TICK_SPACING_Y,
@@ -24,8 +28,9 @@ from svgplot.charts._layout import (
     resolve_size,
     ticks_for,
 )
+from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
-from svgplot.data._missing import is_missing
+from svgplot.charts.box import NO_HUE, group_by_category
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import CategoricalScale, LinearScale
 from svgplot.stats.kde import KdeCurve, kde
@@ -64,18 +69,11 @@ _EVALUATION_GRID = 200
 also fixes how many vertices each emitted path carries."""
 
 
-def _group_by_x(columns: dict[str, list], x: str, y: str) -> dict[str, list[float]]:
-    """Bucket ``y`` values by stringified ``x``, dropping rows missing either.
-
-    First-seen category order, so violins render left-to-right in input order -- the same
-    rule ``boxplot`` uses, which is what keeps the two interchangeable.
-    """
-    groups: dict[str, list[float]] = {}
-    for xv, yv in zip(columns[x], columns[y], strict=True):
-        if is_missing(xv) or is_missing(yv):
-            continue
-        groups.setdefault(str(xv), []).append(float(yv))
-    return groups
+def _group_by_x(columns: dict[str, list], x: str, y: str, hue: str | None = None) -> dict[tuple[str, str], list[float]]:
+    """``charts/box.py``'s grouping, reused so the two charts cannot disagree about what a
+    category or a hue group *is* -- the README tells readers they take the same positional
+    arguments, and that promise is worth more than a saved import."""
+    return group_by_category(columns, x, y, hue)
 
 
 def _density(values: list[float], category: str, bandwidth: float | str, grid_range: tuple[float, float] | None) -> KdeCurve:
@@ -93,7 +91,7 @@ def _density(values: list[float], category: str, bandwidth: float | str, grid_ra
         raise ValueError(f"category {category!r}: {error}") from error
 
 
-def shared_grid_range(groups: dict[str, list[float]], bandwidth: float | str) -> tuple[float, float]:
+def shared_grid_range(groups: Mapping[str | tuple[str, str], list[float]], bandwidth: float | str) -> tuple[float, float]:
     """The y span every category is evaluated over: the union of what each would have
     chosen alone.
 
@@ -108,7 +106,11 @@ def shared_grid_range(groups: dict[str, list[float]], bandwidth: float | str) ->
     """
     lows: list[float] = []
     highs: list[float] = []
-    for category, values in groups.items():
+    for key, values in groups.items():
+        # The key is ``(category, hue)`` from the chart and a bare category from a caller
+        # reconstructing the mapping; only the category is ever reported, and naming the hue
+        # group in a bandwidth error would point at the wrong half of the problem.
+        category = key[0] if isinstance(key, tuple) else key
         width = _density(values, category, bandwidth, None).bandwidth
         lows.append(min(values) - _CUT * width)
         highs.append(max(values) + _CUT * width)
@@ -134,6 +136,7 @@ def violinplot(
     data: object,
     x: str,
     y: str,
+    hue: str | None = None,
     *,
     bandwidth: float | str = "scott",
     inner: str | None = "box",
@@ -184,19 +187,25 @@ def violinplot(
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
 
-    groups = _group_by_x(longform.columns, x, y)
+    groups = _group_by_x(longform.columns, x, y, hue)
     if not groups:
         raise ValueError("no rows with both x and y present after dropping missing values")
 
     grid_range = shared_grid_range(groups, bandwidth)
     y_domain = apply_limit(grid_range, ylim)
-    curves = {category: _density(values, category, bandwidth, grid_range) for category, values in groups.items()}
+    curves = {key: _density(values, key[0], bandwidth, grid_range) for key, values in groups.items()}
     peak = max(value for curve in curves.values() for value in curve.y)
 
-    drawn_categories = list(require_categories(categories)) if categories is not None else list(groups)
+    own_categories = list(dict.fromkeys(category for category, _ in groups))
+    drawn_categories = list(require_categories(categories)) if categories is not None else own_categories
+    # Sorted by ``str``, the order ``charts/_series.py`` gives every other chart's hue.
+    hue_values = sorted({value for _, value in groups}, key=str) if hue is not None else [NO_HUE]
     canvas_width, canvas_height = resolve_size(width, height)
     fitted = fit_left_margin(
-        MARGIN_WITHOUT_LEGEND, y_domain, width=canvas_width, font_size=resolved_theme.tick_label_font_size
+        MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
+        y_domain,
+        width=canvas_width,
+        font_size=resolved_theme.tick_label_font_size,
     )
     fitted, turn_labels = fit_rotated_labels(
         fitted,
@@ -233,67 +242,82 @@ def violinplot(
         font_size=resolved_theme.tick_label_font_size,
     )
 
-    band = x_scale.step
-    half_width = x_scale.bandwidth / 2 / peak
+    # Without ``hue`` a slot *is* a band, so every width here reduces to what it was before
+    # this argument existed -- which is what keeps the no-hue output byte-identical.
+    slot_width = x_scale.bandwidth / len(hue_values)
+    band = x_scale.step / len(hue_values)
+    half_width = slot_width / 2 / peak
     series_classes: list[str] = []
-    for category in drawn_categories:
-        # Minted even when this panel has no rows for the category, so a shared list keeps
-        # one colour per category across every chart using it.
-        series_class = document.semantic_class("series")
-        series_classes.append(series_class)
-        curve = curves.get(category)
-        if curve is None:
-            continue
-        centre = x_scale.center(category)
-        document.add_node(
-            None,
-            "path",
-            attrib={"d": _violin_path(curve.x, curve.y, centre, half_width, y_scale)},
-            classes=[series_class, "violin-body"],
-        )
+    for _name in hue_values if hue is not None else drawn_categories:
+        # Minted even when this panel has no rows for it, so a shared list keeps one colour
+        # per name across every chart using it.
+        series_classes.append(document.semantic_class("series"))
+    for slot, hue_value in enumerate(hue_values):
+        for index, category in enumerate(drawn_categories):
+            curve = curves.get((category, hue_value))
+            if curve is None:
+                continue
+            series_class = series_classes[slot if hue is not None else index]
+            centre = x_scale(category) + (slot + 0.5) * slot_width
+            document.add_node(
+                None,
+                "path",
+                attrib={"d": _violin_path(curve.x, curve.y, centre, half_width, y_scale)},
+                classes=[series_class, "violin-body"],
+            )
 
-        if inner == "box":
-            # Quartiles from stats.quantile, which is what stats.box's hinges resolve to in
-            # its default "1.5IQR" mode -- so this annotation lands exactly where a default
-            # boxplot would put the same box. (boxplot's mode="tukey" uses different
-            # hinges; violinplot has no mode= of its own.)
-            # quantiles(), not three quantile() calls: it sorts once, which is exactly what
-            # its docstring asks callers with several probabilities to do (stats.box too).
-            q1, median, q3 = quantiles(groups[category], (0.25, 0.5, 0.75))
-            box_half = abs(band) * _INNER_BOX_FRACTION / 2
-            top, bottom = y_scale(q3), y_scale(q1)
-            document.add_node(
-                None,
-                "rect",
-                attrib={
-                    "x": format_coord(centre - box_half),
-                    "y": format_coord(min(top, bottom)),
-                    "width": format_coord(box_half * 2),
-                    "height": format_coord(abs(bottom - top)),
-                },
-                classes=[series_class, "violin-box"],
-            )
-            tick_half = abs(band) * _MEDIAN_TICK_FRACTION / 2
-            document.add_node(
-                None,
-                "line",
-                attrib={
-                    "x1": format_coord(centre - tick_half),
-                    "y1": format_coord(y_scale(median)),
-                    "x2": format_coord(centre + tick_half),
-                    "y2": format_coord(y_scale(median)),
-                },
-                classes=[series_class, "violin-median"],
-            )
+            if inner == "box":
+                # Quartiles from stats.quantile, which is what stats.box's hinges resolve to in
+                # its default "1.5IQR" mode -- so this annotation lands exactly where a default
+                # boxplot would put the same box. (boxplot's mode="tukey" uses different
+                # hinges; violinplot has no mode= of its own.)
+                # quantiles(), not three quantile() calls: it sorts once, which is exactly what
+                # its docstring asks callers with several probabilities to do (stats.box too).
+                q1, median, q3 = quantiles(groups[(category, hue_value)], (0.25, 0.5, 0.75))
+                box_half = abs(band) * _INNER_BOX_FRACTION / 2
+                top, bottom = y_scale(q3), y_scale(q1)
+                document.add_node(
+                    None,
+                    "rect",
+                    attrib={
+                        "x": format_coord(centre - box_half),
+                        "y": format_coord(min(top, bottom)),
+                        "width": format_coord(box_half * 2),
+                        "height": format_coord(abs(bottom - top)),
+                    },
+                    classes=[series_class, "violin-box"],
+                )
+                tick_half = abs(band) * _MEDIAN_TICK_FRACTION / 2
+                document.add_node(
+                    None,
+                    "line",
+                    attrib={
+                        "x1": format_coord(centre - tick_half),
+                        "y1": format_coord(y_scale(median)),
+                        "x2": format_coord(centre + tick_half),
+                        "y2": format_coord(y_scale(median)),
+                    },
+                    classes=[series_class, "violin-median"],
+                )
 
     # "outlined" so the body reads as a translucent fill that still has its own edge, and
     # the inner box and median inherit the same colour at full strength.
     render_theme_style(document, resolved_theme, series_classes, mark_style="outlined")
+    if hue is not None:
+        render_legend(
+            document,
+            [(str(value), series_classes[index]) for index, value in enumerate(hue_values)],
+            x=area.right + LEGEND_X_OFFSET,
+            y=area.top,
+            mark_style="fill",
+            font_size=resolved_theme.legend_font_size,
+        )
 
     observations = plural(sum(len(values) for values in groups.values()), "observation")
     description = describe(
         "Violin plot",
         f'{group(drawn_categories, "category")} over {observations}',
+        group([str(value) for value in hue_values], "series") if hue is not None else None,
         span("y", *grid_range),
         "with an inner box" if inner == "box" else None,
     )
