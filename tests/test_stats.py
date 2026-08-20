@@ -395,3 +395,49 @@ def test_the_strategies_this_module_dropped_are_the_ones_it_meant_to() -> None:
     assert set(_histograms_impl._hist_bin_selectors) - set(_STRATEGIES) == {"stone"}
     assert set(_STRATEGIES) - set(_histograms_impl._hist_bin_selectors) == set()
     assert numpy is not None
+
+
+# ---------------------------------------------------------------------------
+# binning at the edges of the float grid (issue #116 review)
+# ---------------------------------------------------------------------------
+
+
+def test_a_span_too_wide_to_divide_returns_the_single_edge_numpy_returns() -> None:
+    """``_bin_width`` saturates to infinity rather than raising, so the count comes out
+    below one -- and ``linspace(low, high, 1)`` is one edge, which is as much as such data
+    supports. Uncovered until a review measured it: the branch existed and nothing entered
+    it."""
+    assert histogram_bins([1e307 * (1 + index * 0.01) for index in range(30)], "scott") == [1e307]
+    assert histogram_bins([-1e307, 1e307], "scott") == [-1e307]
+
+
+def test_an_overflowing_mean_does_not_escape_as_an_overflow_error() -> None:
+    """``histogram_bins`` documents ``ValueError`` and nothing else. ``doane`` recomputed the
+    mean with a bare ``math.fsum`` and a column around ``1e307`` came back as an
+    ``OverflowError`` from inside it -- 7.4% of near-float-max inputs."""
+    edges = histogram_bins([1e307 * (1 + index * 0.01) for index in range(30)], "doane")
+
+    assert len(edges) == 2
+    assert all(math.isfinite(edge) for edge in edges)
+
+
+@pytest.mark.parametrize("values", [[1e300] * 10, [float(2**53)]])
+def test_a_value_too_large_to_widen_is_refused_rather_than_drawn_empty(values: list[float]) -> None:
+    """Past ``2**53`` the half-unit widening a single distinct value gets is a no-op, so the
+    two edges land on the same number and the bin between them can hold nothing. A chart with
+    no bars is worse than a message saying why."""
+    with pytest.raises(ValueError, match="too many bins for the data range"):
+        histogram_bins(values, "fd")
+
+
+def test_an_integer_column_gets_numpy_s_unit_width_floor() -> None:
+    """numpy raises a sub-unit width to 1 for an integer dtype -- a histogram of counts has
+    nothing to say between 0 and 1. Without it, 18% of integer-list inputs differed from
+    numpy; ``[0,0,1,0,2,0,1,0,0,1]`` under ``fd`` came back with three bins, not two."""
+    assert histogram_bins([0, 0, 1, 0, 2, 0, 1, 0, 0, 1], "fd") == [0.0, 1.0, 2.0]
+
+
+def test_the_floor_is_keyed_on_the_type_not_the_value() -> None:
+    """``[1.0, 2.0]`` is a float array to numpy and gets no floor, so testing
+    ``value == int(value)`` would apply it where numpy does not."""
+    assert histogram_bins([0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 1.0, 0.0, 0.0, 1.0], "fd") != [0.0, 1.0, 2.0]

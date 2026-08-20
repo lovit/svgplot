@@ -29,7 +29,7 @@ def _dataset(kind: str, size: int, rng: random.Random) -> list[float]:
 
     Constant and spiked are the two that matter most: a constant column is where the selectors
     are handed a zero span and numpy widens the *edges* without widening what it measures, and
-    a spike is where Freedman-Diaconis collapses and numpy 2.5's sqrt floor takes over.
+    a spike is where Freedman-Diaconis collapses and numpy 2.3.0's sqrt floor takes over.
     """
     if kind == "constant":
         return [3.5] * size
@@ -80,7 +80,7 @@ def test_the_edges_are_the_ones_numpy_would_have_returned(shape: str, bins: obje
         assert histogram_bins(values, bins) == expected, f"{shape} n={size} bins={bins}"  # type: ignore[arg-type]
 
 
-def test_the_auto_strategy_uses_the_floor_numpy_2_5_added_not_the_older_formula() -> None:
+def test_the_auto_strategy_uses_the_floor_numpy_2_3_added_not_the_older_formula() -> None:
     """``auto`` was ``min(fd, sturges)`` and became ``min(max(fd, sqrt/2), sturges)``. The
     difference only shows on a spike, where the older formula follows the collapsed
     inter-quartile spread into thousands of bins -- which is why pinning the behaviour here
@@ -93,3 +93,53 @@ def test_the_auto_strategy_uses_the_floor_numpy_2_5_added_not_the_older_formula(
     assert math.ceil(span / older) > 5000, "this fixture must be one where the old formula explodes"
     assert len(histogram_bins(values, "auto")) - 1 < 100
     assert histogram_bins(values, "auto") == numpy.histogram_bin_edges(values, bins="auto").tolist()
+
+
+# ---------------------------------------------------------------------------
+# where the two are documented to differ, and by how much
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("name", "offset", "spread"),
+    [("ordinary", 0.0, 100.0), ("thousands", 1e3, 100.0), ("1e12", 1e12, 100.0)],
+)
+def test_a_magnitude_the_module_calls_ordinary_still_matches_edge_for_edge(name: str, offset: float, spread: float) -> None:
+    """The module docstring puts the divergence past a magnitude/spread ratio of 1e12. Below
+    it, "bit-identical" has to keep meaning bit-identical."""
+    rng = random.Random(f"ordinary-{name}")
+    for size in (20, 100, 500):
+        values = [offset + rng.uniform(0.0, spread) for _ in range(size)]
+        for strategy in _STRATEGIES:
+            assert histogram_bins(values, strategy) == numpy.histogram_bin_edges(values, bins=strategy).tolist()
+
+
+def test_a_column_whose_magnitude_dwarfs_its_spread_differs_by_at_most_one_bin() -> None:
+    """The one place the two disagree, bounded rather than merely admitted. An epoch-nanosecond
+    timestamp and an ID column near ``2**53`` are the real shapes this describes, and the cause
+    is arithmetic, not the float grid: ``math.fsum`` is correctly rounded and ``numpy.std``'s
+    pairwise summation is not. A regression that widened this would show up as a bin count off
+    by more than one, or as a divergence appearing on ordinary data (the test above).
+    """
+    rng = random.Random("dwarfed")
+    worst = 0
+    for offset in (1e16, float(2**53)):
+        for size in (20, 100, 500):
+            values = [offset + rng.uniform(0.0, 100.0) for _ in range(size)]
+            for strategy in _STRATEGIES:
+                mine = histogram_bins(values, strategy)
+                theirs = numpy.histogram_bin_edges(values, bins=strategy).tolist()
+                worst = max(worst, abs(len(mine) - len(theirs)))
+
+    assert worst <= 1
+
+
+def test_an_integer_column_matches_including_numpy_s_width_floor() -> None:
+    """numpy reads a list of Python ints as an integer dtype and raises a sub-unit bin width
+    to 1. The parity grid above passes ``float(rng.randint(...))``, which is a float array to
+    numpy, so it went straight past this -- and 18% of genuine integer lists differed."""
+    rng = random.Random("integers")
+    for size in (2, 10, 60):
+        values = [rng.randint(-20, 20) for _ in range(size)]
+        for strategy in _STRATEGIES:
+            assert histogram_bins(values, strategy) == numpy.histogram_bin_edges(values, bins=strategy).tolist()
