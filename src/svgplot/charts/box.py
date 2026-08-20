@@ -5,8 +5,9 @@ from __future__ import annotations
 from svgplot._svg import SvgDocument
 from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._layout import (
+    DEFAULT_WIDTH,
     MARGIN_WITHOUT_LEGEND,
     format_coord,
     new_canvas,
@@ -90,12 +91,14 @@ def boxplot(
     ]
     y_domain = apply_limit((min(all_low), max(all_high)), ylim)
 
-    document, area = new_canvas(MARGIN_WITHOUT_LEGEND)
+    document, area = new_canvas(
+        fit_left_margin(MARGIN_WITHOUT_LEGEND, y_domain, width=DEFAULT_WIDTH, font_size=resolved_theme.tick_label_font_size)
+    )
 
     x_scale = CategoricalScale(drawn_categories, (area.left, area.right))
     y_scale = LinearScale(y_domain, (area.bottom, area.top))
-    render_x_axis(document, x_scale, area, tick_length=resolved_theme.tick_size)
-    render_y_axis(document, y_scale, area, tick_length=resolved_theme.tick_size)
+    render_x_axis(document, x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size)
+    render_y_axis(document, y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size)
 
     series_classes: list[str] = []
     box_half_width = x_scale.bandwidth * _BOX_WIDTH_FRACTION / 2

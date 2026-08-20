@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._layout import (
+    DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
@@ -122,7 +123,14 @@ def barplot(
     # along x. Taking ylim there would mean "share the y axis" moved the bars sideways.
     value_domain = apply_limit((0.0, value_max), xlim if orient == "h" else ylim)
 
-    document, area = new_canvas(MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
+    document, area = new_canvas(
+        fit_left_margin(
+            MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
+            drawn_categories if orient == "h" else value_domain,
+            width=DEFAULT_WIDTH,
+            font_size=resolved_theme.tick_label_font_size,
+        )
+    )
 
     category_range = (area.left, area.right) if orient == "v" else (area.top, area.bottom)
     value_range = (area.bottom, area.top) if orient == "v" else (area.left, area.right)
@@ -130,11 +138,19 @@ def barplot(
     value_scale = LinearScale(value_domain, value_range)
 
     if orient == "v":
-        render_x_axis(document, category_scale, area, tick_length=resolved_theme.tick_size)
-        render_y_axis(document, value_scale, area, tick_length=resolved_theme.tick_size)
+        render_x_axis(
+            document, category_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        )
+        render_y_axis(
+            document, value_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        )
     else:
-        render_y_axis(document, category_scale, area, tick_length=resolved_theme.tick_size)
-        render_x_axis(document, value_scale, area, tick_length=resolved_theme.tick_size)
+        render_y_axis(
+            document, category_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        )
+        render_x_axis(
+            document, value_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        )
 
     series_classes = [document.semantic_class("series") for _ in group_items]
     corner_radius = format_coord(resolved_theme.corner_radius) if resolved_theme.corner_radius > 0 else None

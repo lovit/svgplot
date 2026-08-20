@@ -12,8 +12,9 @@ from collections.abc import Callable
 from svgplot._svg import SvgDocument
 from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._layout import (
+    DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
@@ -177,12 +178,23 @@ def scatterplot(
     # After the checks above, so a bad column still reports the chart's own error first.
     label_data = collect_label_data(data, info, required=(x, y, hue, size))
 
-    document, area = new_canvas(MARGIN_WITH_LEGEND if has_legend else MARGIN_WITHOUT_LEGEND)
+    document, area = new_canvas(
+        fit_left_margin(
+            MARGIN_WITH_LEGEND if has_legend else MARGIN_WITHOUT_LEGEND,
+            y_domain,
+            width=DEFAULT_WIDTH,
+            font_size=resolved_theme.tick_label_font_size,
+        )
+    )
 
     pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
-    render_x_axis(document, pixel_x_scale, area, tick_length=resolved_theme.tick_size)
-    render_y_axis(document, pixel_y_scale, area, tick_length=resolved_theme.tick_size)
+    render_x_axis(
+        document, pixel_x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+    )
+    render_y_axis(
+        document, pixel_y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+    )
 
     radius_of = _radius_mapper([row[2] for row in all_rows], resolved_theme.marker_size) if size is not None else None
 
