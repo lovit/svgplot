@@ -24,7 +24,7 @@ from svgplot.charts._layout import (
     resolve_size,
     ticks_for,
 )
-from svgplot.charts._legend import render_legend, require_room
+from svgplot.charts._legend import render_legend, require_room, size_legend_ink_height
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import numeric_or_none
 from svgplot.data.ingest import ingest_longform
@@ -37,6 +37,7 @@ from svgplot.theme.css import render_theme_style
 
 _SIZE_LEGEND_GAP = 24.0  # vertical gap between the hue legend and the size legend
 _SIZE_LEGEND_ROW_PADDING = 8.0  # vertical breathing room between size-legend rows
+_SIZE_LEGEND_BASELINE = 4.0  # how far a row's label sits below its marker's centre
 _SIZE_LEGEND_LABEL_GAP = 6.0
 
 # A point's radius ranges from 0.5x to 2.5x the theme's base marker size when size=
@@ -86,14 +87,16 @@ def _render_size_legend(
     """
     low, high = min(size_values), max(size_values)
     samples = sorted({low, (low + high) / 2, high})
-    # Checked before the first circle, and against the same rule the hue legend uses. Rows
-    # here advance by each sample's own diameter rather than a fixed height, so the total is
-    # summed rather than multiplied -- but it is still the space this legend claims, and it
-    # still has to be on the canvas.
+    # Checked before the first circle, and against the same rule the hue legend uses: **ink**,
+    # not the space claimed. Summing ``2r + padding`` over every sample counts the last row's
+    # bottom padding, which nothing is drawn in, and that refused legends that fit --
+    # ``scatterplot(hue=3, size=)`` at 400x180 was rejected while its lowest ink sat at y=175
+    # on a 180px canvas. The hue legend had exactly this bug and it was fixed there first;
+    # this is the sibling call site that kept it.
     require_room(
         document,
         y,
-        sum(2 * radius_of(sample) + _SIZE_LEGEND_ROW_PADDING for sample in samples),
+        size_legend_ink_height([radius_of(sample) for sample in samples], _SIZE_LEGEND_ROW_PADDING, _SIZE_LEGEND_BASELINE),
         what=f"a size legend of {len(samples)} samples",
     )
     # Rows advance by each sample's own diameter (plus padding), not a fixed height:
@@ -115,7 +118,7 @@ def _render_size_legend(
             tag="text",
             attrib={
                 "x": format_coord(x + 2 * (max(radius_of(high), radius_of(low))) + _SIZE_LEGEND_LABEL_GAP),
-                "y": format_coord(row_y + 4),
+                "y": format_coord(row_y + _SIZE_LEGEND_BASELINE),
             },
             classes=["legend-text"],
         )

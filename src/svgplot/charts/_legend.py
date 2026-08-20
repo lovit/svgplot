@@ -51,13 +51,36 @@ def legend_ink_height(rows: int) -> float:
     return max(rows - 1, 0) * _ROW_HEIGHT + 2 * _TEXT_BASELINE_OFFSET
 
 
+def size_legend_ink_height(radii: list[float], row_padding: float, baseline_offset: float) -> float:
+    """The same measurement for a size legend, whose rows are as tall as their own markers.
+
+    Two differences from :func:`legend_ink_height`, and both come from the rows not being a
+    fixed height. The padding between rows is counted ``n - 1`` times rather than ``n``, for
+    the same reason as above -- the last row's padding has nothing drawn in it. And the last
+    row's own extent is whichever reaches lower, the bottom of its circle or the descender
+    under its label: a small marker with a big number beside it is limited by the text, a big
+    marker by the circle.
+    """
+    if not radii:
+        return 0.0
+    above = sum(2 * radius + row_padding for radius in radii[:-1])
+    last = radii[-1]
+    return above + max(2 * last, last + baseline_offset + 2 * _TEXT_BASELINE_OFFSET)
+
+
 def require_room(document: SvgDocument, y: float, needed: float, *, what: str) -> None:
     """Refuse to start drawing ``needed`` pixels of legend at ``y`` on a shorter canvas.
 
     ``needed`` is ink, not claimed space — see :func:`legend_ink_height`. A second legend
     stacked below the first starts at the *claimed* end of it, so it is checked from there
-    and against its own ink: that pairing is what stops ``scatterplot(hue=, size=)`` drawing
-    46px outside a 400x180 canvas with each legend individually looking fine.
+    and against its own ink. That pairing is what catches ``scatterplot(hue=, size=)``, where
+    each legend on its own looks fine: measured at 400x180 with both guards removed, three
+    hue groups fit (lowest ink y=175) and the fourth is the first to overflow, by 15px, with
+    every further group adding 20px — 75px at seven, and unbounded after that.
+
+    An earlier version of this paragraph said 46px, which no number of groups produces. The
+    figures above were measured by rendering with the guards disabled and reading the lowest
+    ink out of the document.
     """
     if y + needed > document.height:
         raise ValueError(

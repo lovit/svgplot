@@ -34,7 +34,7 @@ from svgplot.charts._layout import (
     resolve_size,
     ticks_for,
 )
-from svgplot.charts._legend import legend_text_room, minimum_legend_text_width
+from svgplot.charts._legend import legend_ink_height, legend_text_room, minimum_legend_text_width
 
 DATA = {
     "day": [1, 2, 3, 4, 1, 2, 3, 4],
@@ -718,3 +718,20 @@ def test_every_sized_chart_documents_the_two_new_arguments() -> None:
 
     undocumented = [function.__name__ for function in functions if "240x180" not in (function.__doc__ or "")]
     assert undocumented == []
+
+
+def test_the_heatmap_legend_boundary_is_where_its_ink_ends() -> None:
+    """The figure README and CHANGELOG quote, pinned. Nine entries put ``legend_ink_height(9)``
+    = 168px of ink below the top margin at y=30, so the shortest canvas that holds them is
+    198 — not the 210 the claimed-space rule gives, which is what those two documents said
+    until this was measured."""
+    data = {
+        "r": [f"r{index}" for index in range(3)] * 3,
+        "c": [f"c{index}" for index in range(3) for _ in range(3)],
+        "v": [float(index) for index in range(9)],
+    }
+
+    assert legend_ink_height(9) == 168.0
+    with pytest.raises(ValueError, match="needs 168px below y=30"):
+        sp.heatmap(data, x="r", y="c", values="v", width=400, height=197)
+    assert sp.heatmap(data, x="r", y="c", values="v", width=400, height=198) is not None
