@@ -62,6 +62,14 @@ def _is_time_axis(values: list[object], column: str) -> bool:
             mixed in -- a ``str``, a ``time`` -- is refused earlier, by :func:`_numeric_x`
             during the sort, and reported by type rather than as a mixture. Both messages
             name the column, which is the part that matters.
+
+            Also if the column mixes timezone-aware and naive datetimes. That is a different
+            mixture from ``date`` with ``datetime``, which stays welcome because promoting a
+            date to midnight is lossless -- here there is nothing to promote to. Python
+            refuses to compare the two, and an axis has to: it needs a smallest and a largest.
+            The previous code did not refuse, it *rounded them all off* -- the domain went
+            through ``fromtimestamp``, which reads every aware value in the drawing machine's
+            local time and silently answers a different question.
     """
     dated = [value for value in values if isinstance(value, date)]
     if not dated:
@@ -69,6 +77,12 @@ def _is_time_axis(values: list[object], column: str) -> bool:
     if len(dated) != len(values):
         others = sorted({type(value).__name__ for value in values if not isinstance(value, date)})
         raise ValueError(f"column {column!r} mixes dates with {', '.join(others)}; a time axis needs dates throughout")
+    aware = {isinstance(value, datetime) and value.tzinfo is not None for value in dated}
+    if len(aware) > 1:
+        raise ValueError(
+            f"column {column!r} mixes timezone-aware and naive datetimes; "
+            "a time axis has to compare them and Python does not define that comparison"
+        )
     return True
 
 
@@ -148,8 +162,8 @@ def lineplot(
 
     A tick label is always an exact truncation of the instant its tick stands at, with one
     documented exception: inside a single day the clock formats (``%H:%M`` and finer) hide
-    the year, month and day the tick also carries, so **a chart spanning less than a day
-    carries no date anywhere in its output**. That is a real limit for a figure meant to be
+    the year, month and day the tick also carries, so **a chart whose domain falls inside a
+    single calendar day carries no date anywhere in its output**. That is a real limit for a figure meant to be
     pasted into a document and read away from its caption; naming the date once on the axis
     is left to a later change rather than guessed at here.
 

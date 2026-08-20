@@ -740,6 +740,75 @@ def test_no_two_ticks_land_on_one_pixel_across_a_spring_forward(
     assert len(ticks) >= _MIN_TICKS
 
 
+@pytest.mark.parametrize(
+    ("zone", "domain", "expected"),
+    [
+        # A zone that transitions at midnight: a day-stepped axis lost a whole real day.
+        ("America/Santiago", (datetime(2024, 9, 4), datetime(2024, 9, 10)), "2024-09-08"),
+        # A half-hour jump at a new year: a two-century axis lost a real *year* label.
+        ("Pacific/Apia", (datetime(1800, 1, 1), datetime(2000, 1, 1)), "1950"),
+    ],
+)
+def test_a_tick_is_dropped_only_when_something_else_stands_on_its_instant(
+    monkeypatch: pytest.MonkeyPatch, zone: str, domain: tuple[datetime, datetime], expected: str
+) -> None:
+    """The first version of the filter dropped every tick that failed the round trip, wherever
+    it came from -- which deleted real days and years in zones whose transition lands on a
+    day or year boundary. Measured, those false drops outnumbered genuine collisions by 2.4x
+    to 13.6x: a worse fault than the one being fixed, and invisible to a suite whose zones all
+    transition at 02:00.
+    """
+    monkeypatch.setenv("TZ", zone)
+    clock.tzset()
+    scale = TimeScale(domain, (0.0, 800.0))
+    ticks = make_ticks(scale, count=5)
+
+    assert expected in [tick.strftime("%Y-%m-%d") for tick in ticks] + [str(tick.year) for tick in ticks]
+    positions = [round(scale(tick), 6) for tick in ticks]
+    assert len(set(positions)) == len(positions)
+
+
+def test_a_domain_entirely_inside_a_clock_hole_is_one_instant(monkeypatch: pytest.MonkeyPatch) -> None:
+    """02:00 to 03:00 on a spring-forward day is not an hour, it is a boundary. Both ends are
+    the same moment, so ``TimeScale`` maps everything in it to one pixel -- and a ladder run
+    over it puts every tick there no matter how distinct the ticks are."""
+    monkeypatch.setenv("TZ", "America/New_York")
+    clock.tzset()
+    domain = (datetime(2024, 3, 10, 2), datetime(2024, 3, 10, 3))
+    scale = TimeScale(domain, (0.0, 700.0))
+    ticks = make_ticks(scale, count=5)
+
+    assert len(ticks) == 1
+
+
+@pytest.mark.parametrize(("start", "span"), [(2001, 72), (2001, 73), (2001, 715), (2001, 748), (2024, 261)])
+def test_a_year_span_stays_readable_whatever_the_start_year(start: int, span: int) -> None:
+    """ "Nearest" is chosen from an estimate taken *before* aligning to the step, and alignment
+    can cost a tick at either end. Testing only round start years hides that: 2024 is a
+    multiple of 8 and lands well, while 2001 with a 72-year span came back with two ticks."""
+    ticks = make_ticks(TimeScale((datetime(start, 1, 1), datetime(start + span, 1, 1)), (0.0, 800.0)), count=5)
+
+    assert len(ticks) >= _MIN_TICKS, [tick.year for tick in ticks]
+
+
+def test_a_column_that_mixes_aware_and_naive_datetimes_is_refused_by_name() -> None:
+    """Python does not define a comparison between them and an axis needs a smallest and a
+    largest. The old code did not refuse, it *rounded them off*: the domain went through
+    ``fromtimestamp``, reading every aware value in the drawing machine's local time."""
+    rows = [{"t": date(2024, 1, 1), "v": 1.0}, {"t": datetime(2024, 1, 5, tzinfo=UTC), "v": 2.0}]
+
+    with pytest.raises(ValueError, match="mixes timezone-aware and naive datetimes"):
+        lineplot(rows, x="t", y="v")
+
+
+def test_dates_and_datetimes_still_mix_freely() -> None:
+    """The mixture that stays welcome, and the reason the message above names the other one:
+    promoting a date to midnight is lossless, and there is nothing to promote an offset to."""
+    rows = [{"t": date(2024, 1, 1), "v": 1.0}, {"t": datetime(2024, 1, 5, 12), "v": 2.0}]
+
+    assert lineplot(rows, x="t", y="v") is not None
+
+
 def test_a_repeated_hour_in_autumn_is_left_alone(monkeypatch: pytest.MonkeyPatch) -> None:
     """The mirror case, and the reason the filter tests for a *non-existent* time rather
     than for "anything unusual": a fall-back hour happens twice, not never, so dropping it

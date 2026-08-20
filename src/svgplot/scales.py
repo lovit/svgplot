@@ -345,10 +345,31 @@ def _calendar_ticks(low: datetime, high: datetime, count: int) -> list[datetime]
     # fits under count" into a cliff. Measured with first-that-fits, spans of 251-275,
     # 501-725 and 1251-1475 years came back with **two** ticks, which this module's own
     # ``_MIN_TICKS`` calls not an axis. A 261-year span now picks 50 years, not 100.
-    step = min(_YEAR_STEPS, key=lambda candidate: abs(years / candidate - count)) if years else _YEAR_STEPS[0]
-    # ``year <= MAXYEAR`` first, because the loop's own test builds a ``datetime`` and
-    # ``datetime(10000, 1, 1)`` is a ``ValueError`` rather than a value past ``high``. A
-    # domain reaching 9999 rendered on ``main`` and has to keep rendering.
+    # Nearest, not first-that-fits -- the same rule the two ladders above use, and for the
+    # same reason those two spell out: a ladder with gaps in it turns "the first step that
+    # fits under count" into a cliff. Measured with that rule, spans of 251-275, 501-725 and
+    # 1251-1475 years came back with **two** ticks.
+    #
+    # And then stepped down while the answer is still too sparse, because "nearest" is chosen
+    # from ``years / candidate``, an estimate taken *before* aligning to the step -- alignment
+    # can cost a tick at either end, which left 72-73 and 715-748 year spans degenerate for
+    # start years that are not themselves round. The month ladder has carried the same guard
+    # from the start; the year ladder was the one without it.
+    step = _YEAR_STEPS[0]
+    if years:
+        step = min(_YEAR_STEPS, key=lambda candidate: abs(years / candidate - count))
+        while step != _YEAR_STEPS[0] and len(_years_between(low, high, step)) < _MIN_TICKS:
+            step = _YEAR_STEPS[_YEAR_STEPS.index(step) - 1]
+    return _years_between(low, high, step)
+
+
+def _years_between(low: datetime, high: datetime, step: int) -> list[datetime]:
+    """New-year ticks every ``step`` years inside ``[low, high]``.
+
+    ``year <= MAXYEAR`` first, because the loop's own test builds a ``datetime`` and
+    ``datetime(10000, 1, 1)`` is a ``ValueError`` rather than a value past ``high``. A domain
+    reaching 9999 rendered on ``main`` and has to keep rendering.
+    """
     ticks, year = [], low.year + -low.year % step
     while year <= MAXYEAR and datetime(year, 1, 1, tzinfo=low.tzinfo) <= high:
         if datetime(year, 1, 1, tzinfo=low.tzinfo) >= low:
@@ -357,41 +378,66 @@ def _calendar_ticks(low: datetime, high: datetime, count: int) -> list[datetime]
     return ticks
 
 
-def _existing_local_times(ticks: list[datetime]) -> list[datetime]:
-    """Drop naive ticks that name a local time which does not happen.
+def _same_instant(first: datetime, second: datetime) -> bool:
+    """Whether two wall-clock readings name the same moment. ``False`` if either is past what
+    the platform can place, since two unplaceable values cannot be shown to coincide."""
+    if first == second:
+        return True
+    try:
+        return first.timestamp() == second.timestamp()
+    except (OverflowError, OSError, ValueError):
+        return False
 
-    A spring-forward transition deletes an hour from the local clock: on 2024-03-10 in
-    ``America/New_York`` there is no 02:00. The clock ladders here step in wall-clock
-    ``timedelta`` s from a floor, so they will happily produce one — and ``TimeScale`` then
-    places it with ``.timestamp()``, which folds the missing 02:00 onto the real 03:00 and
-    draws **two differently-labelled ticks at the same pixel**. Measured before this
-    existed: 15 of 288 domains across one such day collided in New York, 15 in Berlin, 11
-    in London, and the same fold put a non-existent 1994-12-31 on top of 1995-01-01 in
-    ``Pacific/Kiritimati``, whose date line moved.
 
-    The round-trip is the standard test: ``fromtimestamp(t.timestamp())`` returns the
-    instant the platform actually resolves ``t`` to, so a tick that comes back as something
-    else was never a real local time. An *ambiguous* time (the repeated hour in autumn) does
-    round-trip — it happens twice rather than never — and is left alone.
+def _exists_locally(tick: datetime) -> bool:
+    """Whether ``tick`` names a local reading that actually happens.
 
-    Aware ticks are returned untouched: their offset is carried with them, so no wall-clock
-    reading of theirs is ever missing.
+    ``fromtimestamp(t.timestamp())`` returns the instant the platform resolves ``t`` to, so a
+    tick that comes back as something else was never a real local time — a spring-forward
+    deletes an hour from the clock and the ladders here, stepping in wall-clock ``timedelta``,
+    will offer one from inside the hole. An *ambiguous* time (the repeated hour in autumn)
+    does round-trip: it happens twice rather than never.
+
+    Aware ticks carry their offset, so no wall-clock reading of theirs is ever missing.
     """
-    kept = []
+    if tick.tzinfo is not None:
+        return True
+    try:
+        return datetime.fromtimestamp(tick.timestamp()) == tick
+    except (OverflowError, OSError, ValueError):
+        # Past what the platform's local-time conversion can represent. Treated as real:
+        # a tick it cannot resolve is also a tick it cannot collide with.
+        return True
+
+
+def _distinct_instants(ticks: list[datetime]) -> list[datetime]:
+    """Drop a tick only when another tick already stands on its instant.
+
+    The defect this exists for is two differently-labelled ticks at **one pixel**: a
+    non-existent 02:00 folds onto the real 03:00, and ``TimeScale`` places both at the same
+    coordinate. Which tick to keep is decided by :func:`_exists_locally` — the real reading
+    wins, whichever came first.
+
+    Only on collision, and that qualifier is the whole point. An earlier version dropped every
+    tick that failed the round trip, wherever it came from, which deleted **real days and
+    years**: in a zone that transitions at midnight (Santiago, Beirut, Havana) a day-stepped
+    axis lost a whole day, and Samoa's 1950 half-hour jump erased a *year* label from a
+    two-century axis. Measured, those false drops outnumbered genuine collisions by 2.4x to
+    13.6x — a worse fault than the one being fixed, and invisible to a test suite whose zones
+    all transition at 02:00 or 03:00.
+    """
+    kept: dict[float, datetime] = {}
     for tick in ticks:
-        if tick.tzinfo is not None:
-            kept.append(tick)
-            continue
         try:
-            resolved = datetime.fromtimestamp(tick.timestamp())
+            instant = tick.timestamp()
         except (OverflowError, OSError, ValueError):
-            # Past what the platform's local-time conversion can represent. Keeping it is
-            # the safe direction: it cannot be colliding with a neighbour it cannot reach.
-            kept.append(tick)
+            # Unplaceable, so uncollidable; ``TimeScale`` will report it if it matters.
+            kept[float(len(kept)) - 1e18] = tick
             continue
-        if resolved == tick:
-            kept.append(tick)
-    return kept
+        previous = kept.get(instant)
+        if previous is None or (not _exists_locally(previous) and _exists_locally(tick)):
+            kept[instant] = tick
+    return [kept[instant] for instant in sorted(kept)]
 
 
 def make_ticks(scale: Scale, count: int = 5) -> list[float] | list[str] | list[datetime]:
@@ -413,6 +459,13 @@ def make_ticks(scale: Scale, count: int = 5) -> list[float] | list[str] | list[d
         return list(scale.categories)
     if isinstance(scale, TimeScale):
         domain_min, domain_max = scale.domain
+        if _same_instant(domain_min, domain_max):
+            # Two different wall-clock readings of **one instant**: a domain that falls
+            # entirely inside a spring-forward hole, where 02:00 and 03:00 are the same
+            # moment. ``TimeScale`` maps every value in such a domain to the middle of its
+            # range, so any ladder run over it puts every tick on one pixel no matter how
+            # distinct the ticks are. One instant, one tick.
+            return [domain_min]
         # Time is not a number line with prettier labels. See ``_SUB_MONTH_STEPS``.
         ticks = _aligned_ticks(domain_min, domain_max, count)
         if ticks is None:
@@ -436,7 +489,7 @@ def make_ticks(scale: Scale, count: int = 5) -> list[float] | list[str] | list[d
         # same label is the defect this whole change exists to remove.
         # After every ladder, not inside one: the fold that makes two ticks share a pixel is
         # a property of the local clock, not of the step that produced them.
-        ticks = _existing_local_times(ticks)
+        ticks = _distinct_instants(ticks)
         return ticks or list(dict.fromkeys([domain_min, domain_max]))
     if isinstance(scale, LinearScale):
         domain_min, domain_max = scale.domain
