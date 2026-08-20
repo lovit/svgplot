@@ -13,7 +13,7 @@ import pytest
 import svgplot as sp
 from svgplot._svg import SvgDocument
 from svgplot.layout.sizing import apply_size
-from svgplot.scope import RESPONSIVE_CSS, apply_scope, scope_token, validate_css_class_name
+from svgplot.scope import RESPONSIVE_CLASS, RESPONSIVE_CSS, apply_scope, scope_token, validate_css_class_name
 
 DATA = {"x": [1, 2, 3], "y": [1.0, 2.0, 3.0]}
 CATEGORIES = {"c": ["a", "b"], "v": [1.0, 2.0]}
@@ -251,6 +251,31 @@ def test_set_scope_rejects_a_name_that_would_not_survive_a_selector(bad: str) ->
     are CSS-breakout characters once the name is written into a selector."""
     with pytest.raises(ValueError, match="class name must match"):
         sp.lineplot(DATA, x="x", y="y").set_scope(bad)
+
+
+def test_set_scope_rejects_a_name_this_package_owns() -> None:
+    """``svgplot-responsive`` on the root would make the chart inherit the global responsive
+    rule any *other* chart on the page emits -- it would start scaling for a reason nowhere in
+    its own file."""
+    with pytest.raises(ValueError, match="reserved by svgplot"):
+        sp.lineplot(DATA, x="x", y="y").set_scope(RESPONSIVE_CLASS)
+
+
+def test_a_scope_the_package_does_not_own_is_allowed_even_if_it_reads_oddly() -> None:
+    """``series-1`` is a class this package writes onto inner elements, but taking it as a
+    scope only affects the caller's own root. Reserving the whole vocabulary would be a bigger
+    promise than the package can keep as that vocabulary grows."""
+    svg = sp.lineplot(DATA, x="x", y="y").set_scope("series-1").to_string()
+
+    assert ":where(.series-1) .series-1 {" in svg
+
+
+def test_a_childs_scope_is_ignored_once_it_is_composed() -> None:
+    """Documented rather than fixed: a composition nests the child's *raw* document and carries
+    one scope of its own, so the child's is not something the output could honour."""
+    child = sp.lineplot(DATA, x="x", y="y").set_scope("mychild")
+
+    assert "mychild" not in sp.row([child, sp.lineplot(DATA, x="x", y="y")]).to_string()
 
 
 def test_validate_css_class_name_returns_the_name_it_accepted() -> None:

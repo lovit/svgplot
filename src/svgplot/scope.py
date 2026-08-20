@@ -45,6 +45,25 @@ that must skip it read from one definition. See :func:`apply_scope` for why it i
 CSS_CLASS_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
 
 
+RESERVED_SCOPES = frozenset({RESPONSIVE_CLASS})
+"""Names this package already writes onto a chart's root, so a scope may not take them.
+
+``set_scope("svgplot-responsive")`` would put that class on the root and the chart would then
+pick up the global responsive rule any *other* chart on the page emits -- it would start
+scaling for a reason nowhere in its own file. The names that live on inner elements
+(``series-1``, ``plot-background``) are not reserved: taking one is odd but only affects the
+caller's own root, and reserving the whole vocabulary would be a bigger promise than this
+package can keep as that vocabulary grows."""
+
+
+def validate_scope(value: str) -> str:
+    """A caller-supplied scope class: a valid CSS name that is not one this package owns."""
+    name = validate_css_class_name(value, kind="scope")
+    if name in RESERVED_SCOPES:
+        raise ValueError(f"scope class name {name!r} is reserved by svgplot; pick another")
+    return name
+
+
 def validate_css_class_name(value: str, *, kind: str = "series") -> str:
     """Reject a class name that would not survive being written into a CSS selector.
 

@@ -27,7 +27,7 @@ from svgplot.output.jupyter import repr_svg
 from svgplot.output.markdown import MARKDOWN_SUFFIXES, save_markdown, to_markdown
 from svgplot.output.png import to_png
 from svgplot.output.svg import save_svg, to_string
-from svgplot.scope import apply_scope, validate_css_class_name
+from svgplot.scope import apply_scope, validate_scope
 
 
 class Chart:
@@ -106,13 +106,17 @@ class Chart:
         to override), or when two byte-identical charts on a page must be styled apart:
         the derived token is a hash of the picture, so identical pictures share one.
 
+        Ignored once the chart is composed: :func:`svgplot.layout.grid.row` and friends nest
+        the chart's *raw* document and the figure carries one scope of its own, so set it on
+        the composition instead.
+
         Returns self for chaining.
 
         Raises:
-            ValueError: if ``scope`` is not a valid CSS class name. The rule is
-                ``theme.css``'s, because that is where the name has to survive as a selector.
+            ValueError: if ``scope`` is not a valid CSS class name, or is one this package
+                already puts on a root -- see :data:`svgplot.scope.RESERVED_SCOPES`.
         """
-        self._scope = validate_css_class_name(scope, kind="scope")
+        self._scope = validate_scope(scope)
         return self
 
     @property

@@ -56,7 +56,7 @@ from svgplot.output.jupyter import repr_svg
 from svgplot.output.markdown import MARKDOWN_SUFFIXES, save_markdown, to_markdown
 from svgplot.output.png import to_png
 from svgplot.output.svg import save_svg, to_string
-from svgplot.scope import apply_scope, validate_css_class_name
+from svgplot.scope import apply_scope, validate_scope
 
 # A CSS class selector in a child's <style>. Matching every ".identifier" is sound
 # only because theme/css.py is the sole producer of these blocks and validates every
@@ -313,7 +313,7 @@ class Composition:
         Raises:
             ValueError: if ``scope`` is not a valid CSS class name.
         """
-        self._scope = validate_css_class_name(scope, kind="scope")
+        self._scope = validate_scope(scope)
         return self
 
     @property
