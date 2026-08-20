@@ -41,7 +41,11 @@ DATA = {
 CHART_TYPES: list[tuple[str, Callable[..., Chart]]] = [
     ("lineplot", lambda **kw: sp.lineplot(DATA, x="day", y="value", **kw)),
     ("scatterplot", lambda **kw: sp.scatterplot(DATA, x="day", y="value", size="weight", **kw)),
-    ("barplot", lambda **kw: sp.barplot(DATA, x="category", y="value", **kw)),
+    # estimator="mean": the shared fixture carries each category twice (it has to, for the
+    # "group" channel), and barplot's default rule would discard one row of each pair and
+    # say so with an AggregationWarning. The default rule is covered in test_charts_bar.py;
+    # what this file is for is that every chart renders, which a warning only makes noisy.
+    ("barplot", lambda **kw: sp.barplot(DATA, x="category", y="value", estimator="mean", **kw)),
     ("histplot", lambda **kw: sp.histplot(DATA, x="value", bins=4, **kw)),
     ("areaplot", lambda **kw: sp.areaplot(DATA, x="day", y="value", **kw)),
     ("pieplot", lambda **kw: sp.pieplot(DATA, values="value", labels="category", **kw)),
@@ -162,7 +166,7 @@ def test_a_composition_of_different_chart_types_serializes_as_one_document() -> 
     composed = sp.row(
         [
             sp.lineplot(DATA, x="day", y="value"),
-            sp.barplot(DATA, x="category", y="value"),
+            sp.barplot(DATA, x="category", y="value", estimator="mean"),
             sp.pieplot(DATA, values="value", labels="category"),
         ]
     )
@@ -239,7 +243,9 @@ def test_saving_a_chart_writes_parseable_svg_to_disk(factory: Callable[..., Char
 
 def test_saving_a_composition_writes_parseable_svg_to_disk(tmp_path: Path) -> None:
     destination = tmp_path / "composition.svg"
-    sp.column([sp.lineplot(DATA, x="day", y="value"), sp.barplot(DATA, x="category", y="value")]).save(str(destination))
+    sp.column([sp.lineplot(DATA, x="day", y="value"), sp.barplot(DATA, x="category", y="value", estimator="mean")]).save(
+        str(destination)
+    )
     ET.fromstring(destination.read_text(encoding="utf-8"))
 
 

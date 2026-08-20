@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 from svgplot._svg import SvgDocument
+from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, group, plural, span
-from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, format_coord, plot_area
+from svgplot.charts._layout import (
+    DEFAULT_WIDTH,
+    MARGIN_WITHOUT_LEGEND,
+    format_coord,
+    new_canvas,
+)
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import CategoricalScale, LinearScale
@@ -40,6 +46,8 @@ def boxplot(
     *,
     mode: str = "1.5IQR",
     theme: Theme | str | None = None,
+    categories: tuple[str, ...] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a box plot from long-form data: one box per distinct ``x`` value,
     computed from that group's ``y`` values via ``stats.box.box_stats``.
@@ -49,6 +57,14 @@ def boxplot(
     category) — there's no ``hue=`` here since the categories themselves are
     already the grouping axis, so no legend is drawn (the x-axis tick labels
     already name each category).
+
+    ``categories=`` replaces the category list this chart would take from its own data, and
+    ``ylim=`` its value domain. They exist so several charts can be made to agree -- see
+    :func:`~svgplot.layout.facet.facet`. A category with no rows still gets its band **and
+    its place in the palette**, so the same category is the same colour in every chart
+    sharing the list; it simply has no mark drawn in it. Minting the class for an undrawn
+    category is the point: skipping it would shift every later category's colour, and two
+    panels would disagree about what blue means.
 
     Raises:
         KeyError: if ``x``/``y`` isn't a column in ``data``, or if ``theme`` is a
@@ -67,36 +83,35 @@ def boxplot(
     if not groups:
         raise ValueError("no rows with both x and y present after dropping missing values")
 
-    categories = list(groups.keys())
+    drawn_categories = list(require_categories(categories)) if categories is not None else list(groups.keys())
     stats_by_category: dict[str, BoxStats] = {category: box_stats(values, mode=mode) for category, values in groups.items()}
 
     all_low = [s.whisker_low for s in stats_by_category.values()] + [o for s in stats_by_category.values() for o in s.outliers]
     all_high = [s.whisker_high for s in stats_by_category.values()] + [
         o for s in stats_by_category.values() for o in s.outliers
     ]
-    y_domain = (min(all_low), max(all_high))
+    y_domain = apply_limit((min(all_low), max(all_high)), ylim)
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITHOUT_LEGEND)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
+    document, area = new_canvas(
+        fit_left_margin(MARGIN_WITHOUT_LEGEND, y_domain, width=DEFAULT_WIDTH, font_size=resolved_theme.tick_label_font_size)
     )
 
-    x_scale = CategoricalScale(categories, (area.left, area.right))
+    x_scale = CategoricalScale(drawn_categories, (area.left, area.right))
     y_scale = LinearScale(y_domain, (area.bottom, area.top))
-    render_x_axis(document, x_scale, area, tick_length=resolved_theme.tick_size)
-    render_y_axis(document, y_scale, area, tick_length=resolved_theme.tick_size)
+    render_x_axis(document, x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size)
+    render_y_axis(document, y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size)
 
     series_classes: list[str] = []
     box_half_width = x_scale.bandwidth * _BOX_WIDTH_FRACTION / 2
     cap_half_width = x_scale.bandwidth * _WHISKER_CAP_FRACTION / 2
-    for category in categories:
+    for category in drawn_categories:
+        # Minted even when this panel has no rows for the category, so a shared list keeps
+        # one colour per category across every chart using it.
         series_class = document.semantic_class("series")
         series_classes.append(series_class)
-        stats = stats_by_category[category]
+        stats = stats_by_category.get(category)
+        if stats is None:
+            continue
         marker_class = f"{series_class}-marker"
         _render_box(
             document,
@@ -127,11 +142,11 @@ def boxplot(
     observations = plural(sum(len(values) for values in groups.values()), "observation")
     description = describe(
         "Box plot",
-        f'{group(categories, "category")} over {observations}',
+        f'{group(drawn_categories, "category")} over {observations}',
         span("y", *y_domain),
         f"{mode} whiskers",
     )
-    return Chart(document, description=description)
+    return Chart(document, description=description, domains=Domains(y=y_domain, categories=tuple(drawn_categories)))
 
 
 def _render_box(

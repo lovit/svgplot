@@ -33,7 +33,7 @@ sp.scatterplot(data, x="day", y="sales", hue="region", size="size").save("scatte
 # 막대 — orient="v"|"h", stacked=True면 누적, hue=만 주면 그룹(dodge)
 sp.barplot(data, x="region", y="sales", hue="region", stacked=True).save("bar.svg")
 
-# 히스토그램 — bins는 정수 또는 numpy 전략 문자열("auto" 기본)
+# 히스토그램 — bins는 정수 또는 전략 문자열("auto" 기본)
 sp.histplot(data, x="sales", bins=5).save("hist.svg")
 
 # 영역 — stacked=True면 누적 영역
@@ -99,6 +99,27 @@ sp.gaugeplot({"metric": ["가동률", "적중률"], "score": [72.0, 91.0]},
              "score", labels="metric", vmax=100).save("gauge.svg")
 ```
 
+### 같은 x 의 여러 행 — `estimator=`
+
+`bar`/`area`/`line`은 같은 x 를 가진 여러 행을 하나의 마크로 접는다. 접는 규칙은 차트마다 다르고 모두 기본값이다 — `bar`는 **마지막 행이 이기고**(나머지는 버려진다), `area`는 **합산**하며, `line`은 **두 꼭짓점을 모두** 그린다(x 가 같으므로 수직 선분이 된다).
+
+```python
+sp.barplot({"x": ["a", "a", "a"], "y": [10.0, 20.0, 60.0]}, x="x", y="y")
+# 막대 하나가 60(마지막 행)으로 그려지고, AggregationWarning 이 몇 행을 버렸는지 알려준다
+
+sp.barplot({"x": ["a", "a", "a"], "y": [10.0, 20.0, 60.0]}, x="x", y="y", estimator="mean")   # 30
+sp.barplot({"x": ["a", "a", "a"], "y": [10.0, 20.0, 60.0]}, x="x", y="y", estimator="median") # 20
+sp.barplot({"x": ["a", "a", "a"], "y": [10.0, 20.0, 60.0]}, x="x", y="y", estimator=min)      # 10
+```
+
+`estimator=`는 `"mean"` / `"median"` / `"sum"` 또는 그룹의 값을 **행 순서대로** 받아 숫자를 돌려주는 callable 을 받는다. 기본값 `None`은 위의 기존 규칙을 그대로 둔다 — 기본값을 `"mean"`으로 바꾸면 seaborn 과 맞지만 이미 만들어 둔 모든 차트가 조용히 다시 그려진다. 대신 **행이 실제로 버려질 때만** 경고한다(`bar`뿐이다 — `area`는 합산하고 `line`은 둘 다 그리므로 잃는 것이 없다).
+
+```python
+warnings.filterwarnings("ignore", category=sp.AggregationWarning)   # 경고만 끄기
+```
+
+나머지 차트가 `estimator=`를 받지 않는 이유는 `charts/_aggregate.py`에 적혀 있다 — 분포 차트(`hist`/`kde`/`ecdf`/`box`/`violin`)는 퍼짐 자체가 그림이라 미리 접으면 지워지고, `scatter`/`pie`/`treemap`/`gauge`는 1행 = 1마크이며, `heatmap`은 중복 셀을 접는 대신 **거부**한다. `lineplot`에서는 `estimator=`와 `info=`를 함께 줄 수 없다 — 각주 표는 "1행 = 1마크"를 전제하는데 집계가 바로 그 전제를 깬다.
+
 ### 여러 차트를 하나의 도판으로
 
 `row`/`column`/`grid`는 `Chart`와 동일한 인터페이스를 가진 `Composition`을 돌려주므로 그대로 저장할 수 있다. `None`은 빈 칸이고, `titles=`는 각 칸 위에 소제목을 붙인다(markdown에서 재현 불가능한 탭 UI의 정적 대체).
@@ -121,6 +142,12 @@ sp.grid(
 
 ```python
 sp.facet(sp.lineplot, data, col="region", x="day", y="sales").save("facet.svg")
+```
+
+패널은 **기본적으로 축을 공유한다**(`sharex=False`/`sharey=False`로 끌 수 있다). 공유하지 않으면 두 패널의 선이 같은 높이에 그려지는데 하나는 3, 다른 하나는 300이고 그 사실이 지면 어디에도 적히지 않는다.
+
+```python
+sp.facet(sp.lineplot, data, col="region", x="day", y="sales", sharey=False)
 ```
 
 ### 테마

@@ -8,9 +8,9 @@ PYTHONDONTWRITEBYTECODE = "1"
 # .env 파일이 생기면 `_.file = ".env"` 를 여기 추가해 mise가 자동 로드하게 한다.
 
 [tasks.install]
-description = "Sync all dependency groups via uv, install prek git hooks"
+description = "Sync all dependency groups and the numpy-parity extra via uv, install prek git hooks"
 run = """
-uv sync --all-groups
+uv sync --all-groups --extra numpy-parity
 uv run prek install
 uv run prek install --hook-type commit-msg
 """

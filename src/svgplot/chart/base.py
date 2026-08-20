@@ -20,6 +20,7 @@ from pathlib import Path
 
 from svgplot._svg import SvgDocument, validate_element_id
 from svgplot.accessibility import add_accessibility
+from svgplot.chart._domain import Domains
 from svgplot.labels._source import LabelData
 from svgplot.labels.table import MISSING_TEXT, render_table
 from svgplot.output.jupyter import repr_svg
@@ -40,13 +41,33 @@ class Chart:
     """The id an ``info=`` table is referenced by. One page holding two charts with
     ``info=`` needs two distinct ids — see :meth:`set_table_id`."""
 
-    def __init__(self, svg_document: SvgDocument, labels: LabelData | None = None, *, description: str | None = None) -> None:
+    def __init__(
+        self,
+        svg_document: SvgDocument,
+        labels: LabelData | None = None,
+        domains: Domains | None = None,
+        *,
+        description: str | None = None,
+    ) -> None:
         self._svg_document = svg_document
         self._title: str | None = None
         self._palette: str | list[str] | None = None
         self._labels = labels
         self._description = description
         self._table_id = self.DEFAULT_TABLE_ID
+        self._domains = domains or Domains()
+
+    @property
+    def domains(self) -> Domains:
+        """What this chart's axes actually spanned.
+
+        Empty for a chart with no cartesian axes (a pie, a treemap). Read by
+        :func:`~svgplot.layout.facet.facet` to make several panels agree; see
+        ``charts/_domain.py`` for why this is recorded rather than recomputed from the
+        data. Not part of the public API surface yet -- it is a chart's report about
+        itself, and the shape of that report is still settling.
+        """
+        return self._domains
 
     def set_title(self, title: str) -> Chart:
         """Set the chart title. Returns self for chaining."""

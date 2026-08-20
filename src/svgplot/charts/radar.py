@@ -13,22 +13,19 @@ from __future__ import annotations
 
 import math
 
-from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._describe import describe, group, span
 from svgplot.charts._layout import (
-    DEFAULT_HEIGHT,
-    DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     format_coord,
-    plot_area,
+    new_canvas,
 )
 from svgplot.charts._legend import render_legend
-from svgplot.charts._polar import polar_point
+from svgplot.charts._polar import label_anchor, polar_point
+from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
-from svgplot.data.semantic import extract_channels
 from svgplot.scales import CategoricalScale, LinearScale, make_ticks
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
@@ -49,10 +46,6 @@ _START_ANGLE = -math.pi / 2
 _LABEL_GAP = 18.0
 """Distance from the outer ring to a category label, in pixels. Fixed rather than derived
 from the text, because this package measures no glyphs."""
-
-_ANCHOR_EPSILON = 1e-9
-"""How close to straight up/down counts as vertical when choosing a label's anchor. Guards
-against a float that is 1e-17 off the axis flipping the anchor to a side."""
 
 
 def _values_by_category(columns: dict[str, list], x: str, y: str) -> dict[str, float]:
@@ -97,19 +90,6 @@ def _validate_radius_values(label: object, values: dict[str, float]) -> None:
             raise ValueError(f"radar values must be finite, got {value!r} for {category!r} in {named}")
         if value < 0:
             raise ValueError(f"radar values must be non-negative, got {value!r} for {category!r} in {named}")
-
-
-def _label_anchor(angle: float) -> str:
-    """The ``text-anchor`` for a label sitting at ``angle``, from the quadrant alone.
-
-    An angle, not a measured width: this package has no font metrics, and a label's side
-    is fully determined by which half of the circle it is on. Straight up and straight
-    down get ``middle`` because neither side is nearer.
-    """
-    cosine = math.cos(angle)
-    if abs(cosine) < _ANCHOR_EPSILON:
-        return "middle"
-    return "start" if cosine > 0 else "end"
 
 
 def _polygon_points(
@@ -174,13 +154,7 @@ def radarplot(
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
 
-    if hue is not None:
-        groups = extract_channels(data, hue=hue)
-        if not groups:
-            raise ValueError(f"no rows with a non-missing {hue!r} value")
-        series_items = sorted(groups.items(), key=lambda item: str(item[0]))
-    else:
-        series_items = [(None, longform.columns)]
+    series_items = build_series(data, longform.columns, hue)
 
     series_values = [(label, _values_by_category(columns, x, y)) for label, columns in series_items]
     # Every category named by a row that belongs to some series is a spoke, whether or not
@@ -216,14 +190,7 @@ def radarplot(
         # from real mid-scale data. pieplot refuses an all-zero column for the same reason.
         raise ValueError("radar values must not all be zero; there is no scale to draw them against")
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=_MARGIN_WITH_LEGEND if hue is not None else _MARGIN_WITHOUT_LEGEND)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
-    )
+    document, area = new_canvas(_MARGIN_WITH_LEGEND if hue is not None else _MARGIN_WITHOUT_LEGEND)
 
     centre = ((area.left + area.right) / 2, (area.top + area.bottom) / 2)
     outer_radius = min(area.right - area.left, area.bottom - area.top) / 2 - _LABEL_GAP
@@ -259,7 +226,7 @@ def radarplot(
             attrib={
                 "x": format_coord(label_point[0]),
                 "y": format_coord(label_point[1]),
-                "text-anchor": _label_anchor(angle),
+                "text-anchor": label_anchor(angle),
                 "dominant-baseline": "middle",
             },
             classes=["tick-label"],
@@ -285,6 +252,7 @@ def radarplot(
             x=area.right + LEGEND_X_OFFSET,
             y=area.top,
             mark_style="fill" if fill else "stroke",
+            font_size=resolved_theme.legend_font_size,
         )
 
     render_theme_style(document, resolved_theme, series_classes, mark_style=mark_style)

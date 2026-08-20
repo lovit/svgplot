@@ -28,17 +28,15 @@ from __future__ import annotations
 import math
 import warnings
 
-from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import (
-    DEFAULT_HEIGHT,
     DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     format_coord,
-    plot_area,
+    new_canvas,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
@@ -57,20 +55,25 @@ LEVELS = 9
 """How many colour steps a value is quantised into. Odd, so a ``center=`` lands on a
 middle level with the same number of steps either side."""
 
-_BYTES_PER_CELL = 88
+_BYTES_PER_CELL = 85
 """Measured marginal output cost of one drawn cell."""
 
-_BYTES_PER_TICK = 216
+_BYTES_PER_TICK = 163
 """Measured marginal output cost of one axis tick (a row or a column label).
 
 Two terms are needed because the two counts come apart on a sparse grid: a 100x100 grid
 holding a 100-cell diagonal draws 100 rects but still labels 200 ticks. Estimating from
-cells alone put that chart at 8 KB against a real 51 KB; from grid cells alone, at 859 KB.
+cells alone put that chart at 8 KB against a real 41 KB; from grid cells alone, at 859 KB.
 
-``drawn * 88 + (rows + cols) * 216`` was fitted on four measured points and is within 5%
-of all of them (estimate vs real, as the warning itself prints them): 50x50 dense 235 vs
-233 KB, 100x100 dense 901 vs 863 KB, 100x100 diagonal 50 vs 51 KB, 200x200 diagonal 101 vs
-102 KB. Worst case +4.4%, on the densest."""
+``drawn * 85 + (rows + cols) * 163`` was fitted on four measured points and is within 3% of
+all of them (estimate vs real, as the warning itself prints them -- so the fit is against the
+**integer-divided** KB the reader sees, not against the exact quotient): 50x50 dense 223 vs
+229 KB (-2.45%), 100x100 dense 861 vs 853 KB (+0.92%), 100x100 diagonal 40 vs 41 KB (-2.58%),
+200x200 diagonal 80 vs 78 KB (+2.96%). Worst case +2.96%, on the sparsest.
+
+Refitted whenever the drawn output changes, because it is a fit and not a derivation. It has
+moved twice: once when label thinning stopped the tick count tracking the grid, and once when
+long labels started carrying a ``<title>`` of their own."""
 
 _INK_FLIP_LUMINANCE = math.sqrt(1.05 * 0.05) - 0.05
 """Relative luminance at which black and white give a cell exactly the same contrast.
@@ -207,19 +210,14 @@ def heatmap(
     normalize = Normalize.from_values(magnitudes, center=center)
     colors = _colormap(cmap, center=center)
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
+    document, area = new_canvas(
+        fit_left_margin(MARGIN_WITH_LEGEND, rows, width=DEFAULT_WIDTH, font_size=resolved_theme.tick_label_font_size)
     )
 
     x_scale = CategoricalScale(columns, (area.left, area.right))
     y_scale = CategoricalScale(rows, (area.top, area.bottom))
-    render_x_axis(document, x_scale, area, tick_length=resolved_theme.tick_size)
-    render_y_axis(document, y_scale, area, tick_length=resolved_theme.tick_size)
+    render_x_axis(document, x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size)
+    render_y_axis(document, y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size)
 
     # One class per level, minted up front so every cell of the same level shares a rule --
     # which is what makes a nine-line hand edit recolour the whole chart.
@@ -270,6 +268,7 @@ def heatmap(
         x=area.right + LEGEND_X_OFFSET,
         y=area.top,
         mark_style="fill",
+        font_size=resolved_theme.legend_font_size,
     )
     # Only when there are annotations to colour: nine dead rules would be nine more lines
     # to read past in a chart a reader is meant to be able to hand-edit.

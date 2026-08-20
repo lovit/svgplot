@@ -9,45 +9,56 @@ Marks are filled (``mark_style="fill"``), unlike lineplot's stroked paths.
 
 from __future__ import annotations
 
-from svgplot._svg import SvgDocument
+from collections.abc import Callable
+
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, over, plural, span
 from svgplot.charts._layout import (
-    DEFAULT_HEIGHT,
     DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
     format_coord,
-    plot_area,
+    new_canvas,
 )
 from svgplot.charts._legend import render_legend
+from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data.ingest import ingest_longform
-from svgplot.data.semantic import extract_channels
 from svgplot.scales import LinearScale
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
 
-def _series_points(columns: dict[str, list], x: str, y: str) -> list[tuple[float, float]]:
-    """Drop rows with a missing x or y value, sum any rows sharing an x, then sort
+def _series_points(
+    columns: dict[str, list], x: str, y: str, estimate: Callable[[list[float]], float] | None
+) -> list[tuple[float, float]]:
+    """Drop rows with a missing x or y value, fold any rows sharing an x, then sort
     by x (mirrors ``charts/line.py``'s ``_series_points`` — no datetime x support
     here, this issue's AC doesn't call for it).
 
     An area is a function of x: exactly one filled height per x. Rows sharing an x
-    are therefore summed into one point rather than kept as separate vertices, and
+    are therefore folded into one point rather than kept as separate vertices, and
     the aggregation happens here so the stacked and unstacked paths — which both
     build on this — can never disagree about what a repeated x means.
+
+    ``estimate=None`` sums, which is the rule this chart has always used and the reason
+    it never warns: nothing is discarded, so there is nothing to advise about. An explicit
+    ``estimator="sum"`` folds with ``math.fsum`` instead, and a test pins that the two
+    produce byte-identical SVG -- CPython 3.12+ already compensates ``sum()`` over floats,
+    so writing the historical rule out by name is documentation, not a behaviour change.
     """
-    totals: dict[float, float] = {}
+    groups: dict[float, list[float]] = {}
     for xv, yv in zip(columns[x], columns[y], strict=True):
         if xv is None or yv is None or (isinstance(yv, float) and yv != yv):
             continue
-        key = float(xv)
-        totals[key] = totals.get(key, 0.0) + float(yv)
-    return sorted(totals.items())
+        groups.setdefault(float(xv), []).append(float(yv))
+    if estimate is None:
+        return sorted((key, sum(values)) for key, values in groups.items())
+    return sorted((key, apply_estimator(estimate, values, group=str(key))) for key, values in groups.items())
 
 
 def _closed_path_data(xs: list[float], ys: list[float], baseline_y: float) -> str:
@@ -89,7 +100,10 @@ def areaplot(
     hue: str | None = None,
     *,
     stacked: bool = False,
+    estimator: Estimator | None = None,
     theme: Theme | str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a filled area chart from long-form data.
 
@@ -106,27 +120,35 @@ def areaplot(
     their combined value there. This holds identically in stacked and unstacked
     mode.
 
+    ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
+    exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
+    which uses them to give faceted panels one axis -- and replace rather than widen, so a
+    caller asking for a narrower view gets one.
+
+    ``estimator=`` replaces that sum: ``"mean"``/``"median"``/``"sum"``, or any callable
+    taking the group's values in row order and returning a number. The default stays
+    ``None`` (the historical sum) so no existing chart changes — see
+    ``charts/_aggregate.py``. Nothing is discarded on either path, so unlike ``barplot``
+    this chart never warns about repeated x values.
+
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
             is a string that isn't a registered preset name.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
-        ValueError: if ``data`` has no rows, or no rows survive after dropping
-            rows with a missing x or y value.
+        ValueError: if ``data`` has no rows, if no rows survive after dropping
+            rows with a missing x or y value, or if ``estimator`` is an unknown name or
+            returns a value that can't be plotted.
+        TypeError: if ``estimator`` is neither a name, a callable, nor ``None``.
     """
     resolved_theme = resolve_theme(theme)
     longform = ingest_longform(data, x, y)
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
 
-    if hue is not None:
-        groups = extract_channels(data, hue=hue)
-        if not groups:
-            raise ValueError(f"no rows with a non-missing {hue!r} value")
-        series_items = sorted(groups.items(), key=lambda item: str(item[0]))
-    else:
-        series_items = [(None, longform.columns)]
+    series_items = build_series(data, longform.columns, hue)
 
-    series_points = [(label, _series_points(columns, x, y)) for label, columns in series_items]
+    estimate = resolve_estimator(estimator)
+    series_points = [(label, _series_points(columns, x, y, estimate)) for label, columns in series_items]
 
     all_x = [point[0] for _, points in series_points for point in points]
     all_y = [point[1] for _, points in series_points for point in points]
@@ -154,20 +176,26 @@ def areaplot(
         y_domain_values = [0.0, *all_y]
 
     y_domain = (min(y_domain_values), max(y_domain_values))
+    x_domain = apply_limit(x_domain, xlim)
+    y_domain = apply_limit(y_domain, ylim)
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
+    document, area = new_canvas(
+        fit_left_margin(
+            MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
+            y_domain,
+            width=DEFAULT_WIDTH,
+            font_size=resolved_theme.tick_label_font_size,
+        )
     )
 
     pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
-    render_x_axis(document, pixel_x_scale, area, tick_length=resolved_theme.tick_size)
-    render_y_axis(document, pixel_y_scale, area, tick_length=resolved_theme.tick_size)
+    render_x_axis(
+        document, pixel_x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+    )
+    render_y_axis(
+        document, pixel_y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+    )
 
     baseline_y = pixel_y_scale(0.0)
     series_classes: list[str] = []
@@ -205,7 +233,14 @@ def areaplot(
                 legend_entries.append((str(label), series_class))
 
     if legend_entries:
-        render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+        render_legend(
+            document,
+            legend_entries,
+            x=area.right + LEGEND_X_OFFSET,
+            y=area.top,
+            mark_style="fill",
+            font_size=resolved_theme.legend_font_size,
+        )
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
@@ -216,4 +251,4 @@ def areaplot(
         span("x", *x_domain),
         span("y", *y_domain),
     )
-    return Chart(document, description=description)
+    return Chart(document, description=description, domains=Domains(x=x_domain, y=y_domain))
