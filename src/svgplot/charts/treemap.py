@@ -47,7 +47,7 @@ _MIN_LABEL_HEIGHT = 16.0
 """A tile smaller than this gets no label.
 
 Purely a geometry threshold: this package has no font metrics by design
-(docs/research/12-aesthetics.md §3), so "does the text fit?" cannot be measured
+(docs-research/12-aesthetics.md §3), so "does the text fit?" cannot be measured
 and is approximated by "is the tile at least this big?" instead.
 """
 

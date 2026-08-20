@@ -92,7 +92,7 @@ ROTATION_DEGREES = 45.0
 """How far a category label turns when it will not fit its band lying flat.
 
 Forty-five, not ninety. The research this package is built from names rotation as the way to
-avoid overlap *without measuring text* (``docs/research/12-aesthetics.md`` §3), and 45 is what
+avoid overlap *without measuring text* (``docs-research/12-aesthetics.md`` §3), and 45 is what
 pygal's ``x_label_rotation`` and matplotlib's ``rotation=`` are reached for in practice. At 90
 a label is read sideways and costs its full width in vertical margin; at 45 it costs
 ``width x sin(45)`` = 71% of that and stays readable at a glance. The tradeoff only gets worse

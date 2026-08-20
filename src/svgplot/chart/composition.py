@@ -3,7 +3,7 @@
 Holds multiple Chart objects arranged spatially but exposes the same
 ``.save()``/``.to_string()`` interface as a single Chart, so a composed
 "도판" can be saved exactly like any other chart. See
-docs/research/16-layout-vocabulary.md.
+docs-research/16-layout-vocabulary.md.
 
 Composition strategy: each child ``Chart`` is a complete standalone ``<svg>``
 document, so children are nested as ``<svg x= y= width= height=>`` elements
@@ -26,7 +26,7 @@ nesting: every class on every element gains a per-child ``c{index}-`` prefix,
 and the child's ``<style>`` selectors are rewritten to match. Prefixing (rather
 than, say, wrapping rules in an ``#id`` descendant selector) keeps the output
 hand-editable — ``c0-series-1`` still reads as "chart 0, series 1", preserving
-the semantic-class principle of docs/research/14-scope-recommendation.md.
+the semantic-class principle of docs-research/14-scope-recommendation.md.
 
 The rewrite covers *every* class selector in the child's ``<style>``, not only
 the classes currently present on an element — ``theme/css.py`` emits some rules
@@ -92,7 +92,7 @@ class Placement:
     """One chart placed at an absolute pixel rect inside the composed canvas.
 
     ``title`` renders as a heading immediately above the chart's rect (the
-    "Tabs 대체" idiom of docs/research/16-layout-vocabulary.md); the rect is
+    "Tabs 대체" idiom of docs-research/16-layout-vocabulary.md); the rect is
     the chart's own area and already excludes the title band.
     """
 

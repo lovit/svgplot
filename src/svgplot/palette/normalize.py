@@ -1,4 +1,4 @@
-"""Value -> 0-1 fraction mapping for colormap sampling (docs/research/02-matplotlib.md,
+"""Value -> 0-1 fraction mapping for colormap sampling (docs-research/02-matplotlib.md,
 "Colormap과 완전히 분리된 조합 가능 객체").
 
 Deliberately *not* a job for :class:`svgplot.scales.LinearScale`, for two reasons a
@@ -14,7 +14,7 @@ colormap consumer can't work around:
    ``vmax -> 1.0``); ``LinearScale``'s single ratio cannot express it.
 
 Scope: only the plain and two-slope mappings. Log/power/symlog normalizations are 2차
-(docs/research/10-feature-matrix.md rates them "낮음(heatmap 전용)").
+(docs-research/10-feature-matrix.md rates them "낮음(heatmap 전용)").
 """
 
 from __future__ import annotations

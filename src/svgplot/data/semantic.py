@@ -1,7 +1,7 @@
 """Semantic channel extraction: hue=/col=/row= column-to-visual-channel mapping.
 
 size=/style= are 2차 additions planned for this same file
-(docs/research/10-feature-matrix.md A2).
+(docs-research/10-feature-matrix.md A2).
 """
 
 from __future__ import annotations

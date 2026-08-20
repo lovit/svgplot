@@ -1,7 +1,7 @@
 """Diverging colormaps — two ramps meeting at a neutral midpoint.
 
 Needed by heatmap-family charts whose data diverges around a meaningful centre
-(docs/research/14-scope-recommendation.md lists "히트맵(시퀀셜/다이버징 팔레트 필요)").
+(docs-research/14-scope-recommendation.md lists "히트맵(시퀀셜/다이버징 팔레트 필요)").
 Built by composing :func:`svgplot.palette.sequential.blend_sequence` twice, the same way
 :func:`svgplot.palette.sequential.sequential` composes ``light_dark_sequence`` rather than
 re-deriving an interpolation of its own.

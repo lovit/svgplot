@@ -36,4 +36,4 @@ PRESETS: dict[str, Theme] = {
         fill_opacity=1.0,
     ),
 }
-"""Built-in themes (docs/research/10-feature-matrix.md A4)."""
+"""Built-in themes (docs-research/10-feature-matrix.md A4)."""

@@ -1,6 +1,6 @@
 """How wide a string will be, estimated without measuring a glyph.
 
-This package has no font renderer (docs/research/12-aesthetics.md §3), so it cannot ask how
+This package has no font renderer (docs-research/12-aesthetics.md §3), so it cannot ask how
 wide "매우 긴 카테고리 이름입니다" is at 11px. Every layout decision here is therefore made
 from the string itself. That is an approximation, and the honest way to use one is to say
 which way it errs and what it costs when it is wrong.

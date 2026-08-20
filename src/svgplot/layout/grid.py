@@ -1,5 +1,5 @@
 """row/column (1D) and grid (2D, span-aware) chart arrangement — Bokeh vocabulary
-translated to a static two-layer model (docs/research/16-layout-vocabulary.md).
+translated to a static two-layer model (docs-research/16-layout-vocabulary.md).
 
 ``row``/``column`` are thin wrappers over ``grid``: the research doc's design
 principle 1 is that a single 1D + 2D pair covers Bokeh's four-level hierarchy,
@@ -196,7 +196,7 @@ def grid(
 
     ``titles`` supplies one heading per cell, rendered above it — the static
     replacement for Bokeh's ``Tabs`` adopted as the default idiom in
-    docs/research/16-layout-vocabulary.md. For the matrix form, entries are in
+    docs-research/16-layout-vocabulary.md. For the matrix form, entries are in
     row-major order (including ``None`` cells); for the tuple form, one entry per
     tuple, in the same order.
 
@@ -245,7 +245,7 @@ def column(charts: list[Chart | None], spacing: int = 12, *, titles: list[str | 
     """Arrange charts in a single vertical column. ``None`` entries render as empty cells.
 
     ``titles`` renders a heading above each chart — the default "Tabs 대체" idiom
-    from docs/research/16-layout-vocabulary.md.
+    from docs-research/16-layout-vocabulary.md.
     """
     if not charts:
         raise ValueError("column requires at least one cell")

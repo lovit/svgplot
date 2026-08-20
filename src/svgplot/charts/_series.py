@@ -1,4 +1,4 @@
-"""How a chart splits its rows into series (docs/research/10-feature-matrix.md A2).
+"""How a chart splits its rows into series (docs-research/10-feature-matrix.md A2).
 
 Seven charts held this character for character, and it is not a formatting decision -- the
 eight lines carry three policies:

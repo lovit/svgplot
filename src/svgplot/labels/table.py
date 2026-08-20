@@ -1,4 +1,4 @@
-"""Footnote-style data table renderer (pygal ``render_table`` precedent, docs/research/17-static-hover-alternative.md (d)).
+"""Footnote-style data table renderer (pygal ``render_table`` precedent, docs-research/17-static-hover-alternative.md (d)).
 
 Security note (PR #23 security review): returns an HTML string. Every cell
 value must be escaped (see svgplot._svg escape chokepoint) before being

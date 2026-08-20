@@ -1,4 +1,4 @@
-"""Chart-type functions — the primary public API surface (docs/research/11-api-syntax.md 권고안 B)."""
+"""Chart-type functions — the primary public API surface (docs-research/11-api-syntax.md 권고안 B)."""
 
 from __future__ import annotations
 

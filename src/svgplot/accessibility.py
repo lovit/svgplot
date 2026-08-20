@@ -1,8 +1,8 @@
 """Accessibility defaults for rendered SVG charts.
 
 Adds ``role="img"``/``aria-label`` and ``<title>``/``<desc>`` to every chart
-root by default (not opt-in) — see docs/research/12-aesthetics.md §4 and
-docs/research/10-feature-matrix.md A9. WCAG contrast checking (2차) belongs
+root by default (not opt-in) — see docs-research/12-aesthetics.md §4 and
+docs-research/10-feature-matrix.md A9. WCAG contrast checking (2차) belongs
 in this same file when it's added.
 
 Wired into ``chart.base.Chart``'s render path (issue #29): every serialization

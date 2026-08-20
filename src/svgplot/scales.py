@@ -2,11 +2,11 @@
 
 Linear, categorical, and time scales plus "nice" tick generation. Datetime
 x-values are handled here as a scale option rather than a separate chart
-type (see docs/research/10-feature-matrix.md, "시간축 선"). Kept as a single
+type (see docs-research/10-feature-matrix.md, "시간축 선"). Kept as a single
 file until a concrete need for additional scale types (e.g. log) appears.
 
 Tick generation deliberately avoids any text-width measurement (no font
-renderer in pure SVG, see docs/research/12-aesthetics.md §3) — "nice" here
+renderer in pure SVG, see docs-research/12-aesthetics.md §3) — "nice" here
 means round numbers/round time steps, not "however many fit visually".
 """
 
@@ -52,7 +52,7 @@ class LogScale:
 
     The scale three of the four libraries this package is measured against offer
     (``pygal``'s ``logarithmic=True``, matplotlib's ``set_yscale("log")``, Bokeh's
-    ``y_axis_type="log"``) and the one ``docs/research/10-feature-matrix.md`` never got a row
+    ``y_axis_type="log"``) and the one ``docs-research/10-feature-matrix.md`` never got a row
     for. It matters for the data this package is aimed at -- response times, file sizes,
     populations, benchmark ratios -- where a linear axis crushes the small values into one
     pixel and the chart stops answering the question it was drawn for.

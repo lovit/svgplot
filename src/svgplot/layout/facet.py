@@ -1,5 +1,5 @@
 """col=/row= faceting — groups data via svgplot.data.semantic and arranges the
-resulting per-group charts with svgplot.layout.grid (docs/research/10-feature-matrix.md A1).
+resulting per-group charts with svgplot.layout.grid (docs-research/10-feature-matrix.md A1).
 
 Faceting is deliberately a thin composition of two existing pieces rather than a
 new subsystem: ``data.semantic.extract_channels`` already splits long-form data
@@ -8,7 +8,7 @@ into per-group column-dicts, and ``layout.grid`` already places charts (includin
 in *which* cell.
 
 Panels share their axes by default, and that is a data-level decision rather than a
-layout one -- docs/research/16-layout-vocabulary.md, 설계 원칙 3 draws that line and names
+layout one -- docs-research/16-layout-vocabulary.md, 설계 원칙 3 draws that line and names
 a ``shared_x=``-style parameter as the mechanism. ``sharex=``/``sharey=`` are that
 parameter. The *default* is the part worth arguing: unshared panels put two lines at the
 same height while one means 3 and the other 300, and nothing on the page says so. A reader
