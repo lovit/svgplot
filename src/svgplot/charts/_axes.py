@@ -45,6 +45,33 @@ eighteen hours but two dates, and dropping the date there leaves a reader to gue
 midnight ``00:00`` is."""
 
 
+_MUST_BE_ZERO = {
+    "%Y": ("month", "day", "hour", "minute", "second", "microsecond"),
+    "%Y-%m": ("day", "hour", "minute", "second", "microsecond"),
+    "%Y-%m-%d": ("hour", "minute", "second", "microsecond"),
+    "%Y-%m-%d %H:%M": ("second", "microsecond"),
+    "%Y-%m-%d %H:%M:%S": ("microsecond",),
+    "%H:%M": ("second", "microsecond"),
+    "%H:%M:%S": ("microsecond",),
+    "%H:%M:%S.%f": (),
+}
+"""The fields each format hides, and therefore the fields a tick must not carry to use it.
+
+``month``/``day`` count from 1, so "zero" means 1 for those two -- a year label is honest only
+about 1 January."""
+
+
+def _keeps_every_field(tick: datetime, fmt: str) -> bool:
+    """Whether ``fmt`` hides nothing ``tick`` actually carries.
+
+    ``%Y`` on a tick at 29 December reads "2025", which is a fact about the year and a lie
+    about the tick -- and the reader has no way to tell, because the axis looks tidy. Round-
+    tripping through ``strptime`` cannot express this, since a clock format carries no date at
+    all and would never round-trip; what matters is only that the hidden fields are empty.
+    """
+    return all(getattr(tick, field) == (1 if field in ("month", "day") else 0) for field in _MUST_BE_ZERO[fmt])
+
+
 def _time_format(ticks: list[datetime], domain: tuple[datetime, datetime]) -> str:
     """The coarsest format that still tells the ticks apart.
 
@@ -63,11 +90,18 @@ def _time_format(ticks: list[datetime], domain: tuple[datetime, datetime]) -> st
     # standing for thirteen days -- ``00:00``, with the year nowhere in the file.
     ladder = _CLOCK_FORMATS if domain[0].date() == domain[1].date() else _DATE_FORMATS
     for candidate in ladder:
-        # The domain's ends as well as the ticks. A single tick is distinguished by every
-        # format including ``%Y``, so an eleven-day axis came out labelled "2024" -- coarsest
-        # is only the right answer among formats that still resolve what the axis spans.
-        if len({tick.strftime(candidate) for tick in ticks}) == len(ticks) and (
-            domain[0].strftime(candidate) != domain[1].strftime(candidate) or domain[0] == domain[1]
+        # Three conditions, and the third is the one that keeps a label honest.
+        #
+        # Telling the *ticks* apart is not enough: a single tick is distinguished by every
+        # format including ``%Y``, so an eleven-day axis came out labelled "2024". Telling the
+        # *domain's ends* apart is not enough either: both ends of a thirty-six-day span
+        # across New Year differ under ``%Y``, and the axis came out ``["2025", "2026"]`` with
+        # its first tick standing at 29 December. A label has to be a truthful truncation of
+        # the tick it names -- ``%Y`` only where every tick really is 1 January at midnight.
+        if (
+            len({tick.strftime(candidate) for tick in ticks}) == len(ticks)
+            and (domain[0].strftime(candidate) != domain[1].strftime(candidate) or domain[0] == domain[1])
+            and all(_keeps_every_field(tick, candidate) for tick in ticks)
         ):
             return candidate
     # Reaching here means no format in the ladder both separates the ticks and resolves the

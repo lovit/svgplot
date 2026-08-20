@@ -225,8 +225,8 @@ def _time_chart(start: datetime, step: timedelta, count: int = 4) -> str:
     [
         (timedelta(seconds=10), r"^\d{2}:\d{2}:\d{2}$"),
         (timedelta(hours=1), r"^\d{2}:\d{2}$"),
-        (timedelta(days=1), r"^\d{4}-\d{2}-\d{2}$"),
-        (timedelta(days=30), r"^\d{4}-\d{2}$"),
+        (timedelta(days=1), r"^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$"),
+        (timedelta(days=30), r"^\d{4}-\d{2}(-\d{2})?$"),
         (timedelta(days=365 * 4), r"^\d{4}$"),
     ],
     ids=["seconds", "hours", "days", "months", "years"],
@@ -236,7 +236,12 @@ def test_a_time_axis_labels_at_the_resolution_its_domain_needs(step: timedelta, 
 
     Measured before this: a three-hour domain labelled all five ticks ``2024-01-01``, so the
     only thing distinguishing the ticks -- their position -- was contradicted by the only
-    thing naming them. A three-year domain spent eleven characters on a day nobody chose."""
+    thing naming them. A three-year domain spent eleven characters on a day nobody chose.
+
+    The patterns allow one rung finer than the headline, because the format must also be a
+    truthful truncation of where the ticks stand: a few days stepped every twelve hours reads
+    ``2024-01-02 12:00``, not ``2024-01-02``, and a label that hid the hour would name an
+    instant twelve hours from the tick."""
     labels = _x_tick_labels(_time_chart(datetime(2024, 1, 1, 1, 0), step))
 
     assert labels, "the x axis drew no labels"
@@ -288,7 +293,7 @@ def test_time_ticks_land_on_boundaries_a_reader_recognises() -> None:
     labels = _x_tick_labels(_time_chart(datetime(2024, 1, 1, 7, 23), timedelta(hours=1)))
 
     assert labels, "the x axis drew no labels"
-    assert all(label.endswith(":00") for label in labels), labels
+    assert all(label.endswith(":00") or label.endswith(":30") for label in labels), labels
 
 
 def test_monthly_ticks_land_on_the_first_of_the_month_not_every_thirty_days() -> None:
@@ -472,10 +477,11 @@ def test_the_last_hours_before_the_maximum_datetime_still_draw() -> None:
     one that leaves the representable range -- ``OverflowError: date value out of range``
     from inside a tick loop, which ``_nice_step``'s docstring says this module does not do.
 
-    The helper is called directly because no public path reaches it: ``TimeScale.__init__``
-    calls ``timestamp()`` on both ends, and that is itself a ``ValueError`` this close to
-    ``datetime.max``. The guard is therefore defensive rather than load-bearing -- which is
-    exactly why it needs a test, since nothing else would notice it going."""
+    The helper is called directly because whether a *public* path reaches it depends on the
+    timezone: ``TimeScale.__init__`` calls ``timestamp()`` on both ends, which raises this
+    close to ``datetime.max`` east of UTC and succeeds in UTC -- where the guard is
+    load-bearing and removing it gives ``OverflowError`` out of ``lineplot``. Calling the
+    helper pins it in every zone."""
     low, high = datetime(9999, 12, 31, 20, 0), datetime(9999, 12, 31, 23, 59, 59)
     ticks = _aligned_ticks(low, high, 5)
 
@@ -553,8 +559,9 @@ def test_a_value_timestamp_cannot_place_is_refused_by_column_and_not_by_year(ext
     before ``datetime.max`` and the first after ``datetime.min`` can fall outside the
     representable range -- on ``main`` too, which is why this is a message and not a fix.
 
-    **Which** end is unreachable depends on the running timezone: east of UTC it is the top,
-    west of UTC the bottom, and in UTC itself neither. So the assertion is the implication
+    **Which** end is unreachable depends on the running timezone -- ``datetime.min`` plus
+    thirty minutes fails everywhere, ``datetime.max`` minus thirty only east of UTC. So the
+    assertion is the implication
     rather than the failure -- if ``timestamp()`` cannot place the value, ``lineplot`` says so
     by column; if it can, the chart draws. A test that simply expected a raise passed in KST
     and failed in CI's UTC."""
@@ -614,3 +621,86 @@ def test_a_multi_day_step_is_aligned_to_the_month_and_not_to_the_first_row() -> 
     assert all((tick - origin).total_seconds() % (14 * 86400) == 0 for tick in ticks), [
         tick.strftime("%m-%d") for tick in ticks
     ]
+
+
+def test_a_domain_of_months_is_counted_in_months_and_not_only_in_years() -> None:
+    """``(high.year - low.year) * 12 + high.month - low.month``. Dropping the month term
+    leaves a within-one-year domain measuring zero months, which then takes the every-month
+    step -- twelve ticks where four were asked for. Every other tick test passes either way,
+    because twelve monthly ticks are just as aligned and just as in-domain as four."""
+    ticks = make_ticks(TimeScale((datetime(2024, 1, 1), datetime(2024, 12, 1)), (0.0, 700.0)))
+
+    assert 3 <= len(ticks) <= 7, [tick.strftime("%Y-%m") for tick in ticks]
+
+
+@pytest.mark.parametrize("days", [36, 46, 60, 76, 91, 120, 200, 400, 700, 1100])
+def test_no_span_falls_into_the_seam_between_fixed_steps_and_calendar_fields(days: int) -> None:
+    """The gap that moved twice. Fixed durations stop somewhere and calendar fields start
+    somewhere, and spans just past the boundary hold only one or two month boundaries -- a
+    46-day chart came back with a single label, and raising the boundary to 75 days moved the
+    same gap to 76. Chasing it is what a threshold does; this asserts the property instead."""
+    start = datetime(2024, 3, 2)
+    labels = _x_tick_labels(lineplot({"t": [start, start + timedelta(days=days)], "y": [1.0, 2.0]}, x="t", y="y").to_string())
+
+    assert 3 <= len(labels) <= 10, f"{days} days drew {labels}"
+
+
+@pytest.mark.parametrize(
+    ("low", "high"),
+    [
+        (datetime(2025, 12, 20, 4, 5), datetime(2026, 1, 25, 4, 5)),
+        (datetime(2024, 1, 1, 7, 23), datetime(2025, 5, 15, 7, 23)),
+        (datetime(2024, 11, 17, 13, 45), datetime(2024, 12, 23, 13, 45)),
+        (datetime(2024, 1, 1, 23, 59, 59), datetime(2024, 1, 2)),
+    ],
+    ids=["new-year", "500-days", "36-days", "one-second"],
+)
+def test_a_label_names_the_instant_its_tick_stands_at(low: datetime, high: datetime) -> None:
+    """Coarsest-that-distinguishes has a second failure mode, opposite to the first. A
+    thirty-six-day span across New Year has ends that differ under ``%Y``, so ``%Y`` was
+    chosen -- and the axis read ``["2025", "2026"]`` with its first tick standing at 29
+    December. The label was a fact about the year and a lie about the tick.
+
+    A format may only hide fields the tick does not carry."""
+    ticks = make_ticks(TimeScale((low, high), (0.0, 700.0)))
+    fmt = _time_format(ticks, (low, high))
+
+    for tick in ticks:
+        rendered = tick.strftime(fmt)
+        assert rendered == tick.strftime(fmt), rendered
+        if "%Y" in fmt and "%d" not in fmt and "%m" in fmt:
+            assert tick.day == 1, f"{rendered} names a month but stands at day {tick.day}"
+        if fmt == "%Y":
+            assert (tick.month, tick.day) == (1, 1), f"{rendered} names a year but stands at {tick.date()}"
+        if "%H" not in fmt:
+            assert (tick.hour, tick.minute, tick.second) == (0, 0, 0), f"{rendered} hides a time of {tick.time()}"
+
+
+@pytest.mark.parametrize(
+    ("fmt", "hidden"),
+    [
+        ("%Y", {"month", "day", "hour", "minute", "second", "microsecond"}),
+        ("%Y-%m", {"day", "hour", "minute", "second", "microsecond"}),
+        ("%Y-%m-%d", {"hour", "minute", "second", "microsecond"}),
+        ("%H:%M", {"second", "microsecond"}),
+        ("%H:%M:%S.%f", set()),
+    ],
+)
+def test_each_format_declares_exactly_the_fields_it_hides(fmt: str, hidden: set[str]) -> None:
+    """The table is the whole of the truthfulness rule, and a wrong row is invisible: saying
+    ``%Y`` hides nothing lets a year label sit on any tick, which is the defect the rule
+    exists for -- and the axis still looks tidy."""
+    from svgplot.charts._axes import _MUST_BE_ZERO
+
+    assert set(_MUST_BE_ZERO[fmt]) == hidden
+
+
+def test_the_fixed_step_boundary_leaves_room_for_the_calendar_to_take_over() -> None:
+    """``_LONGEST_FIXED_SPAN`` is where durations stop, and the month field needs three month
+    boundaries inside a span before it yields three ticks. Set the boundary lower and spans
+    just past it get one label; the seam fallback catches that, so nothing else notices the
+    constant moving."""
+    from svgplot.scales import _LONGEST_FIXED_SPAN
+
+    assert _LONGEST_FIXED_SPAN >= 70 * 86400, "a span this short cannot yield three monthly ticks"
+    assert _LONGEST_FIXED_SPAN <= 100 * 86400, "past this a chart of months should read in months"

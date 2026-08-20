@@ -222,7 +222,8 @@ _SUB_MONTH_STEPS = (
     259200,
     345600,
     604800,
-    1209600,  # days and weeks
+    1209600,
+    1814400,  # days and weeks
 )
 """Tick intervals in seconds that a reader recognises, coarsest last.
 
@@ -236,13 +237,31 @@ Three and four days are here because the ladder used to jump from two days to a 
 eleven-to-thirteen-day domain -- twelve daily rows, an ordinary shape -- fell into the gap:
 the two-day step no longer fit inside ``count`` and the week step fit only once, so the axis
 drew a **single** tick labelled ``00:00``, with the date nowhere in the file.
+
+Three weeks is here for the same reason one rung up: 1 week to 2 weeks left 36 to 40 days with
+only two ticks, because the two-week step fits twice and the month field has not taken over
+yet. The gap moved rather than closed the first time it was patched.
 """
+
+_LONGEST_FIXED_SPAN = 75 * 86400
+"""Longest span still measured in fixed durations, in seconds -- about eleven weeks.
+
+Eleven and not six: the month field needs three month boundaries inside the span before it
+yields three ticks, and below that a 46-day chart came back with a single label. Beyond it the
+calendar takes over. A month is not a fixed duration, so a span of several
+months stepped by weeks drifts off the month boundaries and its labels have to spell out the
+day; stepped by the month field it reads ``2024-02``, ``2024-03``."""
 
 _MONTH_STEPS = (1, 2, 3, 6)
 _YEAR_STEPS = (1, 2, 5, 10, 25, 50, 100, 250, 500, 1000)
 
 
-def _aligned_ticks(low: datetime, high: datetime, count: int) -> list[datetime] | None:
+_MIN_TICKS = 3
+"""Below this an axis stops being an axis -- two labels name the ends and describe nothing
+between them."""
+
+
+def _aligned_ticks(low: datetime, high: datetime, count: int, *, unbounded: bool = False) -> list[datetime] | None:
     """Ticks on a recognisable clock interval, or ``None`` if the span is past two weeks.
 
     Aligned to the interval rather than to the domain's start: a reader looking for "the
@@ -255,9 +274,20 @@ def _aligned_ticks(low: datetime, high: datetime, count: int) -> list[datetime] 
     than two weeks is handed to :func:`_calendar_ticks` instead of extended here.
     """
     span = (high - low).total_seconds()
-    step = next((candidate for candidate in _SUB_MONTH_STEPS if span / candidate <= count), None)
-    if step is None:
+    # The candidate landing nearest ``count``, not the finest one that fits under it. "Fits
+    # under" makes the ladder's own gaps into cliffs: a 36-day span puts 5.14 ticks on a weekly
+    # step and 2.57 on a fortnightly one, and taking the fortnight because 5.14 is a shade over
+    # five leaves a five-week chart with two labels. Nearest keeps the week.
+    if span > _LONGEST_FIXED_SPAN and not unbounded:
+        # Past about six weeks a month reads better than a count of weeks, and only
+        # :func:`_calendar_ticks` can step by a field. Bounding the span rather than the tick
+        # count is what keeps that hand-off at a fixed place: choosing by nearest count alone
+        # would let three-week steps compete with months out to fifteen weeks.
         return None
+    usable = [candidate for candidate in _SUB_MONTH_STEPS if span / candidate >= 1.0]
+    if not usable:
+        return None
+    step = min(usable, key=lambda candidate: abs(span / candidate - count))
     # Aligned against local midnight of the first day rather than the Unix epoch, so a
     # 6-hour step lands on 00:00/06:00/12:00/18:00 wherever this runs.
     origin = low.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -281,12 +311,20 @@ def _aligned_ticks(low: datetime, high: datetime, count: int) -> list[datetime] 
 def _calendar_ticks(low: datetime, high: datetime, count: int) -> list[datetime]:
     """Ticks on whole months or whole years, for spans where a fixed interval cannot be one.
 
-    Stepping by field rather than by duration is the whole point: 30-day steps drift a day
-    per month and turn a year of monthly ticks into twelve different days of the month.
+    Stepping by field rather than by duration is the whole point: 30-day steps drift a day per
+    month, so a year of them lands on seven different days of the month instead of always the
+    first.
     """
     months = (high.year - low.year) * 12 + high.month - low.month
-    step = next((candidate for candidate in _MONTH_STEPS if months / candidate <= count), None)
-    if step is not None:
+    # Nearest to ``count`` rather than the first that fits, for the same reason as
+    # :func:`_aligned_ticks`: a 46-day span holds one monthly tick and taking that because it
+    # "fits" leaves a seven-week chart with a single label.
+    # Months while a month step still reads, years past that -- decided by what the step
+    # actually produces rather than by a span threshold, because "months" and "years" overlap:
+    # 23 months is six-month steps, 30 years is decades, and a rule keyed off the span alone
+    # put a two-year chart on the year path with two labels.
+    step = min(_MONTH_STEPS, key=lambda candidate: abs(months / candidate - count)) if months >= 1 else None
+    if step is not None and _MIN_TICKS - 1 <= months / step <= 2 * count:
         first = low.year * 12 + (low.month - 1)
         first += -first % step
         ticks = []
@@ -334,6 +372,18 @@ def make_ticks(scale: Scale, count: int = 5) -> list[float] | list[str] | list[d
         ticks = _aligned_ticks(domain_min, domain_max, count)
         if ticks is None:
             ticks = _calendar_ticks(domain_min, domain_max, count)
+            if len(ticks) < _MIN_TICKS:
+                # The seam between fixed durations and calendar fields, closed from the far
+                # side. Wherever ``_LONGEST_FIXED_SPAN`` is put, spans just past it hold only
+                # one or two month boundaries -- a 46-day chart came back with a single label
+                # at 45 days, and moving the boundary to 75 moved the same gap to 76. Rather
+                # than chase it, a calendar answer too sparse to read hands back to the
+                # durations, which always have a step fine enough.
+                relaxed = _aligned_ticks(domain_min, domain_max, count, unbounded=True)
+                # Only if it is actually better. A 700-day span has one usable fixed step --
+                # three weeks -- and thirty-three of those is not an improvement on two years.
+                if relaxed and _MIN_TICKS <= len(relaxed) <= 2 * count:
+                    ticks = relaxed
         # A span shorter than the finest step (one second) leaves nothing aligned inside it,
         # so the endpoints stand in. ``dict.fromkeys`` because they are the *same* endpoint
         # when the domain is a single instant -- one row, or several rows sharing a timestamp,
