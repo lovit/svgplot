@@ -11,7 +11,7 @@ Grammar
 
 ``"<Kind>, <clause>, <clause>."`` — for example::
 
-    Bar chart, 3 categories (Mon, Tue, Wed), values 0 to 9.
+    Bar chart, 3 categories (Mon, Tue, Wed), values 1 to 9.
     Line chart, 2 series (north, south) over 10 points, x 1 to 5, y 3 to 20.
 
 The kind comes first and is never omitted; the clauses are ordered size-before-range, so
@@ -77,10 +77,14 @@ What the caps actually bound is the *names*, at :data:`MAX_NAME_CHARS` per list 
 for fifteen chart types, two for ``heatmap``, which names columns and rows. Everything else
 in the sentence is counts and value ranges, which grow only with their own **digits**, so a
 chart with a thousand times more data gets a sentence a few characters longer, never a
-thousand times longer. An adversarial search over name lengths 1-100 and category counts
-7-12,345 put the longest ``heatmap`` sentence at **264 characters**; a test pins that
-ceiling. Earlier drafts of this docstring quoted 222 as if it were the maximum, which it
-was not — it was one sample.
+thousand times longer. There is no single worst number, and two earlier drafts of this
+docstring gave one anyway — 222, then 264. What there is, is a **growth rate**: with both
+caps and :data:`MAX_NUMBER_CHARS` in place the only thing still growing is the digits of the
+counts, so the sentence lengthens logarithmically in the data. Measured on ``heatmap``, the
+worst of the sixteen, over name lengths 1-60 and value magnitudes up to ``1e308``: **239
+characters at 7 categories per axis, 254 at 123, 262 at 1,234, 270 at 12,345** — about ten
+characters per ten-fold increase. A test pins the first three of those and the growth rate
+between them; the fourth costs a minute to render and lives in the PR body.
 
 What happens at the cap. Overflow is reported, never silently dropped: the listed names
 are followed by ``and N more``. A name is never shortened — a half-name is a different
@@ -140,7 +144,7 @@ def fits(name: str) -> bool:
     500,000-character column name produced a 500,064-character description while every
     capped path stayed under 250.
     """
-    return bool(_fitting([name]))
+    return bool(name) and bool(_fitting([name]))
 
 
 def over(series_names: Sequence[str] | None, count_clause: str) -> str:
@@ -154,22 +158,43 @@ def over(series_names: Sequence[str] | None, count_clause: str) -> str:
     return f"{group(series_names, 'series')} over {count_clause}"
 
 
+MAX_NUMBER_CHARS = 16
+"""How long a number may be before it is spoken in scientific notation instead.
+
+``format_coord`` writes a plain decimal literal, which is right for an SVG coordinate and
+wrong for a sentence: ``1e308`` becomes **309 digits**, and a screen reader reads every one
+of them. Sixteen characters covers everything the chart's own coordinates can be
+(``format_coord`` rounds to six decimals, so the widest ordinary value is a five-digit
+integer with a six-digit fraction) and turns anything past that into ``1e+308``.
+
+This is also what makes the ceiling in :data:`MAX_NAME_CHARS` a real bound rather than a
+sample: without it the name caps hold but a single value can add 300 characters on its own,
+which a review found and which the earlier ceiling of 264 had missed."""
+
+
 def number(value: float) -> str:
-    """A value as it reads aloud, using the same rounding the chart's own coordinates use.
+    """A value as it reads aloud, using the same rounding the chart's own coordinates use —
+    but spoken in scientific notation once the literal grows past :data:`MAX_NUMBER_CHARS`.
 
     Falls back for anything ``format_coord`` refuses (a non-finite bound). A description
     is not worth failing a render over: by the time this is called the chart has already
     drawn, so raising here would turn a chart that renders into a chart that doesn't.
 
-    Which is why the fallback is a fixed word rather than ``repr(value)``. ``repr`` of a
-    large enough ``int`` raises on CPython's 4300-digit conversion limit, and ``repr`` of a
-    caller's own object can raise or be arbitrarily long — either would break the promise
-    this function exists to keep. No public path reaches it today (every chart forces its
+    The ``except`` is deliberately as wide as that promise. It is not only ``ValueError``:
+    ``format_coord``'s own error message interpolates ``{value!r}``, so a caller object
+    whose ``__repr__`` raises escapes a narrower clause and breaks the guarantee — measured,
+    not hypothesised. No public path reaches any of this today (every chart forces its
     values through ``float()`` first), which is exactly why it must not be able to.
     """
     try:
-        return format_coord(value)
-    except ValueError:
+        literal = format_coord(value)
+    except Exception:
+        return "an unreportable value"
+    if len(literal) <= MAX_NUMBER_CHARS:
+        return literal
+    try:
+        return format(float(value), "g")
+    except Exception:
         return "an unreportable value"
 
 

@@ -149,9 +149,11 @@ def render_table(
     if format not in TABLE_FORMATS:
         raise ValueError(f"unsupported table format: {format!r} (expected one of {TABLE_FORMATS})")
     if table_id is not None:
+        # Usability before applicability: a caller who passed an unusable id *and* the wrong
+        # format should hear about the id, which is the harder mistake to see.
+        validate_element_id(table_id, parameter="table_id")
         if format != "html":
             raise ValueError(f"table_id needs format='html'; a markdown table has no element to carry it: {table_id!r}")
-        validate_element_id(table_id, parameter="table_id")
     # Caught here rather than surfacing as an AttributeError from inside an escaper,
     # matching how ``format`` above is rejected.
     if missing is not None and not isinstance(missing, str):
