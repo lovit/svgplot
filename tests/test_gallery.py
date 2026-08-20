@@ -38,7 +38,6 @@ AWAITING_A_PAGE = {
     "ecdfplot",
     "gaugeplot",
     "heatmap",
-    "kdeplot",
     "radarplot",
     "regplot",
     "sparkline",
