@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>treemap — svgplot</title>
+    <meta name="description" content="값을 면적에 비례하는 타일로 캔버스를 채운다. squarified 배치(Bruls 2000)를 쓰고 단일 레벨만 다룬다." />
+    <style>
+      :root {
+        --bg: #ffffff;
+        --fg: #16181d;
+        --muted: #5c6370;
+        --rule: #e3e6ea;
+        --accent: #1d4ed8;
+        --code-bg: #f4f5f7;
+        --figure-bg: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14161a;
+          --fg: #e8eaed;
+          --muted: #9aa1ac;
+          --rule: #2a2e35;
+          --accent: #7aa2f7;
+          --code-bg: #1d2027;
+          --figure-bg: #f7f8fa;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0 auto;
+        max-width: 52rem;
+        padding: 3rem 1.5rem 6rem;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+        line-height: 1.7;
+      }
+      a { color: var(--accent); }
+      nav { margin-bottom: 2.5rem; font-size: 0.9rem; color: var(--muted); }
+      h1 { margin: 0 0 0.35rem; font-size: 2rem; letter-spacing: -0.02em; }
+      h2 {
+        margin: 3rem 0 1rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--rule);
+        font-size: 1.1rem;
+      }
+      h3 { margin: 2.5rem 0 0.75rem; font-size: 1rem; }
+      .summary { margin: 0 0 1.75rem; color: var(--muted); font-size: 1.02rem; }
+      dl.meta { margin: 0 0 2rem; padding: 0.9rem 1.1rem; background: var(--code-bg); border-radius: 6px; }
+      dl.meta dt { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      dl.meta dd { margin: 0.15rem 0 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; }
+      dl.meta dd:last-child { margin-bottom: 0; }
+      pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
+      pre code { font-size: 0.84rem; line-height: 1.55; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
+         CSS does not reach inside it. That isolation is the point: two charts on one page
+         both define .series-1 with opposite rules, and inlining them would let the later
+         one restyle the earlier. */
+      figure { margin: 0 0 1rem; }
+      figure img {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        background: var(--figure-bg);
+        border: 1px solid var(--rule);
+        border-radius: 6px;
+      }
+      ul.notes { margin: 0; padding-left: 1.2rem; color: var(--muted); }
+      ul.notes li { margin-bottom: 0.3rem; }
+      ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
+      ul.index a { display: block; text-decoration: none; color: inherit; }
+      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
+      ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+      footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <nav><a href="../">svgplot</a> · <a href="./">갤러리</a></nav>
+    <h1>treemap</h1>
+    <p class="summary">값을 면적에 비례하는 타일로 캔버스를 채운다. squarified 배치(Bruls 2000)를 쓰고 단일 레벨만 다룬다.</p>
+    <dl class="meta">
+      <dt>데이터</dt>
+      <dd>values: 수치(음수 불가, 합 0 불가) · labels(선택): 타일 이름</dd>
+    </dl>
+    <h2>데이터</h2>
+    <pre><code>import svgplot as sp
+
+STORAGE = {
+    &quot;종류&quot;: [&quot;이미지&quot;, &quot;동영상&quot;, &quot;문서&quot;, &quot;로그&quot;, &quot;백업&quot;, &quot;기타&quot;],
+    &quot;GB&quot;: [420.0, 1180.0, 95.0, 260.0, 640.0, 45.0],
+}</code></pre>
+    <h2>예시</h2>
+    <h3>기본 — labels= 를 주지 않으면 타일 번호가 이름이 된다</h3>
+    <figure>
+      <img src="svg/treemap-1.svg" alt="기본 — labels= 를 주지 않으면 타일 번호가 이름이 된다" />
+    </figure>
+    <pre><code>sp.treemap(STORAGE, values=&quot;GB&quot;)</code></pre>
+    <h3>labels= 로 타일에 이름을 붙인다</h3>
+    <figure>
+      <img src="svg/treemap-2.svg" alt="labels= 로 타일에 이름을 붙인다" />
+    </figure>
+    <pre><code>sp.treemap(STORAGE, values=&quot;GB&quot;, labels=&quot;종류&quot;)</code></pre>
+    <h3>타일이 작으면 라벨을 넣지 않는다 — 값이 고르지 않을수록 자주 일어난다</h3>
+    <figure>
+      <img src="svg/treemap-3.svg" alt="타일이 작으면 라벨을 넣지 않는다 — 값이 고르지 않을수록 자주 일어난다" />
+    </figure>
+    <pre><code>LOPSIDED = {
+    &quot;종류&quot;: [&quot;동영상&quot;, &quot;이미지&quot;, &quot;문서&quot;, &quot;캐시&quot;, &quot;임시&quot;, &quot;기타&quot;],
+    &quot;GB&quot;: [3200.0, 180.0, 40.0, 22.0, 11.0, 6.0],
+}
+sp.treemap(LOPSIDED, values=&quot;GB&quot;, labels=&quot;종류&quot;)</code></pre>
+    <h2>메모</h2>
+    <ul class="notes">
+      <li>단일 레벨이다. 계층형 트리맵은 범위 밖이고, 그것을 받으려면 데이터 입력이 트리가 되어야 한다.</li>
+      <li>음수·비유한 값을 라벨명을 대고 거부하고, 합이 0 이면 거부한다.</li>
+      <li>40x16 px 보다 작은 타일에는 라벨을 넣지 않는다. 반쯤 잘린 글자는 이름 노릇을 못 한다.</li>
+      <li>타일 폭에 들어가지 않는 긴 라벨은 줄임표로 줄이고 전문을 &lt;title&gt; 에 남긴다. 보조기술과 브라우저 툴팁이 그것을 읽는다.</li>
+      <li>항상 범례를 그린다. 작은 타일의 이름은 범례에서만 읽힌다.</li>
+    </ul>
+    <footer>
+      <a href="./">갤러리로</a> · <a href="https://github.com/lovit/svgplot/blob/main/gallery/examples/treemap.py">이 페이지의 예시 소스</a>
+    </footer>
+  </body>
+</html>
