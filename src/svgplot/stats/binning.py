@@ -6,7 +6,7 @@ put an SVG in a markdown file -- every other statistics module here is pure stdl
 ``stats/kde.py`` records the measurement behind that choice.
 
 Reimplementing also settles something delegating could not. numpy's ``auto`` changed between
-versions: it used to be ``min(fd, sturges)`` and in 2.5 it is
+versions: up to 2.2 it was ``min(fd, sturges)`` and from **2.3.0** it is
 ``min(max(fd, sqrt/2), sturges)``, a heuristic added to stop a spike in the data producing
 thousands of bins. A package whose identity is "same input, same SVG" cannot have its bin
 count depend on which numpy the reader happens to have installed.
@@ -15,17 +15,27 @@ The edges these produce are **bit-identical to numpy** over ordinary data: 28,00
 across nine shapes (uniform, gaussian, exponential, log-normal, integral, tied, two-valued,
 all-negative, spiked), twelve sizes and seven strategies, zero mismatches.
 
-Three deliberate divergences, all at the edges of the float grid rather than in the model:
+Three deliberate divergences:
 
 - A strategy that asks for more than :data:`_MAX_BINS` is refused. numpy builds the array;
   building the same list in Python is eight times the memory and slow enough to look like a
   hang, and no chart can show a million bars either way.
 - ``stone`` is not implemented. numpy accepts it; a call that used it now gets a ``ValueError``
   naming the seven that remain.
-- Around 0.4% of *adversarial* inputs -- subnormals, values within a factor of ten of the float
-  maximum -- differ by one bin, because the arithmetic that decides the count is itself at the
-  limit of the grid. ``tests/test_stats_binning_numpy_parity.py`` covers the ordinary range and
-  is skipped when numpy is absent.
+- A column whose **magnitude dwarfs its spread** can come back with one bin more or fewer.
+  This is not the float grid running out; it is this module summing *exactly* where numpy does
+  not. ``math.fsum`` is correctly rounded and ``numpy.std`` uses pairwise summation, and
+  ``stats.quantile`` interpolates as ``a*(1-f) + b*f`` where numpy uses ``b - (b-a)*(1-t)``.
+  Ironically the answers here are the more accurate ones; they are still different ones.
+  Measured, as the share of (shape, size, strategy) comparisons whose bin count differs:
+  0.00% up to a magnitude/spread ratio of 1e12, 0.24% at 1e13, and 3.2-4.5% past that --
+  where "past that" means an epoch-nanosecond timestamp or an ID column near ``2**53``, which
+  ``_even_edges`` below rightly calls an ordinary magnitude rather than a contrived one.
+  Subnormals and values near the float maximum, which an earlier draft of this paragraph
+  blamed, measure 0.09% and 0.00%.
+
+``tests/test_stats_binning_numpy_parity.py`` covers the ordinary range and is skipped when
+numpy is absent.
 """
 
 from __future__ import annotations
@@ -59,9 +69,22 @@ def _saturating(compute: Callable[[], float]) -> float:
         return math.inf
 
 
+def _mean(values: list[float]) -> float:
+    """The arithmetic mean, saturating to infinity rather than raising.
+
+    One function because there was one place that did not use it: ``doane`` recomputed the
+    mean with a bare ``math.fsum``, so a column around ``1e307`` came back as an
+    ``OverflowError`` from a function whose ``Raises:`` documents only ``ValueError`` --
+    exactly the contract :func:`_saturating` exists to keep, applied everywhere except the
+    one caller that needed it.
+    """
+    total = _saturating(lambda: math.fsum(values))
+    return total / len(values) if math.isfinite(total) else math.inf
+
+
 def _population_stdev(values: list[float]) -> float:
     """Standard deviation with ``ddof=0``, which is what ``numpy.std`` defaults to."""
-    mean = _saturating(lambda: math.fsum(values)) / len(values)
+    mean = _mean(values)
     if not math.isfinite(mean):
         return math.inf
     total = _saturating(lambda: math.fsum(_saturating(lambda v=value: (v - mean) ** 2) for value in values))
@@ -95,7 +118,7 @@ def _bin_width(strategy: str, values: list[float], span: float) -> float:
             return freedman
         # Freedman-Diaconis is the most robust of these until the data has a spike, where its
         # inter-quartile spread collapses and the bin count runs to thousands. Half the sqrt
-        # estimate is the floor numpy 2.5 added to stop that.
+        # estimate is the floor numpy 2.3.0 added to stop that.
         return min(max(freedman, root / 2.0), sturges)
     # doane, the only one that looks at shape rather than spread.
     if count <= 2:
@@ -103,7 +126,9 @@ def _bin_width(strategy: str, values: list[float], span: float) -> float:
     deviation = _population_stdev(values)
     if deviation == 0.0:
         return 0.0
-    mean = math.fsum(values) / count
+    mean = _mean(values)
+    if not math.isfinite(mean):
+        return 0.0
     skew = (
         _saturating(lambda: math.fsum(_saturating(lambda v=value: ((v - mean) / deviation) ** 3) for value in values)) / count
     )
@@ -187,4 +212,22 @@ def histogram_bins(values: list[float], bins: str | int = "auto") -> list[float]
     if isinstance(bins, int):
         return _even_edges(low, high, bins)
     width = _bin_width(bins, values, span)
+    if width and _all_integers(values):
+        # numpy infers a dtype, and for an integer one it raises a sub-unit width to 1 --
+        # a histogram of counts has nothing to say between 0 and 1. A list of Python ints is
+        # exactly what ``np.histogram_bin_edges`` sees as ``int64``, so a caller who passed
+        # one and now passes it here has to get the same edges: without this, ``[0,0,1,0,2,
+        # 0,1,0,0,1]`` with ``fd`` came back with three bins where numpy gives two, and 18%
+        # of integer-list inputs differed.
+        width = max(width, 1.0)
     return _even_edges(low, high, int(math.ceil((high - low) / width)) if width else 1)
+
+
+def _all_integers(values: list[float]) -> bool:
+    """Whether every value is a Python ``int`` -- the shape numpy reads as an integer dtype.
+
+    The *type*, not the value: ``[1.0, 2.0]`` is a float array to numpy and gets no width
+    floor, so testing ``value == int(value)`` here would apply the floor where numpy does not.
+    ``bool`` is excluded for the same reason it is everywhere else in this package.
+    """
+    return all(isinstance(value, int) and not isinstance(value, bool) for value in values)
