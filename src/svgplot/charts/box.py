@@ -8,6 +8,8 @@ from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, fit_rotated_labels, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import (
+    LEGEND_X_OFFSET,
+    MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
     TICK_SPACING_X,
     TICK_SPACING_Y,
@@ -17,7 +19,9 @@ from svgplot.charts._layout import (
     resolve_size,
     ticks_for,
 )
+from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import CategoricalScale, LinearScale
 from svgplot.stats.box import BoxStats, box_stats
@@ -28,18 +32,36 @@ _BOX_WIDTH_FRACTION = 0.6  # of the category band
 _WHISKER_CAP_FRACTION = 0.3  # of the category band, centered
 
 
-def _group_by_x(columns: dict[str, list], x: str, y: str) -> dict[str, list[float]]:
-    """Drop rows with a missing x or y value, then bucket y values by (stringified) x.
+NO_HUE = ""
+"""The single hue slot a chart drawn without ``hue=`` has.
 
-    Preserves first-seen category order, so categories render left-to-right in the
-    order they first appear in the data rather than an arbitrary sort.
+A sentinel rather than a branch: one code path that draws N boxes per band, where N is 1
+unless a hue says otherwise, is what keeps the no-hue geometry exactly what it was.
+"""
+
+
+def group_by_category(columns: dict[str, list], x: str, y: str, hue: str | None = None) -> dict[tuple[str, str], list[float]]:
+    """Drop rows with a missing x or y value, then bucket y values by (category, hue).
+
+    Preserves first-seen order on both axes, so categories render left-to-right and hue
+    groups slot within a band in the order they first appear in the data rather than an
+    arbitrary sort -- the rule every other chart here already follows.
     """
-    groups: dict[str, list[float]] = {}
-    for xv, yv in zip(columns[x], columns[y], strict=True):
-        if xv is None or yv is None or (isinstance(yv, float) and yv != yv):
+    groups: dict[tuple[str, str], list[float]] = {}
+    # ``columns[hue]`` rather than a guarded lookup: a hue naming no column is a ``KeyError``,
+    # which is what this function's callers document and what every other chart raises.
+    hues = columns[hue] if hue is not None else None
+    for index, (xv, yv) in enumerate(zip(columns[x], columns[y], strict=True)):
+        # ``is_missing`` rather than ``is None``: a NaN category label is not a category, and
+        # letting it through buckets those rows under the string "nan". ``violinplot`` already
+        # filtered this way and ``boxplot`` did not, which is exactly the kind of disagreement
+        # sharing this function is meant to end.
+        if is_missing(xv) or is_missing(yv):
             continue
-        category = str(xv)
-        groups.setdefault(category, []).append(float(yv))
+        hue_value = NO_HUE if hues is None else hues[index]
+        if is_missing(hue_value):
+            continue
+        groups.setdefault((str(xv), str(hue_value)), []).append(float(yv))
     return groups
 
 
@@ -47,6 +69,7 @@ def boxplot(
     data: object,
     x: str,
     y: str,
+    hue: str | None = None,
     *,
     mode: str = "1.5IQR",
     width: float | None = None,
@@ -58,11 +81,18 @@ def boxplot(
     """Draw a box plot from long-form data: one box per distinct ``x`` value,
     computed from that group's ``y`` values via ``stats.box.box_stats``.
 
-    Each box's median/whisker lines are stroked and its body/outlier markers are
-    filled, both colored by cycling through the theme's palette (one color per
-    category) — there's no ``hue=`` here since the categories themselves are
-    already the grouping axis, so no legend is drawn (the x-axis tick labels
-    already name each category).
+    Each box's median/whisker lines are stroked and its body/outlier markers are filled.
+
+    ``hue=`` groups *within* each category: every category's band is split into one slot per
+    hue value and the boxes are drawn side by side, the same dodge ``barplot`` does. The two
+    arguments answer different questions -- ``x=`` decides what is placed next to what, and
+    ``hue=`` decides what is compared inside each of those. seaborn's
+    ``boxplot(x="day", y="total_bill", hue="smoker")`` is the shape this exists for.
+
+    Colour follows whichever is doing the grouping. Without ``hue=`` the palette cycles per
+    **category**, because colour is then the only thing telling two boxes apart. With it the
+    palette cycles per **hue value**, so the same group is the same colour in every category
+    -- which is the comparison the argument is for -- and a legend names them.
 
     ``categories=`` replaces the category list this chart would take from its own data, and
     ``ylim=`` its value domain. They exist so several charts can be made to agree -- see
@@ -92,12 +122,17 @@ def boxplot(
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
 
-    groups = _group_by_x(longform.columns, x, y)
+    groups = group_by_category(longform.columns, x, y, hue)
     if not groups:
         raise ValueError("no rows with both x and y present after dropping missing values")
 
-    drawn_categories = list(require_categories(categories)) if categories is not None else list(groups.keys())
-    stats_by_category: dict[str, BoxStats] = {category: box_stats(values, mode=mode) for category, values in groups.items()}
+    own_categories = list(dict.fromkeys(category for category, _ in groups))
+    drawn_categories = list(require_categories(categories)) if categories is not None else own_categories
+    # Sorted by ``str`` rather than first-seen, which is what ``charts/_series.py`` does for
+    # every other chart's hue: the order decides both the palette slot and the legend row, so
+    # two charts of the same groups have to agree on it whatever order the rows arrived in.
+    hue_values = sorted({value for _, value in groups}, key=str) if hue is not None else [NO_HUE]
+    stats_by_category: dict[tuple[str, str], BoxStats] = {key: box_stats(values, mode=mode) for key, values in groups.items()}
 
     all_low = [s.whisker_low for s in stats_by_category.values()] + [o for s in stats_by_category.values() for o in s.outliers]
     all_high = [s.whisker_high for s in stats_by_category.values()] + [
@@ -107,7 +142,10 @@ def boxplot(
 
     canvas_width, canvas_height = resolve_size(width, height)
     fitted = fit_left_margin(
-        MARGIN_WITHOUT_LEGEND, y_domain, width=canvas_width, font_size=resolved_theme.tick_label_font_size
+        MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
+        y_domain,
+        width=canvas_width,
+        font_size=resolved_theme.tick_label_font_size,
     )
     fitted, turn_labels = fit_rotated_labels(
         fitted,
@@ -143,48 +181,69 @@ def boxplot(
         font_size=resolved_theme.tick_label_font_size,
     )
 
+    # Without ``hue`` a slot *is* a band, so every width below reduces to what it was before
+    # this argument existed -- which is what keeps the no-hue output byte-identical.
+    slot_width = x_scale.bandwidth / len(hue_values)
+    box_half_width = slot_width * _BOX_WIDTH_FRACTION / 2
+    cap_half_width = slot_width * _WHISKER_CAP_FRACTION / 2
+
     series_classes: list[str] = []
-    box_half_width = x_scale.bandwidth * _BOX_WIDTH_FRACTION / 2
-    cap_half_width = x_scale.bandwidth * _WHISKER_CAP_FRACTION / 2
-    for category in drawn_categories:
-        # Minted even when this panel has no rows for the category, so a shared list keeps
-        # one colour per category across every chart using it.
-        series_class = document.semantic_class("series")
-        series_classes.append(series_class)
-        stats = stats_by_category.get(category)
-        if stats is None:
-            continue
-        marker_class = f"{series_class}-marker"
-        _render_box(
-            document,
-            x_scale,
-            y_scale,
-            category,
-            stats,
-            series_class,
-            marker_class,
-            box_half_width,
-            cap_half_width,
-            resolved_theme.corner_radius,
-        )
-        for outlier in stats.outliers:
-            document.add_node(
-                None,
-                "circle",
-                attrib={
-                    "cx": format_coord(x_scale.center(category)),
-                    "cy": format_coord(y_scale(outlier)),
-                    "r": format_coord(resolved_theme.marker_size),
-                },
-                classes=[marker_class],
+    # One class per *hue* when there is a hue, one per category when there is not. The two
+    # cannot be merged: with ``hue=`` the same group has to be the same colour in every
+    # category, which is the comparison the argument exists to make; without it, colour is the
+    # only thing telling two categories apart.
+    for _name in hue_values if hue is not None else drawn_categories:
+        # Minted even when this panel has no rows for it, so a shared list keeps one colour
+        # per name across every chart using it.
+        series_classes.append(document.semantic_class("series"))
+
+    for slot, hue_value in enumerate(hue_values):
+        for index, category in enumerate(drawn_categories):
+            stats = stats_by_category.get((category, hue_value))
+            if stats is None:
+                continue
+            series_class = series_classes[slot if hue is not None else index]
+            marker_class = f"{series_class}-marker"
+            center = x_scale(category) + (slot + 0.5) * slot_width
+            _render_box(
+                document,
+                center,
+                y_scale,
+                stats,
+                series_class,
+                marker_class,
+                box_half_width,
+                cap_half_width,
+                resolved_theme.corner_radius,
             )
+            for outlier in stats.outliers:
+                document.add_node(
+                    None,
+                    "circle",
+                    attrib={
+                        "cx": format_coord(center),
+                        "cy": format_coord(y_scale(outlier)),
+                        "r": format_coord(resolved_theme.marker_size),
+                    },
+                    classes=[marker_class],
+                )
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="stroke")
+    if hue is not None:
+        render_legend(
+            document,
+            [(str(value), series_classes[index]) for index, value in enumerate(hue_values)],
+            x=area.right + LEGEND_X_OFFSET,
+            y=area.top,
+            mark_style="stroke",
+            font_size=resolved_theme.legend_font_size,
+        )
 
     observations = plural(sum(len(values) for values in groups.values()), "observation")
     description = describe(
         "Box plot",
         f'{group(drawn_categories, "category")} over {observations}',
+        group([str(value) for value in hue_values], "series") if hue is not None else None,
         span("y", *y_domain),
         f"{mode} whiskers",
     )
@@ -193,9 +252,8 @@ def boxplot(
 
 def _render_box(
     document: SvgDocument,
-    x_scale: CategoricalScale,
+    center: float,
     y_scale: LinearScale,
-    category: str,
     stats: BoxStats,
     series_class: str,
     marker_class: str,
@@ -203,7 +261,11 @@ def _render_box(
     cap_half_width: float,
     corner_radius: float,
 ) -> None:
-    """Draw one category's box, median line, whisker stems and caps.
+    """Draw one box at ``center``, with its median line, whisker stems and caps.
+
+    The centre is passed rather than taken from the scale because with ``hue=`` a category's
+    band holds one box per hue group, each in its own slot -- the scale knows where the band
+    is, and only the caller knows which slot inside it this box belongs to.
 
     Known quirk (not a defect here): in the ``stdev``/``pstdev`` modes a whisker is
     ``mean ± 1 SD``, which is unrelated to the quartiles, so ``whisker_high`` can land
@@ -213,7 +275,6 @@ def _render_box(
     rather than from anything this renderer does, so it is left as-is; clamping the stems
     to the box would misrepresent the statistic.
     """
-    center = x_scale.center(category)
     left, right = center - box_half_width, center + box_half_width
     cap_left, cap_right = center - cap_half_width, center + cap_half_width
     y_q1, y_q3 = y_scale(stats.q1), y_scale(stats.q3)

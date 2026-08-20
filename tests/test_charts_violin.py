@@ -7,6 +7,7 @@ import pytest
 
 from _svg_probe import tags as _tags, texts as _texts
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, plot_area
+from svgplot.charts.box import NO_HUE
 from svgplot.charts.violin import _EVALUATION_GRID, _VIOLIN_PADDING, _group_by_x, shared_grid_range, violinplot
 from svgplot.scales import CategoricalScale, LinearScale
 from svgplot.stats.box import box_stats
@@ -187,7 +188,7 @@ def test_the_inner_box_lands_exactly_on_the_quartiles() -> None:
     for category, box, median_line in zip(
         CATEGORIES, _tags(svg, "rect", "violin-box"), _tags(svg, "line", "violin-median"), strict=True
     ):
-        stats = box_stats(groups[category])
+        stats = box_stats(groups[(category, NO_HUE)])
         top, height = float(box["y"]), float(box["height"])
 
         assert top == pytest.approx(y_scale(stats.q3), abs=1e-6)
@@ -338,7 +339,7 @@ def test_the_bandwidth_reaches_both_passes() -> None:
     # shared peak.
     peaks = {category: max(kde(values, bandwidth=0.5, grid_range=(low, high)).y) for category, values in groups.items()}
     shared_peak = max(peaks.values())
-    expected = kde(groups["a"], bandwidth=0.5, grid_range=(low, high))
+    expected = kde(groups[("a", NO_HUE)], bandwidth=0.5, grid_range=(low, high))
     half_band = abs(scale.bandwidth) / 2
     left, right = _flanks(bodies[0])
     drawn_half = [(rx - lx) / 2 for (lx, _), (rx, _) in zip(left, right, strict=True)]
@@ -439,7 +440,7 @@ def test_a_nan_category_label_drops_the_row() -> None:
     so the difference is a decision on record rather than an accident."""
     data = {"grp": [float("nan"), "a", "a", "a"], "v": [1.0, 2.0, 3.0, 4.0]}
 
-    assert sorted(_group_by_x(data, "grp", "v")) == ["a"]
+    assert sorted(_group_by_x(data, "grp", "v")) == [("a", NO_HUE)]
 
 
 def test_every_category_is_named_on_the_axis() -> None:

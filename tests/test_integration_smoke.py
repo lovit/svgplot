@@ -316,7 +316,9 @@ def test_violinplot_takes_boxplot_s_positional_arguments() -> None:
         if parameter.kind is parameter.POSITIONAL_OR_KEYWORD
     ]
 
-    assert violin == box == ["data", "x", "y"]
+    # ``hue`` joined both at once, on purpose: the README's promise is that the two are
+    # interchangeable, and a grouping argument on only one of them would end that quietly.
+    assert violin == box == ["data", "x", "y", "hue"]
 
 
 # ---------------------------------------------------------------------------
