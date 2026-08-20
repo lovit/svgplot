@@ -56,7 +56,9 @@ Private/internal — not re-exported from ``svgplot.charts``.
 
 from __future__ import annotations
 
+import decimal
 import math
+import numbers
 import statistics
 import warnings
 from collections.abc import Callable
@@ -128,19 +130,26 @@ def apply_estimator(estimate: Callable[[list[float]], float], values: list[float
         result = estimate(values)
     except Exception as error:  # re-raised immediately as ValueError, named and chained
         raise ValueError(f"estimator failed on group {group!r} with values {values!r}: {error}") from error
-    if isinstance(result, bool):
-        # float(True) is 1.0, so a callable that accidentally returns a comparison would
-        # plot a bar of height 1 rather than say anything. Rejected next to str for the
-        # same reason: the value arrived as something that is not a measurement.
-        raise ValueError(f"estimator returned a non-numeric value for group {group!r}: {result!r}")
-    if isinstance(result, str | bytes | bytearray):
-        # float("12") succeeds, so without this a string flows straight into the scale and
-        # the estimator's contract quietly becomes "whatever this text happens to parse
-        # as". A number that arrived as text is a units bug waiting to happen, not a value.
+    if isinstance(result, bool) or not isinstance(result, numbers.Real | decimal.Decimal):
+        # One rule instead of a list of traps. Two things have to be kept out and neither is
+        # caught by float():
+        #
+        #   float(True) is 1.0, so a callable that accidentally returns a comparison plots a
+        #   bar of height 1 and says nothing -- and ``numpy.bool_`` is *not* a ``bool``
+        #   subclass, so naming ``bool`` alone left the same mistake open through numpy,
+        #   which a review duly found.
+        #
+        #   float("12") succeeds, so a string would flow into the scale and the estimator's
+        #   contract would quietly become "whatever this text happens to parse as".
+        #
+        # ``numbers.Real`` admits every real numeric type including numpy's scalars, and
+        # excludes ``numpy.bool_``, ``complex``, arrays, strings and ``None`` on its own.
+        # ``Decimal`` is spelled out because it is deliberately not registered as ``Real``
+        # while being perfectly plottable.
         raise ValueError(f"estimator returned a non-numeric value for group {group!r}: {result!r}")
     try:
         number = float(result)
-    except (TypeError, ValueError) as error:
+    except (TypeError, ValueError, OverflowError) as error:
         raise ValueError(f"estimator returned a non-numeric value for group {group!r}: {result!r}") from error
     if not math.isfinite(number):
         raise ValueError(f"estimator returned a non-finite value for group {group!r}: {result!r}")
