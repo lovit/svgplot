@@ -15,6 +15,7 @@ from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, over, plural, span
 from svgplot.charts._layout import (
     DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
@@ -243,4 +244,11 @@ def areaplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document, domains=Domains(x=x_domain, y=y_domain))
+    points = plural(len(all_x), "point")
+    description = describe(
+        "Stacked area chart" if do_stack else "Area chart",
+        over([str(label) for label, _ in series_items] if hue is not None else None, points),
+        span("x", *x_domain),
+        span("y", *y_domain),
+    )
+    return Chart(document, description=description, domains=Domains(x=x_domain, y=y_domain))

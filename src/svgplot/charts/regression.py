@@ -9,6 +9,7 @@ from __future__ import annotations
 from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._describe import describe, number, plural, span
 from svgplot.charts._layout import (
     DEFAULT_WIDTH,
     MARGIN_WITHOUT_LEGEND,
@@ -169,4 +170,11 @@ def regplot(
     # translucent fill, the line and the points as the same colour at full strength.
     render_theme_style(document, resolved_theme, [series_class], mark_style="outlined")
 
-    return Chart(document, domains=Domains(x=x_domain, y=y_domain))
+    description = describe(
+        "Regression plot",
+        f'fitted over {plural(len(xs), "point")}',
+        span("x", *x_domain),
+        span("y", *y_domain),
+        f"with a {number(ci * 100)}% confidence band" if ci is not None else "no confidence band",
+    )
+    return Chart(document, description=description, domains=Domains(x=x_domain, y=y_domain))

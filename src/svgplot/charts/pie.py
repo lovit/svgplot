@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 
 from svgplot.chart.base import Chart
+from svgplot.charts._describe import describe, group, number, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_SIDE_LEGEND,
@@ -149,4 +150,11 @@ def pieplot(
     )
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document, label_data)
+    magnitudes = [value for _, value in pairs]
+    description = describe(
+        "Donut chart" if inner_radius > 0 else "Pie chart",
+        group([label for label, _ in pairs], "slice"),
+        span("values", min(magnitudes), max(magnitudes)),
+        f"total {number(total)}",
+    )
+    return Chart(document, label_data, description=description)
