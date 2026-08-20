@@ -164,6 +164,7 @@ GitHub는 렌더된 markdown에서 인라인 SVG를 제거하므로 github.com�
 sp.barplot({"x": ["Mon", "Tue", "Wed"], "y": [1.0, 5.0, 9.0]}, x="x", y="y").to_string()
 # <desc>Bar chart, 3 categories (Mon, Tue, Wed), values 1 to 9.</desc>
 
+sales = {"region": ["east", "west", "east"], "quarter": ["Q1", "Q1", "Q2"], "amount": [1.0, 2.0, 3.0]}
 sp.heatmap(sales, x="region", y="quarter", values="amount").to_string()
 # <desc>Heatmap, 2 columns (east, west), 2 rows (Q1, Q2), 3 of 4 cells filled, values 1 to 3, quantised into 9 levels.</desc>
 ```
@@ -179,6 +180,8 @@ chart.set_table_id("sales-table")                  # 한 페이지에 차트가 
 ```
 
 `.md` 출력에는 이 속성이 붙지 않는다 — GFM 표는 `id`를 실을 요소가 없어서 참조가 허공을 가리키게 되기 때문이다. 그 경우 보조 기술은 `<desc>`를 읽는다.
+
+합성 도판(`row`/`column`/`grid`/`facet`)에는 이 참조가 붙지 않는다 — 자식 차트의 원본 문서를 중첩하므로 도판은 자기 이름 하나만 갖는다. 표를 함께 내보내도 가리키는 쪽이 없다.
 
 주의: `info=`가 있으면 `to_string()`은 표를 실제로 내보냈는지와 무관하게 참조를 붙인다. 표를 함께 내보내지 않으면 참조는 해소되지 않고(무해하게 무시된다) `<desc>`가 읽힌다. 그리고 기본 `id`는 모든 차트가 공유하므로, 한 페이지에 `info=` 차트가 둘 이상이면 반드시 `set_table_id()`로 나눠야 한다 — 그러지 않으면 두 번째 차트가 첫 번째 차트의 표로 설명된다.
 
