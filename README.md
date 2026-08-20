@@ -18,7 +18,7 @@ uv add "svgplot @ git+https://github.com/lovit/svgplot"
 pip install "git+https://github.com/lovit/svgplot"
 ```
 
-PNG 출력이 필요하면 `svgplot[png]` (cairosvg). Python 3.12 이상.
+PNG 출력에는 cairosvg 가 필요하다 — `uv add "svgplot[png] @ git+https://github.com/lovit/svgplot"`. Python 3.12 이상.
 
 ## Quick start
 
@@ -67,21 +67,30 @@ sp.lineplot(data, x="day", y="sales", hue="region").save("sales.svg")
 
 **<https://lovit.github.io/svgplot/gallery/>**
 
-차트 16종 각각에 대해 그림과 그 그림을 만든 코드가 함께 있다. 페이지에 인쇄된 코드가 곧 그 그림을 만든 코드다 — 갤러리 빌드가 코드 문자열을 그대로 실행해 SVG 를 만든다.
+차트 16종 각각에 대해 그림과 그 그림을 만든 코드가 함께 있다. 갤러리 빌드가 페이지에 인쇄할 코드 문자열을 그대로 실행해 SVG 를 만든다.
 
 ## 그 밖의 기능
 
-아래는 아직 갤러리 페이지가 없다. 각 함수의 docstring 에 사용법이 있다.
+아래는 아직 전용 갤러리 페이지가 없다. **모든 차트가 받는 것과 일부만 받는 것을 구분해 적는다** — 받지 않는 차트에 주면 `TypeError` 다.
 
-- **`estimator=`** — 같은 x 에 여러 행이 있을 때 `"mean"`/`"sum"`/`"median"` 등으로 접는다. 지정하지 않으면 차트별 기본 규칙이 적용되고 몇 행을 접었는지 `AggregationWarning` 이 알려준다
-- **`width=` / `height=`** — 기본 캔버스는 800x600(`sparkline` 만 120x24), 최소 240x180
-- **`xscale=` / `yscale=`** — `"linear"` / `"log"`. 날짜 축에 `log` 는 거부된다
-- **`sp.row` / `column` / `grid`** — 차트 여러 개를 하나의 도판으로 합성
-- **`sp.facet`** — 아무 차트 함수나 그룹별로 반복 호출해 격자로. 패널은 기본적으로 축을 공유한다
+전부:
+
+- **`width=` / `height=`** — 기본 캔버스는 800x600, `sparkline` 만 120x24. 축이 있는 차트는 240x180 아래를 거부한다(`sparkline` 은 면제)
 - **`theme=`** — 프리셋 5종(`light` `dark` `minimal` `print` `high_contrast`), 컨텍스트 4종(`paper` `notebook` `talk` `poster`), `sp.parametric_theme("#3366cc")` 로 시드 컬러에서 팔레트 생성. 기본 팔레트는 색맹 안전(Okabe-Ito)
+- **접근성** — `role="img"` · `aria-label` · `<title>` · `<desc>` 를 내보낸다. `<desc>` 는 제목을 되풀이하지 않고 차트 종류·데이터 규모·값 범위를 말한다
+
+일부:
+
+- **`xscale=`** — `lineplot` · `scatterplot` · `areaplot`. **`yscale=`** — `lineplot` · `scatterplot`. `"linear"` / `"log"` 이고, 날짜 축에 `log` 는 거부된다
+- **`estimator=`** — `lineplot` · `barplot` · `areaplot`. 같은 x 에 여러 행이 있을 때 `"mean"`/`"sum"`/`"median"` 등으로 접는다. 지정하지 않으면 차트별 기본 규칙이 적용되는데, 행이 실제로 버려지는 `barplot` 에서만 몇 행이 남았는지 `AggregationWarning` 이 알려준다(`areaplot` 은 합산하고 `lineplot` 은 둘 다 그리므로 잃는 것이 없다)
+- **`info=`** — `lineplot` · `scatterplot` · `pieplot`. 차트가 실제로 그린 행만 담은 표를 함께 내보낸다. 한 페이지에 `info=` 차트가 둘 이상이면 `Chart.set_table_id()` 로 표 `id` 를 나눠야 한다
+
+그 밖:
+
+- **`sp.row` / `column` / `grid`** — 차트 여러 개를 하나의 도판으로 합성. **`sp.add_caption`** 으로 도판에 캡션을 단다
+- **`sp.facet`** — 아무 차트 함수나 그룹별로 반복 호출해 격자로. 패널은 기본적으로 축을 공유한다
+- **`sp.apply_size(chart, "responsive")`** — `viewBox` + `max-width:100%`. 호스트 문서의 CSS 가 필요하므로 `<img>` 로 넣을 때는 쓰지 않는다
 - **출력** — `.save()` 는 확장자로 `.svg` / `.png` / `.md` 를 고른다. `.to_string()` · `.to_markdown()` · `.to_html_table()`
-- **`info=`** — 차트가 실제로 그린 행만 담은 표를 함께 내보낸다. 1행 = 1마크인 `lineplot`/`scatterplot`/`pieplot` 이 대상
-- **접근성** — 모든 차트가 `role="img"` · `aria-label` · `<title>` · `<desc>` 를 내보낸다. `<desc>` 는 차트 종류·데이터 규모·값 범위를 실제로 말한다
 
 ## 개발
 
