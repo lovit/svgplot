@@ -16,6 +16,9 @@ Everything else is out of scope for a reason, not by omission:
   **distribution** of a column. Collapsing repeated values into their mean first would
   not fold marks together, it would delete the very spread these charts exist to draw.
 - ``scatterplot`` draws one mark per row already — nothing folds, so nothing to choose.
+- ``regplot`` likewise draws one point per row, and its fit consumes every row rather than
+  folding any: pre-averaging the y values at a repeated x would change the regression
+  itself, not just what is drawn, which is a different feature from this one.
 - ``heatmap`` **refuses** two rows naming the same cell rather than folding them, and
   that refusal is load-bearing: a heatmap cell is an identity, not an accumulator.
 - ``pieplot``/``treemap``/``gaugeplot`` are one row = one mark by construction.
@@ -125,6 +128,11 @@ def apply_estimator(estimate: Callable[[list[float]], float], values: list[float
         result = estimate(values)
     except Exception as error:  # re-raised immediately as ValueError, named and chained
         raise ValueError(f"estimator failed on group {group!r} with values {values!r}: {error}") from error
+    if isinstance(result, bool):
+        # float(True) is 1.0, so a callable that accidentally returns a comparison would
+        # plot a bar of height 1 rather than say anything. Rejected next to str for the
+        # same reason: the value arrived as something that is not a measurement.
+        raise ValueError(f"estimator returned a non-numeric value for group {group!r}: {result!r}")
     if isinstance(result, str | bytes | bytearray):
         # float("12") succeeds, so without this a string flows straight into the scale and
         # the estimator's contract quietly becomes "whatever this text happens to parse
