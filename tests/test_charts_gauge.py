@@ -6,6 +6,7 @@ from itertools import pairwise
 
 import pytest
 
+from _svg_probe import every_tag, tags as _tags, texts as _texts
 from svgplot.charts._polar import polar_point
 from svgplot.charts.gauge import (
     _END_ANGLE,
@@ -25,7 +26,6 @@ _CX, _CY = 325.0, 300.0
 _OUTER_RADIUS = 242.0
 
 _PATH_RE = re.compile(r'<path[^>]*\sd="([^"]+)"[^>]*\sclass="([^"]+)"')
-_TEXT_RE = re.compile(r'<text[^>]*\sclass="([^"]+)"[^>]*>([^<]*)</text>')
 _LINE_RE = re.compile(r'<line x1="(-?[\d.]+)" y1="(-?[\d.]+)" x2="(-?[\d.]+)" y2="(-?[\d.]+)" class="tick-line"')
 # ring_path emits: M x1,y1 A R,R 0 large sweep x2,y2 L ...
 _RING_RE = re.compile(
@@ -39,16 +39,6 @@ def _svg(data: object = DATA, **kwargs: object) -> str:
 
 def _paths(svg: str, css_class: str) -> list[str]:
     return [d for d, classes in _PATH_RE.findall(svg) if css_class in classes.split()]
-
-
-def _tags(svg: str, element: str, css_class: str) -> list[dict[str, str]]:
-    """Opening tags of ``element`` whose class list contains ``css_class`` as a token."""
-    tags = [dict(re.findall(r'([\w-]+)="([^"]*)"', tag)) for tag in re.findall(rf"<{element}\b[^>]*?/?>", svg)]
-    return [tag for tag in tags if css_class in tag.get("class", "").split()]
-
-
-def _texts(svg: str, css_class: str) -> list[str]:
-    return [text for classes, text in _TEXT_RE.findall(svg) if css_class in classes.split()]
 
 
 def _angle(x: float, y: float) -> float:
@@ -153,7 +143,7 @@ def test_a_value_below_the_bottom_clamps_to_no_arc() -> None:
 def test_a_clamped_value_still_prints_its_real_number() -> None:
     """The arc is clamped because the geometry has nowhere else to go; the datum is not.
     Rewriting the printed value to the bound would report data the caller never gave."""
-    assert _texts(_svg({"score": [250.0]}, vmin=0, vmax=100), "legend-text") == ["250"]
+    assert _texts(_svg({"score": [250.0]}, vmin=0, vmax=100), "text", "legend-text") == ["250"]
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +186,7 @@ def test_a_negative_value_pulls_the_default_floor_down_to_itself() -> None:
 def test_an_explicit_bound_is_not_widened_by_the_data() -> None:
     """``vmax=50`` with a datum of 100 must clamp, not silently re-fit the scale."""
     assert _value_sweep(_svg({"score": [100.0]}, vmin=0, vmax=50)) == pytest.approx(_SWEEP)
-    assert _texts(_svg({"score": [100.0]}, vmin=0, vmax=50), "tick-label")[-1] == "50"
+    assert _texts(_svg({"score": [100.0]}, vmin=0, vmax=50), "text", "tick-label")[-1] == "50"
 
 
 def _value_sweep_of(svg: str, *, index: int) -> float:
@@ -330,7 +320,7 @@ def test_tick_labels_name_the_tick_values() -> None:
     svg = _svg({"score": [40.0]}, vmin=0, vmax=100)
     expected = make_ticks(LinearScale((0.0, 100.0), (_START_ANGLE, _END_ANGLE)))
 
-    assert _texts(svg, "tick-label") == [str(int(tick)) for tick in expected]  # type: ignore[arg-type]
+    assert _texts(svg, "text", "tick-label") == [str(int(tick)) for tick in expected]  # type: ignore[arg-type]
 
 
 def test_tick_labels_take_their_side_from_their_own_half_of_the_dial() -> None:
@@ -349,7 +339,7 @@ def test_tick_labels_take_their_side_from_their_own_half_of_the_dial() -> None:
 
 
 def test_the_legend_names_the_labels_column() -> None:
-    legend_texts = _texts(_svg(labels="name"), "legend-text")
+    legend_texts = _texts(_svg(labels="name"), "text", "legend-text")
 
     assert legend_texts[-3:] == ["a", "b", "c"]
 
@@ -357,7 +347,7 @@ def test_the_legend_names_the_labels_column() -> None:
 def test_rows_are_numbered_from_one_without_a_labels_column() -> None:
     svg = gaugeplot({"score": [30.0, 60.0]}, "score").to_string()
 
-    assert _texts(svg, "legend-text")[-2:] == ["1", "2"]
+    assert _texts(svg, "text", "legend-text")[-2:] == ["1", "2"]
 
 
 def test_a_single_unlabelled_row_gets_no_legend() -> None:
@@ -365,7 +355,7 @@ def test_a_single_unlabelled_row_gets_no_legend() -> None:
     the number is already printed in the middle."""
     svg = _svg({"score": [40.0]}, vmin=0, vmax=100)
 
-    assert _texts(svg, "legend-text") == ["40"]
+    assert _texts(svg, "text", "legend-text") == ["40"]
 
 
 def test_the_legend_swatch_is_a_filled_rect_not_a_line() -> None:
@@ -381,13 +371,13 @@ def test_the_legend_swatch_is_a_filled_rect_not_a_line() -> None:
 def test_a_single_labelled_row_still_gets_its_legend() -> None:
     svg = gaugeplot({"score": [40.0], "name": ["cpu"]}, "score", labels="name").to_string()
 
-    assert _texts(svg, "legend-text") == ["40", "cpu"]
+    assert _texts(svg, "text", "legend-text") == ["40", "cpu"]
 
 
 def test_the_values_are_printed_in_the_hole_in_row_order() -> None:
     svg = _svg(vmin=0, vmax=100)
 
-    assert _texts(svg, "legend-text")[:3] == ["30", "60", "90"]
+    assert _texts(svg, "text", "legend-text")[:3] == ["30", "60", "90"]
 
 
 def test_the_printed_values_are_centred_as_a_block_on_the_dial() -> None:
@@ -404,7 +394,7 @@ def test_a_fractional_value_is_printed_without_being_rounded(value: float, print
     would silently rewrite the datum. 12.25 alone does not show that -- both functions
     return "12.25" for it -- so the values that actually separate them are what pin it:
     ``format_coord`` answers "0.123457" and, worse, turns 1e-07 into "0"."""
-    assert _texts(_svg({"score": [value]}, vmin=0, vmax=100), "legend-text") == [printed]
+    assert _texts(_svg({"score": [value]}, vmin=0, vmax=100), "text", "legend-text") == [printed]
 
 
 # ---------------------------------------------------------------------------
@@ -431,7 +421,7 @@ def test_drops_rows_whose_value_is_missing() -> None:
     svg = gaugeplot({"score": [30.0, None, 90.0]}, "score", vmin=0, vmax=100).to_string()
 
     assert len(_paths(svg, "gauge-track")) == 2
-    assert _texts(svg, "legend-text")[:2] == ["30", "90"]
+    assert _texts(svg, "text", "legend-text")[:2] == ["30", "90"]
 
 
 def test_rejects_data_where_every_row_is_missing() -> None:
@@ -458,7 +448,10 @@ def test_every_drawn_class_is_styled_by_the_theme() -> None:
     svg = _svg()
     style = svg[svg.index("<style>") : svg.index("</style>")]
     drawn = {name for _, classes in _PATH_RE.findall(svg) for name in classes.split()}
-    drawn |= {name for classes, _ in _TEXT_RE.findall(svg) for name in classes.split()}
+    # <text> too, not only <path>. The class-filtered probe cannot express this -- a
+    # completeness check has to enumerate what is there rather than ask about a class it
+    # already knows -- which is why `every_tag` exists.
+    drawn |= {name for tag in every_tag(svg, "text") for name in tag.get("class", "").split()}
 
     unstyled = {name for name in drawn if f".{name} " not in style}
     assert unstyled <= {"gauge-track", "gauge-value"}, f"unstyled classes: {sorted(unstyled)}"
@@ -554,4 +547,4 @@ def test_tick_labels_survive_a_domain_smaller_than_six_decimal_places(vmax: floa
     and this one was left unpinned. ``format_coord`` rounds to six places, so on a domain
     this small every tick label collapses to "0" and the whole ring stops naming anything.
     Every other tick assertion in this file uses whole numbers, where the two agree."""
-    assert _texts(_svg({"score": [vmax]}, vmin=0, vmax=vmax), "tick-label") == labels
+    assert _texts(_svg({"score": [vmax]}, vmin=0, vmax=vmax), "text", "tick-label") == labels
