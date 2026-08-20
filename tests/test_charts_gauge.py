@@ -6,7 +6,7 @@ from itertools import pairwise
 
 import pytest
 
-from _svg_probe import every_tag, tags as _tags, texts as _texts
+from _svg_probe import every_tag, style_rules, tags as _tags, texts as _texts
 from svgplot.charts._polar import polar_point
 from svgplot.charts.gauge import (
     _END_ANGLE,
@@ -466,8 +466,7 @@ def test_the_arcs_are_outlined_so_a_ring_reads_against_its_track() -> None:
     """A flat fill and a stroked-only outline both lose one of the two things a gauge arc
     has to show at once: where it ends, and how much of the track it covers."""
     svg = _svg()
-    style = svg[svg.index("<style>") : svg.index("</style>")]
-    series_rules = [line for line in style.splitlines() if line.startswith(".series")]
+    series_rules = [rule for rule in style_rules(svg) if rule.startswith(".series")]
 
     assert series_rules
     for rule in series_rules:

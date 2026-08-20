@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Chart">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-f4a1be1e3" role="img" aria-label="Chart">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
   <line x1="116.540881" y1="30" x2="116.540881" y2="550" class="grid-line" />
@@ -62,14 +62,14 @@
   <text x="682" y="34" class="legend-text">우선</text>
   <rect x="660" y="45" width="16" height="10" class="series-2" />
   <text x="682" y="54" class="legend-text">일반</text>
-  <style>.plot-background { fill: #ffffff; }
-.grid-line { stroke: #e0e0e0; stroke-width: 1; }
-.spine { stroke: #333333; stroke-width: 1; fill: none; }
-.tick-line { stroke: #333333; }
-.tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
-.legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
-.series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
-.series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
+  <style>:where(.svgplot-f4a1be1e3) .plot-background { fill: #ffffff; }
+:where(.svgplot-f4a1be1e3) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-f4a1be1e3) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-f4a1be1e3) .tick-line { stroke: #333333; }
+:where(.svgplot-f4a1be1e3) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-f4a1be1e3) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-f4a1be1e3) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-f4a1be1e3) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
   <title>Chart</title>
   <desc>Histogram, 2 series (우선, 일반) over 240 observations in 11 bins, x 1.9 to 33.7, counts 0 to 32.</desc>
 </svg>

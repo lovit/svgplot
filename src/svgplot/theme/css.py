@@ -34,10 +34,11 @@ import re
 from svgplot._svg import SvgDocument
 from svgplot.charts._layout import format_coord
 from svgplot.palette._color import HEX_COLOR_RE
+from svgplot.scope import CSS_CLASS_NAME_RE, validate_css_class_name
 from svgplot.theme.base import Theme
 
 _FONT_FAMILY_RE = re.compile(r"^[A-Za-z0-9 ,'-]+$")
-_CSS_CLASS_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
+_CSS_CLASS_NAME_RE = CSS_CLASS_NAME_RE
 
 
 def _validate_css_color(value: object, *, field: str) -> str:
@@ -61,16 +62,7 @@ def _validate_css_font_family(value: object, *, field: str) -> str:
     return value
 
 
-def _validate_css_class_name(value: str, *, kind: str = "series") -> str:
-    """``series_classes``/``level_colors`` entries are also caller-controlled data, not
-    just Theme's fields — an unvalidated class name (e.g. ``"x{}body{background:red}.y"``)
-    is just as much a CSS-breakout vector as an unvalidated color, so it needs the same
-    up-front rejection rather than trusting ``_svg.py``'s XML-only class validation
-    (which permits characters like ``{``/``}``/``;`` that are CSS-unsafe but XML-safe).
-    """
-    if not isinstance(value, str) or not _CSS_CLASS_NAME_RE.fullmatch(value):
-        raise ValueError(f"{kind} class name must match {_CSS_CLASS_NAME_RE.pattern!r} for safe CSS embedding, got {value!r}")
-    return value
+_validate_css_class_name = validate_css_class_name
 
 
 def render_theme_style(

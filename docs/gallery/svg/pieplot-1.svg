@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Chart">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-fbcfc813f" role="img" aria-label="Chart">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <path d="M 325,300 L 325,30 A 270,270 0 0 1 381.136157,564.099852 Z" class="series-1" />
   <text x="499.538593" y="281.655255" text-anchor="middle" class="legend-text">4200</text>
@@ -21,17 +21,17 @@
   <text x="662" y="94" class="legend-text">4</text>
   <rect x="640" y="105" width="16" height="10" class="series-5" />
   <text x="662" y="114" class="legend-text">5</text>
-  <style>.plot-background { fill: #ffffff; }
-.grid-line { stroke: #e0e0e0; stroke-width: 1; }
-.spine { stroke: #333333; stroke-width: 1; fill: none; }
-.tick-line { stroke: #333333; }
-.tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
-.legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
-.series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
-.series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }
-.series-3 { fill: #009E73; stroke: none; opacity: 0.75; }
-.series-4 { fill: #F0E442; stroke: none; opacity: 0.75; }
-.series-5 { fill: #0072B2; stroke: none; opacity: 0.75; }</style>
+  <style>:where(.svgplot-fbcfc813f) .plot-background { fill: #ffffff; }
+:where(.svgplot-fbcfc813f) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-fbcfc813f) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-fbcfc813f) .tick-line { stroke: #333333; }
+:where(.svgplot-fbcfc813f) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-fbcfc813f) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-fbcfc813f) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-fbcfc813f) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }
+:where(.svgplot-fbcfc813f) .series-3 { fill: #009E73; stroke: none; opacity: 0.75; }
+:where(.svgplot-fbcfc813f) .series-4 { fill: #F0E442; stroke: none; opacity: 0.75; }
+:where(.svgplot-fbcfc813f) .series-5 { fill: #0072B2; stroke: none; opacity: 0.75; }</style>
   <title>Chart</title>
   <desc>Pie chart, 5 slices (1, 2, 3, 4, 5), values 600 to 4200, total 9000.</desc>
 </svg>

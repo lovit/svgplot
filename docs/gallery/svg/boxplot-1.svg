@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Chart">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-f3ca52fe9" role="img" aria-label="Chart">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="760" y2="550" class="spine" />
   <line x1="130" y1="30" x2="130" y2="550" class="grid-line" />
@@ -64,22 +64,22 @@
   <line x1="669" y1="30" x2="711" y2="30" class="series-5" />
   <line x1="690" y1="309.717813" x2="690" y2="454.620811" class="series-5" />
   <line x1="669" y1="454.620811" x2="711" y2="454.620811" class="series-5" />
-  <style>.plot-background { fill: #ffffff; }
-.grid-line { stroke: #e0e0e0; stroke-width: 1; }
-.spine { stroke: #333333; stroke-width: 1; fill: none; }
-.tick-line { stroke: #333333; }
-.tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
-.legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
-.series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
-.series-1-marker { fill: #E69F00; stroke: none; }
-.series-2 { stroke: #56B4E9; fill: none; stroke-width: 2; opacity: 1; }
-.series-2-marker { fill: #56B4E9; stroke: none; }
-.series-3 { stroke: #009E73; fill: none; stroke-width: 2; opacity: 1; }
-.series-3-marker { fill: #009E73; stroke: none; }
-.series-4 { stroke: #F0E442; fill: none; stroke-width: 2; opacity: 1; }
-.series-4-marker { fill: #F0E442; stroke: none; }
-.series-5 { stroke: #0072B2; fill: none; stroke-width: 2; opacity: 1; }
-.series-5-marker { fill: #0072B2; stroke: none; }</style>
+  <style>:where(.svgplot-f3ca52fe9) .plot-background { fill: #ffffff; }
+:where(.svgplot-f3ca52fe9) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-f3ca52fe9) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-f3ca52fe9) .tick-line { stroke: #333333; }
+:where(.svgplot-f3ca52fe9) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-f3ca52fe9) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-f3ca52fe9) .series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-f3ca52fe9) .series-1-marker { fill: #E69F00; stroke: none; }
+:where(.svgplot-f3ca52fe9) .series-2 { stroke: #56B4E9; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-f3ca52fe9) .series-2-marker { fill: #56B4E9; stroke: none; }
+:where(.svgplot-f3ca52fe9) .series-3 { stroke: #009E73; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-f3ca52fe9) .series-3-marker { fill: #009E73; stroke: none; }
+:where(.svgplot-f3ca52fe9) .series-4 { stroke: #F0E442; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-f3ca52fe9) .series-4-marker { fill: #F0E442; stroke: none; }
+:where(.svgplot-f3ca52fe9) .series-5 { stroke: #0072B2; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-f3ca52fe9) .series-5-marker { fill: #0072B2; stroke: none; }</style>
   <title>Chart</title>
   <desc>Box plot, 5 categories (월, 화, 수, 목, 금) over 200 observations, y 3.2 to 59.9, 1.5IQR whiskers.</desc>
 </svg>

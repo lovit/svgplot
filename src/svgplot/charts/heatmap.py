@@ -59,26 +59,50 @@ LEVELS = 9
 """How many colour steps a value is quantised into. Odd, so a ``center=`` lands on a
 middle level with the same number of steps either side."""
 
-_BYTES_PER_CELL = 84
-"""Measured marginal output cost of one drawn cell."""
+_BYTES_PER_CELL = 85
+"""Marginal output cost of one drawn cell -- fitted, see ``_BYTES_PER_TICK``."""
 
-_BYTES_PER_TICK = 168
-"""Measured marginal output cost of one axis tick (a row or a column label).
+_BYTES_FIXED = 2879
+"""Output cost that does not scale with the grid: the ``<style>`` block, the axes, the
+legend, the accessibility nodes.
+
+Added when document scoping (#182) started wrapping every rule in ``:where(.svgplot-fXXXXXXXX)``.
+That is ~27 bytes times the rule count -- a constant, and a two-term model has nowhere to put
+a constant except by smearing it across the per-cell and per-tick terms. Doing so cost real
+accuracy: the best two-term refit lands at 4.90% worst error against a 5% assertion, which
+would leave the next person a test that fails for reasons unrelated to their change.
+
+Its value is **anchored to a measurement rather than fitted freely**: a one-cell heatmap
+serializes to 3,282 bytes, and the constant is whatever makes the model reproduce that exactly
+(``3282 - 1*85 - 2*159``). So it is not a pure measurement either -- it inherits the two
+slopes -- but it is pinned to a chart that exists rather than chosen to flatter four points.
+
+That pinning costs accuracy on the four grid points, 3.08% worst against 2.40% for a free
+constant, and buys the model being right about the chart it was anchored to. A free 3800
+overpredicts that chart by 28%, and 6520 -- which reaches 1.05% on the four points -- exceeds
+the entire chart, so neither can honestly be called a fixed cost."""
+
+_BYTES_PER_TICK = 159
+"""Marginal output cost of one axis tick (a row or a column label) -- fitted, not measured.
 
 Two terms are needed because the two counts come apart on a sparse grid: a 100x100 grid
 holding a 100-cell diagonal draws 100 rects but still labels 200 ticks. Estimating from
 cells alone put that chart at 8 KB against a real 41 KB; from grid cells alone, at 859 KB.
 
-``drawn * 84 + (rows + cols) * 168`` was fitted on four measured points and is within 4% of
-all of them (estimate vs real, as the warning itself prints them -- so the fit is against the
-**integer-divided** KB the reader sees, not against the exact quotient): 50x50 dense 221 vs
-229 KB (-3.49%), 100x100 dense 853 vs 854 KB (-0.12%), 100x100 diagonal 41 vs 42 KB (-2.38%),
-200x200 diagonal 82 vs 79 KB (+3.80%). Worst case +3.80%, on the sparsest.
+``drawn * 85 + (rows + cols) * 159 + 2879`` was fitted on four measured points and is within 4%
+of all of them. The error is the integer estimate the warning prints against the **exact**
+size in KB, which is what ``tests/test_charts_heatmap.py`` compares -- an earlier version of
+this paragraph claimed the integer-divided figure instead, and the two disagree enough to
+reverse the argument below (2.33% vs 3.08%). Measured: 50x50 dense 225 vs 230.4 KB (-2.35%),
+100x100 dense 863 vs 855.4 KB (+0.89%), 100x100 diagonal 42 vs 43.3 KB (-3.08%), 200x200
+diagonal 81 vs 80.1 KB (+1.15%). Worst case -3.08%, on the 100x100 diagonal.
 
-Refitted when axis labels gained rotation (#133): a turned tick carries a ``transform`` and a
-``<title>``, so the per-tick term rose from 163 to 168 while the per-cell term barely moved.
-The coefficients are the pair that minimises the worst relative error over those four points,
-searched exhaustively rather than guessed.
+Refitted when axis labels gained rotation (#133), and again when document scoping (#182) added
+a fixed cost the two-term model had been absorbing into these two.
+
+The two slopes are searched exhaustively with the constant pinned by them (see
+``_BYTES_FIXED``), so the search is over two parameters rather than three. Read this as
+"slopes fitted, constant anchored" -- it is not a global minimum, and deliberately so.
 
 Refitted whenever the drawn output changes, because it is a fit and not a derivation. It has
 moved twice: once when label thinning stopped the tick count tracking the grid, and once when
@@ -149,7 +173,7 @@ def _warn_if_large(cell_count: int, *, drawn: int, ticks: int) -> None:
     """
     if cell_count <= _WARN_CELL_COUNT:
         return
-    estimate = (drawn * _BYTES_PER_CELL + ticks * _BYTES_PER_TICK) // 1024
+    estimate = (drawn * _BYTES_PER_CELL + ticks * _BYTES_PER_TICK + _BYTES_FIXED) // 1024
     warnings.warn(
         f"heatmap has {cell_count} cells (~{estimate} KB of SVG); "
         f"above {_WARN_CELL_COUNT} cells the output gets large and each cell too small to read. "

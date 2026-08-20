@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Chart">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-f0babe9b5" role="img" aria-label="Chart">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
   <line x1="135.652174" y1="30" x2="135.652174" y2="550" class="grid-line" />
@@ -55,13 +55,13 @@
   <text x="691" y="54.5" class="legend-text">6.5</text>
   <circle cx="672.5" cy="78.5" r="12.5" class="series-1" />
   <text x="691" y="82.5" class="legend-text">11</text>
-  <style>.plot-background { fill: #ffffff; }
-.grid-line { stroke: #e0e0e0; stroke-width: 1; }
-.spine { stroke: #333333; stroke-width: 1; fill: none; }
-.tick-line { stroke: #333333; }
-.tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
-.legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
-.series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
+  <style>:where(.svgplot-f0babe9b5) .plot-background { fill: #ffffff; }
+:where(.svgplot-f0babe9b5) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-f0babe9b5) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-f0babe9b5) .tick-line { stroke: #333333; }
+:where(.svgplot-f0babe9b5) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-f0babe9b5) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-f0babe9b5) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
   <title>Chart</title>
   <desc>Scatter plot, 10 points, x 25 to 140, y 6 to 38, marker size from "직원수".</desc>
 </svg>

@@ -6,9 +6,10 @@ from dataclasses import replace
 
 import pytest
 
-from _svg_probe import tags as _tags, texts as _texts
+from _svg_probe import style_rules, tags as _tags, texts as _texts
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, format_coord, plot_area
 from svgplot.charts.heatmap import (
+    _BYTES_FIXED,
     _BYTES_PER_CELL,
     _BYTES_PER_TICK,
     _WARN_CELL_COUNT,
@@ -96,7 +97,10 @@ def _swatches(svg: str) -> list[dict[str, str]]:
 
 
 def _style_rules(svg: str) -> dict[str, str]:
-    return {match.group(1): match.group(0).strip() for match in re.finditer(r"\.(level-\d+) \{[^}]*\}", svg)}
+    """Level rules by class name. Reads through the shared probe rather than a regex over the
+    whole document: the document-scope prefix sits between ``<style>`` and the selector."""
+    matches = (re.match(r"\.(level-\d+) \{", rule) for rule in style_rules(svg))
+    return {match.group(1): match.string for match in matches if match}
 
 
 def _render(data: dict[str, list], **kwargs: object) -> str:
@@ -281,7 +285,7 @@ def _estimated_and_actual_kb(data: dict[str, list]) -> tuple[float, float]:
         chart = heatmap(data, x="col", y="row", values="v")
     drawn = len(data["v"])
     ticks = len(set(data["col"])) + len(set(data["row"]))
-    estimated = (drawn * _BYTES_PER_CELL + ticks * _BYTES_PER_TICK) // 1024
+    estimated = (drawn * _BYTES_PER_CELL + ticks * _BYTES_PER_TICK + _BYTES_FIXED) // 1024
     return estimated, len(chart.to_string()) / 1024
 
 
@@ -583,7 +587,12 @@ def test_the_theme_s_opacity_still_reaches_the_cells() -> None:
 
 
 def _style_of(svg: str) -> str:
-    return svg[svg.index("<style>") : svg.index("</style>")]
+    """The chart's CSS rules, one per line, with the document scope stripped.
+
+    Its callers match rules by line prefix (``re.match(r"\\.level-\\d+ \\{", line)``), which
+    ``svgplot.scope`` pushed out of reach by wrapping each selector in ``:where(...)``.
+    Stripping here rather than in each caller keeps the readers from drifting apart."""
+    return "\n".join(style_rules(svg))
 
 
 def _assert_ink_is_readable(svg: str) -> None:
@@ -763,3 +772,16 @@ def test_an_unregistered_cmap_still_raises_keyerror_from_the_palette() -> None:
         _render(GRID, cmap="nope")
     with pytest.raises(KeyError, match="unknown diverging palette"):
         _render(GRID, cmap="nope", center=5.0)
+
+
+def test_the_fixed_term_reproduces_the_chart_it_is_anchored_to() -> None:
+    """``_BYTES_FIXED``'s whole justification is that the model is exact on a one-cell heatmap,
+    and nothing executed that. The four grid points do not pin it -- a free 3800, which
+    overpredicts this chart by 28%, passes them at 2.40%.
+
+    Single-character labels: two-character ones make the chart 3,286 bytes, so the anchor is
+    a property of this fixture as much as of the model.
+    """
+    one_cell = heatmap({"col": ["a"], "row": ["p"], "v": [1.0]}, x="col", y="row", values="v")
+
+    assert len(one_cell.to_string()) == 1 * _BYTES_PER_CELL + 2 * _BYTES_PER_TICK + _BYTES_FIXED

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Chart">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-fa245d40f" role="img" aria-label="Chart">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
   <line x1="60" y1="30" x2="60" y2="550" class="grid-line" />
@@ -42,14 +42,14 @@
   <text x="682" y="34" class="legend-text">검색</text>
   <rect x="660" y="45" width="16" height="10" class="series-2" />
   <text x="682" y="54" class="legend-text">추천</text>
-  <style>.plot-background { fill: #ffffff; }
-.grid-line { stroke: #e0e0e0; stroke-width: 1; }
-.spine { stroke: #333333; stroke-width: 1; fill: none; }
-.tick-line { stroke: #333333; }
-.tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
-.legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
-.series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
-.series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
+  <style>:where(.svgplot-fa245d40f) .plot-background { fill: #ffffff; }
+:where(.svgplot-fa245d40f) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-fa245d40f) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-fa245d40f) .tick-line { stroke: #333333; }
+:where(.svgplot-fa245d40f) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-fa245d40f) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-fa245d40f) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-fa245d40f) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
   <title>Chart</title>
   <desc>Stacked area chart, 2 series (검색, 추천) over 12 points, x 1 to 6, y 0 to 460.</desc>
 </svg>
