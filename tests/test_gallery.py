@@ -37,7 +37,6 @@ from gallery.example import REQUIRED  # noqa: E402
 AWAITING_A_PAGE = {
     "gaugeplot",
     "sparkline",
-    "treemap",
 }
 
 
