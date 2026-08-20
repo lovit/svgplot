@@ -12,13 +12,14 @@ from __future__ import annotations
 
 import math
 
-from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
+    MARGIN_WITH_SIDE_LEGEND,
     fit_margin,
     format_coord,
-    plot_area,
+    format_value_label,
+    new_canvas,
     resolve_size,
 )
 from svgplot.charts._legend import render_legend
@@ -31,19 +32,7 @@ from svgplot.labels.spec import LabelSpec
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
-_MARGIN = (30.0, 180.0, 30.0, 30.0)  # top, right, bottom, left -- right reserves legend space
 _LABEL_RADIUS_FRACTION = 0.65  # value-label distance from center, as a fraction between inner/outer radius
-
-
-def _format_value_label(value: float) -> str:
-    """Render a data value as label text, shortest-round-trip.
-
-    Not ``format_coord``: that rounds to 6 decimals because it formats *coordinates*,
-    which silently rewrites the data it is labelling (``1e-7`` -> ``"0"``,
-    ``0.123456789`` -> ``"0.123457"``). Integral values still lose the ``.0`` so the
-    common case reads as ``30``, not ``30.0``.
-    """
-    return str(int(value)) if value.is_integer() else str(value)
 
 
 def pieplot(
@@ -69,9 +58,8 @@ def pieplot(
 
     ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
     call that does not mention them is byte-identical to one written before they existed. The
-    margin presets shrink to keep the plot area the majority of a small canvas — see
-    ``charts/_layout.py``. (This chart draws no cartesian axis, so the tick-density rule
-    described there does not reach it.) Canvases below 240x180 are
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
     refused rather than clamped, and a chart may refuse a larger one if its own legend does
     not fit.
 
@@ -123,13 +111,10 @@ def pieplot(
     label_data = collect_label_data(data, info, required=(values, labels))
 
     canvas_width, canvas_height = resolve_size(width, height)
-    document = SvgDocument(width=canvas_width, height=canvas_height)
-    area = plot_area(canvas_width, canvas_height, margin=fit_margin(_MARGIN, canvas_width, canvas_height))
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(canvas_width), "height": format_coord(canvas_height)},
-        classes=["plot-background"],
+    document, area = new_canvas(
+        fit_margin(MARGIN_WITH_SIDE_LEGEND, canvas_width, canvas_height),
+        width=canvas_width,
+        height=canvas_height,
     )
 
     cx, cy = area.left + area.width / 2, area.top + area.height / 2
@@ -164,13 +149,20 @@ def pieplot(
         label_x, label_y = polar_point(cx, cy, label_radius, mid_angle)
         document.add_text(
             None,
-            _format_value_label(value),
+            format_value_label(value),
             tag="text",
             attrib={"x": format_coord(label_x), "y": format_coord(label_y), "text-anchor": "middle"},
             classes=["legend-text"],
         )
 
-    render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+    render_legend(
+        document,
+        legend_entries,
+        x=area.right + LEGEND_X_OFFSET,
+        y=area.top,
+        mark_style="fill",
+        font_size=resolved_theme.legend_font_size,
+    )
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
     return Chart(document, label_data)

@@ -10,8 +10,9 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from svgplot._svg import SvgDocument
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
@@ -20,15 +21,15 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
-    plot_area,
+    new_canvas,
     resolve_size,
     ticks_for,
 )
 from svgplot.charts._legend import render_legend, require_room, size_legend_ink_height
+from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import numeric_or_none
 from svgplot.data.ingest import ingest_longform
-from svgplot.data.semantic import extract_channels
 from svgplot.labels._source import collect_label_data
 from svgplot.labels.spec import LabelSpec
 from svgplot.scales import LinearScale
@@ -37,8 +38,8 @@ from svgplot.theme.css import render_theme_style
 
 _SIZE_LEGEND_GAP = 24.0  # vertical gap between the hue legend and the size legend
 _SIZE_LEGEND_ROW_PADDING = 8.0  # vertical breathing room between size-legend rows
-_SIZE_LEGEND_BASELINE = 4.0  # how far a row's label sits below its marker's centre
 _SIZE_LEGEND_LABEL_GAP = 6.0
+_SIZE_LEGEND_BASELINE = 4.0  # how far a row's label sits below its marker's centre
 
 # A point's radius ranges from 0.5x to 2.5x the theme's base marker size when size=
 # is mapped from data — wide enough to read as "varying," not so wide that the
@@ -88,11 +89,14 @@ def _render_size_legend(
     low, high = min(size_values), max(size_values)
     samples = sorted({low, (low + high) / 2, high})
     # Checked before the first circle, and against the same rule the hue legend uses: **ink**,
-    # not the space claimed. Summing ``2r + padding`` over every sample counts the last row's
-    # bottom padding, which nothing is drawn in, and that refused legends that fit --
-    # ``scatterplot(hue=3, size=)`` at 400x180 was rejected while its lowest ink sat at y=175
-    # on a 180px canvas. The hue legend had exactly this bug and it was fixed there first;
-    # this is the sibling call site that kept it.
+    # not the space claimed. This legend is drawn *below* the hue legend, starting at the space
+    # that one claimed, so each can look fine alone while the pair runs off the bottom -- with
+    # both guards removed at 400x180, three hue groups fit (lowest ink y=175) and the fourth is
+    # the first to overflow, by 15px, every further group adding 20.
+    #
+    # Summing ``2r + padding`` over every sample would count the last row's bottom padding,
+    # which nothing is drawn in, and that refuses legends that fit: ``scatterplot(hue=3, size=)``
+    # at 400x180 was rejected while its lowest ink sat at 175 on a 180px canvas.
     require_room(
         document,
         y,
@@ -136,6 +140,8 @@ def scatterplot(
     width: float | None = None,
     height: float | None = None,
     theme: Theme | str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a scatter plot from long-form data.
 
@@ -144,6 +150,11 @@ def scatterplot(
     marker radius is linearly mapped from that numeric column's range (theme's
     ``marker_size`` as the anchor), with its own auto-generated legend showing
     representative min/mid/max samples. ``hue=`` and ``size=`` can be combined.
+
+    ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
+    exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
+    which uses them to give faceted panels one axis -- and replace rather than widen, so a
+    caller asking for a narrower view gets one.
 
     ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
     call that does not mention them is byte-identical to one written before they existed. The
@@ -166,13 +177,7 @@ def scatterplot(
     if size is not None and size not in longform.columns:
         raise KeyError(f"size column not found in data: {size!r}")
 
-    if hue is not None:
-        groups = extract_channels(data, hue=hue)
-        if not groups:
-            raise ValueError(f"no rows with a non-missing {hue!r} value")
-        series_items = sorted(groups.items(), key=lambda item: str(item[0]))
-    else:
-        series_items = [(None, longform.columns)]
+    series_items = build_series(data, longform.columns, hue)
 
     # (label, x, y, size_or_None) per surviving row, grouped by hue label.
     series_rows: list[tuple[object, list[tuple[float, float, float | None]]]] = []
@@ -195,32 +200,46 @@ def scatterplot(
     all_y = [row[1] for row in all_rows]
     x_domain = (min(all_x), max(all_x))
     y_domain = (min(all_y), max(all_y))
+    x_domain = apply_limit(x_domain, xlim)
+    y_domain = apply_limit(y_domain, ylim)
 
     has_legend = hue is not None or size is not None
     # After the checks above, so a bad column still reports the chart's own error first.
     label_data = collect_label_data(data, info, required=(x, y, hue, size))
 
     canvas_width, canvas_height = resolve_size(width, height)
-    document = SvgDocument(width=canvas_width, height=canvas_height)
-    area = plot_area(
-        canvas_width,
-        canvas_height,
-        margin=fit_margin(MARGIN_WITH_LEGEND if has_legend else MARGIN_WITHOUT_LEGEND, canvas_width, canvas_height),
-    )
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(canvas_width), "height": format_coord(canvas_height)},
-        classes=["plot-background"],
+    document, area = new_canvas(
+        fit_margin(
+            fit_left_margin(
+                MARGIN_WITH_LEGEND if has_legend else MARGIN_WITHOUT_LEGEND,
+                y_domain,
+                width=canvas_width,
+                font_size=resolved_theme.tick_label_font_size,
+            ),
+            canvas_width,
+            canvas_height,
+        ),
+        width=canvas_width,
+        height=canvas_height,
     )
 
     pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
     render_x_axis(
-        document, pixel_x_scale, area, tick_count=ticks_for(area.width, TICK_SPACING_X), tick_length=resolved_theme.tick_size
+        document,
+        pixel_x_scale,
+        area,
+        tick_count=ticks_for(area.width, TICK_SPACING_X),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
     )
     render_y_axis(
-        document, pixel_y_scale, area, tick_count=ticks_for(area.height, TICK_SPACING_Y), tick_length=resolved_theme.tick_size
+        document,
+        pixel_y_scale,
+        area,
+        tick_count=ticks_for(area.height, TICK_SPACING_Y),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
     )
 
     radius_of = _radius_mapper([row[2] for row in all_rows], resolved_theme.marker_size) if size is not None else None
@@ -248,7 +267,14 @@ def scatterplot(
     legend_bottom = area.top
     if legend_entries:
         legend_bottom = (
-            render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+            render_legend(
+                document,
+                legend_entries,
+                x=area.right + LEGEND_X_OFFSET,
+                y=area.top,
+                mark_style="fill",
+                font_size=resolved_theme.legend_font_size,
+            )
             + _SIZE_LEGEND_GAP
         )
     if size is not None:
@@ -263,4 +289,4 @@ def scatterplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document, label_data)
+    return Chart(document, label_data, domains=Domains(x=x_domain, y=y_domain))

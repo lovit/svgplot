@@ -7,22 +7,51 @@ into per-group column-dicts, and ``layout.grid`` already places charts (includin
 ``None`` blanks and per-cell titles). ``facet`` only decides *which* group lands
 in *which* cell.
 
-**Shared scales are out of scope**, deliberately. Each panel is an independent
-chart scaled to its own group's data, so panels are not directly comparable by
-eye. docs/research/16-layout-vocabulary.md, 설계 원칙 3 draws exactly this line:
-the layout API answers "어디에 놓을지" (where to place), while aligning axes or
-color domains across panels is a data-level concern for a later ``shared_x=``
--style parameter. Do not read the current behavior as an oversight.
+Panels share their axes by default, and that is a data-level decision rather than a
+layout one -- docs/research/16-layout-vocabulary.md, 설계 원칙 3 draws that line and names
+a ``shared_x=``-style parameter as the mechanism. ``sharex=``/``sharey=`` are that
+parameter. The *default* is the part worth arguing: unshared panels put two lines at the
+same height while one means 3 and the other 300, and nothing on the page says so. A reader
+who does not check every axis reads it wrong, silently. seaborn's ``FacetGrid`` defaults
+both to ``True`` for the same reason.
+
+Sharing costs extra renders: a panel's domain cannot be predicted from the input columns
+(``histplot``'s y is a bin count, ``kdeplot``'s a density), so the panels are drawn to find out
+what they used and again against the union. Three passes rather than two, because a binned
+chart's height is a consequence of its x division -- see ``_HORIZONTAL``. Measured at 2.4x on
+six panels of 600 rows (2.6ms -> 6.4ms), and paid only when there is actually something to
+share -- one panel, or panels that record no domains, skip the later passes.
+
+Charts that record no domains -- ``pieplot``, ``treemap``, ``gaugeplot``, ``radarplot``,
+``sparkline``, ``heatmap`` -- skip the second pass entirely. Most of them have no cartesian
+axes at all; ``heatmap`` is the exception, with two categorical axes it simply does not
+report yet. Three kinds of domain are **deliberately left open** and will read differently
+per panel until they are closed:
+
+- ``heatmap``'s row/column categories and its value-to-colour scale
+- ``radarplot``/``gaugeplot``'s radial extent
+- **``hue=`` group colours on every chart.** Two panels whose hue values differ assign the
+  palette independently, so the same group can be blue in one and orange in the next. This
+  PR fixed exactly that problem for *categorical axis* colours (see ``barplot``/``boxplot``/
+  ``violinplot``'s ``categories=``) and did not fix it for ``hue=`` -- which is worse than
+  before in one respect, since aligned axes invite a reader to assume the colours align too.
 """
 
 from __future__ import annotations
 
+import inspect
+import warnings
 from collections.abc import Callable
+from typing import TypeVar
 
+from svgplot.chart._domain import Domains, union
 from svgplot.chart.base import Chart
 from svgplot.chart.composition import Composition
 from svgplot.data.semantic import extract_channels
 from svgplot.layout.grid import column as arrange_column, grid as arrange_grid, row as arrange_row
+from svgplot.stats.binning import MAX_BINS
+
+_Pass = TypeVar("_Pass")
 
 
 def _sorted_unique(values: list[object]) -> list[object]:
@@ -34,11 +63,201 @@ def _sorted_unique(values: list[object]) -> list[object]:
     return sorted(dict.fromkeys(values), key=str)
 
 
+_HORIZONTAL = ("xlim", "bins", "categories")
+"""The overrides that settle what each panel measures, as opposed to how tall it is.
+
+They have to be applied a pass before ``ylim``, because on a binned chart the y domain is a
+*consequence* of them. Sharing both at once takes the y union from the first pass's bin
+counts and then re-divides the x axis underneath it, so a bin can pick up a value the first
+division had split in two -- measured, panels peaking at 9 and 8 drew a bar of 10 against a
+``ylim`` of 9, which put it 57.8px above the plot area with nothing clipping it and no
+warning. Nothing later notices either: a chart handed a ``ylim`` records the ``ylim``, not
+what it drew, so the union cannot see the overflow.
+
+Three passes, then: measure, fix the x axis and measure again, fix the y axis. The third is
+stable because the division no longer moves."""
+
+
+def _is_drawable(span: tuple[float, float] | None) -> bool:
+    """Whether a shared span is something a chart can be told to draw against.
+
+    A union of panels that all show the same constant is ``(5.0, 5.0)``. ``apply_limit``
+    refuses that, and rightly so for a *caller's* override -- a zero-width window maps every
+    value to one pixel. But a chart handed no override copes with its own constant data
+    perfectly well, so forwarding the degenerate union would turn a chart that rendered on
+    ``main`` into a ``ValueError``. Leaving it out lets each panel fall back to its own
+    handling, which is identical across panels anyway when the data is constant.
+    """
+    return span is not None and span[0] < span[1]
+
+
+def _bins_covering(span: tuple[float, float], step: float) -> int:
+    """How many divisions of width ``step`` the shared span needs.
+
+    ``Domains.x_step`` carries a width because a count means nothing away from the range it
+    was chosen for; ``bins=`` takes a count, so the width is converted back here against the
+    span the panels will actually share. At least one, so a span narrower than a single
+    division still draws.
+
+    Capped, and this is the one place the cap is not a caller's mistake. ``histogram_bins``
+    refuses an integer above ``MAX_BINS`` because a caller asking for a million bins wants
+    something a chart cannot show -- but a *strategy* has no such ceiling, so a panel is free
+    to choose 15,885 bins and ``main`` renders it. Re-deriving that as an integer put it back
+    through the caller's gate and turned a chart that rendered into a ``ValueError`` naming a
+    number nobody wrote (measured: ``bins="fd"`` on 500 values plus one outlier). Coarsening
+    to the ceiling keeps the panels agreeing and keeps the chart on the page.
+    """
+    # ``min`` before ``round``: a ratio past the integer range is exactly what the cap is
+    # for, and rounding it first raises ``OverflowError: cannot convert float infinity to
+    # integer`` on input that rendered before sharing existed.
+    return max(1, round(min(float(MAX_BINS), (span[1] - span[0]) / step)))
+
+
+def _may_override(name: str, explicit: dict[str, object]) -> bool:
+    """Whether the caller left ``name`` for the union to decide.
+
+    ``bins`` is exempt only when the caller named a *strategy*. ``"auto"``/``"sturges"``
+    say how each panel should choose **alone**, which is the thing that has to stop when the
+    panels are being made to agree.
+
+    An integer is the opposite: it already pins every panel to that many, and once ``xlim``
+    is shared every panel divides the *same* range into the same number, so the edges line up
+    with nothing added. Overriding it is not a no-op either -- the union carries a bin
+    *width*, and re-deriving a count from the narrowest panel's width across the whole shared
+    span turned ``bins=6`` into 156 (measured), which is both a surprise and a regression
+    against what the same call drew before panels shared anything.
+    """
+    if name not in explicit or explicit[name] is None:
+        return True
+    return name == "bins" and isinstance(explicit[name], str)
+
+
+def _stated(plot_fn: Callable[..., object], kwargs: dict[str, object]) -> dict[str, object]:
+    """Everything the caller has fixed, whether at the ``facet`` call or on ``plot_fn`` itself.
+
+    ``functools.partial(histplot, bins=4)`` states ``bins`` exactly as firmly as
+    ``facet(..., bins=4)`` does, and reading only the latter let the shared width be re-derived
+    into 182 -- the very substitution :func:`_may_override` calls "both a surprise and a
+    regression", reached by writing the same intent a different way.
+    """
+    return {**getattr(plot_fn, "keywords", {}), **kwargs}
+
+
+def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool, explicit: dict[str, object]) -> dict[str, object]:
+    """The overrides that make every panel agree, or ``{}`` if there is nothing to share.
+
+    Empty when no panel recorded a domain (a grid of pies), when both flags are off, when only
+    one panel exists, or when every panel already agrees -- in each case the second render
+    would reproduce the first exactly, and paying for it would be waste dressed up as
+    correctness.
+
+    ``explicit`` is what the caller already passed through to ``plot_fn``. Anything named
+    there wins: ``facet(..., ylim=(0, 500))`` is a caller stating the window they want, and
+    a computed union has no business overruling it.
+
+    For ``xlim``/``ylim``/``categories`` the filter is belt-and-braces: the first render
+    already applied the caller's limit, so the union hands the same value straight back. For
+    an integer ``bins`` it is **load-bearing** -- the union carries a bin *width*, and
+    re-deriving a count from it across the shared span turns ``bins=6`` into 156. This filter
+    is the only thing standing between that and the caller.
+
+    ``ylim=None`` is not such a statement. It is what a wrapper passes when it has nothing
+    to say, and every chart here already reads it as "no override" -- so keying off the name
+    alone would let ``facet(plot_fn, data, col="g", ylim=None)`` silently turn sharing off
+    while both flags still read ``True``.
+    """
+    if len(panels) < 2 or not (sharex or sharey):
+        return {}
+    # ``isinstance`` because ``plot_fn`` may return a ``Composition`` -- a nested facet, or
+    # ``add_caption`` around a chart -- which reports no domains.
+    recorded = [panel.domains for panel in panels if isinstance(panel, Chart)]
+    # One guard, three cases that are the same case: nobody reported a domain, everybody
+    # reported an empty one, or everybody already agrees. In each the second render would
+    # reproduce the first exactly.
+    if not recorded or all(domain == recorded[0] for domain in recorded):
+        return {}
+    shared: Domains = union(recorded)
+    overrides: dict[str, object] = {}
+    if sharex and _is_drawable(shared.x):
+        overrides["xlim"] = shared.x
+        if shared.x_step is not None and all(panel.x_step is not None for panel in recorded):
+            # Every panel, not any: ``bins`` means nothing to a chart that does not bin, and a
+            # facet mixing ``histplot`` with ``lineplot`` used to hand the line chart the
+            # histogram's division and get ``TypeError: unexpected keyword argument 'bins'``.
+            overrides["bins"] = _bins_covering(shared.x, shared.x_step)
+    if sharey and _is_drawable(shared.y):
+        overrides["ylim"] = shared.y
+    # Under whichever flag names the axis the categories were actually drawn on -- a
+    # horizontal bar chart puts them up the left edge, where "sharex" has no business.
+    if shared.categories is not None and (sharex if shared.categories_axis == "x" else sharey):
+        overrides["categories"] = shared.categories
+    return {name: value for name, value in overrides.items() if _may_override(name, explicit)}
+
+
+def _quietly(
+    build: Callable[[dict[str, object]], _Pass], extra: dict[str, object]
+) -> tuple[_Pass, list[warnings.WarningMessage]]:
+    """One render pass, with its warnings set aside rather than emitted.
+
+    Sharing renders the panels up to three times and returns only the last, so a warning
+    emitted as it goes is repeated once per discarded pass -- a faceted ``barplot`` whose
+    rows share an x warned six times for two panels. The panels the reader never sees have
+    nothing to warn about. :func:`_replay` re-emits the winning pass's warnings afterwards,
+    at the call sites they originally named, so the caller still hears each one exactly once.
+    """
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = build(extra)
+    return result, list(caught)
+
+
+def _replay(caught: list[warnings.WarningMessage]) -> None:
+    """Re-emit the warnings of the pass that produced the returned charts."""
+    for entry in caught:
+        warnings.warn_explicit(entry.message, entry.category, entry.filename, entry.lineno)
+
+
+def _accepted(plot_fn: Callable[..., object], overrides: dict[str, object]) -> dict[str, object]:
+    """The overrides ``plot_fn`` can actually be given.
+
+    ``facet``'s contract is that any function taking its data positionally works, and that no
+    chart type is special-cased. Sharing an axis broke that quietly: the second pass added
+    ``xlim``/``ylim``/``bins``/``categories`` to the call, so a hand-written panel function
+    that did not name them raised ``TypeError: got an unexpected keyword argument 'xlim'`` --
+    on the *default* path, since both share flags default to ``True``. Mixed chart types broke
+    the same way, ``lineplot`` being handed the ``bins`` that ``histplot`` asked for.
+
+    A function with ``**kwargs`` takes everything; anything else takes what it names. Reading
+    the signature rather than catching ``TypeError`` because catching it cannot tell a
+    rejected override from a ``TypeError`` raised inside the chart.
+    """
+    try:
+        parameters = inspect.signature(plot_fn).parameters
+    except (TypeError, ValueError):
+        # A builtin or C-implemented callable has no introspectable signature. Passing
+        # everything is what happened before this function existed.
+        return overrides
+    if any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters.values()):
+        return overrides
+    # Positional-only excluded: naming one is ``TypeError: got some positional-only arguments
+    # passed as keyword``, which is the same failure this function exists to prevent.
+    takeable = {name for name, parameter in parameters.items() if parameter.kind is not inspect.Parameter.POSITIONAL_ONLY}
+    return {name: value for name, value in overrides.items() if name in takeable}
+
+
+def _horizontal_only(overrides: dict[str, object]) -> dict[str, object]:
+    """The part of ``overrides`` that settles what each panel measures. See :data:`_HORIZONTAL`."""
+    return {name: value for name, value in overrides.items() if name in _HORIZONTAL}
+
+
 def facet(
     plot_fn: Callable[..., object],
     data: object,
     col: str | None = None,
     row: str | None = None,
+    *,
+    sharex: bool = True,
+    sharey: bool = True,
     **kwargs: object,
 ) -> Composition:
     """Call ``plot_fn`` once per ``col=``/``row=`` group and arrange the results in a grid.
@@ -56,6 +275,22 @@ def facet(
     (``lineplot``'s ``x=``/``y=``, ``pieplot``'s ``values=``/``labels=``,
     ``barplot``'s ``orient=``) are the caller's to supply via ``**kwargs``, so no
     chart type is special-cased here.
+
+    ``sharex``/``sharey`` default to ``True``, which is what makes panels comparable: every
+    panel gets the same axis, so a line twice as high really is twice as high. Turning both
+    off reproduces the pre-sharing output byte for byte.
+
+    Sharing is not free of the signature, though, and this is the part worth reading before
+    wrapping a chart function. While it is on, ``plot_fn`` is called with whichever of
+    ``xlim=``/``ylim=``/``bins=``/``categories=`` its signature accepts, *in addition* to
+    ``**kwargs`` — so the sentence above is exact only with sharing off. Two consequences:
+
+    - A wrapper that forwards ``**kwargs`` **and** pins one of those names inside itself
+      (``lambda data, **kw: histplot(data, bins=4, **kw)``) now raises ``TypeError`` for a
+      duplicate keyword. Pass ``bins=4`` to ``facet`` instead, or turn sharing off.
+    - A ``plot_fn`` whose signature accepts **none** of them cannot be told the shared axis,
+      so its panels are not shared — silently, because there is nothing to refuse. If a
+      wrapper is needed, give it ``**kwargs`` and forward them.
 
     A group whose rows ``plot_fn`` rejects (e.g. every row missing the plotted
     column) propagates that function's own exception rather than being silently
@@ -77,24 +312,55 @@ def facet(
         # omitting unrequested channels — here that is (col_value, row_value).
         col_values = _sorted_unique([key[0] for key in groups])
         row_values = _sorted_unique([key[1] for key in groups])
-        matrix: list[list[Chart | None]] = []
-        titles: list[str | None] = []
-        for row_value in row_values:
-            cells: list[Chart | None] = []
-            for col_value in col_values:
-                group = groups.get((col_value, row_value))
-                if group is None:
-                    cells.append(None)
-                    titles.append(None)
-                    continue
-                cells.append(plot_fn(group, **kwargs))  # type: ignore[arg-type]
-                titles.append(f"{row} = {row_value}, {col} = {col_value}")
-            matrix.append(cells)
+
+        def build(extra: dict[str, object]) -> tuple[list[list[Chart | None]], list[str | None]]:
+            matrix: list[list[Chart | None]] = []
+            titles: list[str | None] = []
+            for row_value in row_values:
+                cells: list[Chart | None] = []
+                for col_value in col_values:
+                    group = groups.get((col_value, row_value))
+                    if group is None:
+                        cells.append(None)
+                        titles.append(None)
+                        continue
+                    cells.append(plot_fn(group, **{**kwargs, **extra}))  # type: ignore[arg-type]
+                    titles.append(f"{row} = {row_value}, {col} = {col_value}")
+                matrix.append(cells)
+            return matrix, titles
+
+        def share(cells: list[list[Chart | None]]) -> dict[str, object]:
+            drawn = [cell for row_cells in cells for cell in row_cells if cell is not None]
+            return _accepted(plot_fn, _shared_kwargs(drawn, sharex=sharex, sharey=sharey, explicit=_stated(plot_fn, kwargs)))
+
+        (matrix, titles), caught = _quietly(build, {})
+        horizontal = _horizontal_only(share(matrix))
+        if horizontal:
+            (matrix, titles), caught = _quietly(build, horizontal)
+        settled = share(matrix)
+        if settled and settled != horizontal:
+            (matrix, titles), caught = _quietly(build, {**horizontal, **settled})
+        _replay(caught)
         return arrange_grid(matrix, titles=titles)
 
     channel = col if col is not None else row
     values = _sorted_unique(list(groups))
-    charts: list[Chart | None] = [plot_fn(groups[value], **kwargs) for value in values]  # type: ignore[arg-type,misc]
+
+    def draw(extra: dict[str, object]) -> list[Chart | None]:
+        return [plot_fn(groups[value], **{**kwargs, **extra}) for value in values]  # type: ignore[arg-type,misc]
+
+    def share(drawn: list[Chart | None]) -> dict[str, object]:
+        panels = [chart for chart in drawn if chart is not None]
+        return _accepted(plot_fn, _shared_kwargs(panels, sharex=sharex, sharey=sharey, explicit=_stated(plot_fn, kwargs)))
+
+    charts, caught = _quietly(draw, {})
+    horizontal = _horizontal_only(share(charts))
+    if horizontal:
+        charts, caught = _quietly(draw, horizontal)
+    settled = share(charts)
+    if settled and settled != horizontal:
+        charts, caught = _quietly(draw, {**horizontal, **settled})
+    _replay(caught)
     titles = [f"{channel} = {value}" for value in values]
     if col is not None:
         return arrange_row(charts, titles=titles)

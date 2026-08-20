@@ -11,11 +11,13 @@ reuse rather than duplicate.
 
 from __future__ import annotations
 
-from datetime import datetime
+from collections.abc import Callable
+from datetime import date, datetime
 
-from svgplot._svg import SvgDocument
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
@@ -24,15 +26,15 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
-    plot_area,
+    new_canvas,
     resolve_size,
     ticks_for,
 )
 from svgplot.charts._legend import render_legend
+from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
-from svgplot.data.semantic import extract_channels
 from svgplot.labels._source import collect_label_data
 from svgplot.labels.spec import LabelSpec
 from svgplot.scales import LinearScale, TimeScale
@@ -41,18 +43,112 @@ from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
 
-def _numeric_x(value: object) -> float:
-    return value.timestamp() if isinstance(value, datetime) else float(value)
+def _as_datetime(value: date) -> datetime:
+    """A ``date`` promoted to midnight, a ``datetime`` unchanged.
+
+    ``datetime`` is a subclass of ``date``, which is why the check reads this way round and
+    why ``isinstance(value, datetime)`` alone silently missed every plain ``date`` -- the
+    commonest thing a CSV or a pandas column holds. The two mix freely in one column for the
+    same reason: promoting is lossless, and a column of dates with one timestamp in it is a
+    real shape, not a mistake worth refusing.
+    """
+    return value if isinstance(value, datetime) else datetime(value.year, value.month, value.day)
 
 
-def _series_points(columns: dict[str, list], x: str, y: str) -> list[tuple[object, float]]:
+def _is_time_axis(values: list[object], column: str) -> bool:
+    """Whether ``column`` holds dates, and therefore wants a time axis.
+
+    Returns ``bool`` rather than the promoted values because nothing needs them: the domain
+    is computed by :func:`_numeric_x`, which promotes as it goes. An earlier version built
+    and returned a ``list[datetime]`` that every caller threw away.
+
+    Raises:
+        ValueError: if the column mixes dates with values that are *numbers*. Anything else
+            mixed in -- a ``str``, a ``time`` -- is refused earlier, by :func:`_numeric_x`
+            during the sort, and reported by type rather than as a mixture. Both messages
+            name the column, which is the part that matters.
+
+            Also if the column mixes timezone-aware and naive datetimes. That is a different
+            mixture from ``date`` with ``datetime``, which stays welcome because promoting a
+            date to midnight is lossless -- here there is nothing to promote to. Python
+            refuses to compare the two, and an axis has to: it needs a smallest and a largest.
+            The previous code did not refuse, it *rounded them all off* -- the domain went
+            through ``fromtimestamp``, which reads every aware value in the drawing machine's
+            local time and silently answers a different question.
+    """
+    dated = [value for value in values if isinstance(value, date)]
+    if not dated:
+        return False
+    if len(dated) != len(values):
+        others = sorted({type(value).__name__ for value in values if not isinstance(value, date)})
+        raise ValueError(f"column {column!r} mixes dates with {', '.join(others)}; a time axis needs dates throughout")
+    aware = {isinstance(value, datetime) and value.tzinfo is not None for value in dated}
+    if len(aware) > 1:
+        raise ValueError(
+            f"column {column!r} mixes timezone-aware and naive datetimes; "
+            "a time axis has to compare them and Python does not define that comparison"
+        )
+    return True
+
+
+def _numeric_x(value: object, column: str) -> float:
+    """``value`` as a number the x axis can position, or a ``ValueError`` naming the column.
+
+    The column name is threaded through rather than added by the caller because the first
+    call happens while *sorting*, before the chart has looked at the domain -- so a bad value
+    surfaced as ``TypeError: float() argument must be a string or a real number, not
+    'datetime.time'``, from inside a ``sorted`` key, naming neither the column nor what to do
+    about it.
+    """
+    if isinstance(value, date):
+        try:
+            return _as_datetime(value).timestamp()
+        except (OverflowError, ValueError, OSError):
+            # ``timestamp()`` probes around the value to resolve the local offset, so the ends
+            # of the representable range are unreachable whatever this package does. Which end
+            # depends on the running zone -- the first minutes after ``datetime.min`` fail
+            # everywhere, the last before ``datetime.max`` only east of UTC. A raw "year 10000
+            # is out of range" names neither the column nor the reason, and naming one end
+            # points at the wrong one for half the failures.
+            raise ValueError(
+                f"column {column!r} holds {value!r}, which is outside the range timestamp() can place on a time axis"
+            ) from None
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise ValueError(f"column {column!r} holds {type(value).__name__}, which has no position on an x axis") from None
+
+
+def _series_points(
+    columns: dict[str, list], x: str, y: str, estimate: Callable[[list[float]], float] | None
+) -> list[tuple[object, float]]:
     """Drop rows with a missing x or y value, then sort by x — a line connects
     points in x order regardless of the input rows' original order.
+
+    ``estimate=None`` keeps every row as its own vertex, which is this chart's historical
+    rule: two rows sharing an x draw a vertical segment between them. Nothing is lost that
+    way, which is why ``lineplot`` never warns about repeated x values — unlike
+    ``barplot``, whose rule discards them.
+
+    With an estimator, rows sharing an x fold into one vertex. "Sharing an x" means the
+    values are **equal**, not that they happen to land on the same pixel — grouping is by
+    the raw x value rather than by ``_numeric_x``. Two reasons, and the first is the one
+    that decides it: the default path already treats ``"1"`` and ``1.0`` as two x values
+    (they are two dict keys, two vertices), so folding them here would make ``estimator=``
+    quietly change *which rows are the same row*, not just how they combine. The second is
+    that ``_numeric_x`` sends a naive ``datetime`` through ``timestamp()``, which reads the
+    machine's local timezone — so a naive and an aware datetime would fold together on a
+    UTC machine and stay apart everywhere else.
     """
     points = [
         (xv, float(yv)) for xv, yv in zip(columns[x], columns[y], strict=True) if not is_missing(xv) and not is_missing(yv)
     ]
-    return sorted(points, key=lambda point: _numeric_x(point[0]))
+    if estimate is not None:
+        groups: dict[object, list[float]] = {}
+        for xv, yv in points:
+            groups.setdefault(xv, []).append(yv)
+        points = [(xv, apply_estimator(estimate, values, group=str(xv))) for xv, values in groups.items()]
+    return sorted(points, key=lambda point: _numeric_x(point[0], x))
 
 
 def _path_data(xs: list[float], ys: list[float]) -> str:
@@ -70,21 +166,55 @@ def lineplot(
     hue: str | None = None,
     *,
     interpolate: str = "linear",
+    estimator: Estimator | None = None,
     info: LabelSpec | list[tuple[str, str]] | None = None,
     width: float | None = None,
     height: float | None = None,
     theme: Theme | str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a line chart from long-form data.
 
     With ``hue=``, one line per distinct hue value is drawn (colors cycling
-    through the theme's palette) with an auto-generated legend. Datetime ``x``
-    values automatically use a time axis (``scales.TimeScale``) instead of a
-    linear one. ``interpolate="linear"`` (the default) connects the raw points
+    through the theme's palette) with an auto-generated legend.
+
+    An ``x`` column of ``datetime.date`` or ``datetime.datetime`` values automatically uses a
+    time axis (``scales.TimeScale``) instead of a linear one, and its tick labels take their
+    resolution from the domain -- clock time inside a day, dates across days, year-month
+    across months, years beyond that. A ``date`` is read as midnight, and a column holding
+    both kinds is promoted the same way rather than refused: promoting is lossless, and a
+    column of dates with one timestamp in it is an ordinary shape.
+
+    ``interpolate="linear"`` (the default) connects the raw points
     with straight segments; any other value is passed to
     ``stats.interpolate.interpolate`` as its ``method=`` (e.g. ``"cubic"``) to
     smooth the line — see that function for the full set of supported methods
     and its own validation of ``method``/point-count/finiteness.
+
+    ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
+    exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
+    which uses them to give faceted panels one axis -- and replace rather than widen, so a
+    caller asking for a narrower view gets one.
+
+    ``estimator=`` folds rows that share an x into one vertex: ``"mean"``/``"median"``/
+    ``"sum"``, or any callable taking the group's values in row order and returning a
+    number. The default, ``None``, keeps this chart's historical rule — every row is its
+    own vertex, so two rows at the same x draw a vertical segment. Nothing is discarded
+    either way, so this chart never warns; see ``charts/_aggregate.py``.
+
+    ``estimator=`` and ``info=`` cannot be combined. The footnote table exists on exactly
+    the charts where one input row is one mark, and an estimator is the thing that breaks
+    that: the table would list rows the chart no longer drew, which is the same
+    contradiction that keeps ``info=`` off ``barplot``/``areaplot``/``boxplot``/``histplot``
+    in the first place.
+
+    A tick label is always an exact truncation of the instant its tick stands at, with one
+    documented exception: inside a single day the clock formats (``%H:%M`` and finer) hide
+    the year, month and day the tick also carries, so **a chart whose domain falls inside a
+    single calendar day carries no date anywhere in its output**. That is a real limit for a figure meant to be
+    pasted into a document and read away from its caption; naming the date once on the axis
+    is left to a later change rather than guessed at here.
 
     ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
     call that does not mention them is byte-identical to one written before they existed. The
@@ -94,67 +224,92 @@ def lineplot(
     not fit.
 
     Raises:
+        ValueError: if ``x`` holds a type with no position on an axis (``datetime.time`` is
+            a time of day with no day, so two values a week apart are the same point), if it
+            mixes dates with numbers, or if a value sits too close to ``datetime.max`` for
+            ``timestamp()`` to place. Every one of these names the column.
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
             is a string that isn't a registered preset name.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
         ValueError: if ``data`` has no rows, or (via ``stats.interpolate``) if
-            ``interpolate`` isn't a recognized method name or a series has too few
-            points to interpolate.
+            ``interpolate`` isn't a recognized method name, if a series has too few
+            points to interpolate, if ``estimator`` is an unknown name or returns a value
+            that can't be plotted, or if ``estimator`` and ``info`` are both given.
+        TypeError: if ``estimator`` is neither a name, a callable, nor ``None``.
     """
+    if estimator is not None and info is not None:
+        raise ValueError(
+            "estimator= and info= cannot be combined: the footnote table lists one row per mark, "
+            "and an estimator folds several rows into one"
+        )
+    estimate = resolve_estimator(estimator)
     resolved_theme = resolve_theme(theme)
     longform = ingest_longform(data, x, y)
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
 
-    if hue is not None:
-        groups = extract_channels(data, hue=hue)
-        if not groups:
-            raise ValueError(f"no rows with a non-missing {hue!r} value")
-        series_items = sorted(groups.items(), key=lambda item: str(item[0]))
-    else:
-        series_items = [(None, longform.columns)]
+    series_items = build_series(data, longform.columns, hue)
 
-    series_points = [(label, _series_points(columns, x, y)) for label, columns in series_items]
+    series_points = [(label, _series_points(columns, x, y, estimate)) for label, columns in series_items]
 
     all_x = [point[0] for _, points in series_points for point in points]
     all_y = [point[1] for _, points in series_points for point in points]
     if not all_x:
         raise ValueError("no rows with both x and y present after dropping missing values")
-    is_time = isinstance(all_x[0], datetime)
-    numeric_x_domain = (min(_numeric_x(v) for v in all_x), max(_numeric_x(v) for v in all_x))
+    is_time = _is_time_axis(all_x, x)
+    numeric_x_domain = (min(_numeric_x(v, x) for v in all_x), max(_numeric_x(v, x) for v in all_x))
+    # The tick axis is built from the *original* datetimes, not from these numbers rebuilt
+    # by ``fromtimestamp``. That round trip returns a naive local value, so an aware column
+    # lost its offset and every label became a reading of whichever machine drew the chart:
+    # the same UTC data labelled 00:00-12:00 under TZ=UTC, 10:00-20:00 under Asia/Seoul, and
+    # switched format entirely under America/Santiago. ``TimeScale``'s own docstring tells a
+    # caller to pass aware values for exactly that reason, which this path had made untrue.
+    time_domain = (min(all_x, key=lambda value: _numeric_x(value, x)), max(all_x, key=lambda value: _numeric_x(value, x)))
     y_domain = (min(all_y), max(all_y))
+    numeric_x_domain = apply_limit(numeric_x_domain, xlim)
+    y_domain = apply_limit(y_domain, ylim)
 
     # After the checks above, so a bad column still reports the chart's own error first.
     label_data = collect_label_data(data, info, required=(x, y, hue))
 
     canvas_width, canvas_height = resolve_size(width, height)
-    document = SvgDocument(width=canvas_width, height=canvas_height)
-    area = plot_area(
-        canvas_width,
-        canvas_height,
-        margin=fit_margin(MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND, canvas_width, canvas_height),
-    )
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(canvas_width), "height": format_coord(canvas_height)},
-        classes=["plot-background"],
+    document, area = new_canvas(
+        fit_margin(
+            fit_left_margin(
+                MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
+                y_domain,
+                width=canvas_width,
+                font_size=resolved_theme.tick_label_font_size,
+            ),
+            canvas_width,
+            canvas_height,
+        ),
+        width=canvas_width,
+        height=canvas_height,
     )
 
     pixel_x_scale = LinearScale(numeric_x_domain, (area.left, area.right))
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
     tick_x_scale = (
-        TimeScale(
-            (datetime.fromtimestamp(numeric_x_domain[0]), datetime.fromtimestamp(numeric_x_domain[1])), (area.left, area.right)
-        )
+        TimeScale((_as_datetime(time_domain[0]), _as_datetime(time_domain[1])), (area.left, area.right))
         if is_time
         else pixel_x_scale
     )
     render_x_axis(
-        document, tick_x_scale, area, tick_count=ticks_for(area.width, TICK_SPACING_X), tick_length=resolved_theme.tick_size
+        document,
+        tick_x_scale,
+        area,
+        tick_count=ticks_for(area.width, TICK_SPACING_X),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
     )
     render_y_axis(
-        document, pixel_y_scale, area, tick_count=ticks_for(area.height, TICK_SPACING_Y), tick_length=resolved_theme.tick_size
+        document,
+        pixel_y_scale,
+        area,
+        tick_count=ticks_for(area.height, TICK_SPACING_Y),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
     )
 
     series_classes: list[str] = []
@@ -163,7 +318,7 @@ def lineplot(
         series_class = document.semantic_class("series")
         series_classes.append(series_class)
         if points:
-            raw_x = [_numeric_x(px) for px, _ in points]
+            raw_x = [_numeric_x(px, x) for px, _ in points]
             raw_y = [py for _, py in points]
             if interpolate == "linear":
                 curve_x, curve_y = raw_x, raw_y
@@ -179,8 +334,14 @@ def lineplot(
             legend_entries.append((str(label), series_class))
 
     if legend_entries:
-        render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top)
+        render_legend(
+            document,
+            legend_entries,
+            x=area.right + LEGEND_X_OFFSET,
+            y=area.top,
+            font_size=resolved_theme.legend_font_size,
+        )
 
     render_theme_style(document, resolved_theme, series_classes)
 
-    return Chart(document, label_data)
+    return Chart(document, label_data, domains=Domains(x=numeric_x_domain, y=y_domain))

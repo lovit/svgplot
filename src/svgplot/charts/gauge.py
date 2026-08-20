@@ -22,21 +22,21 @@ from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
+    MARGIN_WITH_SIDE_LEGEND,
     fit_margin,
     format_coord,
-    plot_area,
+    format_value_label,
+    new_canvas,
     resolve_size,
 )
 from svgplot.charts._legend import render_legend
-from svgplot.charts._polar import polar_point, ring_path
+from svgplot.charts._polar import label_anchor, polar_point, ring_path
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._columns import column_length, extract_columns
 from svgplot.data._missing import is_missing
 from svgplot.scales import LinearScale, make_ticks
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
-
-_MARGIN = (30.0, 180.0, 30.0, 30.0)  # top, right, bottom, left -- right reserves legend space
 
 _SWEEP = 4 * math.pi / 3
 """240 degrees, centred on 12 o'clock. The open third at the bottom is what makes a gauge
@@ -63,38 +63,9 @@ _TICK_LABEL_GAP = 10.0
 _LABEL_MARGIN = 28.0
 """Radial space reserved outside the outer ring for tick marks and their labels."""
 
-_ANCHOR_EPSILON = 1e-9
-"""How close to straight up/down counts as vertical when choosing a label's anchor."""
 
 _VALUE_LINE_HEIGHT = 18.0
 """Baseline-to-baseline distance for the value text stacked in the hole."""
-
-
-def _label_anchor(angle: float) -> str:
-    """The ``text-anchor`` for a label sitting at ``angle``, from the quadrant alone.
-
-    An angle, not a measured width: this package has no font metrics, and a label's side
-    is fully determined by which half of the circle it is on.
-
-    ``charts/radar.py`` carries the same three lines. Deliberate duplication rather than a
-    shared helper, on the ``format_coord`` precedent -- with two consumers, a common home
-    would buy less than it costs, and the two charts are free to diverge (a radar labels
-    all the way round, a gauge only over its 240-degree sweep).
-    """
-    cosine = math.cos(angle)
-    if abs(cosine) < _ANCHOR_EPSILON:
-        return "middle"
-    return "start" if cosine > 0 else "end"
-
-
-def _format_value_label(value: float) -> str:
-    """Render a data value as label text, shortest-round-trip.
-
-    Not ``format_coord``: that rounds to 6 decimals because it formats *coordinates*,
-    which would silently rewrite the data it is labelling. Matches ``pieplot``'s
-    on-mark labels, which exist for the same reason.
-    """
-    return str(int(value)) if value.is_integer() else str(value)
 
 
 def _resolve_bounds(values: list[float], vmin: float | None, vmax: float | None) -> tuple[float, float]:
@@ -177,9 +148,8 @@ def gaugeplot(
 
     ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
     call that does not mention them is byte-identical to one written before they existed. The
-    margin presets shrink to keep the plot area the majority of a small canvas — see
-    ``charts/_layout.py``. (This chart draws no cartesian axis, so the tick-density rule
-    described there does not reach it.) Canvases below 240x180 are
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
     refused rather than clamped, and a chart may refuse a larger one if its own legend does
     not fit.
 
@@ -221,13 +191,10 @@ def gaugeplot(
     angle_of = LinearScale((low, high), (_START_ANGLE, _END_ANGLE))
 
     canvas_width, canvas_height = resolve_size(width, height)
-    document = SvgDocument(width=canvas_width, height=canvas_height)
-    area = plot_area(canvas_width, canvas_height, margin=fit_margin(_MARGIN, canvas_width, canvas_height))
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(canvas_width), "height": format_coord(canvas_height)},
-        classes=["plot-background"],
+    document, area = new_canvas(
+        fit_margin(MARGIN_WITH_SIDE_LEGEND, canvas_width, canvas_height),
+        width=canvas_width,
+        height=canvas_height,
     )
 
     cx, cy = area.left + area.width / 2, area.top + area.height / 2
@@ -276,6 +243,7 @@ def gaugeplot(
             # render_legend knows "stroke" (a line swatch) and "fill" (a rect) only; an
             # outlined arc reads as a filled swatch, and passing "outlined" through raises.
             mark_style="fill",
+            font_size=resolved_theme.legend_font_size,
         )
     render_theme_style(document, resolved_theme, series_classes, mark_style="outlined")
 
@@ -309,11 +277,11 @@ def _render_ticks(
         label_x, label_y = polar_point(cx, cy, outer_radius + tick_length + _TICK_LABEL_GAP, angle)
         document.add_text(
             None,
-            _format_value_label(float(tick)),
+            format_value_label(float(tick)),
             attrib={
                 "x": format_coord(label_x),
                 "y": format_coord(label_y),
-                "text-anchor": _label_anchor(angle),
+                "text-anchor": label_anchor(angle),
                 "dominant-baseline": "middle",
             },
             classes=["tick-label"],
@@ -330,7 +298,7 @@ def _render_value_text(document: SvgDocument, magnitudes: list[float], cx: float
     for index, magnitude in enumerate(magnitudes):
         document.add_text(
             None,
-            _format_value_label(magnitude),
+            format_value_label(magnitude),
             attrib={
                 "x": format_coord(cx),
                 "y": format_coord(top + index * _VALUE_LINE_HEIGHT),

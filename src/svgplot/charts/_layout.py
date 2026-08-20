@@ -20,6 +20,8 @@ import math
 import numbers
 from dataclasses import dataclass
 
+from svgplot._svg import SvgDocument
+
 Margin = float | tuple[float, float, float, float]
 
 DEFAULT_WIDTH = 800.0
@@ -53,23 +55,30 @@ MIN_WIDTH = 240.0
 MIN_HEIGHT = 180.0
 """The smallest canvas this package will draw an axed chart on.
 
-**Where 240 comes from.** The binding constraint on a narrow canvas is not the plot area,
-which stays a fixed share of the width, and not the ticks, which thin out — it is the
-legend gutter, because a legend label's glyphs are the one thing here whose width this
-package cannot measure. Solving for it: the right margin after :func:`fit_margin` is
-``160 * (MAX_MARGIN_FRACTION * width / 220) = 0.32727 * width``, of which
-:data:`LEGEND_X_OFFSET` (20), the swatch (16) and its gap (6) are fixed, leaving
-``0.32727 * width - 42`` for text. Setting that equal to
-``charts._legend.minimum_legend_text_width(11.0)`` — six characters at the default legend
-font size, 36.3 px — gives **239.25 px**. 240 is that boundary rounded up, and a test pins
-the derivation so the constant cannot drift away from the calculation that produced it.
+**Where 240 comes from.** Two measured floors, and a round number above both. The binding
+constraint on a narrow canvas is the legend gutter -- not the plot area, which stays a fixed
+share of the width, and not the ticks, which thin out. The right margin after
+:func:`fit_margin` is ``160 * (MAX_MARGIN_FRACTION * width / 220)``, of which
+:data:`LEGEND_X_OFFSET` (20), the swatch (16) and its gap (6) are fixed. Solving that against
+``charts._legend.minimum_legend_text_width(11.0)`` -- the room below which shortening a label
+stops helping -- gives **209.0 px**; solving it against ``charts._textwidth.text_width`` of a
+five-character label gives **227.5 px**, the width at which such a label renders whole rather
+than shortened. 240 is above both, and pairs with :data:`MIN_HEIGHT` at the same 4:3 the
+package's 800 x 600 default uses. A test pins the two floors and that this clears them.
 
-A caller whose legend labels are longer than six characters needs a wider canvas than this;
-the package cannot tell, because it has no font metrics (docs/research/12-aesthetics.md §3).
+It is deliberately not itself a boundary. An earlier version claimed it was, deriving 239.25
+from a hand-rolled estimate of 0.55 em per character on the premise that a label's width was
+"unknowable here". Both halves were wrong: ``charts/_textwidth.py`` measures it, and 0.55 sat
+below a digit's own 0.556, so the estimate under-reserved exactly where a label overflows.
 
-**Where 180 comes from.** The same 4:3 the package's default 800 x 600 uses, applied to the
-derived width. Nothing vertical binds anywhere near it: at 180 the plot area is still 100 px
-tall, four times the 24 px that two tick labels need at a 1.2 line height.
+A caller whose legend labels are longer than the gutter does **not** need a wider canvas:
+``render_legend`` shortens the label with an ellipsis and keeps the full text in a ``<title>``
+child, which assistive technology reads. At 240 a five-character label renders whole and a
+nine-character one comes out as ``sou…`` with ``southeast`` in its title (measured).
+
+**Where 180 comes from.** The same 4:3, applied to the width. Nothing vertical binds anywhere
+near it: at 180 the plot area is still 100 px tall, four times the 24 px that two tick labels
+need at a 1.2 line height.
 
 **Refused, not clamped or warned about.** ``gaugeplot``'s precedent, for geometry that would
 render but not be readable — "a silently unreadable chart is worse than a message naming the
@@ -184,6 +193,49 @@ def format_coord(value: float) -> str:
         return str(int(rounded))
     text = f"{rounded:.6f}".rstrip("0").rstrip(".")
     return text
+
+
+MARGIN_WITH_SIDE_LEGEND = (30.0, 180.0, 30.0, 30.0)
+"""Margin for a chart that has no axes but does have a legend down the right side.
+
+``pieplot``, ``treemap`` and ``gaugeplot`` all drew from this tuple. Wider on the right than
+:data:`MARGIN_WITH_LEGEND` because there is no y axis to leave room for on the left, so the
+plot can start further in and give the legend more."""
+
+
+def format_value_label(value: float) -> str:
+    """Render a data value as label text, shortest-round-trip.
+
+    Not :func:`format_coord`: that rounds to 6 decimals because it formats *coordinates*, and
+    rounding a label silently rewrites the data it names (``1e-7`` -> ``"0"``, ``0.123456789``
+    -> ``"0.123457"``). Integral values still lose the ``.0`` so the common case reads as
+    ``30`` rather than ``30.0``.
+    """
+    return str(int(value)) if value.is_integer() else str(value)
+
+
+def new_canvas(
+    margin: Margin, *, width: float = DEFAULT_WIDTH, height: float = DEFAULT_HEIGHT
+) -> tuple[SvgDocument, PlotArea]:
+    """A default-sized document with its background drawn, and the plot area inside ``margin``.
+
+    Fifteen charts opened with the same six lines and differed only in the margin. The
+    background rect is the part worth centralising: it carries the ``plot-background`` class
+    every theme styles, and a chart that forgot it would render on whatever the host page's
+    background happens to be -- a difference nobody notices until the page is dark.
+
+    ``width``/``height`` default to the package size, so a caller that does not pass them gets
+    exactly what this returned before charts could be given a size (#120).
+    """
+    document = SvgDocument(width=width, height=height)
+    area = plot_area(width, height, margin=margin)
+    document.add_node(
+        None,
+        "rect",
+        attrib={"x": 0, "y": 0, "width": format_coord(width), "height": format_coord(height)},
+        classes=["plot-background"],
+    )
+    return document, area
 
 
 def resolve_size(width: float | None, height: float | None) -> tuple[float, float]:

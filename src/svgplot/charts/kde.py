@@ -8,9 +8,9 @@ grid across every group for the same reason.
 
 from __future__ import annotations
 
-from svgplot._svg import SvgDocument
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
@@ -19,15 +19,15 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
-    plot_area,
+    new_canvas,
     resolve_size,
     ticks_for,
 )
 from svgplot.charts._legend import render_legend
+from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
-from svgplot.data.semantic import extract_channels
 from svgplot.scales import LinearScale
 from svgplot.stats.kde import KdeCurve, kde
 from svgplot.theme.base import Theme
@@ -114,6 +114,8 @@ def kdeplot(
     width: float | None = None,
     height: float | None = None,
     theme: Theme | str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a kernel density estimate from long-form data.
 
@@ -127,6 +129,13 @@ def kdeplot(
     ``bandwidth`` is passed to :func:`svgplot.stats.kde.kde` untouched, so its rules and
     its validation (including the refusal to pick a bandwidth for a zero-variance sample)
     apply here unchanged.
+
+    ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
+    exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
+    which uses them to give faceted panels one axis -- and replace rather than widen, so a
+    caller asking for a narrower view gets one. Note that this chart's y domain is a
+    **derived** quantity, not a column: nothing outside the chart could have computed it,
+    which is why the domain is recorded on the returned chart rather than predicted.
 
     ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
     call that does not mention them is byte-identical to one written before they existed. The
@@ -148,13 +157,7 @@ def kdeplot(
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
 
-    if hue is not None:
-        groups = extract_channels(data, hue=hue)
-        if not groups:
-            raise ValueError(f"no rows with a non-missing {hue!r} value")
-        series_items = sorted(groups.items(), key=lambda item: str(item[0]))
-    else:
-        series_items = [(None, longform.columns)]
+    series_items = build_series(data, longform.columns, hue)
 
     series_values = [(label, _clean_values(columns, x)) for label, columns in series_items]
     if not any(values for _, values in series_values):
@@ -165,27 +168,41 @@ def kdeplot(
     series_curves = [(label, _curve_of(values, label, bandwidth, grid_range)) for label, values in series_values]
     peak = max(value for _, curve in series_curves for value in curve.y)
 
+    x_domain = apply_limit(grid_range, xlim)
+    y_domain = apply_limit((0.0, peak), ylim)
     canvas_width, canvas_height = resolve_size(width, height)
-    document = SvgDocument(width=canvas_width, height=canvas_height)
-    area = plot_area(
-        canvas_width,
-        canvas_height,
-        margin=fit_margin(MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND, canvas_width, canvas_height),
-    )
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(canvas_width), "height": format_coord(canvas_height)},
-        classes=["plot-background"],
+    document, area = new_canvas(
+        fit_margin(
+            fit_left_margin(
+                MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
+                y_domain,
+                width=canvas_width,
+                font_size=resolved_theme.tick_label_font_size,
+            ),
+            canvas_width,
+            canvas_height,
+        ),
+        width=canvas_width,
+        height=canvas_height,
     )
 
-    pixel_x_scale = LinearScale(grid_range, (area.left, area.right))
-    pixel_y_scale = LinearScale((0.0, peak), (area.bottom, area.top))
+    pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
+    pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
     render_x_axis(
-        document, pixel_x_scale, area, tick_count=ticks_for(area.width, TICK_SPACING_X), tick_length=resolved_theme.tick_size
+        document,
+        pixel_x_scale,
+        area,
+        tick_count=ticks_for(area.width, TICK_SPACING_X),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
     )
     render_y_axis(
-        document, pixel_y_scale, area, tick_count=ticks_for(area.height, TICK_SPACING_Y), tick_length=resolved_theme.tick_size
+        document,
+        pixel_y_scale,
+        area,
+        tick_count=ticks_for(area.height, TICK_SPACING_Y),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
     )
 
     mark_style = "outlined" if fill else "stroke"
@@ -210,8 +227,9 @@ def kdeplot(
             x=area.right + LEGEND_X_OFFSET,
             y=area.top,
             mark_style="fill" if fill else "stroke",
+            font_size=resolved_theme.legend_font_size,
         )
 
     render_theme_style(document, resolved_theme, series_classes, mark_style=mark_style)
 
-    return Chart(document)
+    return Chart(document, domains=Domains(x=x_domain, y=y_domain))

@@ -6,6 +6,7 @@ from dataclasses import replace
 
 import pytest
 
+from _svg_probe import tags as _tags, texts as _texts
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, format_coord, plot_area
 from svgplot.charts.heatmap import (
     _BYTES_PER_CELL,
@@ -25,8 +26,6 @@ from svgplot.warnings import HeatmapSizeWarning
 
 AREA = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND)
 
-_ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
-
 GRID = {
     "col": ["a", "a", "b", "b", "c", "c"],
     "row": ["p", "q", "p", "q", "p", "q"],
@@ -45,15 +44,14 @@ def _square(side: int) -> dict[str, list]:
     }
 
 
-def _tags(svg: str, element: str, css_class: str) -> list[dict[str, str]]:
-    """Opening tags of ``element`` carrying ``css_class``. Matches both self-closing forms
-    (``<rect …/>``) and ones with content (``<text …>…</text>``)."""
-    return [dict(_ATTR_RE.findall(tag)) for tag in re.findall(rf"<{element}\b[^>]*?/?>", svg) if css_class in tag]
-
-
 def _annotations(svg: str) -> list[str]:
-    """The text content of each annotation, in document order."""
-    return re.findall(r'<text[^>]*class="[^"]*heatmap-annotation[^"]*"[^>]*>([^<]*)</text>', svg)
+    """The text content of each annotation, in document order.
+
+    Through the shared probe. The hand-written ``class="[^"]*heatmap-annotation[^"]*"`` also
+    matched a ``heatmap-annotation-x``, which is the substring defect this file's own ``_tags``
+    was consolidated to remove -- left behind in the same file it was removed from.
+    """
+    return _texts(svg, "text", "heatmap-annotation")
 
 
 def _ramp() -> dict[str, list]:
@@ -81,11 +79,19 @@ def _cells(svg: str) -> list[dict[str, str]]:
 
 
 def _swatches(svg: str) -> list[dict[str, str]]:
-    """Legend swatches -- level-classed rects that are not cells."""
+    """Legend swatches -- level-classed rects that are not cells.
+
+    ``level-1`` through ``level-N`` are whole class tokens, so this enumerates them rather
+    than testing a prefix -- a prefix test against the *whole tag* counts any attribute that
+    happens to contain those characters, which is the defect this file's own ``_tags`` was
+    consolidated to remove. Enumerating also fixes the order to level number rather than
+    document order; the two agree today.
+    """
     return [
-        dict(_ATTR_RE.findall(tag))
-        for tag in re.findall(r"<rect\b[^>]*/>", svg)
-        if "level-" in tag and "heatmap-cell" not in tag
+        tag
+        for level in range(1, LEVELS + 1)
+        for tag in _tags(svg, "rect", f"level-{level}")
+        if "heatmap-cell" not in tag.get("class", "").split()
     ]
 
 

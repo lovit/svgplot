@@ -1,6 +1,6 @@
 """Gaussian kernel density estimation, in pure stdlib.
 
-``binning.py`` is this package's only numpy consumer; ``interpolate.py`` and ``box.py``
+``binning.py`` was this package's only numpy consumer, and is no longer one either (#116); ``interpolate.py`` and ``box.py``
 are deliberately hand-written. Measured on this repo's venv, the naive O(n*grid) form
 below costs 0.014 s at n=2,000 / grid=200 against numpy's 0.007 s -- a 2x gap on a
 already-negligible number, which is not worth widening the dependency surface for.

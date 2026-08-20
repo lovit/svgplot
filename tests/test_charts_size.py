@@ -8,7 +8,6 @@ and nothing may be drawn outside the canvas. The tests here are grouped in that 
 from __future__ import annotations
 
 import contextlib
-import math
 import re
 import warnings
 from collections.abc import Callable
@@ -35,6 +34,7 @@ from svgplot.charts._layout import (
     ticks_for,
 )
 from svgplot.charts._legend import legend_ink_height, legend_text_room, minimum_legend_text_width
+from svgplot.charts._textwidth import text_width
 
 DATA = {
     "day": [1, 2, 3, 4, 1, 2, 3, 4],
@@ -463,21 +463,43 @@ def test_an_extreme_aspect_ratio_still_stays_inside_the_canvas(width: float, hei
 # --- 4. the minimum, and where it comes from -------------------------------------------
 
 
-def test_the_minimum_width_is_the_boundary_the_legend_gutter_gives() -> None:
-    """``MIN_WIDTH``'s docstring derives 239.25 from the legend gutter rather than picking
-    a round number. Recomputed here, so the constant cannot drift away from its own
-    justification -- if the margin fraction or the legend geometry changes, this fails."""
-    needed = minimum_legend_text_width(11.0)
-    fitting = [
-        width / 100
-        for width in range(10_000, 60_000)
-        if legend_text_room(fit_margin(MARGIN_WITH_LEGEND, width / 100, 600)[1] - LEGEND_X_OFFSET) >= needed
-    ]
-    assert fitting, "the boundary left the 100-600px search window; widen it rather than trusting min()"
-    boundary = min(fitting)
+def test_the_minimum_width_clears_both_floors_the_legend_gutter_gives() -> None:
+    """``MIN_WIDTH``'s docstring derives two floors from the legend gutter and says 240 is a
+    round number above both, rather than claiming 240 is itself a boundary. Recomputed here,
+    so neither the floors nor the claim can drift -- if the margin fraction, the legend
+    geometry or the width model changes, this fails.
 
-    assert boundary == pytest.approx(239.25, abs=0.01)
-    assert math.ceil(boundary) == MIN_WIDTH
+    An earlier version pinned 239.25 from a hand-rolled 0.55 em per character. That estimate
+    is gone: ``charts/_textwidth.py`` measures widths, and 0.55 sat below a digit's own 0.556.
+    """
+
+    def narrowest(needed: float) -> float:
+        fitting = [
+            width / 100
+            for width in range(10_000, 60_000)
+            if legend_text_room(fit_margin(MARGIN_WITH_LEGEND, width / 100, 600)[1] - LEGEND_X_OFFSET) >= needed
+        ]
+        assert fitting, "the boundary left the 100-600px search window; widen it rather than trusting min()"
+        return min(fitting)
+
+    shortening_floor = narrowest(minimum_legend_text_width(11.0))
+    whole_label_floor = narrowest(text_width("north", 11.0))
+
+    assert shortening_floor == pytest.approx(209.0, abs=0.01)
+    assert whole_label_floor == pytest.approx(227.49, abs=0.01)
+    assert MIN_WIDTH > whole_label_floor > shortening_floor
+    assert pytest.approx(DEFAULT_WIDTH / DEFAULT_HEIGHT) == MIN_WIDTH / MIN_HEIGHT
+
+
+def test_a_label_too_wide_for_the_gutter_is_shortened_rather_than_refused() -> None:
+    """Why ``MIN_WIDTH`` does not have to hold a whole label of any length. The full text is
+    kept in a ``<title>``, which is what assistive technology reads."""
+    data = {"x": [1.0, 2.0, 3.0, 4.0], "y": [1.0, 2.0, 3.0, 4.0], "g": ["north", "north", "southeast", "southeast"]}
+
+    svg = sp.lineplot(data, x="x", y="y", hue="g", width=MIN_WIDTH, height=MIN_HEIGHT).to_string()
+
+    assert re.findall(r'class="legend-text"[^>]*>([^<]*)<', svg) == ["north", "sou\u2026"]
+    assert "<title>southeast</title>" in svg
 
 
 def test_the_minimum_height_keeps_the_default_aspect_ratio() -> None:

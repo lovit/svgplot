@@ -1,6 +1,13 @@
 """Legend rendering shared by every chart type whose hue=/grouping produces
 multiple series: one color swatch + label per entry.
 
+A label longer than the room to the canvas edge used to run straight past it and out of the
+``viewBox``, where nothing renders it -- 118px of room on the default canvas, which is about
+18 Latin characters or **10 CJK** at ``legend_font_size``, by this module's own estimate. In a Korean-first package eleven
+characters is an ordinary label. Labels are now shortened to fit (see
+``charts/_textwidth``), with the full text kept in a ``<title>`` so the shortening costs
+presentation rather than information.
+
 Private/internal — not re-exported from ``svgplot.charts``.
 """
 
@@ -8,6 +15,7 @@ from __future__ import annotations
 
 from svgplot._svg import SvgDocument
 from svgplot.charts._layout import format_coord
+from svgplot.charts._textwidth import needs_full_text, truncate_to_width
 
 _SWATCH_WIDTH = 16.0
 _LABEL_GAP = 6.0
@@ -18,20 +26,27 @@ _TEXT_BASELINE_OFFSET = 4.0
 _SWATCH_HEIGHT = 10.0
 
 
-_ESTIMATED_CHAR_WIDTH_EM = 0.55
-_MIN_READABLE_CHARS = 6.0
-"""What the legend gutter is checked against, and the two things that check is *not*.
+_SHORTENING_FLOOR_EMS = 2.4
+"""What the legend gutter is checked against — the room below which shortening stops helping.
 
-It is not a measurement: this package has no font renderer, so a label's real width is
-unknowable here. 0.55 em is the average advance of a lower-case Latin string in the
-sans-serif families the themes name, which is the closest honest stand-in. And it is not a
-promise about any particular label — a six-character label is simply the shortest thing
-that still distinguishes one series from another, so a gutter that cannot hold six
-characters cannot hold a useful legend for *any* data.
+Not a font measurement of its own. ``charts/_textwidth.py`` owns that, and it is a *measured*
+model: each character is charged the worst advance of its Unicode class in Arial, verified
+against the font's ``hmtx`` table. An earlier version of this module carried its own estimate
+of 0.55 em per character on the premise that "a label's real width is unknowable here", which
+is no longer true and was never conservative — 0.55 sits below a digit's own 0.556, so six
+digits cost more than it charged.
 
-Six characters at ``legend_font_size`` 11 is about 36 px of text. Everything else in a
-legend row is fixed geometry (a 16 px swatch plus a 6 px gap), so the gutter has to be
-about 58 px wide once :data:`charts._layout.LEGEND_X_OFFSET` is counted."""
+The floor is a floor rather than a full label because a label that does not fit is **not** a
+failure: ``render_legend`` shortens it with an ellipsis and keeps the full text in a
+``<title>`` that assistive technology reads. What a gutter has to guarantee is that
+shortening still leaves something, which is the same 2.4 em ``charts/_axes.py`` uses for the
+same decision.
+"""
+
+
+def minimum_legend_text_width(font_size: float) -> float:
+    """The narrowest gutter a legend label can be shortened into and still say anything."""
+    return _SHORTENING_FLOOR_EMS * font_size
 
 
 def legend_ink_height(rows: int) -> float:
@@ -96,14 +111,14 @@ def legend_text_room(gutter: float) -> float:
     return gutter - _SWATCH_WIDTH - _LABEL_GAP
 
 
-def minimum_legend_text_width(font_size: float) -> float:
-    """The room :data:`_MIN_READABLE_CHARS` characters need at ``font_size`` — see that
-    constant for what this estimate is and is not."""
-    return _MIN_READABLE_CHARS * _ESTIMATED_CHAR_WIDTH_EM * font_size
-
-
 def render_legend(
-    document: SvgDocument, entries: list[tuple[str, str]], *, x: float, y: float, mark_style: str = "stroke"
+    document: SvgDocument,
+    entries: list[tuple[str, str]],
+    *,
+    x: float,
+    y: float,
+    mark_style: str = "stroke",
+    font_size: float,
 ) -> float:
     """Draw a vertical legend starting at ``(x, y)``, one row per ``entries`` item,
     and return the y coordinate just past the last row.
@@ -124,6 +139,19 @@ def render_legend(
     bar/area/pie slice) — a mismatch doesn't error, but the swatch shape/CSS
     property pairing would look wrong (e.g. a ``<line>`` swatch has no visible
     color under a ``fill``-only CSS rule).
+
+    The room a label has is read off ``document.width`` and ``x`` rather than hardcoded. 800
+    is right for every chart today only because every one of them uses the default canvas, and
+    all twelve would be wrong together the moment a chart could be given a size (#120). It is
+    the same reason the returned height exists.
+
+    A label estimated not to fit is shortened with an ellipsis, and its full text kept in a
+    ``<title>`` child -- which both browsers and assistive technology read. The full text is
+    also kept for a label merely *close* to the budget, because the width estimate can be
+    wrong in the direction that says "this fits", and that is the case with no fallback.
+
+    Raises:
+            ValueError: if ``mark_style`` isn't ``"stroke"`` or ``"fill"``.
 
     The rows must fit on the canvas. They always did at 800 x 600 for any legend this
     package produces, so nothing checked — but a caller-chosen canvas (issue #120) can be
@@ -167,11 +195,20 @@ def render_legend(
                 },
                 classes=[css_class],
             )
-        document.add_text(
+        room = document.width - (text_x := x + _SWATCH_WIDTH + _LABEL_GAP)
+        shown = truncate_to_width(label, font_size, room)
+        text_node = document.add_text(
             None,
-            label,
+            shown,
             tag="text",
-            attrib={"x": format_coord(x + _SWATCH_WIDTH + _LABEL_GAP), "y": format_coord(row_y + _TEXT_BASELINE_OFFSET)},
+            attrib={"x": format_coord(text_x), "y": format_coord(row_y + _TEXT_BASELINE_OFFSET)},
             classes=["legend-text"],
         )
+        if shown != label or needs_full_text(label, font_size, room):
+            # Not only when something was cut. The width model can be wrong in the
+            # direction that says "this fits" -- and that is the case with no fallback,
+            # because the tail is outside the viewBox and nowhere in the file. Anything
+            # close to the budget keeps its full text; short labels, which are most of
+            # them, still get no <title> and the markup stays hand-editable.
+            document.add_text(text_node, label, tag="title")
     return y + len(entries) * _ROW_HEIGHT
