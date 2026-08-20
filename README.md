@@ -4,7 +4,7 @@ markdown 문서에 넣을 정적 SVG 차트를 만드는 Python 패키지.
 
 출력은 텍스트 SVG 한 장이다. 도형에는 `series-1`, `tick-label`, `grid-line` 같은 클래스가 붙고, 색과 두께는 그 파일 안의 `<style>` 블록에 규칙으로 모여 있다. 같은 입력에는 같은 SVG 를 낸다. 런타임 의존성은 없다.
 
-JavaScript 는 내보내지 않는다 — `<script>` 태그와 `style=` 속성은 직렬화 단계에서 차단된다. 상호작용·애니메이션·3D·등고선·수식 조판은 다루지 않는다.
+JavaScript 는 내보내지 않는다 — `<script>` 태그와 `style=` 속성은 노드를 만드는 시점에 거부된다(직렬화까지 가지 않는다). 상호작용·애니메이션·3D·등고선·수식 조판은 다루지 않는다.
 
 GitHub 는 렌더된 markdown 에서 인라인 SVG 를 지운다. github.com 에서 보여야 하는 문서라면 `<img src="...svg">` 로 참조한다.
 
