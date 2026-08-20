@@ -34,6 +34,24 @@ legend row is fixed geometry (a 16 px swatch plus a 6 px gap), so the gutter has
 about 58 px wide once :data:`charts._layout.LEGEND_X_OFFSET` is counted."""
 
 
+def require_room(document: SvgDocument, y: float, needed: float, *, what: str) -> None:
+    """Refuse to start drawing ``needed`` pixels of legend at ``y`` on a shorter canvas.
+
+    ``needed`` is the space the legend **claims**, not the extent of its ink. The two differ
+    by a row's own bottom padding, and the claimed space is the one that has to fit: whatever
+    stacks underneath starts exactly there (``render_legend`` returns it for that purpose),
+    so a legend allowed to end past the canvas edge puts the *next* legend off the canvas
+    entirely — which is how ``scatterplot(hue=, size=)`` came to draw 46px outside a 400x180
+    canvas with each legend individually looking fine.
+    """
+    if y + needed > document.height:
+        raise ValueError(
+            f"{what} needs {format_coord(needed)}px below y={format_coord(y)}, "
+            f"but the canvas is only {format_coord(document.height)}px tall; "
+            f"use a taller canvas or fewer groups"
+        )
+
+
 def legend_text_room(gutter: float) -> float:
     """Pixels left for a legend label's glyphs, given the gutter between the plot area's
     right edge and the canvas edge."""
@@ -84,13 +102,7 @@ def render_legend(
     """
     if mark_style not in ("stroke", "fill"):
         raise ValueError(f"mark_style must be 'stroke' or 'fill', got {mark_style!r}")
-    needed = len(entries) * _ROW_HEIGHT
-    if y + needed > document.height:
-        raise ValueError(
-            f"a legend of {len(entries)} entries needs {format_coord(needed)}px below y={format_coord(y)}, "
-            f"but the canvas is only {format_coord(document.height)}px tall; "
-            f"use a taller canvas or fewer groups"
-        )
+    require_room(document, y, len(entries) * _ROW_HEIGHT, what=f"a legend of {len(entries)} entries")
     for index, (label, css_class) in enumerate(entries):
         row_y = y + index * _ROW_HEIGHT
         if mark_style == "stroke":

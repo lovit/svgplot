@@ -24,7 +24,7 @@ from svgplot.charts._layout import (
     resolve_size,
     ticks_for,
 )
-from svgplot.charts._legend import render_legend
+from svgplot.charts._legend import render_legend, require_room
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import numeric_or_none
 from svgplot.data.ingest import ingest_longform
@@ -86,6 +86,16 @@ def _render_size_legend(
     """
     low, high = min(size_values), max(size_values)
     samples = sorted({low, (low + high) / 2, high})
+    # Checked before the first circle, and against the same rule the hue legend uses. Rows
+    # here advance by each sample's own diameter rather than a fixed height, so the total is
+    # summed rather than multiplied -- but it is still the space this legend claims, and it
+    # still has to be on the canvas.
+    require_room(
+        document,
+        y,
+        sum(2 * radius_of(sample) + _SIZE_LEGEND_ROW_PADDING for sample in samples),
+        what=f"a size legend of {len(samples)} samples",
+    )
     # Rows advance by each sample's own diameter (plus padding), not a fixed height:
     # the largest sample's radius scales with theme.marker_size, so a fixed row height
     # lets big markers overlap the row above at perfectly ordinary theme settings.
@@ -131,6 +141,13 @@ def scatterplot(
     marker radius is linearly mapped from that numeric column's range (theme's
     ``marker_size`` as the anchor), with its own auto-generated legend showing
     representative min/mid/max samples. ``hue=`` and ``size=`` can be combined.
+
+    ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
+    call that does not mention them is byte-identical to one written before they existed. The
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
+    refused rather than clamped, and a chart may refuse a larger one if its own legend does
+    not fit.
 
     Raises:
         KeyError: if ``x``/``y``/``hue``/``size`` isn't a column in ``data``, or if
