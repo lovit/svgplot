@@ -39,8 +39,10 @@ sp.lineplot(data, x="day", y="sales", hue="region").save("sales.svg")
 `sales.svg` 안에서 두 지역의 선은 `class="series-1 line-series"` 와 `class="series-2 line-series"` 이고, 파일의 `<style>` 에 그에 대응하는 규칙이 있다.
 
 ```css
-.series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-ff989fa13) .series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
 ```
+
+앞의 `:where(.svgplot-…)` 는 이 규칙을 이 그림 안으로 묶는다. 한 HTML 문서에 차트를 둘 넣으면 둘 다 `.series-1` 을 정의하므로, 이것이 없으면 나중 차트가 앞 차트를 덧칠한다. `:where()` 는 특이도를 더하지 않으니 위 규칙의 무게는 `.series-1` 그대로이고, 호스트 스타일시트에서 `.series-1 { stroke: red }` 로 덮는 것도 그대로 동작한다. 이름을 직접 정하려면 `chart.set_scope("sales")`.
 
 ## 차트
 
