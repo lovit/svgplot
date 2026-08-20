@@ -114,24 +114,46 @@ def test_a_magnitude_the_module_calls_ordinary_still_matches_edge_for_edge(name:
             assert histogram_bins(values, strategy) == numpy.histogram_bin_edges(values, bins=strategy).tolist()
 
 
-def test_a_column_whose_magnitude_dwarfs_its_spread_differs_by_at_most_one_bin() -> None:
-    """The one place the two disagree, bounded rather than merely admitted. An epoch-nanosecond
-    timestamp and an ID column near ``2**53`` are the real shapes this describes, and the cause
-    is arithmetic, not the float grid: ``math.fsum`` is correctly rounded and ``numpy.std``'s
-    pairwise summation is not. A regression that widened this would show up as a bin count off
-    by more than one, or as a divergence appearing on ordinary data (the test above).
+@pytest.mark.parametrize("magnitude", [1e6, 1e12, 1e14])
+def test_a_magnitude_below_the_documented_threshold_matches_edge_for_edge(magnitude: float) -> None:
+    """The module docstring puts the first divergence at 1e15. Below it, over the shapes that
+    actually stress the two estimators, "bit-identical" has to keep meaning bit-identical --
+    and this is the assertion that would have caught the quantile-interpolation fault, which
+    showed up as a 431-bin difference at 1e15 and nothing at all in the parity grid above.
     """
-    rng = random.Random("dwarfed")
-    worst = 0
-    for offset in (1e16, float(2**53)):
-        for size in (20, 100, 500):
-            values = [offset + rng.uniform(0.0, 100.0) for _ in range(size)]
+    rng = random.Random(f"below-{magnitude}")
+    for size in (10, 50, 200):
+        for values in (
+            [magnitude + rng.uniform(0.0, 100.0) for _ in range(size)],
+            [magnitude + rng.uniform(0.0, 1.0) for _ in range(size - 1)] + [magnitude + 1000.0],
+            [magnitude + rng.gauss(0.0, 20.0) for _ in range(size)],
+        ):
             for strategy in _STRATEGIES:
-                mine = histogram_bins(values, strategy)
-                theirs = numpy.histogram_bin_edges(values, bins=strategy).tolist()
-                worst = max(worst, abs(len(mine) - len(theirs)))
+                assert histogram_bins(values, strategy) == numpy.histogram_bin_edges(values, bins=strategy).tolist()
 
-    assert worst <= 1
+
+def test_past_the_threshold_only_the_deviation_estimators_diverge_and_only_slightly() -> None:
+    """The documented divergence, bounded and *attributed*. An earlier version of this test
+    asserted "at most one bin" over a single seed and passed under four deliberate
+    degradations -- including reverting ``auto`` to the pre-2.3.0 formula, which is this
+    module's headline claim. Several seeds, and a check that the strategies which do not use
+    a standard deviation do not drift at all, is what makes it bite.
+    """
+    deviation_based = {"scott", "doane", "auto"}
+    worst = 0
+    for seed in range(6):
+        rng = random.Random(f"dwarfed-{seed}")
+        for magnitude in (1e15, 1e16):
+            for size in (10, 50, 200):
+                values = [magnitude + rng.uniform(0.0, 100.0) for _ in range(size)]
+                for strategy in _STRATEGIES:
+                    mine = histogram_bins(values, strategy)
+                    theirs = numpy.histogram_bin_edges(values, bins=strategy).tolist()
+                    if strategy not in deviation_based:
+                        assert mine == theirs, (strategy, magnitude, size, seed)
+                    worst = max(worst, abs(len(mine) - len(theirs)))
+
+    assert worst <= 2
 
 
 def test_an_integer_column_matches_including_numpy_s_width_floor() -> None:

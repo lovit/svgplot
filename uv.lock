@@ -511,7 +511,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "cairosvg", marker = "extra == 'png'", specifier = ">=2.7.0" },
-    { name = "numpy", marker = "extra == 'numpy-parity'", specifier = ">=2.5.2" },
+    { name = "numpy", marker = "extra == 'numpy-parity'", specifier = ">=2.3.0" },
 ]
 provides-extras = ["png", "numpy-parity"]
 

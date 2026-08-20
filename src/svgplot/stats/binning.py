@@ -11,9 +11,10 @@ versions: up to 2.2 it was ``min(fd, sturges)`` and from **2.3.0** it is
 thousands of bins. A package whose identity is "same input, same SVG" cannot have its bin
 count depend on which numpy the reader happens to have installed.
 
-The edges these produce are **bit-identical to numpy** over ordinary data: 28,000 comparisons
-across nine shapes (uniform, gaussian, exponential, log-normal, integral, tied, two-valued,
-all-negative, spiked), twelve sizes and seven strategies, zero mismatches.
+The edges these produce are **bit-identical to numpy** over ordinary data: the parity grid is
+nine shapes (gaussian, constant, spike, integral, bimodal, skewed, tiny, huge, negative) x
+nine sizes x twelve bin specs (the seven strategies plus five explicit counts) = 972 calls,
+comparing 52,000-odd individual edges, with zero mismatches.
 
 Three deliberate divergences:
 
@@ -22,17 +23,23 @@ Three deliberate divergences:
   hang, and no chart can show a million bars either way.
 - ``stone`` is not implemented. numpy accepts it; a call that used it now gets a ``ValueError``
   naming the seven that remain.
-- A column whose **magnitude dwarfs its spread** can come back with one bin more or fewer.
-  This is not the float grid running out; it is this module summing *exactly* where numpy does
-  not. ``math.fsum`` is correctly rounded and ``numpy.std`` uses pairwise summation, and
-  ``stats.quantile`` interpolates as ``a*(1-f) + b*f`` where numpy uses ``b - (b-a)*(1-t)``.
-  Ironically the answers here are the more accurate ones; they are still different ones.
-  Measured, as the share of (shape, size, strategy) comparisons whose bin count differs:
-  0.00% up to a magnitude/spread ratio of 1e12, 0.24% at 1e13, and 3.2-4.5% past that --
-  where "past that" means an epoch-nanosecond timestamp or an ID column near ``2**53``, which
-  ``_even_edges`` below rightly calls an ordinary magnitude rather than a contrived one.
-  Subnormals and values near the float maximum, which an earlier draft of this paragraph
-  blamed, measure 0.09% and 0.00%.
+- A column whose **magnitude dwarfs its spread** can come back with a bin or two more or
+  fewer, and only through ``scott`` and ``doane``. Both go through a standard deviation, and
+  at those magnitudes ``value - mean`` cancels away all but the last few digits: what is left
+  is summed exactly here and pairwise by numpy, and the two round differently. Measured as the
+  share of (shape, size, strategy) comparisons whose bin count differs, over uniform, spiked
+  and gaussian columns: **0.00% up to a magnitude of 1e14, 0.24% at 1e15, 1.47% at 1e16**,
+  worst difference two bins.
+
+  Two earlier drafts of this paragraph were wrong in the other direction. The first blamed
+  subnormals and near-float-maximum values, which measure 0.00%. The second blamed
+  ``math.fsum`` against numpy's pairwise summation -- but CPython's own ``sum`` is compensated
+  too, and no input was found where the two disagree. The real cause of that draft's numbers
+  was the **quantile interpolation**: the weighted form lost everything two large neighbouring
+  values had in common, so a spiked column at 1e15 measured an inter-quartile range of zero
+  where numpy measured 0.25, and ``fd`` drew one bar where numpy drew 431. That is fixed in
+  ``stats/quantile.py`` rather than documented, which is why the numbers above are so much
+  smaller than the ones they replace.
 
 ``tests/test_stats_binning_numpy_parity.py`` covers the ordinary range and is skipped when
 numpy is absent.
@@ -199,12 +206,24 @@ def histogram_bins(values: list[float], bins: str | int = "auto") -> list[float]
             finite = math.isfinite(value)
         except TypeError as error:
             raise ValueError(f"values must be numbers, got {value!r}") from error
+        except OverflowError as error:
+            # An int past the float range. ``isfinite`` refuses to convert it, and this
+            # function documents ``ValueError`` and nothing else -- the same contract
+            # ``_saturating`` keeps for the arithmetic further down.
+            raise ValueError(f"cannot bin a value too large to be a float: {value!r}") from error
         if not finite:
             raise ValueError(f"cannot bin a non-finite value: {value!r}")
-    span = max(values) - min(values)
+    low, high = float(min(values)), float(max(values))
+    # The span is measured on the *same floats* the edges are built from. Measured on the raw
+    # values it can disagree with them: two Python ints either side of ``2**53`` differ by
+    # exactly 1 as integers and collapse to one float, which left the selectors a real span
+    # to divide and the edges nothing to divide it into -- ``ceil(0 / width)`` bins, and
+    # ``_even_edges`` answering with a single edge. That is a chart with **no bars**, which
+    # this module's own degenerate-edge check exists to refuse rather than draw; numpy raises
+    # there and so, now, does this.
+    span = high - low
     if not math.isfinite(span):
         raise ValueError(f"values span (max - min = {span!r}) must be finite")
-    low, high = float(min(values)), float(max(values))
     if low == high:
         # A single distinct value has no width to divide. numpy widens by half a unit either
         # side so the bar has somewhere to be drawn.
@@ -228,6 +247,10 @@ def _all_integers(values: list[float]) -> bool:
 
     The *type*, not the value: ``[1.0, 2.0]`` is a float array to numpy and gets no width
     floor, so testing ``value == int(value)`` here would apply the floor where numpy does not.
-    ``bool`` is excluded for the same reason it is everywhere else in this package.
+
+    ``bool`` counts, which is the one place this package's usual "a bool is not a number"
+    rule does not apply — numpy casts a boolean array to ``uint8``, which
+    ``np.issubdtype(..., np.integer)`` calls an integer, so the floor is applied there.
+    Excluding it here made 71% of boolean columns disagree.
     """
-    return all(isinstance(value, int) and not isinstance(value, bool) for value in values)
+    return all(isinstance(value, int) for value in values)

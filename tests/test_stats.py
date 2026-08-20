@@ -441,3 +441,35 @@ def test_the_floor_is_keyed_on_the_type_not_the_value() -> None:
     """``[1.0, 2.0]`` is a float array to numpy and gets no floor, so testing
     ``value == int(value)`` would apply it where numpy does not."""
     assert histogram_bins([0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 1.0, 0.0, 0.0, 1.0], "fd") != [0.0, 1.0, 2.0]
+
+
+def test_two_integers_either_side_of_the_float_grid_are_refused_not_drawn_empty() -> None:
+    """``2**53`` and ``2**53 + 1`` differ by exactly 1 as integers and collapse to one float.
+    Measuring the span on the raw values left the selectors a real span to divide and the
+    edges nothing to divide it into -- ``ceil(0 / width)`` bins, answered with a single edge:
+    a chart with **no bars**, which the degenerate-edge check exists to refuse. numpy raises
+    there and so does this."""
+    for strategy in ("auto", "sturges", "rice", "sqrt", "fd", "scott", "doane"):
+        with pytest.raises(ValueError, match="too many bins for the data range"):
+            histogram_bins([2**53, 2**53 + 1], strategy)
+
+
+def test_a_slightly_wider_integer_column_at_the_same_magnitude_still_bins() -> None:
+    """The refusal above is about the float grid, not about the magnitude."""
+    assert len(histogram_bins([2**53, 2**53 + 4], "auto")) == 3
+
+
+def test_a_boolean_column_gets_the_integer_width_floor_too() -> None:
+    """The one place this package's usual "a bool is not a number" rule does not apply: numpy
+    casts a boolean array to ``uint8``, which its own ``issubdtype(..., integer)`` accepts, so
+    the floor is applied there. Excluding it made 71% of boolean columns disagree."""
+    assert histogram_bins([False, True], "fd") == [0.0, 1.0]
+    assert histogram_bins([False, False, True, True, False], "sturges") == [0.0, 1.0]
+
+
+def test_an_integer_too_large_for_a_float_is_refused_as_a_value_error() -> None:
+    """``math.isfinite`` refuses to convert it and raises ``OverflowError``, which this
+    function's ``Raises:`` does not mention -- the same contract ``_saturating`` keeps for the
+    arithmetic further down."""
+    with pytest.raises(ValueError, match="too large to be a float"):
+        histogram_bins([10**400, 1, 2], "fd")
