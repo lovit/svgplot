@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>갤러리 — svgplot</title>
-    <meta name="description" content="svgplot 차트 예시 모음." />
+    <title>areaplot — svgplot</title>
+    <meta name="description" content="선 아래를 0까지 채운다. 채워진 면적이 값이므로 y 축은 항상 0을 포함한다." />
     <style>
       :root {
         --bg: #ffffff;
@@ -79,39 +79,53 @@
     </style>
   </head>
   <body>
-    <nav><a href="../">svgplot</a></nav>
-    <h1>갤러리</h1>
-    <p class="summary">예시 4종. 각 그림 아래에 그것을 그린 코드가 함께 있다.</p>
-    <ul class="index">
-      <li>
-        <a href="areaplot.html">
-          <img src="svg/areaplot-1.svg" alt="areaplot" />
-          <strong>areaplot</strong>
-          <span>선 아래를 0까지 채운다. 채워진 면적이 값이므로 y 축은 항상 0을 포함한다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="barplot.html">
-          <img src="svg/barplot-1.svg" alt="barplot" />
-          <strong>barplot</strong>
-          <span>카테고리마다 막대 하나를 그린다. orient= 로 방향을, hue= 와 stacked= 로 그룹을 정한다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="lineplot.html">
-          <img src="svg/lineplot-1.svg" alt="lineplot" />
-          <strong>lineplot</strong>
-          <span>x 순으로 점을 이어 선을 그린다. x 는 수치 또는 날짜를 받는다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="scatterplot.html">
-          <img src="svg/scatterplot-1.svg" alt="scatterplot" />
-          <strong>scatterplot</strong>
-          <span>x·y 두 수치 컬럼을 점으로 놓는다. hue= 는 색, size= 는 마커 크기에 매핑한다.</span>
-        </a>
-      </li>
+    <nav><a href="../">svgplot</a> · <a href="./">갤러리</a></nav>
+    <h1>areaplot</h1>
+    <p class="summary">선 아래를 0까지 채운다. 채워진 면적이 값이므로 y 축은 항상 0을 포함한다.</p>
+    <dl class="meta">
+      <dt>데이터</dt>
+      <dd>x: 수치(날짜는 받지 않는다) · y: 수치 · hue(선택): 아무 타입</dd>
+    </dl>
+    <h2>데이터</h2>
+    <pre><code>import svgplot as sp
+
+TRAFFIC = {
+    &quot;주차&quot;: [1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6],
+    &quot;방문&quot;: [120.0, 180.0, 150.0, 240.0, 210.0, 300.0, 60.0, 75.0, 110.0, 95.0, 140.0, 160.0],
+    &quot;유입&quot;: [&quot;검색&quot;] * 6 + [&quot;추천&quot;] * 6,
+}</code></pre>
+    <h2>예시</h2>
+    <h3>기본</h3>
+    <figure>
+      <img src="svg/areaplot-1.svg" alt="기본" />
+    </figure>
+    <pre><code>ONE_SERIES = {&quot;주차&quot;: [1, 2, 3, 4, 5, 6], &quot;방문&quot;: [120.0, 180.0, 150.0, 240.0, 210.0, 300.0]}
+sp.areaplot(ONE_SERIES, x=&quot;주차&quot;, y=&quot;방문&quot;)</code></pre>
+    <h3>hue= 는 시리즈를 겹쳐 그린다</h3>
+    <figure>
+      <img src="svg/areaplot-2.svg" alt="hue= 는 시리즈를 겹쳐 그린다" />
+    </figure>
+    <pre><code>sp.areaplot(TRAFFIC, x=&quot;주차&quot;, y=&quot;방문&quot;, hue=&quot;유입&quot;)</code></pre>
+    <h3>stacked=True 는 쌓아서 합계를 보이게 한다</h3>
+    <figure>
+      <img src="svg/areaplot-3.svg" alt="stacked=True 는 쌓아서 합계를 보이게 한다" />
+    </figure>
+    <pre><code>sp.areaplot(TRAFFIC, x=&quot;주차&quot;, y=&quot;방문&quot;, hue=&quot;유입&quot;, stacked=True)</code></pre>
+    <h3>xscale=&quot;log&quot; — x 가 자릿수로 벌어질 때</h3>
+    <figure>
+      <img src="svg/areaplot-4.svg" alt="xscale=&quot;log&quot; — x 가 자릿수로 벌어질 때" />
+    </figure>
+    <pre><code>SIZES = {&quot;바이트&quot;: [1.0, 10.0, 100.0, 1000.0, 10000.0], &quot;누적&quot;: [2.0, 9.0, 31.0, 68.0, 100.0]}
+sp.areaplot(SIZES, x=&quot;바이트&quot;, y=&quot;누적&quot;, xscale=&quot;log&quot;)</code></pre>
+    <h2>메모</h2>
+    <ul class="notes">
+      <li>yscale= 이 없다. 채워진 면적이 곧 값이고 그것은 0에서 재는데, 로그 축에는 잴 0이 없어 채움이 임의의 자리에서 시작하고 면적이 무엇에도 비례하지 않게 된다.</li>
+      <li>x 에 date/datetime 을 받지 않는다. 시간축이 필요하면 lineplot 을 쓴다.</li>
+      <li>같은 x 를 가진 행이 여럿이면 기본적으로 합산된다. estimator= 로 mean·median 등 다른 접기를 고를 수 있다.</li>
+      <li>stacked=True 일 때 x 축은 모든 그룹의 x 합집합이고, 어떤 (그룹, x) 조합에 행이 없으면 그 자리는 0으로 센다.</li>
     </ul>
-    <footer><a href="../">svgplot 소개로</a></footer>
+    <footer>
+      <a href="./">갤러리로</a> · <a href="https://github.com/lovit/svgplot/blob/main/gallery/examples/areaplot.py">이 페이지의 예시 소스</a>
+    </footer>
   </body>
 </html>
