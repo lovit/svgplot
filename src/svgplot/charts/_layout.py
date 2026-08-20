@@ -215,9 +215,18 @@ def _finite(value: float, name: str) -> float:
     two while being perfectly good lengths. ``bool`` is excluded even though it is ``Real``,
     because ``width=True`` is a mistake, not a request for one pixel.
     """
-    if isinstance(value, bool) or not isinstance(value, numbers.Real) or not math.isfinite(float(value)):
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
         raise ValueError(f"{name} must be a finite number, got {value!r}")
-    return float(value)
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError) as error:
+        # A ``Real`` too large to be a float -- ``Fraction(10**400)``. ``format_coord`` in this
+        # same module already normalises that to ``ValueError``; this is the rule, not an
+        # exception to it, and ``resolve_size`` documents ``ValueError`` and nothing else.
+        raise ValueError(f"{name} must be a finite number, got {value!r}") from error
+    if not math.isfinite(number):
+        raise ValueError(f"{name} must be a finite number, got {value!r}")
+    return number
 
 
 def fit_margin(margin: Margin, width: float, height: float) -> tuple[float, float, float, float]:

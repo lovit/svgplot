@@ -34,15 +34,30 @@ legend row is fixed geometry (a 16 px swatch plus a 6 px gap), so the gutter has
 about 58 px wide once :data:`charts._layout.LEGEND_X_OFFSET` is counted."""
 
 
+def legend_ink_height(rows: int) -> float:
+    """How far below ``y`` a legend of ``rows`` rows actually puts ink.
+
+    Not ``rows * _ROW_HEIGHT``. That is the space the legend *claims* — what
+    :func:`render_legend` returns so a caller can stack under it — and it includes the last
+    row's own bottom padding, which nothing is drawn in. Guarding on the claimed space refuses
+    legends that fit: measured on ``origin/main``, a 29-entry legend on an 800x600 canvas puts
+    its lowest ink at y=594 and renders correctly, while the claim-space rule would have
+    rejected it. Thirty entries reach y=614 and really do overflow.
+
+    The allowance below the last baseline is the same ``_TEXT_BASELINE_OFFSET`` used above it:
+    the offset centres the row's text, and a descender reaches about as far below the baseline
+    as the centring lifted it.
+    """
+    return max(rows - 1, 0) * _ROW_HEIGHT + 2 * _TEXT_BASELINE_OFFSET
+
+
 def require_room(document: SvgDocument, y: float, needed: float, *, what: str) -> None:
     """Refuse to start drawing ``needed`` pixels of legend at ``y`` on a shorter canvas.
 
-    ``needed`` is the space the legend **claims**, not the extent of its ink. The two differ
-    by a row's own bottom padding, and the claimed space is the one that has to fit: whatever
-    stacks underneath starts exactly there (``render_legend`` returns it for that purpose),
-    so a legend allowed to end past the canvas edge puts the *next* legend off the canvas
-    entirely — which is how ``scatterplot(hue=, size=)`` came to draw 46px outside a 400x180
-    canvas with each legend individually looking fine.
+    ``needed`` is ink, not claimed space — see :func:`legend_ink_height`. A second legend
+    stacked below the first starts at the *claimed* end of it, so it is checked from there
+    and against its own ink: that pairing is what stops ``scatterplot(hue=, size=)`` drawing
+    46px outside a 400x180 canvas with each legend individually looking fine.
     """
     if y + needed > document.height:
         raise ValueError(
@@ -102,7 +117,7 @@ def render_legend(
     """
     if mark_style not in ("stroke", "fill"):
         raise ValueError(f"mark_style must be 'stroke' or 'fill', got {mark_style!r}")
-    require_room(document, y, len(entries) * _ROW_HEIGHT, what=f"a legend of {len(entries)} entries")
+    require_room(document, y, legend_ink_height(len(entries)), what=f"a legend of {len(entries)} entries")
     for index, (label, css_class) in enumerate(entries):
         row_y = y + index * _ROW_HEIGHT
         if mark_style == "stroke":
