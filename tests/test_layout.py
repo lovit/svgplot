@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import re
+import xml.etree.ElementTree as ET
 
 import pytest
 
@@ -872,3 +873,21 @@ def test_composition_compact_output_never_carries_a_prolog() -> None:
     composition = row([make_chart(), make_chart()])
 
     assert composition.to_string(pretty=False) == composition.to_string(pretty=False, declaration=False)
+
+
+def test_composition_pretty_output_keeps_the_serializers_shape() -> None:
+    """An independent anchor for Composition's pretty bytes, which nothing else holds.
+
+    ``Chart`` has one by accident: ``tests/test_gallery.py`` byte-compares committed output,
+    and the gallery is all charts. A composition appears nowhere in it, so every other
+    assertion about this method compares it against itself -- ``to_string()`` against
+    ``to_string(declaration=False)`` -- and any corruption applied to both cancels out.
+    Trimming the trailing newline, or re-indenting, passes the whole suite without this.
+    """
+    composition = row([make_chart(), make_chart()])
+
+    output = composition.to_string()
+
+    assert output.endswith(">\n") and not output.endswith("\n\n")
+    assert "\n  <" in output, "pretty output indents its children"
+    assert ET.fromstring(output.removeprefix(_PROLOG)).tag.endswith("svg")
