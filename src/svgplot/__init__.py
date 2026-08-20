@@ -27,12 +27,13 @@ from svgplot.charts import (
 from svgplot.labels import LabelSpec
 from svgplot.layout import add_caption, apply_size, column, facet, grid, row
 from svgplot.theme import PRESETS, Theme, apply_context, parametric_theme
-from svgplot.warnings import HeatmapSizeWarning, SvgplotWarning
+from svgplot.warnings import AggregationWarning, HeatmapSizeWarning, SvgplotWarning
 
 __version__ = "0.1.0"
 
 __all__ = [
     "PRESETS",
+    "AggregationWarning",
     "Chart",
     "Composition",
     "HeatmapSizeWarning",
