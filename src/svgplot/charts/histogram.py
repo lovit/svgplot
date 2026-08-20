@@ -4,17 +4,14 @@ from __future__ import annotations
 
 import bisect
 
-from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
-    DEFAULT_HEIGHT,
-    DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
     format_coord,
-    plot_area,
+    new_canvas,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
@@ -97,14 +94,7 @@ def histplot(
     series_counts = [(label, _count_in_bins(values, edges)) for label, values in series_values]
     max_count = max((count for _, counts in series_counts for count in counts), default=0)
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
-    )
+    document, area = new_canvas(MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
 
     pixel_x_scale = LinearScale((edges[0], edges[-1]), (area.left, area.right))
     pixel_y_scale = LinearScale((0, max_count), (area.bottom, area.top))

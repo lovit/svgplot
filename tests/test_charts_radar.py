@@ -8,12 +8,12 @@ import pytest
 
 from _svg_probe import tags as _tags
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, plot_area
+from svgplot.charts._polar import label_anchor
 from svgplot.charts.radar import (
     _LABEL_GAP,
     _MARGIN_WITH_LEGEND,
     _MARGIN_WITHOUT_LEGEND,
     _MIN_CATEGORIES,
-    _label_anchor,
     radarplot,
 )
 from svgplot.scales import LinearScale, make_ticks
@@ -152,7 +152,7 @@ def test_the_label_anchor_follows_the_quadrant(degrees: float, anchor: str) -> N
     """Chosen from the angle, never from a measured text width -- this package has no font
     metrics, and the side a label belongs on is fully determined by its half of the circle.
     Straight up and straight down get ``middle`` because neither side is nearer."""
-    assert _label_anchor(math.radians(degrees)) == anchor
+    assert label_anchor(math.radians(degrees)) == anchor
 
 
 def test_all_three_anchors_appear_on_a_real_chart() -> None:
@@ -506,9 +506,9 @@ def test_a_label_a_hair_off_vertical_still_picks_a_side() -> None:
     ordinary chart to ``middle`` and the whole suite stayed green, because the parametrised
     cases stopped at +-45 degrees (|cos| = 0.707) and the on-chart check compared anchors as
     a *set*."""
-    assert _label_anchor(-math.pi / 2 + 1e-6) == "start"
-    assert _label_anchor(-math.pi / 2 - 1e-6) == "end"
-    assert _label_anchor(math.pi / 2 + 1e-6) == "end"
+    assert label_anchor(-math.pi / 2 + 1e-6) == "start"
+    assert label_anchor(-math.pi / 2 - 1e-6) == "end"
+    assert label_anchor(math.pi / 2 + 1e-6) == "end"
 
 
 def test_every_label_on_a_real_chart_picks_the_side_its_spoke_is_on() -> None:

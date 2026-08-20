@@ -60,6 +60,8 @@
 - **여러 줄 라벨 미지원**(`_svg.py`의 `_fold_newlines` docstring) — 텍스트 노드의 개행은 공백으로 접힌다. 진짜 여러 줄 라벨은 `dy`를 가진 `<tspan>`이 필요하고 이 패키지는 글리프를 측정하지 않는다.
 - **markdown 표 셀의 GFM autolink**(`labels/table.py`의 `_escape_markdown_cell` docstring) — 맨 URL·`www.` 접두·이메일 주소는 마크업 없이 링크가 되므로 이스케이프로 막을 수 없다. 값을 고쳐 쓰는 것은 호출자가 주지 않은 데이터를 보고하는 일이라 하지 않는다.
 
+- 캔버스 도입부가 `charts/_layout.new_canvas()` 하나로 모였다 — 15개 차트가 같은 여섯 줄을 반복하고 마진만 달랐다. 함수 단위 중복도 정리했다: `_label_anchor`/`_ANCHOR_EPSILON`은 `charts/_polar.py`(각도 기하가 그 모듈의 자기규정이고, radar·gauge 둘 다 이미 import 한다), `_format_value_label`은 `charts/_layout.format_value_label`(값 라벨은 극좌표 개념이 아니다), `(30.0, 180.0, 30.0, 30.0)`은 `MARGIN_WITH_SIDE_LEGEND`. 16종 차트 출력이 **바이트 단위로 동일**하다(`sparkline` 은 자기 캔버스 크기를 쓰므로 이 헬퍼를 부르지 않는 15종에 들지 않지만, 출력 동일성은 함께 확인했다).
+
 ### Fixed
 
 - `add_caption`이 캡션 텍스트를 검증하기 *전에* 캔버스를 키워, 거부된 캡션이 도판을 영구히 늘리고 재시도마다 또 늘리던 문제.

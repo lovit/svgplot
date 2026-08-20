@@ -28,16 +28,13 @@ from __future__ import annotations
 import math
 import warnings
 
-from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
-    DEFAULT_HEIGHT,
-    DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     format_coord,
-    plot_area,
+    new_canvas,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
@@ -206,14 +203,7 @@ def heatmap(
     normalize = Normalize.from_values(magnitudes, center=center)
     colors = _colormap(cmap, center=center)
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
-    )
+    document, area = new_canvas(MARGIN_WITH_LEGEND)
 
     x_scale = CategoricalScale(columns, (area.left, area.right))
     y_scale = CategoricalScale(rows, (area.top, area.bottom))
