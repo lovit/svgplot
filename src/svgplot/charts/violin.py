@@ -205,6 +205,7 @@ def violinplot(
         plot_width=canvas_width - fitted[3] - fitted[1],
         font_size=resolved_theme.tick_label_font_size,
         tick_length=resolved_theme.tick_size,
+        padding=_VIOLIN_PADDING,
     )
     document, area = new_canvas(
         fit_margin(fitted, canvas_width, canvas_height),

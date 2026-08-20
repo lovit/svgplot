@@ -582,6 +582,7 @@ def fit_rotated_labels(
     plot_width: float,
     font_size: float = _DEFAULT_LABEL_FONT_SIZE,
     tick_length: float = _DEFAULT_TICK_LENGTH,
+    padding: float = 0.0,
 ) -> tuple[Margin, bool]:
     """``margin`` opened up for turned category labels, and whether they are turned at all.
 
@@ -609,7 +610,13 @@ def fit_rotated_labels(
     names = [str(category) for category in categories]
     if not names:
         return (top, right, bottom, left), False
-    bandwidth = plot_width / len(names)
+    # ``padding`` because a padded ``CategoricalScale`` gives a label *less* room than the
+    # pitch suggests -- ``violinplot`` insets its bands by 20%, so an 87.5px pitch is a 70px
+    # budget. Deciding on the pitch while ``render_x_axis`` measures against the real band made
+    # the two disagree exactly where it matters: a 73.2px label came out whole on ``boxplot``
+    # and shortened to "카테고리…" on ``violinplot``, which is the defect rotation exists to fix.
+    pitch = plot_width / len(names)
+    bandwidth = pitch * (1.0 - padding)
     if not wants_rotation(names, bandwidth=bandwidth, font_size=font_size):
         return (top, right, bottom, left), False
     widest = max(text_width(name, font_size) for name in names)
@@ -631,7 +638,7 @@ def fit_rotated_labels(
     # and rearranging gives the line below. Ignoring the feedback and adding the first-pass
     # figure left the ``poster`` label 2.6px outside the canvas; ignoring the half-band credit
     # instead would over-reserve 70px of left margin on a five-category chart.
-    owed = widest * math.cos(turn) - plot_width / (2 * len(names)) - left
+    owed = widest * math.cos(turn) - pitch / 2 - left
     # Minus, not plus. Widening the left *narrows* the band, so the half-band credit shrinks as
     # the margin grows and the debt is larger than the first pass says -- the sign that makes
     # the difference between closing the overflow and making it worse.

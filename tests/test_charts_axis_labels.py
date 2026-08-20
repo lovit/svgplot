@@ -649,3 +649,22 @@ def test_the_bottom_margin_accounts_for_everything_between_the_axis_and_the_labe
 
     assert turning
     assert bottom == pytest.approx(tick + _TICK_LABEL_OFFSET + widest * math.sin(turn) + size * math.cos(turn))
+
+
+def test_a_padded_category_axis_decides_on_the_room_it_actually_gives() -> None:
+    """``violinplot`` insets its bands by 20%, so an 87.5px pitch is a 70px budget. Deciding
+    to rotate on the pitch while ``render_x_axis`` measures the real band made the two
+    disagree exactly where it matters: a 73.2px label came out whole on ``boxplot`` and
+    shortened to the same prefix eight times on ``violinplot`` -- the defect rotation exists
+    to remove, reintroduced by the chart that pads."""
+    categories = [f"카테고리 이름{index}" for index in range(8)]
+    values = {"c": categories * 3, "v": [float(index % 7) for index in range(24)]}
+
+    violin = sp.violinplot(values, x="c", y="v").to_string()
+    box = sp.boxplot(values, x="c", y="v").to_string()
+
+    # The label fits an unpadded band and not a padded one, so the two charts must differ --
+    # and neither may shorten, which is the point.
+    assert len(_turned(violin)) == 8
+    assert _turned(box) == []
+    assert "…" not in violin and "…" not in box
