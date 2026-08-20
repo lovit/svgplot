@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Chart">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="760" y2="550" class="spine" />
+  <line x1="128.238994" y1="30" x2="128.238994" y2="550" class="grid-line" />
+  <line x1="128.238994" y1="550" x2="128.238994" y2="554" class="tick-line" />
+  <text x="128.238994" y="572" text-anchor="middle" class="tick-label">5</text>
+  <line x1="238.301887" y1="30" x2="238.301887" y2="550" class="grid-line" />
+  <line x1="238.301887" y1="550" x2="238.301887" y2="554" class="tick-line" />
+  <text x="238.301887" y="572" text-anchor="middle" class="tick-label">10</text>
+  <line x1="348.36478" y1="30" x2="348.36478" y2="550" class="grid-line" />
+  <line x1="348.36478" y1="550" x2="348.36478" y2="554" class="tick-line" />
+  <text x="348.36478" y="572" text-anchor="middle" class="tick-label">15</text>
+  <line x1="458.427673" y1="30" x2="458.427673" y2="550" class="grid-line" />
+  <line x1="458.427673" y1="550" x2="458.427673" y2="554" class="tick-line" />
+  <text x="458.427673" y="572" text-anchor="middle" class="tick-label">20</text>
+  <line x1="568.490566" y1="30" x2="568.490566" y2="550" class="grid-line" />
+  <line x1="568.490566" y1="550" x2="568.490566" y2="554" class="tick-line" />
+  <text x="568.490566" y="572" text-anchor="middle" class="tick-label">25</text>
+  <line x1="678.553459" y1="30" x2="678.553459" y2="550" class="grid-line" />
+  <line x1="678.553459" y1="550" x2="678.553459" y2="554" class="tick-line" />
+  <text x="678.553459" y="572" text-anchor="middle" class="tick-label">30</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="550" x2="760" y2="550" class="grid-line" />
+  <line x1="56" y1="550" x2="60" y2="550" class="tick-line" />
+  <text x="54" y="554" text-anchor="end" class="tick-label">0</text>
+  <line x1="60" y1="448.039216" x2="760" y2="448.039216" class="grid-line" />
+  <line x1="56" y1="448.039216" x2="60" y2="448.039216" class="tick-line" />
+  <text x="54" y="452.039216" text-anchor="end" class="tick-label">10</text>
+  <line x1="60" y1="346.078431" x2="760" y2="346.078431" class="grid-line" />
+  <line x1="56" y1="346.078431" x2="60" y2="346.078431" class="tick-line" />
+  <text x="54" y="350.078431" text-anchor="end" class="tick-label">20</text>
+  <line x1="60" y1="244.117647" x2="760" y2="244.117647" class="grid-line" />
+  <line x1="56" y1="244.117647" x2="60" y2="244.117647" class="tick-line" />
+  <text x="54" y="248.117647" text-anchor="end" class="tick-label">30</text>
+  <line x1="60" y1="142.156863" x2="760" y2="142.156863" class="grid-line" />
+  <line x1="56" y1="142.156863" x2="60" y2="142.156863" class="tick-line" />
+  <text x="54" y="146.156863" text-anchor="end" class="tick-label">40</text>
+  <line x1="60" y1="40.196078" x2="760" y2="40.196078" class="grid-line" />
+  <line x1="56" y1="40.196078" x2="60" y2="40.196078" class="tick-line" />
+  <text x="54" y="44.196078" text-anchor="end" class="tick-label">50</text>
+  <rect x="60" y="458.235294" width="77.777778" height="91.764706" class="series-1" />
+  <rect x="137.777778" y="325.686275" width="77.777778" height="224.313725" class="series-1" />
+  <rect x="215.555556" y="142.156863" width="77.777778" height="407.843137" class="series-1" />
+  <rect x="293.333333" y="30" width="77.777778" height="520" class="series-1" />
+  <rect x="371.111111" y="111.568627" width="77.777778" height="438.431373" class="series-1" />
+  <rect x="448.888889" y="223.72549" width="77.777778" height="326.27451" class="series-1" />
+  <rect x="526.666667" y="254.313725" width="77.777778" height="295.686275" class="series-1" />
+  <rect x="604.444444" y="427.647059" width="77.777778" height="122.352941" class="series-1" />
+  <rect x="682.222222" y="529.607843" width="77.777778" height="20.392157" class="series-1" />
+  <style>.plot-background { fill: #ffffff; }
+.grid-line { stroke: #e0e0e0; stroke-width: 1; }
+.spine { stroke: #333333; stroke-width: 1; fill: none; }
+.tick-line { stroke: #333333; }
+.tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+.legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+.series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
+  <title>Chart</title>
+  <desc>Histogram, 240 observations in 9 bins, x 1.9 to 33.7, counts 0 to 51.</desc>
+</svg>

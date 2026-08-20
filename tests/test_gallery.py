@@ -39,7 +39,6 @@ AWAITING_A_PAGE = {
     "ecdfplot",
     "gaugeplot",
     "heatmap",
-    "histplot",
     "kdeplot",
     "pieplot",
     "radarplot",
