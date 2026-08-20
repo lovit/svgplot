@@ -6,15 +6,14 @@ and the band into geometry.
 
 from __future__ import annotations
 
-from svgplot._svg import SvgDocument
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._layout import (
-    DEFAULT_HEIGHT,
     DEFAULT_WIDTH,
     MARGIN_WITHOUT_LEGEND,
     format_coord,
-    plot_area,
+    new_canvas,
 )
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
@@ -72,6 +71,8 @@ def regplot(
     seed: int = 0,
     scatter: bool = True,
     theme: Theme | str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a linear fit through long-form data, optionally with a confidence band.
 
@@ -81,6 +82,11 @@ def regplot(
 
     ``seed`` is forwarded to :func:`svgplot.stats.regression.confidence_band`, which makes
     the whole chart reproducible: the same data and seed serialize to byte-identical SVG.
+
+    ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
+    exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
+    which uses them to give faceted panels one axis -- and replace rather than widen, so a
+    caller asking for a narrower view gets one.
 
     Raises:
         KeyError: if ``x``/``y`` isn't a column in ``data``, or if ``theme`` is a string
@@ -109,20 +115,21 @@ def regplot(
     y_candidates = [*band.lower, *band.upper, *(ys if scatter else [])]
     x_domain = (min(xs), max(xs))
     y_domain = (min(y_candidates), max(y_candidates))
+    x_domain = apply_limit(x_domain, xlim)
+    y_domain = apply_limit(y_domain, ylim)
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITHOUT_LEGEND)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
+    document, area = new_canvas(
+        fit_left_margin(MARGIN_WITHOUT_LEGEND, y_domain, width=DEFAULT_WIDTH, font_size=resolved_theme.tick_label_font_size)
     )
 
     pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
-    render_x_axis(document, pixel_x_scale, area, tick_length=resolved_theme.tick_size)
-    render_y_axis(document, pixel_y_scale, area, tick_length=resolved_theme.tick_size)
+    render_x_axis(
+        document, pixel_x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+    )
+    render_y_axis(
+        document, pixel_y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+    )
 
     series_class = document.semantic_class("series")
 
@@ -162,4 +169,4 @@ def regplot(
     # translucent fill, the line and the points as the same colour at full strength.
     render_theme_style(document, resolved_theme, [series_class], mark_style="outlined")
 
-    return Chart(document)
+    return Chart(document, domains=Domains(x=x_domain, y=y_domain))

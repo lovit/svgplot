@@ -478,7 +478,14 @@ def test_facet_carries_the_estimator_through_hue_as_well() -> None:
 
 
 def test_facet_warns_once_per_panel_when_it_forwards_no_estimator() -> None:
-    """Once per call means once per *chart*, and a facet builds one chart per panel."""
+    """Once per call means once per *chart*, and a facet builds one chart per panel.
+
+    Not once per *render*. Sharing an axis draws the panels up to three times and returns
+    only the last, so warning as it went made this emit six times for two panels -- the
+    warning would tell a reader about panels that were measured and thrown away. Measured on
+    ``main`` at the moment ``estimator=`` met shared axes; ``facet`` now keeps each pass's
+    warnings aside and replays only the winning pass's.
+    """
     data = {"x": ["a", "a", "a", "a"], "y": [1.0, 2.0, 3.0, 4.0], "panel": ["p", "p", "q", "q"]}
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")

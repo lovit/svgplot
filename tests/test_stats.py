@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from svgplot.stats.binning import histogram_bins
+from svgplot.stats.binning import MAX_BINS, histogram_bins
 from svgplot.stats.box import MODES as BOX_MODES, box_stats
 from svgplot.stats.interpolate import METHODS, interpolate
 
@@ -329,3 +329,186 @@ def test_box_stats_rejects_unknown_mode() -> None:
 def test_box_stats_rejects_non_finite_values() -> None:
     with pytest.raises(ValueError, match="finite"):
         box_stats([1.0, float("nan"), 3.0])
+
+
+@pytest.mark.parametrize("strategy", ["auto", "fd", "doane", "scott", "rice", "sturges", "sqrt"])
+def test_every_strategy_numpy_accepted_is_still_accepted(strategy: str) -> None:
+    """The list is the public surface. Delegating meant numpy decided it; now this module
+    does, and dropping one turns a working call into a ``ValueError``.
+
+    One *was* dropped, deliberately: numpy's ``stone`` does leave-one-out cross-validation over
+    a range of candidate counts, which is a different order of work from the closed-form
+    seven. It is a breaking change and the CHANGELOG says so; this test's job is to keep the
+    remaining seven from following it by accident."""
+    assert len(histogram_bins([float(index % 13) for index in range(200)], strategy)) > 1
+
+
+def test_an_unknown_strategy_says_what_the_known_ones_are() -> None:
+    """numpy used to answer this, with its own vocabulary. Now the message has to come from
+    here, and a message that only says "no" leaves the caller to guess."""
+    with pytest.raises(ValueError, match="doane, fd, rice, scott, sqrt, sturges") as raised:
+        histogram_bins([1.0, 2.0, 3.0], "freedman")
+
+    assert "freedman" in str(raised.value)
+
+
+def test_a_constant_column_gets_one_bin_widened_around_its_value() -> None:
+    """The case the two spans come apart on. The edges are widened by half a unit either side
+    so the bar has somewhere to be drawn, but the *selectors* still see a span of zero -- feed
+    them the widened span instead and a constant column comes back with five bins of nothing."""
+    assert histogram_bins([3.5] * 10, "sturges") == [3.0, 4.0]
+    assert histogram_bins([3.5], "auto") == [3.0, 4.0]
+
+
+def test_the_last_edge_is_the_maximum_and_not_a_float_that_drifted_past_it() -> None:
+    """Accumulating the step would leave the last edge slightly short of the data's maximum,
+    and a value sitting exactly on that maximum would fall outside every bin."""
+    values = [index * 0.1 for index in range(1000)]
+    edges = histogram_bins(values, 7)
+
+    assert edges[0] == min(values)
+    assert edges[-1] == max(values)
+    assert len(edges) == 8
+
+
+def test_scotts_coefficient_is_the_exact_one_and_not_the_rounded_3_49() -> None:
+    """``(24 * sqrt(pi)) ** (1/3)`` is 3.4908, and every textbook writes it as 3.49. The two
+    differ by 0.024% and disagree about the bin *count* whenever the quotient lands near an
+    integer -- ``range(224)`` gives six bins by the exact coefficient and seven by 3.49.
+
+    Nothing else here notices: every other dataset in this file and in the numpy-parity sweep
+    rounds the same way either way, so the rounded constant survives them all."""
+    values = [float(index) for index in range(224)]
+
+    assert len(histogram_bins(values, "scott")) - 1 == 6
+
+
+def test_the_strategies_this_module_dropped_are_the_ones_it_meant_to() -> None:
+    """A guard against silent narrowing. ``stone`` is absent on purpose; anything else going
+    missing would be an accident, and the only way to notice is to compare against the list
+    numpy actually offers."""
+    numpy = pytest.importorskip("numpy", reason="install the numpy-parity extra to check this")
+    from numpy.lib import _histograms_impl
+
+    from svgplot.stats.binning import _STRATEGIES
+
+    assert set(_histograms_impl._hist_bin_selectors) - set(_STRATEGIES) == {"stone"}
+    assert set(_STRATEGIES) - set(_histograms_impl._hist_bin_selectors) == set()
+    assert numpy is not None
+
+
+# ---------------------------------------------------------------------------
+# binning at the edges of the float grid (issue #116 review)
+# ---------------------------------------------------------------------------
+
+
+def test_a_span_too_wide_to_divide_returns_the_single_edge_numpy_returns() -> None:
+    """``_bin_width`` saturates to infinity rather than raising, so the count comes out
+    below one -- and ``linspace(low, high, 1)`` is one edge, which is as much as such data
+    supports. Uncovered until a review measured it: the branch existed and nothing entered
+    it."""
+    assert histogram_bins([1e307 * (1 + index * 0.01) for index in range(30)], "scott") == [1e307]
+    assert histogram_bins([-1e307, 1e307], "scott") == [-1e307]
+
+
+def test_an_overflowing_mean_does_not_escape_as_an_overflow_error() -> None:
+    """``histogram_bins`` documents ``ValueError`` and nothing else. ``doane`` recomputed the
+    mean with a bare ``math.fsum`` and a column around ``1e307`` came back as an
+    ``OverflowError`` from inside it -- 7.4% of near-float-max inputs."""
+    edges = histogram_bins([1e307 * (1 + index * 0.01) for index in range(30)], "doane")
+
+    assert len(edges) == 2
+    assert all(math.isfinite(edge) for edge in edges)
+
+
+@pytest.mark.parametrize("values", [[1e300] * 10, [float(2**53)]])
+def test_a_value_too_large_to_widen_is_refused_rather_than_drawn_empty(values: list[float]) -> None:
+    """Past ``2**53`` the half-unit widening a single distinct value gets is a no-op, so the
+    two edges land on the same number and the bin between them can hold nothing. A chart with
+    no bars is worse than a message saying why."""
+    with pytest.raises(ValueError, match="too many bins for the data range"):
+        histogram_bins(values, "fd")
+
+
+def test_an_integer_column_gets_numpy_s_unit_width_floor() -> None:
+    """numpy raises a sub-unit width to 1 for an integer dtype -- a histogram of counts has
+    nothing to say between 0 and 1. Without it, 18% of integer-list inputs differed from
+    numpy; ``[0,0,1,0,2,0,1,0,0,1]`` under ``fd`` came back with three bins, not two."""
+    assert histogram_bins([0, 0, 1, 0, 2, 0, 1, 0, 0, 1], "fd") == [0.0, 1.0, 2.0]
+
+
+def test_the_floor_is_keyed_on_the_type_not_the_value() -> None:
+    """``[1.0, 2.0]`` is a float array to numpy and gets no floor, so testing
+    ``value == int(value)`` would apply it where numpy does not."""
+    assert histogram_bins([0.0, 0.0, 1.0, 0.0, 2.0, 0.0, 1.0, 0.0, 0.0, 1.0], "fd") != [0.0, 1.0, 2.0]
+
+
+def test_two_integers_either_side_of_the_float_grid_are_refused_not_drawn_empty() -> None:
+    """``2**53`` and ``2**53 + 1`` differ by exactly 1 as integers and collapse to one float.
+    Measuring the span on the raw values left the selectors a real span to divide and the
+    edges nothing to divide it into -- ``ceil(0 / width)`` bins, answered with a single edge:
+    a chart with **no bars**, which the degenerate-edge check exists to refuse. numpy raises
+    there and so does this."""
+    for strategy in ("auto", "sturges", "rice", "sqrt", "fd", "scott", "doane"):
+        with pytest.raises(ValueError, match="too many bins for the data range"):
+            histogram_bins([2**53, 2**53 + 1], strategy)
+
+
+def test_a_slightly_wider_integer_column_at_the_same_magnitude_still_bins() -> None:
+    """The refusal above is about the float grid, not about the magnitude."""
+    assert len(histogram_bins([2**53, 2**53 + 4], "auto")) == 3
+
+
+def test_a_boolean_column_gets_the_integer_width_floor_too() -> None:
+    """The one place this package's usual "a bool is not a number" rule does not apply: numpy
+    casts a boolean array to ``uint8``, which its own ``issubdtype(..., integer)`` accepts, so
+    the floor is applied there. Excluding it made 71% of boolean columns disagree."""
+    assert histogram_bins([False, True], "fd") == [0.0, 1.0]
+    assert histogram_bins([False, False, True, True, False], "sturges") == [0.0, 1.0]
+
+
+def test_an_integer_too_large_for_a_float_is_refused_as_a_value_error() -> None:
+    """``math.isfinite`` refuses to convert it and raises ``OverflowError``, which this
+    function's ``Raises:`` does not mention -- the same contract ``_saturating`` keeps for the
+    arithmetic further down."""
+    with pytest.raises(ValueError, match="too large to be a float"):
+        histogram_bins([10**400, 1, 2], "fd")
+
+
+def test_histogram_bins_over_a_stated_range_ignores_the_values_extremes() -> None:
+    """Two charts binned separately land their boundaries in different places, so a "count
+    of 3" covers a different amount of data in each -- which is the comparison a shared axis
+    promises and would otherwise not deliver."""
+    edges = histogram_bins([1.0, 2.0, 3.0, 4.0], bins=4, bin_range=(1.0, 92.0))
+
+    assert edges == [1.0, 23.75, 46.5, 69.25, 92.0]
+    assert histogram_bins([1.0, 2.0, 3.0, 4.0], bins=4) == [1.0, 1.75, 2.5, 3.25, 4.0]
+
+
+def test_two_samples_binned_over_one_range_get_identical_edges() -> None:
+    """The property the range exists for, stated directly."""
+    span = (0.0, 100.0)
+
+    assert histogram_bins([1.0, 2.0], bins=5, bin_range=span) == histogram_bins([90.0, 99.0], bins=5, bin_range=span)
+
+
+@pytest.mark.parametrize("bad", [(5.0, 5.0), (5.0, 1.0), (float("nan"), 1.0), (0.0, float("inf"))])
+def test_histogram_bins_rejects_a_degenerate_or_non_finite_range(bad: tuple[float, float]) -> None:
+    """numpy accepts a reversed range and returns edges that run backwards, which draws bars
+    at negative widths rather than failing."""
+    with pytest.raises(ValueError, match="bin_range must be an increasing pair"):
+        histogram_bins([1.0, 2.0], bins=4, bin_range=bad)
+
+
+def test_a_strategy_may_choose_more_bins_than_a_caller_is_allowed_to_ask_for() -> None:
+    """Two ceilings, because two different things are being judged. A caller writing 15,885
+    wants something a chart cannot show; ``fd`` handed a spiked column arrives at that number
+    honestly, and a facet panel that did so renders on ``main``. Capping the strategy at
+    ``MAX_BINS`` refused that panel, naming a number the caller never wrote."""
+    spike = [n / 500.0 for n in range(500)] + [2000.0]
+
+    chosen = len(histogram_bins(spike, "fd")) - 1
+
+    assert chosen > MAX_BINS
+    with pytest.raises(ValueError, match="bins must be between 1"):
+        histogram_bins(spike, chosen)

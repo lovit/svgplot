@@ -33,7 +33,7 @@ sp.scatterplot(data, x="day", y="sales", hue="region", size="size").save("scatte
 # 막대 — orient="v"|"h", stacked=True면 누적, hue=만 주면 그룹(dodge)
 sp.barplot(data, x="region", y="sales", hue="region", stacked=True).save("bar.svg")
 
-# 히스토그램 — bins는 정수 또는 numpy 전략 문자열("auto" 기본)
+# 히스토그램 — bins는 정수 또는 전략 문자열("auto" 기본)
 sp.histplot(data, x="sales", bins=5).save("hist.svg")
 
 # 영역 — stacked=True면 누적 영역
@@ -142,6 +142,12 @@ sp.grid(
 
 ```python
 sp.facet(sp.lineplot, data, col="region", x="day", y="sales").save("facet.svg")
+```
+
+패널은 **기본적으로 축을 공유한다**(`sharex=False`/`sharey=False`로 끌 수 있다). 공유하지 않으면 두 패널의 선이 같은 높이에 그려지는데 하나는 3, 다른 하나는 300이고 그 사실이 지면 어디에도 적히지 않는다.
+
+```python
+sp.facet(sp.lineplot, data, col="region", x="day", y="sales", sharey=False)
 ```
 
 ### 테마

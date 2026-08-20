@@ -134,3 +134,28 @@ def arc_path(cx: float, cy: float, r: float, start_angle: float, end_angle: floa
         f"A {format_coord(r)},{format_coord(r)} 0 {_large_arc_flag(sweep)} {sweep_flag} "
         f"{format_coord(x2)},{format_coord(y2)}"
     )
+
+
+_ANCHOR_EPSILON = 1e-9
+"""How close to vertical counts as vertical, for :func:`label_anchor`.
+
+``math.cos`` of a right angle is 6.1e-17 rather than zero, so a label at the top of the circle
+would otherwise be anchored as if it leaned right."""
+
+
+def label_anchor(angle: float) -> str:
+    """The ``text-anchor`` for a label sitting at ``angle``, from the quadrant alone.
+
+    An angle, not a measured width: this package has no font metrics, and a label's side is
+    fully determined by which half of the circle it is on. Straight up and straight down get
+    ``middle`` because neither side is nearer.
+
+    Shared rather than duplicated. ``radarplot`` and ``gaugeplot`` held these three lines
+    twice, justified on the ``format_coord`` precedent -- but that precedent is about a helper
+    that *cannot* be imported, and both charts already import this module. Angle geometry is
+    what this module is for.
+    """
+    cosine = math.cos(angle)
+    if abs(cosine) < _ANCHOR_EPSILON:
+        return "middle"
+    return "start" if cosine > 0 else "end"

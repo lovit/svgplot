@@ -14,24 +14,23 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 
-from svgplot._svg import SvgDocument
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator
-from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._layout import (
-    DEFAULT_HEIGHT,
     DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
     format_coord,
-    plot_area,
+    new_canvas,
 )
 from svgplot.charts._legend import render_legend
+from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
-from svgplot.data.semantic import extract_channels
 from svgplot.labels._source import collect_label_data
 from svgplot.labels.spec import LabelSpec
 from svgplot.scales import LinearScale, TimeScale
@@ -94,6 +93,8 @@ def lineplot(
     estimator: Estimator | None = None,
     info: LabelSpec | list[tuple[str, str]] | None = None,
     theme: Theme | str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a line chart from long-form data.
 
@@ -105,6 +106,11 @@ def lineplot(
     ``stats.interpolate.interpolate`` as its ``method=`` (e.g. ``"cubic"``) to
     smooth the line — see that function for the full set of supported methods
     and its own validation of ``method``/point-count/finiteness.
+
+    ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
+    exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
+    which uses them to give faceted panels one axis -- and replace rather than widen, so a
+    caller asking for a narrower view gets one.
 
     ``estimator=`` folds rows that share an x into one vertex: ``"mean"``/``"median"``/
     ``"sum"``, or any callable taking the group's values in row order and returning a
@@ -139,13 +145,7 @@ def lineplot(
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
 
-    if hue is not None:
-        groups = extract_channels(data, hue=hue)
-        if not groups:
-            raise ValueError(f"no rows with a non-missing {hue!r} value")
-        series_items = sorted(groups.items(), key=lambda item: str(item[0]))
-    else:
-        series_items = [(None, longform.columns)]
+    series_items = build_series(data, longform.columns, hue)
 
     series_points = [(label, _series_points(columns, x, y, estimate)) for label, columns in series_items]
 
@@ -156,17 +156,19 @@ def lineplot(
     is_time = isinstance(all_x[0], datetime)
     numeric_x_domain = (min(_numeric_x(v) for v in all_x), max(_numeric_x(v) for v in all_x))
     y_domain = (min(all_y), max(all_y))
+    numeric_x_domain = apply_limit(numeric_x_domain, xlim)
+    y_domain = apply_limit(y_domain, ylim)
 
     # After the checks above, so a bad column still reports the chart's own error first.
     label_data = collect_label_data(data, info, required=(x, y, hue))
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
+    document, area = new_canvas(
+        fit_left_margin(
+            MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
+            y_domain,
+            width=DEFAULT_WIDTH,
+            font_size=resolved_theme.tick_label_font_size,
+        )
     )
 
     pixel_x_scale = LinearScale(numeric_x_domain, (area.left, area.right))
@@ -178,8 +180,12 @@ def lineplot(
         if is_time
         else pixel_x_scale
     )
-    render_x_axis(document, tick_x_scale, area, tick_length=resolved_theme.tick_size)
-    render_y_axis(document, pixel_y_scale, area, tick_length=resolved_theme.tick_size)
+    render_x_axis(
+        document, tick_x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+    )
+    render_y_axis(
+        document, pixel_y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+    )
 
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
@@ -203,8 +209,14 @@ def lineplot(
             legend_entries.append((str(label), series_class))
 
     if legend_entries:
-        render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top)
+        render_legend(
+            document,
+            legend_entries,
+            x=area.right + LEGEND_X_OFFSET,
+            y=area.top,
+            font_size=resolved_theme.legend_font_size,
+        )
 
     render_theme_style(document, resolved_theme, series_classes)
 
-    return Chart(document, label_data)
+    return Chart(document, label_data, domains=Domains(x=numeric_x_domain, y=y_domain))

@@ -5,6 +5,7 @@ import re
 
 import pytest
 
+from _svg_probe import tags as _tags
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, plot_area
 from svgplot.charts.regression import regplot
 from svgplot.scales import LinearScale
@@ -13,7 +14,6 @@ from svgplot.stats.regression import confidence_band, fit_curve
 AREA = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITHOUT_LEGEND)
 
 _VERTEX_RE = re.compile(r"[ML] (-?[\d.]+),(-?[\d.]+)")
-_ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 
 
 def _noisy_line(n: int = 60, *, seed: int = 7) -> dict[str, list[float]]:
@@ -34,16 +34,24 @@ def _band_widths(svg: str) -> list[float]:
 
 
 def _paths(svg: str, css_class: str) -> list[list[tuple[float, float]]]:
-    tags = [dict(_ATTR_RE.findall(tag)) for tag in re.findall(r"<path\b[^>]*/>", svg)]
-    return [
-        [(float(vx), float(vy)) for vx, vy in _VERTEX_RE.findall(tag["d"])]
-        for tag in tags
-        if css_class in tag.get("class", "")
-    ]
+    """The vertices of each matching ``<path>``.
+
+    Through the shared probe. This used to be a fifth copy of ``_tags`` with all three of the
+    defects issue #117 names -- ``/>``-only, so a ``<path>`` with content was invisible; and
+    substring matching twice over, on the class attribute and on the whole tag. No class in
+    this chart triggers the last two today; a ``regression-line-dashed`` would, and adding one
+    is a one-line change nobody would think to check this file for.
+    """
+    return [[(float(vx), float(vy)) for vx, vy in _VERTEX_RE.findall(tag["d"])] for tag in _tags(svg, "path", css_class)]
 
 
 def _raw_path(svg: str, css_class: str) -> str:
-    return next(dict(_ATTR_RE.findall(tag))["d"] for tag in re.findall(r"<path\b[^>]*/>", svg) if css_class in tag)
+    """The ``d`` of the first matching ``<path>``.
+
+    The substring form here searched the *whole tag*, so a class it was not asked about would
+    have it return that path's ``d`` instead -- silently, since a ``d`` is a ``d``.
+    """
+    return _tags(svg, "path", css_class)[0]["d"]
 
 
 # ---------------------------------------------------------------------------
@@ -398,8 +406,7 @@ def test_tick_length_comes_from_the_theme(theme: str | None, expected: float) ->
     length also makes them differ, just at the wrong size. ``minimal`` asks for 0."""
     kwargs = {} if theme is None else {"theme": theme}
     svg = regplot(_noisy_line(n=10), x="x", y="y", ci=None, **kwargs).to_string()
-    tick = next(tag for tag in re.findall(r"<line\b[^>]*/>", svg) if "tick-line" in tag)
-    ends = dict(_ATTR_RE.findall(tick))
+    ends = _tags(svg, "line", "tick-line")[0]
 
     assert abs(float(ends["y2"]) - float(ends["y1"])) == pytest.approx(expected)
 
