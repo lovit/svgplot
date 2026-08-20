@@ -16,7 +16,18 @@ from datetime import datetime
 import pytest
 
 import svgplot as sp
-from svgplot.charts._describe import MAX_NAME_CHARS, MAX_NAMES, describe, group, moment, number, plural, span
+from svgplot.charts._describe import (
+    MAX_NAME_CHARS,
+    MAX_NAMES,
+    MAX_NUMBER_CHARS,
+    describe,
+    fits,
+    group,
+    moment,
+    number,
+    plural,
+    span,
+)
 
 CATEGORICAL = {"x": ["Mon", "Tue", "Wed"], "y": [1.0, 5.0, 9.0], "g": ["north", "north", "south"]}
 XY = {"x": [1.0, 2.0, 3.0], "y": [3.0, 20.0, 7.0], "s": [1.0, 2.0, 3.0], "g": ["north", "south", "north"]}
@@ -229,6 +240,25 @@ def test_a_size_column_too_long_to_read_out_is_not_read_out() -> None:
     assert "SSSSSSSSSS" not in described
 
 
+def test_a_size_column_of_exactly_the_character_cap_is_still_named() -> None:
+    """The other side of the boundary the previous test checks."""
+    exact = "S" * MAX_NAME_CHARS
+    data = {"x": [1.0, 2.0], "y": [1.0, 2.0], exact: [1.0, 2.0]}
+
+    assert desc_of(sp.scatterplot(data, x="x", y="y", size=exact)).endswith(f'marker size from "{exact}".')
+
+
+def test_a_size_column_name_goes_through_the_same_chokepoint() -> None:
+    """It is a caller string in the ``<desc>`` like any other, so the newline fold and the
+    XML rejection have to reach it too -- and both were only tested on category names."""
+    folded = {"x": [1.0, 2.0], "y": [1.0, 2.0], "a\nb": [1.0, 2.0]}
+    assert desc_of(sp.scatterplot(folded, x="x", y="y", size="a\nb")).endswith('marker size from "a b".')
+
+    rejected = {"x": [1.0, 2.0], "y": [1.0, 2.0], "a\x00b": [1.0, 2.0]}
+    with pytest.raises(ValueError, match="not allowed in XML 1.0"):
+        sp.scatterplot(rejected, x="x", y="y", size="a\x00b").to_string()
+
+
 def test_donut_and_pie_are_different_kinds() -> None:
     assert desc_of(sp.pieplot(WEIGHTED, values="v", labels="l", inner_radius=0.5)).startswith("Donut chart,")
     assert desc_of(sp.pieplot(WEIGHTED, values="v", labels="l")).startswith("Pie chart,")
@@ -345,6 +375,35 @@ CAPPED_LISTS = [
         lambda n: sp.lineplot({"x": _values(n), "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g"),
         40,
     ),
+    # The other five callers of _describe.over(). The clause is shared, but each chart
+    # assembles the *arguments* to it, and a mistake there is invisible to the others.
+    (
+        "scatter series",
+        lambda n: sp.scatterplot({"x": _values(n), "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g"),
+        40,
+    ),
+    (
+        "area series",
+        lambda n: sp.areaplot({"x": _values(n), "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g"),
+        40,
+    ),
+    (
+        "histogram series",
+        lambda n: sp.histplot({"x": _values(n), "g": _labels(n)}, x="x", hue="g", bins=4),
+        40,
+    ),
+    (
+        "kde series",
+        lambda n: sp.kdeplot(
+            {"x": [*_values(n), *(value + 1.0 for value in _values(n))], "g": [*_labels(n), *_labels(n)]}, x="x", hue="g"
+        ),
+        40,
+    ),
+    (
+        "ecdf series",
+        lambda n: sp.ecdfplot({"x": _values(n), "g": _labels(n)}, x="x", hue="g"),
+        40,
+    ),
 ]
 
 
@@ -456,6 +515,48 @@ def test_the_fallback_cannot_itself_raise_on_a_value_repr_would_refuse() -> None
     assert number(10**200000) == "an unreportable value"
 
 
+def test_the_promise_holds_for_a_value_whose_repr_raises_something_else() -> None:
+    """The previous test passes for the wrong reason on its own: the exception ``repr``
+    raises there happens to be a ``ValueError``, which a narrow ``except`` would also have
+    caught. ``format_coord``'s error message interpolates ``{value!r}``, so an object whose
+    ``__repr__`` raises anything at all escapes a narrow clause — and the promise this
+    function makes is "never raises", not "never raises ValueError"."""
+
+    class Unreportable:
+        def __repr__(self) -> str:
+            raise RuntimeError("repr blew up")
+
+        def __float__(self) -> float:
+            raise ValueError("not a number either")
+
+    assert number(Unreportable()) == "an unreportable value"
+
+
+def test_a_number_too_long_to_read_out_is_spoken_in_scientific_notation() -> None:
+    """``1e308`` as a decimal literal is 309 digits, every one of which a screen reader
+    reads. It is also what made the documented ceiling wrong before this existed."""
+    assert number(1e308) == "1e+308"
+    assert number(-1e308) == "-1e+308"
+
+
+def test_a_number_that_fits_is_left_as_the_literal_the_chart_draws() -> None:
+    """The bound must not reach ordinary values: a description that said ``1.23457e+09``
+    where the axis says ``1234567890`` would disagree with the chart."""
+    assert number(1234567890.0) == "1234567890"
+    assert number(0.123509) == "0.123509"
+    assert number(-3.848182) == "-3.848182"
+
+
+def test_the_scientific_form_only_starts_past_the_documented_length() -> None:
+    assert len(number(10.0 ** (MAX_NUMBER_CHARS - 2))) == MAX_NUMBER_CHARS - 1
+    assert "e+" in number(10.0**MAX_NUMBER_CHARS)
+
+
+def test_an_empty_name_is_not_a_name_worth_reading_out() -> None:
+    assert fits("") is False
+    assert fits("ok") is True
+
+
 def test_midnight_is_dropped_but_one_microsecond_past_it_is_not() -> None:
     assert moment(datetime(2024, 1, 1)) == "2024-01-01"
     assert moment(datetime(2024, 1, 1, 0, 0, 0, 1)) == "2024-01-01 00:00:00.000001"
@@ -471,19 +572,31 @@ def test_the_ordinary_data_figures_in_the_cap_docstring_still_hold() -> None:
     assert statistics.median(lengths) == 61.5
 
 
-def test_the_adversarial_ceiling_in_the_cap_docstring_still_holds() -> None:
-    """The same docstring quotes 264 characters as the longest ``heatmap`` sentence found
-    over name lengths 1-100 and counts 7-12,345. Re-run at a coarser grid that includes the
-    configuration that produced it, so a cap change that blows past the ceiling fails here.
-    """
-    longest = 0
-    for name_length in (1, 12, 60, 100):
-        for count in (7, 20, 12345):
+def test_the_sentence_grows_only_with_the_digits_of_its_counts() -> None:
+    """``MAX_NAME_CHARS``'s docstring gives a growth rate rather than a maximum, because
+    there is no maximum: the counts keep gaining digits. What has to hold is that *only*
+    the digits grow — ten times the data must cost about eight characters, not ten times
+    the characters. The measured points are pinned exactly, so a cap change fails here."""
+    measured = {}
+    for count in (7, 123, 1234):
+        longest = 0
+        for name_length in (1, 12, 60):
             names = [f"{'n' * name_length}{index}" for index in range(count)]
-            values = [float(index + 1) for index in range(count)]
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", sp.HeatmapSizeWarning)
-                described = desc_of(sp.heatmap({"x": names, "y": names, "v": values}, x="x", y="y", values="v"))
-            longest = max(longest, len(described))
+            # Value magnitude is varied too, and that is the point: an earlier version left
+            # it small, so a single unbounded value -- 1e308 is 309 digits as a decimal
+            # literal -- sat outside the ceiling this claimed to pin.
+            for values in (
+                [float(index + 1) for index in range(count)],
+                [1e308] * (count - 1) + [1e-308],
+                [-1e308, *(float(index) for index in range(count - 1))],
+            ):
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", sp.HeatmapSizeWarning)
+                    described = desc_of(sp.heatmap({"x": names, "y": names, "v": values}, x="x", y="y", values="v"))
+                longest = max(longest, len(described))
+        measured[count] = longest
 
-    assert longest == 264
+    assert measured == {7: 239, 123: 254, 1234: 262}
+    # 7 -> 1,234 is 2.25 ten-fold steps, so "about ten characters per step" bounds the
+    # whole span at 25. Linear growth in the data would blow past this by three orders.
+    assert measured[1234] - measured[7] <= 25
