@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 import warnings
+import xml.etree.ElementTree as ET
 from itertools import pairwise
 
 import pytest
@@ -39,13 +40,23 @@ def _font_size(svg: str) -> float:
 
 
 def _tick_rows(svg: str) -> list[tuple[float, float, str, str]]:
-    """Every tick label as ``(y, x, anchor, text)``."""
-    return [
-        (float(y), float(x), anchor, text)
-        for x, y, anchor, text in re.findall(
-            r'<text x="([\d.-]+)" y="([\d.]+)"[^>]*text-anchor="(\w+)"[^>]*class="tick-label"[^>]*>([^<]*)<', svg
-        )
-    ]
+    """Every tick label as ``(y, x, anchor, text)``.
+
+    Parsed, not pattern-matched. The regex this replaces required ``text-anchor`` to be
+    *present* and to come before ``class`` — so a label the code under test stopped anchoring
+    vanished from the detector rather than failing a test, which is the exact blindness the
+    rest of this file warns about. A missing anchor now reads as SVG's own default, ``start``,
+    and a label carrying a ``<title>`` child (which long ones do) is read through its children
+    rather than dropped by an ``[^<]*`` body.
+    """
+    root = ET.fromstring(svg)
+    rows = []
+    for node in root.iter():
+        if not node.tag.endswith("text") or "tick-label" not in (node.get("class") or "").split():
+            continue
+        text = ((node.text or "") + "".join(child.tail or "" for child in node)).strip()
+        rows.append((float(node.get("y")), float(node.get("x")), node.get("text-anchor", "start"), text))
+    return rows
 
 
 def _extent(position: float, anchor: str, width: float) -> tuple[float, float]:
@@ -96,18 +107,29 @@ def _right_aligned(svg: str) -> list[tuple[float, str]]:
 
 
 def _right_aligned_rows(svg: str) -> list[tuple[float, float, str]]:
-    """Left-axis labels with their y coordinate, for checking they do not stack."""
-    return [
-        (float(x), float(y), t)
-        for x, y, t in re.findall(
-            r'<text x="([\d.-]+)" y="([\d.]+)"[^>]*text-anchor="end"[^>]*class="tick-label"[^>]*>([^<]*)<', svg
-        )
-    ]
+    """Left-axis labels with their y coordinate, for checking they do not stack.
+
+    Selected by **position**, not by ``text-anchor="end"``. The anchor is something the code
+    under test chooses, and this helper is the only one the left-axis stacking check has — key
+    it off the anchor and a change to the anchor empties it silently.
+    """
+    rows = _tick_rows(svg)
+    if not rows:
+        return []
+    left_edge = min(x for _, x, _, _ in rows)
+    return [(x, y, text) for y, x, _, text in rows if x <= left_edge + 1.0]
 
 
 def _outside_the_canvas(svg: str) -> list[str]:
-    """Labels whose occupied extent leaves the canvas, on either axis."""
-    return [text for left, right, text in _bottom_labels(svg) + _left_labels(svg) if left < 0 or right > DEFAULT_WIDTH]
+    """Labels whose occupied extent leaves the canvas, on either axis.
+
+    Asserts it found labels at all first. Every caller of this spells its check
+    ``== []``, which an empty detector satisfies without looking at anything — the failure
+    mode that let two earlier rounds of this file pass while blind.
+    """
+    labels = _bottom_labels(svg) + _left_labels(svg)
+    assert labels, "detector found no tick labels at all"
+    return [text for left, right, text in labels if left < 0 or right > DEFAULT_WIDTH]
 
 
 def _overlapping(svg: str) -> list[tuple[str, str]]:
