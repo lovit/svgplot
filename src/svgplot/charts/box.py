@@ -5,7 +5,7 @@ from __future__ import annotations
 from svgplot._svg import SvgDocument
 from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._axes import fit_left_margin, fit_rotated_labels, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import (
     MARGIN_WITHOUT_LEGEND,
@@ -106,14 +106,19 @@ def boxplot(
     y_domain = apply_limit((min(all_low), max(all_high)), ylim)
 
     canvas_width, canvas_height = resolve_size(width, height)
+    fitted = fit_left_margin(
+        MARGIN_WITHOUT_LEGEND, y_domain, width=canvas_width, font_size=resolved_theme.tick_label_font_size
+    )
+    fitted, turn_labels = fit_rotated_labels(
+        fitted,
+        drawn_categories,
+        height=canvas_height,
+        plot_width=canvas_width - fitted[3] - fitted[1],
+        font_size=resolved_theme.tick_label_font_size,
+        tick_length=resolved_theme.tick_size,
+    )
     document, area = new_canvas(
-        fit_margin(
-            fit_left_margin(
-                MARGIN_WITHOUT_LEGEND, y_domain, width=canvas_width, font_size=resolved_theme.tick_label_font_size
-            ),
-            canvas_width,
-            canvas_height,
-        ),
+        fit_margin(fitted, canvas_width, canvas_height),
         width=canvas_width,
         height=canvas_height,
     )
@@ -127,6 +132,7 @@ def boxplot(
         tick_count=ticks_for(area.width, TICK_SPACING_X),
         tick_length=resolved_theme.tick_size,
         font_size=resolved_theme.tick_label_font_size,
+        rotate=turn_labels,
     )
     render_y_axis(
         document,

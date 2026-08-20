@@ -7,7 +7,7 @@ from collections.abc import Callable
 from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
 from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator, warn_rows_discarded
-from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._axes import fit_left_margin, fit_rotated_labels, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, group, number, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
@@ -174,17 +174,30 @@ def barplot(
     value_domain = apply_limit((0.0, value_max), xlim if orient == "h" else ylim)
 
     canvas_width, canvas_height = resolve_size(width, height)
+    fitted = fit_left_margin(
+        MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
+        drawn_categories if orient == "h" else value_domain,
+        width=canvas_width,
+        font_size=resolved_theme.tick_label_font_size,
+    )
+    # Only a vertical bar puts its categories on the bottom axis; a horizontal one puts values
+    # there, and a value label is never turned. The plot width is estimated from the margin
+    # settled so far, the same provisional move ``fit_left_margin`` makes for the same reason:
+    # the band a label must fit in is a share of a plot area that does not exist yet.
+    fitted, turn_labels = (
+        fit_rotated_labels(
+            fitted,
+            drawn_categories,
+            height=canvas_height,
+            plot_width=canvas_width - fitted[3] - fitted[1],
+            font_size=resolved_theme.tick_label_font_size,
+            tick_length=resolved_theme.tick_size,
+        )
+        if orient == "v"
+        else (fitted, False)
+    )
     document, area = new_canvas(
-        fit_margin(
-            fit_left_margin(
-                MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
-                drawn_categories if orient == "h" else value_domain,
-                width=canvas_width,
-                font_size=resolved_theme.tick_label_font_size,
-            ),
-            canvas_width,
-            canvas_height,
-        ),
+        fit_margin(fitted, canvas_width, canvas_height),
         width=canvas_width,
         height=canvas_height,
     )
@@ -202,6 +215,7 @@ def barplot(
             tick_count=ticks_for(area.width, TICK_SPACING_X),
             tick_length=resolved_theme.tick_size,
             font_size=resolved_theme.tick_label_font_size,
+            rotate=turn_labels,
         )
         render_y_axis(
             document,
