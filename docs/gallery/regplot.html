@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>regplot — svgplot</title>
+    <meta name="description" content="산점도 위에 최소제곱 적합선을 얹고, 부트스트랩으로 잡은 신뢰대역을 함께 그린다." />
+    <style>
+      :root {
+        --bg: #ffffff;
+        --fg: #16181d;
+        --muted: #5c6370;
+        --rule: #e3e6ea;
+        --accent: #1d4ed8;
+        --code-bg: #f4f5f7;
+        --figure-bg: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14161a;
+          --fg: #e8eaed;
+          --muted: #9aa1ac;
+          --rule: #2a2e35;
+          --accent: #7aa2f7;
+          --code-bg: #1d2027;
+          --figure-bg: #f7f8fa;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0 auto;
+        max-width: 52rem;
+        padding: 3rem 1.5rem 6rem;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+        line-height: 1.7;
+      }
+      a { color: var(--accent); }
+      nav { margin-bottom: 2.5rem; font-size: 0.9rem; color: var(--muted); }
+      h1 { margin: 0 0 0.35rem; font-size: 2rem; letter-spacing: -0.02em; }
+      h2 {
+        margin: 3rem 0 1rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--rule);
+        font-size: 1.1rem;
+      }
+      h3 { margin: 2.5rem 0 0.75rem; font-size: 1rem; }
+      .summary { margin: 0 0 1.75rem; color: var(--muted); font-size: 1.02rem; }
+      dl.meta { margin: 0 0 2rem; padding: 0.9rem 1.1rem; background: var(--code-bg); border-radius: 6px; }
+      dl.meta dt { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      dl.meta dd { margin: 0.15rem 0 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; }
+      dl.meta dd:last-child { margin-bottom: 0; }
+      pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
+      pre code { font-size: 0.84rem; line-height: 1.55; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
+         CSS does not reach inside it. That isolation is the point: two charts on one page
+         both define .series-1 with opposite rules, and inlining them would let the later
+         one restyle the earlier. */
+      figure { margin: 0 0 1rem; }
+      figure img {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        background: var(--figure-bg);
+        border: 1px solid var(--rule);
+        border-radius: 6px;
+      }
+      ul.notes { margin: 0; padding-left: 1.2rem; color: var(--muted); }
+      ul.notes li { margin-bottom: 0.3rem; }
+      ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
+      ul.index a { display: block; text-decoration: none; color: inherit; }
+      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
+      ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+      footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <nav><a href="../">svgplot</a> · <a href="./">갤러리</a></nav>
+    <h1>regplot</h1>
+    <p class="summary">산점도 위에 최소제곱 적합선을 얹고, 부트스트랩으로 잡은 신뢰대역을 함께 그린다.</p>
+    <dl class="meta">
+      <dt>데이터</dt>
+      <dd>x: 수치 · y: 수치 · x·y 가 모두 있는 행이 3개 이상 · hue 는 받지 않는다</dd>
+    </dl>
+    <h2>데이터</h2>
+    <pre><code>import random
+
+import svgplot as sp
+
+_rng = random.Random(17)
+_ad = [round(_rng.uniform(5, 95), 1) for _ in range(60)]
+SPEND = {
+    &quot;광고비&quot;: _ad,
+    &quot;문의수&quot;: [round(18 + 1.9 * value + _rng.gauss(0, 22), 1) for value in _ad],
+}</code></pre>
+    <h2>예시</h2>
+    <h3>기본 — 95% 신뢰대역과 산점도</h3>
+    <figure>
+      <img src="svg/regplot-1.svg" alt="기본 — 95% 신뢰대역과 산점도" />
+    </figure>
+    <pre><code>sp.regplot(SPEND, x=&quot;광고비&quot;, y=&quot;문의수&quot;)</code></pre>
+    <h3>ci=None 은 대역 없이 선만 그린다</h3>
+    <figure>
+      <img src="svg/regplot-2.svg" alt="ci=None 은 대역 없이 선만 그린다" />
+    </figure>
+    <pre><code>sp.regplot(SPEND, x=&quot;광고비&quot;, y=&quot;문의수&quot;, ci=None)</code></pre>
+    <h3>ci=0.99 는 대역을 넓힌다</h3>
+    <figure>
+      <img src="svg/regplot-3.svg" alt="ci=0.99 는 대역을 넓힌다" />
+    </figure>
+    <pre><code>sp.regplot(SPEND, x=&quot;광고비&quot;, y=&quot;문의수&quot;, ci=0.99)</code></pre>
+    <h3>scatter=False 는 점을 빼고 적합만 남긴다</h3>
+    <figure>
+      <img src="svg/regplot-4.svg" alt="scatter=False 는 점을 빼고 적합만 남긴다" />
+    </figure>
+    <pre><code>sp.regplot(SPEND, x=&quot;광고비&quot;, y=&quot;문의수&quot;, scatter=False)</code></pre>
+    <h2>메모</h2>
+    <ul class="notes">
+      <li>같은 데이터와 같은 seed= 면 SVG 가 바이트 단위로 같다. 부트스트랩은 지역 난수 생성기를 쓰고 seed 의 기본값이 0 이다.</li>
+      <li>ci=None 이면 부트스트랩 자체를 건너뛴다. 대역이 필요 없을 때 n_boot 만큼의 계산이 사라진다.</li>
+      <li>x·y 가 모두 있는 행이 3개 미만이면 거부한다. 점 둘로 그은 선에는 신뢰대역이 의미를 갖지 않는다.</li>
+      <li>hue= 가 없다. 그룹마다 적합을 따로 하려면 facet 으로 패널을 나눈다.</li>
+      <li>logistic·robust·lowess 적합은 범위 밖이다 — statsmodels 의존이 생기고, 이 패키지는 런타임 의존성을 두지 않는다.</li>
+    </ul>
+    <footer>
+      <a href="./">갤러리로</a> · <a href="https://github.com/lovit/svgplot/blob/main/gallery/examples/regplot.py">이 페이지의 예시 소스</a>
+    </footer>
+  </body>
+</html>

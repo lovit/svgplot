@@ -38,7 +38,6 @@ AWAITING_A_PAGE = {
     "gaugeplot",
     "heatmap",
     "radarplot",
-    "regplot",
     "sparkline",
     "treemap",
 }
