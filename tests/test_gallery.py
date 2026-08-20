@@ -35,7 +35,6 @@ from gallery.example import REQUIRED  # noqa: E402
 # line of this list; when it is empty the completeness check below becomes absolute and the
 # list should be deleted rather than left as an empty permanent escape hatch.
 AWAITING_A_PAGE = {
-    "areaplot",
     "boxplot",
     "ecdfplot",
     "gaugeplot",
