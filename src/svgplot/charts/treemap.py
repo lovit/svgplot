@@ -32,6 +32,7 @@ from svgplot.charts._layout import (
     new_canvas,
 )
 from svgplot.charts._legend import render_legend
+from svgplot.charts._textwidth import needs_full_text, truncate_to_width
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._columns import column_length, extract_columns
 from svgplot.data._missing import is_missing
@@ -248,9 +249,14 @@ def treemap(
             classes=[series_class],
         )
         if tile.width >= _MIN_LABEL_WIDTH and tile.height >= _MIN_LABEL_HEIGHT:
-            document.add_text(
+            # Centred in its tile, so a long label runs out both sides, over the neighbouring
+            # tiles and their labels. Measured before this, ``"W" * 40`` on a 196.7px tile
+            # rendered 415.3px wide and overran the tile by 218.6px -- 109.3px each side.
+            # A tile near the right edge takes that past the canvas as well.
+            shown = truncate_to_width(tile.label, resolved_theme.legend_font_size, tile.width)
+            label_node = document.add_text(
                 None,
-                tile.label,
+                shown,
                 tag="text",
                 attrib={
                     "x": format_coord(tile.x + tile.width / 2),
@@ -259,8 +265,17 @@ def treemap(
                 },
                 classes=["legend-text"],
             )
+            if shown != tile.label or needs_full_text(tile.label, resolved_theme.legend_font_size, tile.width):
+                document.add_text(label_node, tile.label, tag="title")
 
-    render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+    render_legend(
+        document,
+        legend_entries,
+        x=area.right + LEGEND_X_OFFSET,
+        y=area.top,
+        mark_style="fill",
+        font_size=resolved_theme.legend_font_size,
+    )
     # mark_style="outlined" (issue #62, landing concurrently) is the intended final
     # style here so tile seams stay visible; "fill" is the closest thing available today.
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")

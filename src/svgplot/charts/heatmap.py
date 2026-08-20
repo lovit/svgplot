@@ -259,6 +259,7 @@ def heatmap(
         x=area.right + LEGEND_X_OFFSET,
         y=area.top,
         mark_style="fill",
+        font_size=resolved_theme.legend_font_size,
     )
     # Only when there are annotations to colour: nine dead rules would be nine more lines
     # to read past in a chart a reader is meant to be able to hand-edit.
