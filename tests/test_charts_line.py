@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, time, timedelta
+import time as clock
+from datetime import UTC, date, datetime, time, timedelta
 from itertools import pairwise
 
 import pytest
 
 from svgplot.charts._axes import _time_format
 from svgplot.charts.line import lineplot
-from svgplot.scales import _SUB_MONTH_STEPS, TimeScale, _aligned_ticks, make_ticks
+from svgplot.scales import _MIN_TICKS, _SUB_MONTH_STEPS, TimeScale, _aligned_ticks, make_ticks
 
 SINGLE_SERIES = {"day": [1, 2, 3, 4, 5], "value": [10.0, 15.0, 7.0, 20.0, 12.0]}
 HUE_SERIES = {
@@ -469,7 +470,7 @@ def test_a_year_domain_too_wide_for_any_listed_step_stays_a_readable_number_of_t
     ticks -- the coarsest listed step, not the finest."""
     ticks = make_ticks(TimeScale((datetime(1000, 1, 1), datetime(9000, 1, 1)), (0.0, 700.0)))
 
-    assert 2 <= len(ticks) <= 12, len(ticks)
+    assert _MIN_TICKS <= len(ticks) <= 12, len(ticks)
 
 
 def test_the_last_hours_before_the_maximum_datetime_still_draw() -> None:
@@ -667,7 +668,6 @@ def test_a_label_names_the_instant_its_tick_stands_at(low: datetime, high: datet
 
     for tick in ticks:
         rendered = tick.strftime(fmt)
-        assert rendered == tick.strftime(fmt), rendered
         if "%Y" in fmt and "%d" not in fmt and "%m" in fmt:
             assert tick.day == 1, f"{rendered} names a month but stands at day {tick.day}"
         if fmt == "%Y":
@@ -704,3 +704,98 @@ def test_the_fixed_step_boundary_leaves_room_for_the_calendar_to_take_over() -> 
 
     assert _LONGEST_FIXED_SPAN >= 70 * 86400, "a span this short cannot yield three monthly ticks"
     assert _LONGEST_FIXED_SPAN <= 100 * 86400, "past this a chart of months should read in months"
+
+
+# ---------------------------------------------------------------------------
+# the local clock is not a number line
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("zone", "day", "missing"),
+    [
+        ("America/New_York", datetime(2024, 3, 10), "02:00"),
+        ("Europe/Berlin", datetime(2024, 3, 31), "02:00"),
+        ("Europe/London", datetime(2024, 3, 31), "01:00"),
+    ],
+)
+def test_no_two_ticks_land_on_one_pixel_across_a_spring_forward(
+    monkeypatch: pytest.MonkeyPatch, zone: str, day: datetime, missing: str
+) -> None:
+    """A spring-forward deletes an hour from the local clock, and the clock ladders step in
+    wall-clock time, so they will offer a tick at a time that does not happen. ``TimeScale``
+    then places it with ``.timestamp()``, which folds it onto the next real hour -- two
+    differently-labelled ticks at one pixel, which is worse than the duplicate *labels* this
+    whole change exists to remove. Measured before the fix: 15 of 288 domains collided in
+    New York, 15 in Berlin, 11 in London.
+    """
+    monkeypatch.setenv("TZ", zone)
+    clock.tzset()
+    scale = TimeScale((day, day + timedelta(hours=5)), (0.0, 700.0))
+    ticks = make_ticks(scale, count=5)
+
+    positions = [round(scale(tick), 6) for tick in ticks]
+    assert len(set(positions)) == len(positions), [(t.strftime("%H:%M"), p) for t, p in zip(ticks, positions, strict=True)]
+    assert missing not in [tick.strftime("%H:%M") for tick in ticks]
+    assert len(ticks) >= _MIN_TICKS
+
+
+def test_a_repeated_hour_in_autumn_is_left_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The mirror case, and the reason the filter tests for a *non-existent* time rather
+    than for "anything unusual": a fall-back hour happens twice, not never, so dropping it
+    would delete a tick that names a real instant."""
+    monkeypatch.setenv("TZ", "America/New_York")
+    clock.tzset()
+    day = datetime(2024, 11, 3)
+    scale = TimeScale((day, day + timedelta(hours=5)), (0.0, 700.0))
+    ticks = make_ticks(scale, count=5)
+
+    assert "01:00" in [tick.strftime("%H:%M") for tick in ticks]
+    positions = [round(scale(tick), 6) for tick in ticks]
+    assert len(set(positions)) == len(positions)
+
+
+@pytest.mark.parametrize("span_years", [261, 600, 1300])
+def test_a_wide_year_domain_keeps_a_readable_number_of_ticks(span_years: int) -> None:
+    """The year ladder has gaps in it (100, 250, 500, 1000), so "the first step that fits
+    under count" turns each gap into a cliff. Measured with that rule: 251-275, 501-725 and
+    1251-1475 year spans all came back with **two** ticks, which this module's own
+    ``_MIN_TICKS`` calls not an axis."""
+    low = datetime(2024, 1, 1)
+    ticks = make_ticks(TimeScale((low, low.replace(year=2024 + span_years)), (0.0, 700.0)), count=5)
+
+    assert _MIN_TICKS <= len(ticks) <= 12, [tick.year for tick in ticks]
+
+
+@pytest.mark.parametrize("days", list(range(1, 31)))
+def test_no_whole_day_span_up_to_a_month_degenerates(days: int) -> None:
+    """The three-day and four-day rungs exist for the gap between two days and one week.
+    Measured without them, at commit ``103e35e``: spans of 11, 12 and 13 whole days each
+    came back with two ticks. With them, no span in 1-30 does."""
+    low = datetime(2024, 1, 1)
+    ticks = make_ticks(TimeScale((low, low + timedelta(days=days)), (0.0, 700.0)), count=5)
+
+    assert len(ticks) >= _MIN_TICKS, [tick.isoformat() for tick in ticks]
+
+
+@pytest.mark.parametrize("zone", ["UTC", "Asia/Seoul", "America/Santiago"])
+def test_an_aware_column_reads_the_same_wherever_it_is_drawn(monkeypatch: pytest.MonkeyPatch, zone: str) -> None:
+    """``TimeScale``'s docstring tells a caller to pass aware values so the result does not
+    depend on where it runs. ``lineplot`` had made that untrue: it rebuilt the domain with
+    ``fromtimestamp``, which returns a naive *local* value, so the same UTC column labelled
+    00:00-12:00 under UTC, 10:00-20:00 under Asia/Seoul, and switched format entirely under
+    America/Santiago."""
+    monkeypatch.setenv("TZ", zone)
+    clock.tzset()
+    rows = [datetime(2024, 1, 1, tzinfo=UTC) + timedelta(hours=index) for index in range(13)]
+    svg = lineplot({"t": rows, "y": [float(index) for index in range(13)]}, x="t", y="y").to_string()
+
+    assert re.findall(r'class="tick-label"[^>]*>([^<]*)<', svg)[:7] == [
+        "00:00",
+        "02:00",
+        "04:00",
+        "06:00",
+        "08:00",
+        "10:00",
+        "12:00",
+    ]
