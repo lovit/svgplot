@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="32" viewBox="0 0 200 32" role="img" aria-label="Chart">
+  <rect x="0" y="0" width="200" height="32" class="plot-background" />
+  <path d="M 2,30 L 23.777778,25.968 L 45.555556,27.536 L 67.333333,19.92 L 89.111111,23.504 L 110.888889,16.112 L 132.666667,11.184 L 154.444444,14.096 L 176.222222,6.256 L 198,2" class="series-1" />
+  <style>.plot-background { fill: #ffffff; }
+.grid-line { stroke: #e0e0e0; stroke-width: 1; }
+.spine { stroke: #333333; stroke-width: 1; fill: none; }
+.tick-line { stroke: #333333; }
+.tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+.legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+.series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
+.series-1-marker { fill: #E69F00; stroke: none; }</style>
+  <title>Chart</title>
+  <desc>Sparkline, 10 points, values 120 to 245.</desc>
+</svg>

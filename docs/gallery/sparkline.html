@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>sparkline — svgplot</title>
+    <meta name="description" content="축도 범례도 라벨도 없는 120x24 미니 선. 문장 안이나 표의 셀에 넣으라고 있는 것이다." />
+    <style>
+      :root {
+        --bg: #ffffff;
+        --fg: #16181d;
+        --muted: #5c6370;
+        --rule: #e3e6ea;
+        --accent: #1d4ed8;
+        --code-bg: #f4f5f7;
+        --figure-bg: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14161a;
+          --fg: #e8eaed;
+          --muted: #9aa1ac;
+          --rule: #2a2e35;
+          --accent: #7aa2f7;
+          --code-bg: #1d2027;
+          --figure-bg: #f7f8fa;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0 auto;
+        max-width: 52rem;
+        padding: 3rem 1.5rem 6rem;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+        line-height: 1.7;
+      }
+      a { color: var(--accent); }
+      nav { margin-bottom: 2.5rem; font-size: 0.9rem; color: var(--muted); }
+      h1 { margin: 0 0 0.35rem; font-size: 2rem; letter-spacing: -0.02em; }
+      h2 {
+        margin: 3rem 0 1rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--rule);
+        font-size: 1.1rem;
+      }
+      h3 { margin: 2.5rem 0 0.75rem; font-size: 1rem; }
+      .summary { margin: 0 0 1.75rem; color: var(--muted); font-size: 1.02rem; }
+      dl.meta { margin: 0 0 2rem; padding: 0.9rem 1.1rem; background: var(--code-bg); border-radius: 6px; }
+      dl.meta dt { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      dl.meta dd { margin: 0.15rem 0 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; }
+      dl.meta dd:last-child { margin-bottom: 0; }
+      pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
+      pre code { font-size: 0.84rem; line-height: 1.55; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
+         CSS does not reach inside it. That isolation is the point: two charts on one page
+         both define .series-1 with opposite rules, and inlining them would let the later
+         one restyle the earlier. */
+      figure { margin: 0 0 1rem; }
+      figure img {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        background: var(--figure-bg);
+        border: 1px solid var(--rule);
+        border-radius: 6px;
+      }
+      ul.notes { margin: 0; padding-left: 1.2rem; color: var(--muted); }
+      ul.notes li { margin-bottom: 0.3rem; }
+      ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
+      ul.index a { display: block; text-decoration: none; color: inherit; }
+      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
+      ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+      footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <nav><a href="../">svgplot</a> · <a href="./">갤러리</a></nav>
+    <h1>sparkline</h1>
+    <p class="summary">축도 범례도 라벨도 없는 120x24 미니 선. 문장 안이나 표의 셀에 넣으라고 있는 것이다.</p>
+    <dl class="meta">
+      <dt>데이터</dt>
+      <dd>y: 수치 · x 는 받지 않는다(위치는 행 순서)</dd>
+    </dl>
+    <h2>데이터</h2>
+    <pre><code>import svgplot as sp
+
+WEEKLY = {&quot;방문&quot;: [120.0, 138.0, 131.0, 165.0, 149.0, 182.0, 204.0, 191.0, 226.0, 245.0]}
+DIPPING = {&quot;오류&quot;: [4.0, 6.0, 5.0, 9.0, 14.0, 11.0, 7.0, 5.0, 3.0, 2.0]}</code></pre>
+    <h2>예시</h2>
+    <h3>기본 — 120x24</h3>
+    <figure>
+      <img src="svg/sparkline-1.svg" alt="기본 — 120x24" />
+    </figure>
+    <pre><code>sp.sparkline(WEEKLY, y=&quot;방문&quot;)</code></pre>
+    <h3>같은 크기에 다른 모양</h3>
+    <figure>
+      <img src="svg/sparkline-2.svg" alt="같은 크기에 다른 모양" />
+    </figure>
+    <pre><code>sp.sparkline(DIPPING, y=&quot;오류&quot;)</code></pre>
+    <h3>width=/height= 로 크기를 바꾼다 — 여기서는 표의 셀에 맞춘 폭</h3>
+    <figure>
+      <img src="svg/sparkline-3.svg" alt="width=/height= 로 크기를 바꾼다 — 여기서는 표의 셀에 맞춘 폭" />
+    </figure>
+    <pre><code>sp.sparkline(WEEKLY, y=&quot;방문&quot;, width=200.0, height=32.0)</code></pre>
+    <h2>메모</h2>
+    <ul class="notes">
+      <li>x= 가 없다. 위치는 행 순서이고 정렬하지 않는다 — lineplot 이 x 로 정렬하는 것과 다르다.</li>
+      <li>축·눈금·범례·제목을 그리지 않는다. 값의 절대 크기가 아니라 모양을 보이는 차트이기 때문이다.</li>
+      <li>기본 캔버스가 120x24 라 16종 중 800x600 을 쓰지 않는 유일한 차트이고, 240x180 최소 크기 규칙에서도 면제된다.</li>
+      <li>width=/height= 는 None 이 아니라 수치 기본값을 갖는다. 비유한 값이나 2px 여백보다 작은 값은 인자 이름을 대고 거부한다.</li>
+    </ul>
+    <footer>
+      <a href="./">갤러리로</a> · <a href="https://github.com/lovit/svgplot/blob/main/gallery/examples/sparkline.py">이 페이지의 예시 소스</a>
+    </footer>
+  </body>
+</html>

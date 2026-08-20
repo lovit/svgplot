@@ -31,13 +31,6 @@ sys.path.insert(0, str(ROOT))
 from gallery.build import discover, write  # noqa: E402
 from gallery.example import REQUIRED  # noqa: E402
 
-# Charts that do not have a gallery page yet. Each of the sixteen chart issues empties one
-# line of this list; when it is empty the completeness check below becomes absolute and the
-# list should be deleted rather than left as an empty permanent escape hatch.
-AWAITING_A_PAGE = {
-    "sparkline",
-}
-
 
 def _chart_names() -> set[str]:
     """Every public chart function, taken from the package rather than from a list here."""
@@ -71,24 +64,19 @@ def test_the_committed_gallery_is_what_a_fresh_build_produces() -> None:
     assert not stale, f"committed gallery is stale -- run `uv run python -m gallery.build`: {stale}"
 
 
-def test_every_chart_has_a_gallery_page_or_is_listed_as_awaiting_one() -> None:
-    """A chart that ships without a page would simply be absent from the gallery, and absence
-    is invisible. The waiting list makes each gap a line someone has to delete on purpose."""
-    documented = {path.stem for path in _pages() if path.stem != "index"}
-    missing = _chart_names() - documented - AWAITING_A_PAGE
+def test_every_chart_has_a_gallery_page() -> None:
+    """A chart that ships without a page is simply absent from the gallery, and absence is
+    invisible -- nobody notices a chart that was never shown.
 
-    assert not missing, f"charts with no gallery page and not on the waiting list: {sorted(missing)}"
-
-
-def test_the_waiting_list_only_names_charts_that_exist() -> None:
-    """So a chart that gets a page, or gets renamed, cannot leave a stale line behind that
-    silently excuses a real gap later."""
+    Absolute now that all sixteen are documented. While the pages were landing one at a time
+    this allowed an explicit waiting list, and that list is gone rather than left empty: an
+    empty escape hatch is one somebody widens later without anyone deciding to."""
     documented = {path.stem for path in _pages() if path.stem != "index"}
 
-    assert not (
-        AWAITING_A_PAGE & documented
-    ), f"already documented but still on the waiting list: {sorted(AWAITING_A_PAGE & documented)}"
-    assert _chart_names() >= AWAITING_A_PAGE, f"not a chart: {sorted(AWAITING_A_PAGE - _chart_names())}"
+    assert _chart_names() == documented, (
+        f"charts with no gallery page: {sorted(_chart_names() - documented)}; "
+        f"pages for things that are not charts: {sorted(documented - _chart_names())}"
+    )
 
 
 @pytest.mark.parametrize("page", _pages(), ids=lambda path: path.name)
