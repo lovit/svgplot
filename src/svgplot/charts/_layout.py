@@ -141,7 +141,7 @@ def format_value_label(value: float) -> str:
 def new_canvas(margin: Margin) -> tuple[SvgDocument, PlotArea]:
     """A default-sized document with its background drawn, and the plot area inside ``margin``.
 
-    Sixteen charts opened with the same six lines and differed only in the margin. The
+    Fifteen charts opened with the same six lines and differed only in the margin. The
     background rect is the part worth centralising: it carries the ``plot-background`` class
     every theme styles, and a chart that forgot it would render on whatever the host page's
     background happens to be -- a difference nobody notices until the page is dark.

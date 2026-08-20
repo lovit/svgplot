@@ -62,7 +62,7 @@ def test_format_coord_formats_clean_literals() -> None:
 
 
 def test_a_new_canvas_carries_the_background_every_theme_styles() -> None:
-    """The part of the preamble worth centralising. Sixteen charts wrote these six lines and
+    """The part of the preamble worth centralising. Fifteen charts wrote these six lines and
     the background rect is the one a chart could plausibly forget -- nothing else breaks, the
     chart simply renders on whatever the host page's background happens to be, which nobody
     notices until the page is dark."""
