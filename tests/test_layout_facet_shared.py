@@ -23,6 +23,11 @@ SPLIT = {
 }
 
 
+def _widths(svg: str) -> list[set[str]]:
+    """Bar widths per panel -- the shape of the division, independent of how many bars filled."""
+    return [set(re.findall(r'<rect[^>]*width="([\d.]+)"[^>]*class="c\d+-series', panel)) for panel in _panels(svg)]
+
+
 def _panels(svg: str) -> list[str]:
     return re.split(r"(?=<svg x=)", svg)[1:]
 
@@ -737,3 +742,47 @@ def test_a_division_is_shared_only_when_every_panel_has_one() -> None:
         return sp.lineplot(group, x="x", y="y", **kwargs)  # type: ignore[arg-type]
 
     assert sp.facet(mixed, data, col="g").to_string().count("<svg") > 1
+
+
+def test_a_keyword_bound_to_the_panel_function_counts_as_the_callers_own() -> None:
+    """``functools.partial(histplot, bins=4)`` states ``bins`` exactly as firmly as
+    ``facet(..., bins=4)``. Reading only the latter let the shared bin *width* be re-derived
+    into 182 divisions -- the substitution ``_may_override``'s own docstring calls "both a
+    surprise and a regression", reached by writing the same intent a different way."""
+    import functools
+
+    data = {"v": [1.0, 2.0, 3.0, 4.0, 90.0, 90.5, 91.0, 92.0], "g": ["a"] * 4 + ["b"] * 4}
+    through_partial = sp.facet(functools.partial(sp.histplot, x="v", bins=4), data, col="g").to_string()
+    through_facet = sp.facet(sp.histplot, data, col="g", x="v", bins=4).to_string()
+
+    assert _widths(through_partial) == _widths(through_facet)
+
+
+def test_a_panel_function_with_positional_only_parameters_is_still_called() -> None:
+    """Naming a positional-only parameter is ``TypeError: got some positional-only arguments
+    passed as keyword``, which is the same failure filtering by signature exists to prevent --
+    so the filter has to look at the *kind* and not only at the name."""
+
+    def positional_only(group: object, xlim: object = None, ylim: object = None, /) -> object:
+        return sp.lineplot(group, x="x", y="y")  # type: ignore[arg-type]
+
+    assert sp.facet(positional_only, SPLIT, col="g").to_string().count("<svg") > 1
+
+
+def test_a_panel_function_wrapped_without_functools_wraps_is_still_called() -> None:
+    """A decorator that forwards ``*args, **kwargs`` reports a signature of ``**kwargs``, so
+    everything is passed through -- and the strict function underneath rejects it. Charts are
+    commonly wrapped this way for theming."""
+
+    def adapter(fn: object) -> object:
+        def inner(*args: object, **kwargs: object) -> object:
+            return fn(*args, **kwargs)  # type: ignore[operator]
+
+        return inner
+
+    @adapter
+    def strict(group: object) -> object:
+        return sp.lineplot(group, x="x", y="y")  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        sp.facet(strict, SPLIT, col="g")
