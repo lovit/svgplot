@@ -145,7 +145,7 @@ def _bottom_anchor(text: str, x: float, font_size: float, width: float) -> str:
     return "middle"
 
 
-def _shown_label(scale: Scale, tick: object, available: float, font_size: float) -> tuple[str, bool]:
+def _shown_label(scale: Scale, tick: object, available: float, font_size: float, time_format: str) -> tuple[str, bool]:
     """The label to draw and whether the full text has to be kept beside it.
 
     A **category** label is a name, so it is cut to the room it has. A tick label on a numeric
@@ -153,18 +153,96 @@ def _shown_label(scale: Scale, tick: object, available: float, font_size: float)
     something false, and no ``<title>`` repairs a reader who believed the axis. Those are left
     whole and given room instead -- see :func:`fit_left_margin`.
     """
-    text = _tick_label_text(scale, tick)
+    text = _tick_label_text(scale, tick, time_format=time_format)
     if not isinstance(scale, CategoricalScale):
         return text, False
     shown = truncate_to_width(text, font_size, available)
     return shown, shown != text or needs_full_text(text, font_size, available)
 
 
-def _tick_label_text(scale: Scale, tick: object) -> str:
+_DATE_FORMATS = ("%Y", "%Y-%m", "%Y-%m-%d", "%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S")
+"""Time-axis label formats for a domain spanning a day or more, coarsest first."""
+
+_CLOCK_FORMATS = ("%H:%M", "%H:%M:%S", "%H:%M:%S.%f")
+"""The same for ticks that all fall on one calendar date, where repeating that date on every
+tick would spend the axis' width on a date the reader can only read once.
+
+One date, not one day's worth of hours: ticks running 12:00, 18:00, 00:00, 06:00 span
+eighteen hours but two dates, and dropping the date there leaves a reader to guess which
+midnight ``00:00`` is."""
+
+
+_MUST_BE_ZERO = {
+    "%Y": ("month", "day", "hour", "minute", "second", "microsecond"),
+    "%Y-%m": ("day", "hour", "minute", "second", "microsecond"),
+    "%Y-%m-%d": ("hour", "minute", "second", "microsecond"),
+    "%Y-%m-%d %H:%M": ("second", "microsecond"),
+    "%Y-%m-%d %H:%M:%S": ("microsecond",),
+    "%H:%M": ("second", "microsecond"),
+    "%H:%M:%S": ("microsecond",),
+    "%H:%M:%S.%f": (),
+}
+"""The fields each format hides, and therefore the fields a tick must not carry to use it.
+
+``month``/``day`` count from 1, so "zero" means 1 for those two -- a year label is honest only
+about 1 January."""
+
+
+def _keeps_every_field(tick: datetime, fmt: str) -> bool:
+    """Whether ``fmt`` hides nothing ``tick`` actually carries.
+
+    ``%Y`` on a tick at 29 December reads "2025", which is a fact about the year and a lie
+    about the tick -- and the reader has no way to tell, because the axis looks tidy. Round-
+    tripping through ``strptime`` cannot express this, since a clock format carries no date at
+    all and would never round-trip; what matters is only that the hidden fields are empty.
+    """
+    return all(getattr(tick, field) == (1 if field in ("month", "day") else 0) for field in _MUST_BE_ZERO[fmt])
+
+
+def _time_format(ticks: list[datetime], domain: tuple[datetime, datetime]) -> str:
+    """The coarsest format that still tells the ticks apart.
+
+    A fixed ``"%Y-%m-%d"`` is right for a domain of months and wrong either way outside it.
+    Measured on a three-hour domain it labelled all five ticks ``2024-01-01``; on a three-year
+    domain it spent eleven characters on a day nobody asked about. Both are the same bug --
+    the resolution has to come from the domain, which is what matplotlib's locator/formatter
+    pair does and what this is the small version of.
+
+    Choosing by *distinctness* rather than by a span-to-format table is what makes the "no
+    duplicate labels" property hold rather than be approximated: a table has to guess how many
+    ticks will land in a span, and the ticks are right there.
+    """
+    # The *domain*, not the ticks. A domain spanning two weeks that happens to receive one
+    # tick has one tick date, and choosing by the ticks then dropped the date from a label
+    # standing for thirteen days -- ``00:00``, with the year nowhere in the file.
+    ladder = _CLOCK_FORMATS if domain[0].date() == domain[1].date() else _DATE_FORMATS
+    for candidate in ladder:
+        # Three conditions, and the third is the one that keeps a label honest.
+        #
+        # Telling the *ticks* apart is not enough: a single tick is distinguished by every
+        # format including ``%Y``, so an eleven-day axis came out labelled "2024". Telling the
+        # *domain's ends* apart is not enough either: both ends of a thirty-six-day span
+        # across New Year differ under ``%Y``, and the axis came out ``["2025", "2026"]`` with
+        # its first tick standing at 29 December. A label has to be a truthful truncation of
+        # the tick it names -- ``%Y`` only where every tick really is 1 January at midnight.
+        if (
+            len({tick.strftime(candidate) for tick in ticks}) == len(ticks)
+            and (domain[0].strftime(candidate) != domain[1].strftime(candidate) or domain[0] == domain[1])
+            and all(_keeps_every_field(tick, candidate) for tick in ticks)
+        ):
+            return candidate
+    # Reaching here means no format in the ladder both separates the ticks and resolves the
+    # domain. The date ladder stops at seconds, so two ticks less than a second apart on a
+    # multi-date domain would land here -- ``make_ticks`` does not produce that, but the
+    # finest format showing the most it can beats raising.
+    return ladder[-1]
+
+
+def _tick_label_text(scale: Scale, tick: object, *, time_format: str) -> str:
     if isinstance(scale, CategoricalScale):
         return str(tick)
     if isinstance(tick, datetime):
-        return tick.strftime("%Y-%m-%d")
+        return tick.strftime(time_format)
     return format_coord(float(tick))
 
 
@@ -197,6 +275,7 @@ def render_x_axis(
     )
     label_offset = tick_length + _TICK_LABEL_OFFSET
     ticks = make_ticks(scale, count=tick_count)
+    time_format = _time_format(ticks, scale.domain) if ticks and isinstance(ticks[0], datetime) else ""
     # A bottom label spreads sideways from its tick, so what it needs is its own width -- the
     # band on a categorical axis, and on an axis of values the widest label, which cannot be
     # shortened and so has nothing else to give.
@@ -210,7 +289,9 @@ def render_x_axis(
     needed = (
         _MIN_LABEL_WIDTH_EMS * font_size
         if isinstance(scale, CategoricalScale)
-        else 1.5 * max((text_width(_tick_label_text(scale, tick), font_size) for tick in ticks), default=0.0) + font_size / 2
+        else 1.5
+        * max((text_width(_tick_label_text(scale, tick, time_format=time_format), font_size) for tick in ticks), default=0.0)
+        + font_size / 2
     )
     stride = _label_stride([_tick_position(scale, tick) for tick in ticks], needed)
     for index, tick in enumerate(ticks):
@@ -247,7 +328,7 @@ def render_x_axis(
         if index % stride:
             continue
         room = max(getattr(scale, "bandwidth", 0.0) * stride - font_size / 2, 0.0)
-        shown, keep_full = _shown_label(scale, tick, room, font_size)
+        shown, keep_full = _shown_label(scale, tick, room, font_size, time_format)
         node = document.add_text(
             None,
             shown,
@@ -262,7 +343,7 @@ def render_x_axis(
             classes=["tick-label"],
         )
         if keep_full:
-            document.add_text(node, _tick_label_text(scale, tick), tag="title")
+            document.add_text(node, _tick_label_text(scale, tick, time_format=time_format), tag="title")
 
 
 def render_y_axis(
@@ -294,6 +375,7 @@ def render_y_axis(
     )
     label_x_offset = tick_length + 2
     ticks = make_ticks(scale, count=tick_count)
+    time_format = _time_format(ticks, scale.domain) if ticks and isinstance(ticks[0], datetime) else ""
     # A left label stacks, so what it needs is a line box rather than its own width. Nothing
     # thinned this axis at all: a horizontal bar chart of 53 categories put its labels 9.81px
     # apart at a 10px font, and every one of them overlapped its neighbour.
@@ -331,7 +413,7 @@ def render_y_axis(
         # Right-aligned at the axis, so a label grows leftwards into the margin and then off
         # the canvas into negative coordinates. Measured on ``main``, a horizontal bar chart's
         # longest category label started at x=-83.7.
-        shown, keep_full = _shown_label(scale, tick, area.left - label_x_offset, font_size)
+        shown, keep_full = _shown_label(scale, tick, area.left - label_x_offset, font_size, time_format)
         node = document.add_text(
             None,
             shown,
@@ -344,7 +426,7 @@ def render_y_axis(
             classes=["tick-label"],
         )
         if keep_full:
-            document.add_text(node, _tick_label_text(scale, tick), tag="title")
+            document.add_text(node, _tick_label_text(scale, tick, time_format=time_format), tag="title")
 
 
 def fit_left_margin(
@@ -380,7 +462,9 @@ def fit_left_margin(
     ticks = make_ticks(scale, count=tick_count)
     if not ticks:
         return top, right, bottom, left
-    widest = max(text_width(_tick_label_text(scale, tick), font_size) for tick in ticks)
+    # ``fit_left_margin`` builds its own scale from a domain, never a time one, so there is
+    # no format to choose here -- the ticks are categories or numbers.
+    widest = max(text_width(_tick_label_text(scale, tick, time_format=""), font_size) for tick in ticks)
     needed = widest + _Y_LABEL_GUTTER
     # ``max(left, ...)`` outermost: the cap applies to the *candidate*, not to the result, so
     # this function widens and never narrows. Clamping the result instead let a small canvas

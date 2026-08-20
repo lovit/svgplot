@@ -12,7 +12,7 @@ reuse rather than duplicate.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime
 
 from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
@@ -39,8 +39,80 @@ from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
 
-def _numeric_x(value: object) -> float:
-    return value.timestamp() if isinstance(value, datetime) else float(value)
+def _as_datetime(value: date) -> datetime:
+    """A ``date`` promoted to midnight, a ``datetime`` unchanged.
+
+    ``datetime`` is a subclass of ``date``, which is why the check reads this way round and
+    why ``isinstance(value, datetime)`` alone silently missed every plain ``date`` -- the
+    commonest thing a CSV or a pandas column holds. The two mix freely in one column for the
+    same reason: promoting is lossless, and a column of dates with one timestamp in it is a
+    real shape, not a mistake worth refusing.
+    """
+    return value if isinstance(value, datetime) else datetime(value.year, value.month, value.day)
+
+
+def _is_time_axis(values: list[object], column: str) -> bool:
+    """Whether ``column`` holds dates, and therefore wants a time axis.
+
+    Returns ``bool`` rather than the promoted values because nothing needs them: the domain
+    is computed by :func:`_numeric_x`, which promotes as it goes. An earlier version built
+    and returned a ``list[datetime]`` that every caller threw away.
+
+    Raises:
+        ValueError: if the column mixes dates with values that are *numbers*. Anything else
+            mixed in -- a ``str``, a ``time`` -- is refused earlier, by :func:`_numeric_x`
+            during the sort, and reported by type rather than as a mixture. Both messages
+            name the column, which is the part that matters.
+
+            Also if the column mixes timezone-aware and naive datetimes. That is a different
+            mixture from ``date`` with ``datetime``, which stays welcome because promoting a
+            date to midnight is lossless -- here there is nothing to promote to. Python
+            refuses to compare the two, and an axis has to: it needs a smallest and a largest.
+            The previous code did not refuse, it *rounded them all off* -- the domain went
+            through ``fromtimestamp``, which reads every aware value in the drawing machine's
+            local time and silently answers a different question.
+    """
+    dated = [value for value in values if isinstance(value, date)]
+    if not dated:
+        return False
+    if len(dated) != len(values):
+        others = sorted({type(value).__name__ for value in values if not isinstance(value, date)})
+        raise ValueError(f"column {column!r} mixes dates with {', '.join(others)}; a time axis needs dates throughout")
+    aware = {isinstance(value, datetime) and value.tzinfo is not None for value in dated}
+    if len(aware) > 1:
+        raise ValueError(
+            f"column {column!r} mixes timezone-aware and naive datetimes; "
+            "a time axis has to compare them and Python does not define that comparison"
+        )
+    return True
+
+
+def _numeric_x(value: object, column: str) -> float:
+    """``value`` as a number the x axis can position, or a ``ValueError`` naming the column.
+
+    The column name is threaded through rather than added by the caller because the first
+    call happens while *sorting*, before the chart has looked at the domain -- so a bad value
+    surfaced as ``TypeError: float() argument must be a string or a real number, not
+    'datetime.time'``, from inside a ``sorted`` key, naming neither the column nor what to do
+    about it.
+    """
+    if isinstance(value, date):
+        try:
+            return _as_datetime(value).timestamp()
+        except (OverflowError, ValueError, OSError):
+            # ``timestamp()`` probes around the value to resolve the local offset, so the ends
+            # of the representable range are unreachable whatever this package does. Which end
+            # depends on the running zone -- the first minutes after ``datetime.min`` fail
+            # everywhere, the last before ``datetime.max`` only east of UTC. A raw "year 10000
+            # is out of range" names neither the column nor the reason, and naming one end
+            # points at the wrong one for half the failures.
+            raise ValueError(
+                f"column {column!r} holds {value!r}, which is outside the range timestamp() can place on a time axis"
+            ) from None
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise ValueError(f"column {column!r} holds {type(value).__name__}, which has no position on an x axis") from None
 
 
 def _series_points(
@@ -72,7 +144,7 @@ def _series_points(
         for xv, yv in points:
             groups.setdefault(xv, []).append(yv)
         points = [(xv, apply_estimator(estimate, values, group=str(xv))) for xv, values in groups.items()]
-    return sorted(points, key=lambda point: _numeric_x(point[0]))
+    return sorted(points, key=lambda point: _numeric_x(point[0], x))
 
 
 def _path_data(xs: list[float], ys: list[float]) -> str:
@@ -99,9 +171,16 @@ def lineplot(
     """Draw a line chart from long-form data.
 
     With ``hue=``, one line per distinct hue value is drawn (colors cycling
-    through the theme's palette) with an auto-generated legend. Datetime ``x``
-    values automatically use a time axis (``scales.TimeScale``) instead of a
-    linear one. ``interpolate="linear"`` (the default) connects the raw points
+    through the theme's palette) with an auto-generated legend.
+
+    An ``x`` column of ``datetime.date`` or ``datetime.datetime`` values automatically uses a
+    time axis (``scales.TimeScale``) instead of a linear one, and its tick labels take their
+    resolution from the domain -- clock time inside a day, dates across days, year-month
+    across months, years beyond that. A ``date`` is read as midnight, and a column holding
+    both kinds is promoted the same way rather than refused: promoting is lossless, and a
+    column of dates with one timestamp in it is an ordinary shape.
+
+    ``interpolate="linear"`` (the default) connects the raw points
     with straight segments; any other value is passed to
     ``stats.interpolate.interpolate`` as its ``method=`` (e.g. ``"cubic"``) to
     smooth the line — see that function for the full set of supported methods
@@ -124,7 +203,18 @@ def lineplot(
     contradiction that keeps ``info=`` off ``barplot``/``areaplot``/``boxplot``/``histplot``
     in the first place.
 
+    A tick label is always an exact truncation of the instant its tick stands at, with one
+    documented exception: inside a single day the clock formats (``%H:%M`` and finer) hide
+    the year, month and day the tick also carries, so **a chart whose domain falls inside a
+    single calendar day carries no date anywhere in its output**. That is a real limit for a figure meant to be
+    pasted into a document and read away from its caption; naming the date once on the axis
+    is left to a later change rather than guessed at here.
+
     Raises:
+        ValueError: if ``x`` holds a type with no position on an axis (``datetime.time`` is
+            a time of day with no day, so two values a week apart are the same point), if it
+            mixes dates with numbers, or if a value sits too close to ``datetime.max`` for
+            ``timestamp()`` to place. Every one of these names the column.
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
             is a string that isn't a registered preset name.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
@@ -153,8 +243,15 @@ def lineplot(
     all_y = [point[1] for _, points in series_points for point in points]
     if not all_x:
         raise ValueError("no rows with both x and y present after dropping missing values")
-    is_time = isinstance(all_x[0], datetime)
-    numeric_x_domain = (min(_numeric_x(v) for v in all_x), max(_numeric_x(v) for v in all_x))
+    is_time = _is_time_axis(all_x, x)
+    numeric_x_domain = (min(_numeric_x(v, x) for v in all_x), max(_numeric_x(v, x) for v in all_x))
+    # The tick axis is built from the *original* datetimes, not from these numbers rebuilt
+    # by ``fromtimestamp``. That round trip returns a naive local value, so an aware column
+    # lost its offset and every label became a reading of whichever machine drew the chart:
+    # the same UTC data labelled 00:00-12:00 under TZ=UTC, 10:00-20:00 under Asia/Seoul, and
+    # switched format entirely under America/Santiago. ``TimeScale``'s own docstring tells a
+    # caller to pass aware values for exactly that reason, which this path had made untrue.
+    time_domain = (min(all_x, key=lambda value: _numeric_x(value, x)), max(all_x, key=lambda value: _numeric_x(value, x)))
     y_domain = (min(all_y), max(all_y))
     numeric_x_domain = apply_limit(numeric_x_domain, xlim)
     y_domain = apply_limit(y_domain, ylim)
@@ -174,9 +271,7 @@ def lineplot(
     pixel_x_scale = LinearScale(numeric_x_domain, (area.left, area.right))
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
     tick_x_scale = (
-        TimeScale(
-            (datetime.fromtimestamp(numeric_x_domain[0]), datetime.fromtimestamp(numeric_x_domain[1])), (area.left, area.right)
-        )
+        TimeScale((_as_datetime(time_domain[0]), _as_datetime(time_domain[1])), (area.left, area.right))
         if is_time
         else pixel_x_scale
     )
@@ -193,7 +288,7 @@ def lineplot(
         series_class = document.semantic_class("series")
         series_classes.append(series_class)
         if points:
-            raw_x = [_numeric_x(px) for px, _ in points]
+            raw_x = [_numeric_x(px, x) for px, _ in points]
             raw_y = [py for _, py in points]
             if interpolate == "linear":
                 curve_x, curve_y = raw_x, raw_y
