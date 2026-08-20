@@ -203,3 +203,33 @@ def test_ticks_inside_one_decade_are_round_leading_digits() -> None:
 
     assert ticks == [1.0, 3.0, 10.0]
     assert make_ticks(LogScale((1.0, 100.0), (0.0, 300.0)), count=5) == [1.0, 10.0, 100.0]
+
+
+def test_a_time_axis_refuses_a_log_scale_rather_than_taking_a_logarithm_of_the_epoch() -> None:
+    """It "worked" before this: a date column on a log x axis drew, showing the ratio between
+    two Unix timestamps -- a quantity that exists only because 1970 was picked as zero, and
+    that nobody plotting dates means. Dates before the epoch made it plainer by refusing with
+    a message about ``-631184400``, a number the caller never wrote."""
+    from datetime import date
+
+    modern = {"t": [date(2000, 1, 1), date(2010, 1, 1), date(2020, 1, 1)], "v": [1.0, 2.0, 3.0]}
+    ancient = {"t": [date(1950, 1, 1), date(1960, 1, 1), date(1969, 1, 1)], "v": [1.0, 2.0, 3.0]}
+
+    for data in (modern, ancient):
+        with pytest.raises(ValueError, match="which a log axis cannot show"):
+            sp.lineplot(data, x="t", y="v", xscale="log")
+
+    # The y axis is unaffected -- values are values whatever the x axis holds.
+    assert sp.lineplot({"t": [date(2000, 1, 1), date(2010, 1, 1)], "v": [1.0, 100.0]}, x="t", y="v", yscale="log")
+
+
+def test_facet_gives_every_panel_the_same_scale() -> None:
+    """``facet`` forwards the argument like any other, and panels that disagreed about their
+    scale would be the sharing bug the whole module exists to prevent, one level up."""
+    data = {"x": [1.0, 10.0, 100.0] * 2, "y": [1.0, 10.0, 100.0] * 2, "p": ["a"] * 3 + ["b"] * 3}
+
+    panels = [
+        _tick_texts(chart.to_string()) for chart in sp.facet(sp.lineplot, data, col="p", x="x", y="y", yscale="log").charts
+    ]
+
+    assert all({"1", "10", "100"} <= set(ticks) for ticks in panels)

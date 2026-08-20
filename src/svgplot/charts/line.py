@@ -271,8 +271,21 @@ def lineplot(
     # Once, and reused: a log x axis has to be told the values as well as the domain (a narrow
     # ``xlim`` can exclude a zero the chart still draws), and on a time axis these are the
     # timestamps rather than the datetimes.
+    resolved_xscale = resolve_axis_scale(xscale, parameter="xscale")
+    resolved_yscale = resolve_axis_scale(yscale, parameter="yscale")
     numeric_all_x = [_numeric_x(value, x) for value in all_x]
     numeric_x_domain = (min(numeric_all_x), max(numeric_all_x))
+    if is_time and resolved_xscale == "log":
+        # A logarithm of a Unix timestamp is not a quantity anyone means. It says the *ratio*
+        # between two instants is what the axis should show, and that ratio is an artefact of
+        # where the epoch happens to sit -- 2000 to 2020 reads as a factor of 1.6 only because
+        # 1970 was chosen as zero. Every date before the epoch is negative besides, so the
+        # alternative to refusing here is telling a caller who wrote 1950 about -631184400.
+        raise ValueError(
+            f"column {x!r} holds dates, which a log axis cannot show: the logarithm of a "
+            "timestamp measures a ratio to the 1970 epoch rather than anything in the data. "
+            "Use the default linear time axis."
+        )
     # The tick axis is built from the *original* datetimes, not from these numbers rebuilt
     # by ``fromtimestamp``. That round trip returns a naive local value, so an aware column
     # lost its offset and every label became a reading of whichever machine drew the chart:
@@ -287,8 +300,6 @@ def lineplot(
     # After the checks above, so a bad column still reports the chart's own error first.
     label_data = collect_label_data(data, info, required=(x, y, hue))
 
-    resolved_xscale = resolve_axis_scale(xscale, parameter="xscale")
-    resolved_yscale = resolve_axis_scale(yscale, parameter="yscale")
     canvas_width, canvas_height = resolve_size(width, height)
     document, area = new_canvas(
         fit_margin(
