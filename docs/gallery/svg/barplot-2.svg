@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Chart">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="640" y2="550" class="spine" />
+  <line x1="132.5" y1="30" x2="132.5" y2="550" class="grid-line" />
+  <line x1="132.5" y1="550" x2="132.5" y2="554" class="tick-line" />
+  <text x="132.5" y="572" text-anchor="middle" class="tick-label">1분기</text>
+  <line x1="277.5" y1="30" x2="277.5" y2="550" class="grid-line" />
+  <line x1="277.5" y1="550" x2="277.5" y2="554" class="tick-line" />
+  <text x="277.5" y="572" text-anchor="middle" class="tick-label">2분기</text>
+  <line x1="422.5" y1="30" x2="422.5" y2="550" class="grid-line" />
+  <line x1="422.5" y1="550" x2="422.5" y2="554" class="tick-line" />
+  <text x="422.5" y="572" text-anchor="middle" class="tick-label">3분기</text>
+  <line x1="567.5" y1="30" x2="567.5" y2="550" class="grid-line" />
+  <line x1="567.5" y1="550" x2="567.5" y2="554" class="tick-line" />
+  <text x="567.5" y="572" text-anchor="middle" class="tick-label">4분기</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="550" x2="640" y2="550" class="grid-line" />
+  <line x1="56" y1="550" x2="60" y2="550" class="tick-line" />
+  <text x="54" y="554" text-anchor="end" class="tick-label">0</text>
+  <line x1="60" y1="402.272727" x2="640" y2="402.272727" class="grid-line" />
+  <line x1="56" y1="402.272727" x2="60" y2="402.272727" class="tick-line" />
+  <text x="54" y="406.272727" text-anchor="end" class="tick-label">50</text>
+  <line x1="60" y1="254.545455" x2="640" y2="254.545455" class="grid-line" />
+  <line x1="56" y1="254.545455" x2="60" y2="254.545455" class="tick-line" />
+  <text x="54" y="258.545455" text-anchor="end" class="tick-label">100</text>
+  <line x1="60" y1="106.818182" x2="640" y2="106.818182" class="grid-line" />
+  <line x1="56" y1="106.818182" x2="60" y2="106.818182" class="tick-line" />
+  <text x="54" y="110.818182" text-anchor="end" class="tick-label">150</text>
+  <rect x="77.4" y="301.818182" width="52.2" height="248.181818" class="series-1" />
+  <rect x="222.4" y="278.181818" width="52.2" height="271.818182" class="series-1" />
+  <rect x="367.4" y="225" width="52.2" height="325" class="series-1" />
+  <rect x="512.4" y="162.954545" width="52.2" height="387.045455" class="series-1" />
+  <rect x="135.4" y="195.454545" width="52.2" height="354.545455" class="series-2" />
+  <rect x="280.4" y="121.590909" width="52.2" height="428.409091" class="series-2" />
+  <rect x="425.4" y="260.454545" width="52.2" height="289.545455" class="series-2" />
+  <rect x="570.4" y="30" width="52.2" height="520" class="series-2" />
+  <rect x="660" y="25" width="16" height="10" class="series-1" />
+  <text x="682" y="34" class="legend-text">오프라인</text>
+  <rect x="660" y="45" width="16" height="10" class="series-2" />
+  <text x="682" y="54" class="legend-text">온라인</text>
+  <style>.plot-background { fill: #ffffff; }
+.grid-line { stroke: #e0e0e0; stroke-width: 1; }
+.spine { stroke: #333333; stroke-width: 1; fill: none; }
+.tick-line { stroke: #333333; }
+.tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+.legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+.series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+.series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
+  <title>Chart</title>
+  <desc>Bar chart, 4 categories (1분기, 2분기, 3분기, 4분기), 2 series (오프라인, 온라인), values 84 to 176.</desc>
+</svg>

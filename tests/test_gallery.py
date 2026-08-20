@@ -36,7 +36,6 @@ from gallery.example import REQUIRED  # noqa: E402
 # list should be deleted rather than left as an empty permanent escape hatch.
 AWAITING_A_PAGE = {
     "areaplot",
-    "barplot",
     "boxplot",
     "ecdfplot",
     "gaugeplot",
