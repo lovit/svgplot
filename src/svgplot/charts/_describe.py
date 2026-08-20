@@ -163,13 +163,21 @@ MAX_NUMBER_CHARS = 16
 
 ``format_coord`` writes a plain decimal literal, which is right for an SVG coordinate and
 wrong for a sentence: ``1e308`` becomes **309 digits**, and a screen reader reads every one
-of them. Sixteen characters covers everything the chart's own coordinates can be
-(``format_coord`` rounds to six decimals, so the widest ordinary value is a five-digit
-integer with a six-digit fraction) and turns anything past that into ``1e+308``.
+of them. Sixteen characters is where an ordinary data value stops and an unreadable one
+begins — a nine-digit integer with a six-digit fraction still fits, and everything past that
+is a magnitude rather than a number a listener can hold. It is not a claim about the chart's
+pixel coordinates, which are always small; it is about the *data*, which is the caller's.
 
-This is also what makes the ceiling in :data:`MAX_NAME_CHARS` a real bound rather than a
+This is also what makes the growth rate in :data:`MAX_NAME_CHARS` a real bound rather than a
 sample: without it the name caps hold but a single value can add 300 characters on its own,
-which a review found and which the earlier ceiling of 264 had missed."""
+which a review found and which the earlier ceiling of 264 had missed.
+
+**Known divergence from the axis.** Only the ``<desc>`` is bounded this way; a tick label and
+a ``heatmap`` annotation still go through ``format_coord`` directly, so at ``1e16`` this
+module says ``1e+16`` while the axis draws ``10000000000000000``. That is deliberate for now
+— the two texts have different jobs, one summarising a range for a listener and one labelling
+a position for a reader — but it is a divergence, and shortening what the *axis* draws is the
+axis-label work's call to make, not this module's."""
 
 
 def number(value: float) -> str:
