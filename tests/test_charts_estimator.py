@@ -414,7 +414,9 @@ def test_an_estimate_larger_than_every_raw_value_redefines_the_axis() -> None:
     bars = _bars(sp.barplot(data, x="x", y="y", estimator="sum").to_string())
 
     assert float(bars[0]["height"]) == pytest.approx(520.0)  # 140 fills the axis
-    assert float(bars[1]["height"]) / float(bars[0]["height"]) == pytest.approx(100.0 / 140.0)
+    # The y axis has to have followed. A ratio between the two bars would not show this --
+    # both are scaled by the same zero-based scale, so it holds whatever the axis top is.
+    assert "140" in sp.barplot(data, x="x", y="y", estimator="sum").to_string()
 
 
 def test_a_callable_returning_a_negative_value_is_still_refused_by_barplot() -> None:
@@ -439,6 +441,26 @@ def test_facet_forwards_the_estimator_to_every_panel() -> None:
         for chart in composed.charts
     ]
     assert values == [pytest.approx(15.0), pytest.approx(70.0)]
+
+
+def test_facet_carries_the_estimator_through_hue_as_well() -> None:
+    """``facet`` and ``hue=`` know nothing about each other, and the fold happens per
+    (panel, series, category). Each axis is pinned alone above; this is the three of them
+    together."""
+    data = {
+        "x": ["a", "a", "anchor"] * 4,
+        "y": [10.0, 20.0, 100.0, 60.0, 80.0, 100.0, 30.0, 50.0, 100.0, 10.0, 70.0, 100.0],
+        "g": ["north"] * 3 + ["south"] * 3 + ["north"] * 3 + ["south"] * 3,
+        "panel": ["p"] * 6 + ["q"] * 6,
+    }
+    composed = facet(sp.barplot, data, col="panel", x="x", y="y", hue="g", estimator="mean")
+
+    folded = []
+    for chart in composed.charts:
+        bars = _bars(chart.to_string(), legend=True)
+        ruler = float(bars[1]["height"]) / ANCHOR_VALUE  # each series' anchor bar
+        folded.append(round(float(bars[0]["height"]) / ruler, 6))
+    assert folded == [15.0, 40.0]
 
 
 def test_facet_warns_once_per_panel_when_it_forwards_no_estimator() -> None:
@@ -500,6 +522,8 @@ def test_a_bad_name_is_reported_before_any_rendering_happens() -> None:
     [
         (lambda values: None, "non-numeric"),
         (lambda values: True, "non-numeric"),
+        (lambda values: 1 + 2j, "non-numeric"),
+        (lambda values: [1.0], "non-numeric"),
         (lambda values: "12", "non-numeric"),
         (lambda values: float("nan"), "non-finite"),
         (lambda values: float("inf"), "non-finite"),
@@ -522,6 +546,34 @@ def test_a_callable_that_raises_keeps_its_own_message() -> None:
         sp.barplot(DUPLICATED, x="x", y="y", estimator=explode)
 
     assert isinstance(caught.value.__cause__, KeyError)
+
+
+def test_a_numpy_bool_is_refused_like_a_python_one() -> None:
+    """``numpy.bool_`` is not a ``bool`` subclass, so a rule that named ``bool`` left the
+    same mistake open through the one library a caller is most likely to be using --
+    ``estimator=lambda values: np.mean(values) > threshold`` returns exactly this."""
+    numpy = pytest.importorskip("numpy")
+
+    with pytest.raises(ValueError, match="non-numeric"):
+        sp.barplot(DUPLICATED, x="x", y="y", estimator=lambda values: numpy.True_)
+
+
+def test_a_numpy_float_is_accepted_like_a_python_one() -> None:
+    """The same rule must not shut out the numeric types it exists to admit."""
+    numpy = pytest.importorskip("numpy")
+    chart = sp.barplot(DUPLICATED, x="x", y="y", estimator=lambda values: numpy.float64(min(values)))
+
+    assert _bar_value(chart) == pytest.approx(10.0)
+
+
+def test_a_decimal_is_accepted() -> None:
+    """``Decimal`` is deliberately not registered as ``numbers.Real`` and is perfectly
+    plottable, so the rule names it rather than letting the abstraction decide."""
+    from decimal import Decimal
+
+    chart = sp.barplot(DUPLICATED, x="x", y="y", estimator=lambda values: Decimal(str(min(values))))
+
+    assert _bar_value(chart) == pytest.approx(10.0)
 
 
 def test_a_string_returned_that_python_would_coerce_is_still_refused() -> None:
