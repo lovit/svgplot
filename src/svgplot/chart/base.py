@@ -36,24 +36,72 @@ class Chart:
     is worse than a generic one — assistive tech would announce ``role="img"`` with
     no usable name at all (see ``accessibility.add_accessibility``)."""
 
+    DEFAULT_TABLE_ID = "svgplot-data-table"
+    """The id an ``info=`` table is referenced by. One page holding two charts with
+    ``info=`` needs two distinct ids — see :meth:`set_table_id`."""
+
     def __init__(self, svg_document: SvgDocument, labels: LabelData | None = None, *, description: str | None = None) -> None:
         self._svg_document = svg_document
         self._title: str | None = None
         self._palette: str | list[str] | None = None
         self._labels = labels
         self._description = description
+        self._table_id = self.DEFAULT_TABLE_ID
 
     def set_title(self, title: str) -> Chart:
         """Set the chart title. Returns self for chaining."""
         self._title = title
         return self
 
+    def set_table_id(self, table_id: str) -> Chart:
+        """Set the element id the ``info=`` table is published and referenced under.
+
+        The default, :attr:`DEFAULT_TABLE_ID`, is fine for one chart on a page. Two charts
+        with ``info=`` on the same page must not share it: duplicate ids make
+        ``aria-describedby`` resolve to whichever came first, so the second chart would be
+        described by the first chart's data. Returns self for chaining.
+
+        Raises:
+            ValueError: if ``table_id`` is empty or contains whitespace — an HTML id may
+                be almost anything, but not that, since whitespace in ``aria-describedby``
+                separates one id from the next.
+        """
+        if not table_id or any(character.isspace() for character in table_id):
+            raise ValueError(f"table_id must be a non-empty id with no whitespace: {table_id!r}")
+        self._table_id = table_id
+        return self
+
+    @property
+    def table_id(self) -> str | None:
+        """The id this chart's ``aria-describedby`` points at, or ``None`` when the chart
+        was built without ``info=`` and so has no table to point at."""
+        return self._table_id if self._labels is not None else None
+
+    def to_html_table(self) -> str | None:
+        """The ``info=`` table as an HTML ``<table>`` carrying :attr:`table_id`, or
+        ``None`` when the chart has no ``info=``.
+
+        This is the other half of ``aria-describedby``: the attribute is a reference into
+        the host document, so it resolves only where an element with that id exists. Emit
+        this next to :meth:`to_string`'s output in an HTML page and the reference holds;
+        emit the SVG alone and it is ignored, leaving the ``<desc>`` to describe the chart.
+
+        Not what ``.md`` output uses. A GitHub-flavored markdown table cannot carry an id,
+        so :meth:`to_markdown` keeps rendering one — and suppresses ``aria-describedby``
+        rather than emitting a reference that has nothing to resolve to.
+        """
+        if self._labels is None:
+            return None
+        return render_table(
+            self._labels.columns, self._labels.spec, format="html", missing=MISSING_TEXT, table_id=self._table_id
+        )
+
     def palette(self, spec: str | list[str]) -> Chart:
         """Override the color palette. Returns self for chaining."""
         self._palette = spec
         return self
 
-    def _accessible_document(self) -> SvgDocument:
+    def _accessible_document(self, *, describedby: bool = True) -> SvgDocument:
         """Return a copy of the document with role/aria/title/desc applied.
 
         A *copy*, because ``add_accessibility`` appends ``<title>``/``<desc>`` and is
@@ -68,9 +116,17 @@ class Chart:
         ``"   "`` reaches ``add_accessibility``'s empty-title ``ValueError``, which
         would then surface at ``save()`` time rather than at the ``set_title()`` call
         that caused it.
+
+        ``describedby=False`` is for the markdown path, whose table is GitHub-flavored and
+        so cannot carry the id the attribute would name — see :meth:`to_html_table`.
         """
         document = copy.deepcopy(self._svg_document)
-        add_accessibility(document, title=(self._title or "").strip() or self.DEFAULT_TITLE, desc=self._description)
+        add_accessibility(
+            document,
+            title=(self._title or "").strip() or self.DEFAULT_TITLE,
+            desc=self._description,
+            describedby=self.table_id if describedby else None,
+        )
         return document
 
     def to_string(self, *, pretty: bool = True) -> str:
@@ -91,7 +147,7 @@ class Chart:
                 ``info=`` cost a full pass over the data whether or not markdown is ever
                 asked for.
         """
-        return to_markdown(self._accessible_document(), self._label_table())
+        return to_markdown(self._accessible_document(describedby=False), self._label_table())
 
     def _label_table(self) -> str | None:
         """The footnote table to place under the chart, or ``None`` when the chart was
@@ -124,7 +180,11 @@ class Chart:
             ImportError: if the extension is ``.png`` and the ``png`` extra isn't installed.
         """
         suffix = Path(path).suffix.lower()
-        document = self._accessible_document()
+        # describedby only where the reference can resolve — the markdown path's table is
+        # GFM and cannot carry the id, so it gets a document without the attribute. Built
+        # before the suffix is dispatched on, as it always was, so an unrenderable title
+        # still reports itself ahead of an unsupported extension.
+        document = self._accessible_document(describedby=suffix not in MARKDOWN_SUFFIXES)
         if suffix == ".svg":
             save_svg(document, path)
         elif suffix == ".png":
@@ -138,5 +198,10 @@ class Chart:
             )
 
     def _repr_svg_(self) -> str:
-        """Jupyter rich display hook. See svgplot.output.jupyter."""
-        return repr_svg(self._accessible_document())
+        """Jupyter rich display hook. See svgplot.output.jupyter.
+
+        No ``aria-describedby``: this hook returns the SVG alone, and a notebook renders
+        it into a cell with no table beside it, so the reference would have nothing to
+        resolve to. A user who wants both writes :meth:`to_html_table` into its own cell.
+        """
+        return repr_svg(self._accessible_document(describedby=False))

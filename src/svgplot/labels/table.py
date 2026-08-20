@@ -116,7 +116,9 @@ def _escape_html_cell(text: str) -> str:
     return html.escape(_collapse_newlines(text), quote=True)
 
 
-def render_table(data: object, spec: LabelSpec, format: str = "markdown", *, missing: str | None = None) -> str:
+def render_table(
+    data: object, spec: LabelSpec, format: str = "markdown", *, missing: str | None = None, table_id: str | None = None
+) -> str:
     """Render ``spec`` applied to ``data`` as a footnote-style table (pygal's ``render_table`` precedent).
 
     Args:
@@ -130,14 +132,25 @@ def render_table(data: object, spec: LabelSpec, format: str = "markdown", *, mis
             caller hands this function a table's worth of data directly. Chart-driven
             tables pass :data:`MISSING_TEXT`, because they have already decided which rows
             to keep and a column the chart never consulted may legitimately have holes.
+        table_id: an ``id`` for the ``<table>`` element, so a chart's ``aria-describedby``
+            can point at it (see ``chart.base.Chart.to_html_table``). ``"markdown"`` has
+            nowhere to put one — a GFM table is rows of pipes, with no element to carry an
+            attribute — so passing it there is refused rather than dropped, which would
+            leave the caller with a reference that silently resolves to nothing.
 
     Raises:
-        ValueError: if ``format`` isn't one of :data:`TABLE_FORMATS`, or if ``missing``
-            is neither a string nor ``None``.
+        ValueError: if ``format`` isn't one of :data:`TABLE_FORMATS`, if ``missing``
+            is neither a string nor ``None``, if ``table_id`` is empty or contains
+            whitespace, or if ``table_id`` is given with ``format="markdown"``.
         KeyError: if a field named in ``spec`` isn't a column in ``data``.
     """
     if format not in TABLE_FORMATS:
         raise ValueError(f"unsupported table format: {format!r} (expected one of {TABLE_FORMATS})")
+    if table_id is not None:
+        if format != "html":
+            raise ValueError(f"table_id needs format='html'; a markdown table has no element to carry it: {table_id!r}")
+        if not table_id or any(character.isspace() for character in table_id):
+            raise ValueError(f"table_id must be a non-empty id with no whitespace: {table_id!r}")
     # Caught here rather than surfacing as an AttributeError from inside an escaper,
     # matching how ``format`` above is rejected.
     if missing is not None and not isinstance(missing, str):
@@ -161,14 +174,17 @@ def render_table(data: object, spec: LabelSpec, format: str = "markdown", *, mis
     rows = [[cell(field, columns[field.field][row_index]) for field in spec] for row_index in range(row_count)]
 
     if format == "html":
-        return _render_html(headers, rows)
+        return _render_html(headers, rows, table_id)
     return _render_markdown(headers, rows)
 
 
-def _render_html(headers: list[str], rows: list[list[str]]) -> str:
+def _render_html(headers: list[str], rows: list[list[str]], table_id: str | None = None) -> str:
     head_cells = "".join(f"<th>{_escape_html_cell(header)}</th>" for header in headers)
     body_rows = "".join("<tr>" + "".join(f"<td>{_escape_html_cell(cell)}</td>" for cell in row) + "</tr>" for row in rows)
-    return f"<table><thead><tr>{head_cells}</tr></thead><tbody>{body_rows}</tbody></table>"
+    # Escaped like a cell: an id reaches here from a caller, and an unescaped quote in it
+    # would close the attribute and let the rest be read as more markup.
+    identifier = f' id="{_escape_html_cell(table_id)}"' if table_id is not None else ""
+    return f"<table{identifier}><thead><tr>{head_cells}</tr></thead><tbody>{body_rows}</tbody></table>"
 
 
 def _render_markdown(headers: list[str], rows: list[list[str]]) -> str:
