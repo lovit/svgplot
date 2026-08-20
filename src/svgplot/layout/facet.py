@@ -15,11 +15,12 @@ same height while one means 3 and the other 300, and nothing on the page says so
 who does not check every axis reads it wrong, silently. seaborn's ``FacetGrid`` defaults
 both to ``True`` for the same reason.
 
-Sharing costs a second render: a panel's domain cannot be predicted from the input columns
-(``histplot``'s y is a bin count, ``kdeplot``'s a density), so the panels are drawn once to
-find out what they used and again against the union. See ``chart/_domain.py``. Measured at
-1.7x on six panels of 600 rows (2.7ms -> 4.5ms), and paid only when there is actually
-something to share -- one panel, or panels that record no domains, skip the second pass.
+Sharing costs extra renders: a panel's domain cannot be predicted from the input columns
+(``histplot``'s y is a bin count, ``kdeplot``'s a density), so the panels are drawn to find out
+what they used and again against the union. Three passes rather than two, because a binned
+chart's height is a consequence of its x division -- see ``_HORIZONTAL``. Measured at 2.4x on
+six panels of 600 rows (2.6ms -> 6.4ms), and paid only when there is actually something to
+share -- one panel, or panels that record no domains, skip the later passes.
 
 Charts that record no domains -- ``pieplot``, ``treemap``, ``gaugeplot``, ``radarplot``,
 ``sparkline``, ``heatmap`` -- skip the second pass entirely. Most of them have no cartesian
@@ -127,6 +128,17 @@ def _may_override(name: str, explicit: dict[str, object]) -> bool:
     return name == "bins" and isinstance(explicit[name], str)
 
 
+def _stated(plot_fn: Callable[..., object], kwargs: dict[str, object]) -> dict[str, object]:
+    """Everything the caller has fixed, whether at the ``facet`` call or on ``plot_fn`` itself.
+
+    ``functools.partial(histplot, bins=4)`` states ``bins`` exactly as firmly as
+    ``facet(..., bins=4)`` does, and reading only the latter let the shared width be re-derived
+    into 182 -- the very substitution :func:`_may_override` calls "both a surprise and a
+    regression", reached by writing the same intent a different way.
+    """
+    return {**getattr(plot_fn, "keywords", {}), **kwargs}
+
+
 def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool, explicit: dict[str, object]) -> dict[str, object]:
     """The overrides that make every panel agree, or ``{}`` if there is nothing to share.
 
@@ -200,7 +212,10 @@ def _accepted(plot_fn: Callable[..., object], overrides: dict[str, object]) -> d
         return overrides
     if any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters.values()):
         return overrides
-    return {name: value for name, value in overrides.items() if name in parameters}
+    # Positional-only excluded: naming one is ``TypeError: got some positional-only arguments
+    # passed as keyword``, which is the same failure this function exists to prevent.
+    takeable = {name for name, parameter in parameters.items() if parameter.kind is not inspect.Parameter.POSITIONAL_ONLY}
+    return {name: value for name, value in overrides.items() if name in takeable}
 
 
 def _horizontal_only(overrides: dict[str, object]) -> dict[str, object]:
@@ -273,7 +288,7 @@ def facet(
 
         def share(cells: list[list[Chart | None]]) -> dict[str, object]:
             drawn = [cell for row_cells in cells for cell in row_cells if cell is not None]
-            return _accepted(plot_fn, _shared_kwargs(drawn, sharex=sharex, sharey=sharey, explicit=kwargs))
+            return _accepted(plot_fn, _shared_kwargs(drawn, sharex=sharex, sharey=sharey, explicit=_stated(plot_fn, kwargs)))
 
         matrix, titles = build({})
         horizontal = _horizontal_only(share(matrix))
@@ -292,7 +307,7 @@ def facet(
 
     def share(drawn: list[Chart | None]) -> dict[str, object]:
         panels = [chart for chart in drawn if chart is not None]
-        return _accepted(plot_fn, _shared_kwargs(panels, sharex=sharex, sharey=sharey, explicit=kwargs))
+        return _accepted(plot_fn, _shared_kwargs(panels, sharex=sharex, sharey=sharey, explicit=_stated(plot_fn, kwargs)))
 
     charts: list[Chart | None] = draw({})
     horizontal = _horizontal_only(share(charts))
