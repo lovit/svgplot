@@ -38,7 +38,7 @@ from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
 
-def _as_datetime(value: object) -> datetime:
+def _as_datetime(value: date) -> datetime:
     """A ``date`` promoted to midnight, a ``datetime`` unchanged.
 
     ``datetime`` is a subclass of ``date``, which is why the check reads this way round and
@@ -47,7 +47,7 @@ def _as_datetime(value: object) -> datetime:
     same reason: promoting is lossless, and a column of dates with one timestamp in it is a
     real shape, not a mistake worth refusing.
     """
-    return value if isinstance(value, datetime) else datetime(value.year, value.month, value.day)  # type: ignore[union-attr]
+    return value if isinstance(value, datetime) else datetime(value.year, value.month, value.day)
 
 
 def _is_time_axis(values: list[object], column: str) -> bool:
@@ -146,6 +146,13 @@ def lineplot(
     smooth the line — see that function for the full set of supported methods
     and its own validation of ``method``/point-count/finiteness.
 
+    A tick label is always an exact truncation of the instant its tick stands at, with one
+    documented exception: inside a single day the clock formats (``%H:%M`` and finer) hide
+    the year, month and day the tick also carries, so **a chart spanning less than a day
+    carries no date anywhere in its output**. That is a real limit for a figure meant to be
+    pasted into a document and read away from its caption; naming the date once on the axis
+    is left to a later change rather than guessed at here.
+
     Raises:
         ValueError: if ``x`` holds a type with no position on an axis (``datetime.time`` is
             a time of day with no day, so two values a week apart are the same point), if it
@@ -179,6 +186,13 @@ def lineplot(
         raise ValueError("no rows with both x and y present after dropping missing values")
     is_time = _is_time_axis(all_x, x)
     numeric_x_domain = (min(_numeric_x(v, x) for v in all_x), max(_numeric_x(v, x) for v in all_x))
+    # The tick axis is built from the *original* datetimes, not from these numbers rebuilt
+    # by ``fromtimestamp``. That round trip returns a naive local value, so an aware column
+    # lost its offset and every label became a reading of whichever machine drew the chart:
+    # the same UTC data labelled 00:00-12:00 under TZ=UTC, 10:00-20:00 under Asia/Seoul, and
+    # switched format entirely under America/Santiago. ``TimeScale``'s own docstring tells a
+    # caller to pass aware values for exactly that reason, which this path had made untrue.
+    time_domain = (min(all_x, key=lambda value: _numeric_x(value, x)), max(all_x, key=lambda value: _numeric_x(value, x)))
     y_domain = (min(all_y), max(all_y))
 
     # After the checks above, so a bad column still reports the chart's own error first.
@@ -196,9 +210,7 @@ def lineplot(
     pixel_x_scale = LinearScale(numeric_x_domain, (area.left, area.right))
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
     tick_x_scale = (
-        TimeScale(
-            (datetime.fromtimestamp(numeric_x_domain[0]), datetime.fromtimestamp(numeric_x_domain[1])), (area.left, area.right)
-        )
+        TimeScale((_as_datetime(time_domain[0]), _as_datetime(time_domain[1])), (area.left, area.right))
         if is_time
         else pixel_x_scale
     )
