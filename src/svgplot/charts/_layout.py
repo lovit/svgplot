@@ -17,6 +17,7 @@ Private/internal — not re-exported from ``svgplot.charts``.
 from __future__ import annotations
 
 import math
+import numbers
 from dataclasses import dataclass
 
 Margin = float | tuple[float, float, float, float]
@@ -207,7 +208,14 @@ def resolve_size(width: float | None, height: float | None) -> tuple[float, floa
 
 
 def _finite(value: float, name: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+    """A caller-supplied length, as a float.
+
+    ``numbers.Real`` rather than ``int | float``: a size very often arrives from the same
+    array library the data did, and ``numpy.float32``/``numpy.int64`` are neither of those
+    two while being perfectly good lengths. ``bool`` is excluded even though it is ``Real``,
+    because ``width=True`` is a mistake, not a request for one pixel.
+    """
+    if isinstance(value, bool) or not isinstance(value, numbers.Real) or not math.isfinite(float(value)):
         raise ValueError(f"{name} must be a finite number, got {value!r}")
     return float(value)
 
@@ -232,6 +240,12 @@ def fit_margin(margin: Margin, width: float, height: float) -> tuple[float, floa
 def _fit_pair(first: float, second: float, extent: float) -> tuple[float, float]:
     budget = extent * MAX_MARGIN_FRACTION
     total = first + second
+    # A negative side is refused rather than scaled. It cannot be scaled sensibly -- the
+    # pair's *sum* can sit under the budget while one side is -500, which put the plot area
+    # 500 px above the canvas -- and no preset here has one. Refusing keeps this function
+    # honest about taking "whatever margin it is given", which its own tests rely on.
+    if first < 0 or second < 0:
+        raise ValueError(f"margin sides must not be negative, got {first!r} and {second!r}")
     if total <= budget or total <= 0:
         return first, second
     factor = budget / total
