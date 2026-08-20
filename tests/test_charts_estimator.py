@@ -24,6 +24,7 @@ import pytest
 import svgplot as sp
 from svgplot.charts._aggregate import ESTIMATORS, apply_estimator, resolve_estimator
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, MARGIN_WITHOUT_LEGEND, plot_area
+from svgplot.layout import facet
 
 # "a" is the group under test; "anchor" is a single row, and the largest value, so it pins
 # the top of the value axis and becomes the ruler every recomputation divides by.
@@ -386,6 +387,7 @@ def test_lineplot_still_accepts_each_of_them_alone() -> None:
         pytest.param(lambda: sp.treemap(DUPLICATED, values="y", labels="x", estimator="mean"), id="treemap"),
         pytest.param(lambda: sp.gaugeplot(DUPLICATED, value="y", estimator="mean"), id="gaugeplot"),
         pytest.param(lambda: sp.sparkline(DUPLICATED, y="y", estimator="mean"), id="sparkline"),
+        pytest.param(lambda: sp.regplot(DUPLICATED, x="y", y="y", estimator="mean"), id="regplot"),
     ],
 )
 def test_charts_outside_the_decided_scope_do_not_take_an_estimator(call) -> None:
@@ -401,6 +403,76 @@ def test_heatmap_still_refuses_duplicates_rather_than_folding_them() -> None:
     data = {"x": ["a", "a"], "y": ["p", "p"], "v": [1.0, 2.0]}
     with pytest.raises(ValueError):
         sp.heatmap(data, x="x", y="y", values="v")
+
+
+def test_an_estimate_larger_than_every_raw_value_redefines_the_axis() -> None:
+    """The value axis is built from what the chart *drew*, so a sum that overtops every raw
+    row has to take the top of the axis with it — the anchor then shrinks against it. Every
+    other case here keeps the estimate below the anchor, so this path was never exercised.
+    """
+    data = {"x": ["a", "a", "anchor"], "y": [60.0, 80.0, 100.0]}
+    bars = _bars(sp.barplot(data, x="x", y="y", estimator="sum").to_string())
+
+    assert float(bars[0]["height"]) == pytest.approx(520.0)  # 140 fills the axis
+    assert float(bars[1]["height"]) / float(bars[0]["height"]) == pytest.approx(100.0 / 140.0)
+
+
+def test_a_callable_returning_a_negative_value_is_still_refused_by_barplot() -> None:
+    """An estimator is not a way around a chart's own rules. ``barplot`` refuses negative
+    values, and it has to refuse an estimate that is negative just as it refuses a row."""
+    with pytest.raises(ValueError, match="doesn't support negative values"):
+        sp.barplot({"x": ["a", "a"], "y": [10.0, 20.0]}, x="x", y="y", estimator=lambda values: values[0] - values[1])
+
+
+def test_facet_forwards_the_estimator_to_every_panel() -> None:
+    """``facet`` passes ``**kwargs`` through, so this needs no code — which is exactly why
+    it needs a test: nothing else would notice if that stopped working."""
+    data = {
+        "x": ["a", "a", "anchor", "a", "a", "anchor"],
+        "y": [10.0, 20.0, 100.0, 60.0, 80.0, 100.0],
+        "panel": ["p", "p", "p", "q", "q", "q"],
+    }
+    composed = facet(sp.barplot, data, col="panel", x="x", y="y", estimator="mean")
+
+    values = [
+        float(_bars(chart.to_string())[0]["height"]) / float(_bars(chart.to_string())[-1]["height"]) * 100.0
+        for chart in composed.charts
+    ]
+    assert values == [pytest.approx(15.0), pytest.approx(70.0)]
+
+
+def test_facet_warns_once_per_panel_when_it_forwards_no_estimator() -> None:
+    """Once per call means once per *chart*, and a facet builds one chart per panel."""
+    data = {"x": ["a", "a", "a", "a"], "y": [1.0, 2.0, 3.0, 4.0], "panel": ["p", "p", "q", "q"]}
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        facet(sp.barplot, data, col="panel", x="x", y="y")
+
+    assert len([w for w in caught if issubclass(w.category, sp.AggregationWarning)]) == 2
+
+
+def test_the_warning_counts_rows_across_every_hue_group() -> None:
+    """Two groups each discarding one row is two discarded rows, not one -- and not two
+    warnings either."""
+    data = {
+        "x": ["a", "a", "a", "a", "b", "b"],
+        "y": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        "g": ["north", "north", "south", "south", "north", "south"],
+    }
+
+    with pytest.warns(sp.AggregationWarning, match="kept 4 of 6 rows"):
+        sp.barplot(data, x="x", y="y", hue="g")
+
+
+def test_every_axis_of_barplot_folds_at_once() -> None:
+    """orient, stacking, hue and the estimator all touch the same fold. Each is checked
+    alone above; this is the one case where all four are on together."""
+    data = {"x": ["a", "a", "a", "a"], "y": [10.0, 20.0, 60.0, 80.0], "g": ["north", "north", "south", "south"]}
+    bars = _bars(sp.barplot(data, x="x", y="y", hue="g", orient="h", stacked=True, estimator="mean").to_string(), legend=True)
+
+    widths = [float(bar["width"]) for bar in bars]
+    assert widths[0] / sum(widths) == pytest.approx(15.0 / 85.0)
+    assert widths[1] / sum(widths) == pytest.approx(70.0 / 85.0)
 
 
 # --- argument validation ---------------------------------------------------------------
@@ -427,6 +499,7 @@ def test_a_bad_name_is_reported_before_any_rendering_happens() -> None:
     ("returns", "match"),
     [
         (lambda values: None, "non-numeric"),
+        (lambda values: True, "non-numeric"),
         (lambda values: "12", "non-numeric"),
         (lambda values: float("nan"), "non-finite"),
         (lambda values: float("inf"), "non-finite"),
