@@ -7,6 +7,7 @@ count, so unlike ``histplot``/``boxplot`` this module consumes nothing from
 
 from __future__ import annotations
 
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
@@ -87,6 +88,8 @@ def ecdfplot(
     stat: str = "proportion",
     complementary: bool = False,
     theme: Theme | str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw an empirical cumulative distribution from long-form data.
 
@@ -98,6 +101,11 @@ def ecdfplot(
 
     ``complementary=True`` plots the survival function ``1 - F`` instead, descending
     from the top to zero.
+
+    ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
+    exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
+    which uses them to give faceted panels one axis -- and replace rather than widen, so a
+    caller asking for a narrower view gets one.
 
     Raises:
         KeyError: if ``x``/``hue`` isn't a column in ``data``, or if ``theme`` is a
@@ -124,6 +132,8 @@ def ecdfplot(
     x_domain = (min(all_values), max(all_values))
     y_top = max(len(values) for _, values in series_values) if stat == "count" else 1.0
     y_domain = (0.0, float(y_top))
+    x_domain = apply_limit(x_domain, xlim)
+    y_domain = apply_limit(y_domain, ylim)
 
     document, area = new_canvas(MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
 
@@ -149,4 +159,4 @@ def ecdfplot(
 
     render_theme_style(document, resolved_theme, series_classes)
 
-    return Chart(document)
+    return Chart(document, domains=Domains(x=x_domain, y=y_domain))

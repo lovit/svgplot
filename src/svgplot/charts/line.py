@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
@@ -66,6 +67,8 @@ def lineplot(
     interpolate: str = "linear",
     info: LabelSpec | list[tuple[str, str]] | None = None,
     theme: Theme | str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a line chart from long-form data.
 
@@ -77,6 +80,11 @@ def lineplot(
     ``stats.interpolate.interpolate`` as its ``method=`` (e.g. ``"cubic"``) to
     smooth the line — see that function for the full set of supported methods
     and its own validation of ``method``/point-count/finiteness.
+
+    ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
+    exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
+    which uses them to give faceted panels one axis -- and replace rather than widen, so a
+    caller asking for a narrower view gets one.
 
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
@@ -102,6 +110,8 @@ def lineplot(
     is_time = isinstance(all_x[0], datetime)
     numeric_x_domain = (min(_numeric_x(v) for v in all_x), max(_numeric_x(v) for v in all_x))
     y_domain = (min(all_y), max(all_y))
+    numeric_x_domain = apply_limit(numeric_x_domain, xlim)
+    y_domain = apply_limit(y_domain, ylim)
 
     # After the checks above, so a bad column still reports the chart's own error first.
     label_data = collect_label_data(data, info, required=(x, y, hue))
@@ -146,4 +156,4 @@ def lineplot(
 
     render_theme_style(document, resolved_theme, series_classes)
 
-    return Chart(document, label_data)
+    return Chart(document, label_data, domains=Domains(x=numeric_x_domain, y=y_domain))

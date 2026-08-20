@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from svgplot._svg import SvgDocument
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
@@ -116,6 +117,8 @@ def scatterplot(
     *,
     info: LabelSpec | list[tuple[str, str]] | None = None,
     theme: Theme | str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a scatter plot from long-form data.
 
@@ -124,6 +127,11 @@ def scatterplot(
     marker radius is linearly mapped from that numeric column's range (theme's
     ``marker_size`` as the anchor), with its own auto-generated legend showing
     representative min/mid/max samples. ``hue=`` and ``size=`` can be combined.
+
+    ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
+    exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
+    which uses them to give faceted panels one axis -- and replace rather than widen, so a
+    caller asking for a narrower view gets one.
 
     Raises:
         KeyError: if ``x``/``y``/``hue``/``size`` isn't a column in ``data``, or if
@@ -162,6 +170,8 @@ def scatterplot(
     all_y = [row[1] for row in all_rows]
     x_domain = (min(all_x), max(all_x))
     y_domain = (min(all_y), max(all_y))
+    x_domain = apply_limit(x_domain, xlim)
+    y_domain = apply_limit(y_domain, ylim)
 
     has_legend = hue is not None or size is not None
     # After the checks above, so a bad column still reports the chart's own error first.
@@ -214,4 +224,4 @@ def scatterplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document, label_data)
+    return Chart(document, label_data, domains=Domains(x=x_domain, y=y_domain))

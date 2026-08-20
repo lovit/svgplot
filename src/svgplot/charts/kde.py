@@ -8,6 +8,7 @@ grid across every group for the same reason.
 
 from __future__ import annotations
 
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
@@ -106,6 +107,8 @@ def kdeplot(
     bandwidth: float | str = "scott",
     fill: bool = False,
     theme: Theme | str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a kernel density estimate from long-form data.
 
@@ -119,6 +122,13 @@ def kdeplot(
     ``bandwidth`` is passed to :func:`svgplot.stats.kde.kde` untouched, so its rules and
     its validation (including the refusal to pick a bandwidth for a zero-variance sample)
     apply here unchanged.
+
+    ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
+    exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
+    which uses them to give faceted panels one axis -- and replace rather than widen, so a
+    caller asking for a narrower view gets one. Note that this chart's y domain is a
+    **derived** quantity, not a column: nothing outside the chart could have computed it,
+    which is why the domain is recorded on the returned chart rather than predicted.
 
     Raises:
         KeyError: if ``x``/``hue`` isn't a column in ``data``, or if ``theme`` is a string
@@ -146,8 +156,10 @@ def kdeplot(
 
     document, area = new_canvas(MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
 
-    pixel_x_scale = LinearScale(grid_range, (area.left, area.right))
-    pixel_y_scale = LinearScale((0.0, peak), (area.bottom, area.top))
+    x_domain = apply_limit(grid_range, xlim)
+    y_domain = apply_limit((0.0, peak), ylim)
+    pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
+    pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
     render_x_axis(document, pixel_x_scale, area, tick_length=resolved_theme.tick_size)
     render_y_axis(document, pixel_y_scale, area, tick_length=resolved_theme.tick_size)
 
@@ -177,4 +189,4 @@ def kdeplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style=mark_style)
 
-    return Chart(document)
+    return Chart(document, domains=Domains(x=x_domain, y=y_domain))

@@ -226,3 +226,37 @@ def test_histplot_rejects_unknown_theme_preset() -> None:
 def test_histplot_propagates_invalid_bins_error() -> None:
     with pytest.raises(ValueError, match="bins"):
         histplot(SINGLE_SERIES, x="value", bins=10**8)
+
+
+@pytest.mark.parametrize(
+    ("bad", "message"),
+    [
+        ("ab", "must be a \\(low, high\\) pair"),
+        ((1, 2, 3), "must be a \\(low, high\\) pair"),
+        ([1], "must be a \\(low, high\\) pair"),
+        ((None, 5), "must be finite numbers"),
+        ((float("nan"), 5), "must be finite numbers"),
+        ((float("-inf"), 5), "must be finite numbers"),
+        ((5.0, 5.0), "must be increasing"),
+        ((2, 1), "must be increasing"),
+    ],
+)
+def test_an_unusable_xlim_gets_the_same_message_every_other_chart_gives(bad: object, message: str) -> None:
+    """``histplot`` reaches ``histogram_bins`` before ``apply_limit`` would normally run, so
+    without routing ``xlim`` through the validator first this argument diverges from the ten
+    other charts that take one: ``"ab"`` raises ``TypeError: must be real number, not str``,
+    ``(1,2,3)`` raises ``ValueError: too many values to unpack``. Both are about an internal
+    call rather than about the argument the caller wrote, and neither is documented.
+
+    Nothing pinned this. The fix was in place and deleting it left the whole suite green."""
+    with pytest.raises(ValueError, match=message):
+        histplot({"v": [1.0, 2.0, 3.0]}, x="v", xlim=bad)  # type: ignore[arg-type]
+
+
+def test_an_xlim_clips_the_bins_to_the_window_the_caller_asked_for() -> None:
+    """The other half: a valid ``xlim`` has to actually reach the binning, or the validation
+    above would be the only thing it did."""
+    edges = histplot({"v": [1.0, 5.0, 9.0]}, x="v", xlim=(0.0, 10.0), bins=5).domains
+
+    assert edges.x == (0.0, 10.0)
+    assert edges.x_step == pytest.approx(2.0)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import bisect
 
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
@@ -55,6 +56,8 @@ def histplot(
     *,
     bins: str | int = "auto",
     theme: Theme | str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a histogram from long-form data with automatic binning.
 
@@ -63,6 +66,13 @@ def histplot(
     making the overlap visible) sharing one set of bin edges computed across all groups'
     combined values — so every group's bars land on directly comparable
     boundaries — with an auto-generated legend.
+
+    ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
+    exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
+    which uses them to give faceted panels one axis -- and replace rather than widen, so a
+    caller asking for a narrower view gets one. Note that this chart's y domain is a
+    **derived** quantity, not a column: nothing outside the chart could have computed it,
+    which is why the domain is recorded on the returned chart rather than predicted.
 
     Raises:
         KeyError: if ``x``/``hue`` isn't a column in ``data``, or if ``theme`` is a
@@ -90,14 +100,26 @@ def histplot(
     if not all_values:
         raise ValueError("no rows with a non-missing x value after dropping missing values")
 
-    edges = histogram_bins(all_values, bins=bins)
+    # Binned over xlim when one is given, not over this chart's own values: two charts
+    # sharing an axis but not their bin boundaries draw bars of different widths, and a
+    # count of 3 covers a different amount of data in each. Same rule this chart already
+    # applies across hue= groups. The range alone does not settle it -- a strategy like
+    # "auto" still picks its width from the values -- so the division is shared too.
+    # ``xlim`` is validated here rather than left to ``bin_range``, so a bad value reports
+    # the argument the caller wrote and gets the same message every other chart gives.
+    # ``bin_range=None`` when there is no xlim: a constant column has a zero-width range,
+    # which numpy handles by widening and ``apply_limit`` rightly refuses from a caller.
+    bin_range = apply_limit((min(all_values), max(all_values)), xlim) if xlim is not None else None
+    edges = histogram_bins(all_values, bins=bins, bin_range=bin_range)
     series_counts = [(label, _count_in_bins(values, edges)) for label, values in series_values]
     max_count = max((count for _, counts in series_counts for count in counts), default=0)
 
     document, area = new_canvas(MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
 
-    pixel_x_scale = LinearScale((edges[0], edges[-1]), (area.left, area.right))
-    pixel_y_scale = LinearScale((0, max_count), (area.bottom, area.top))
+    x_domain = apply_limit((edges[0], edges[-1]), xlim)
+    y_domain = apply_limit((0.0, float(max_count)), ylim)
+    pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
+    pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
     render_x_axis(document, pixel_x_scale, area, tick_length=resolved_theme.tick_size)
     render_y_axis(document, pixel_y_scale, area, tick_length=resolved_theme.tick_size)
 
@@ -130,4 +152,4 @@ def histplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document)
+    return Chart(document, domains=Domains(x=x_domain, y=y_domain, x_step=(edges[-1] - edges[0]) / (len(edges) - 1)))
