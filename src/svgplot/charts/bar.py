@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
+from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator, warn_rows_discarded
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
     DEFAULT_HEIGHT,
@@ -41,18 +44,27 @@ def _unique_categories(values: list) -> list[str]:
     return list(seen)
 
 
-def _category_value_lookup(columns: dict[str, list], x: str, y: str) -> dict[str, float]:
-    """Map category -> value for one hue group, dropping missing rows. If a category
-    appears more than once within a group, the last row wins (no implicit aggregation
-    — this issue doesn't ask for one, and silently summing would be a surprising
-    default for a caller who didn't opt into stacking across duplicate rows).
+def _category_values(columns: dict[str, list], x: str, y: str) -> dict[str, list[float]]:
+    """Map category -> every value under it in one hue group, dropping missing rows.
+
+    Kept as a list rather than folded here so the caller can apply ``estimator=`` — and so
+    the default path can still report how many rows it is about to throw away.
     """
-    lookup: dict[str, float] = {}
+    values: dict[str, list[float]] = {}
     for xv, yv in zip(columns[x], columns[y], strict=True):
         if is_missing(xv) or is_missing(yv):
             continue
-        lookup[str(xv)] = float(yv)
-    return lookup
+        values.setdefault(str(xv), []).append(float(yv))
+    return values
+
+
+def _fold(values: dict[str, list[float]], estimate: Callable[[list[float]], float] | None) -> dict[str, float]:
+    """One value per category: the estimator's answer, or the last row (the historical
+    rule, kept as the default so no existing chart moves — see ``charts/_aggregate.py``).
+    """
+    if estimate is None:
+        return {category: group[-1] for category, group in values.items()}
+    return {category: apply_estimator(estimate, group, group=category) for category, group in values.items()}
 
 
 def barplot(
@@ -63,6 +75,7 @@ def barplot(
     *,
     orient: str = "v",
     stacked: bool = False,
+    estimator: Estimator | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
     """Draw a bar chart from long-form data.
@@ -76,13 +89,28 @@ def barplot(
     ``stacked=True`` with no ``hue=`` has nothing to stack and renders a plain
     single-series bar per category.
 
+    ``estimator=`` decides what happens when several rows share a category within one
+    series. The default, ``None``, keeps the historical rule — **the last row wins**, and
+    the others are discarded with an :class:`~svgplot.warnings.AggregationWarning` naming
+    how many. ``"mean"``/``"median"``/``"sum"``, or any callable taking the group's values
+    in row order and returning a number, fold them instead. ``None`` stays the default so
+    that no chart anyone has already built changes its output; see
+    ``charts/_aggregate.py`` for the fuller reasoning and for which charts take this
+    argument at all.
+
+    Warns:
+        AggregationWarning: when ``estimator=None`` and rows were actually discarded.
+            Once per call, not once per category.
+
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
             is a string that isn't a registered preset name.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
         ValueError: if ``data`` has no rows, if ``orient`` isn't ``"v"``/``"h"``, if
-            no category survives after dropping missing values, or if any value is
-            negative (bars below a zero baseline aren't supported yet).
+            no category survives after dropping missing values, if any value is
+            negative (bars below a zero baseline aren't supported yet), or if
+            ``estimator`` is an unknown name or returns a value that can't be plotted.
+        TypeError: if ``estimator`` is neither a name, a callable, nor ``None``.
     """
     if orient not in ("v", "h"):
         raise ValueError(f"orient must be 'v' or 'h', got {orient!r}")
@@ -103,7 +131,15 @@ def barplot(
     if not categories:
         raise ValueError("no rows with a non-missing category value")
 
-    group_lookups = [(label, _category_value_lookup(columns, x, y)) for label, columns in group_items]
+    estimate = resolve_estimator(estimator)
+    group_values = [(label, _category_values(columns, x, y)) for label, columns in group_items]
+    group_lookups = [(label, _fold(values, estimate)) for label, values in group_values]
+    if estimate is None:
+        warn_rows_discarded(
+            "barplot",
+            rows=sum(len(group) for _, values in group_values for group in values.values()),
+            marks=sum(len(values) for _, values in group_values),
+        )
     all_values = [value for _, lookup in group_lookups for value in lookup.values()]
     if any(value < 0 for value in all_values):
         raise ValueError("barplot doesn't support negative values yet")

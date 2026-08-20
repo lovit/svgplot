@@ -11,10 +11,12 @@ reuse rather than duplicate.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
+from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
     DEFAULT_HEIGHT,
@@ -42,13 +44,35 @@ def _numeric_x(value: object) -> float:
     return value.timestamp() if isinstance(value, datetime) else float(value)
 
 
-def _series_points(columns: dict[str, list], x: str, y: str) -> list[tuple[object, float]]:
+def _series_points(
+    columns: dict[str, list], x: str, y: str, estimate: Callable[[list[float]], float] | None
+) -> list[tuple[object, float]]:
     """Drop rows with a missing x or y value, then sort by x — a line connects
     points in x order regardless of the input rows' original order.
+
+    ``estimate=None`` keeps every row as its own vertex, which is this chart's historical
+    rule: two rows sharing an x draw a vertical segment between them. Nothing is lost that
+    way, which is why ``lineplot`` never warns about repeated x values — unlike
+    ``barplot``, whose rule discards them.
+
+    With an estimator, rows sharing an x fold into one vertex. "Sharing an x" means the
+    values are **equal**, not that they happen to land on the same pixel — grouping is by
+    the raw x value rather than by ``_numeric_x``. Two reasons, and the first is the one
+    that decides it: the default path already treats ``"1"`` and ``1.0`` as two x values
+    (they are two dict keys, two vertices), so folding them here would make ``estimator=``
+    quietly change *which rows are the same row*, not just how they combine. The second is
+    that ``_numeric_x`` sends a naive ``datetime`` through ``timestamp()``, which reads the
+    machine's local timezone — so a naive and an aware datetime would fold together on a
+    UTC machine and stay apart everywhere else.
     """
     points = [
         (xv, float(yv)) for xv, yv in zip(columns[x], columns[y], strict=True) if not is_missing(xv) and not is_missing(yv)
     ]
+    if estimate is not None:
+        groups: dict[object, list[float]] = {}
+        for xv, yv in points:
+            groups.setdefault(xv, []).append(yv)
+        points = [(xv, apply_estimator(estimate, values, group=str(xv))) for xv, values in groups.items()]
     return sorted(points, key=lambda point: _numeric_x(point[0]))
 
 
@@ -67,6 +91,7 @@ def lineplot(
     hue: str | None = None,
     *,
     interpolate: str = "linear",
+    estimator: Estimator | None = None,
     info: LabelSpec | list[tuple[str, str]] | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
@@ -81,14 +106,34 @@ def lineplot(
     smooth the line — see that function for the full set of supported methods
     and its own validation of ``method``/point-count/finiteness.
 
+    ``estimator=`` folds rows that share an x into one vertex: ``"mean"``/``"median"``/
+    ``"sum"``, or any callable taking the group's values in row order and returning a
+    number. The default, ``None``, keeps this chart's historical rule — every row is its
+    own vertex, so two rows at the same x draw a vertical segment. Nothing is discarded
+    either way, so this chart never warns; see ``charts/_aggregate.py``.
+
+    ``estimator=`` and ``info=`` cannot be combined. The footnote table exists on exactly
+    the charts where one input row is one mark, and an estimator is the thing that breaks
+    that: the table would list rows the chart no longer drew, which is the same
+    contradiction that keeps ``info=`` off ``barplot``/``areaplot``/``boxplot``/``histplot``
+    in the first place.
+
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
             is a string that isn't a registered preset name.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
         ValueError: if ``data`` has no rows, or (via ``stats.interpolate``) if
-            ``interpolate`` isn't a recognized method name or a series has too few
-            points to interpolate.
+            ``interpolate`` isn't a recognized method name, if a series has too few
+            points to interpolate, if ``estimator`` is an unknown name or returns a value
+            that can't be plotted, or if ``estimator`` and ``info`` are both given.
+        TypeError: if ``estimator`` is neither a name, a callable, nor ``None``.
     """
+    if estimator is not None and info is not None:
+        raise ValueError(
+            "estimator= and info= cannot be combined: the footnote table lists one row per mark, "
+            "and an estimator folds several rows into one"
+        )
+    estimate = resolve_estimator(estimator)
     resolved_theme = resolve_theme(theme)
     longform = ingest_longform(data, x, y)
     if len(longform) == 0:
@@ -102,7 +147,7 @@ def lineplot(
     else:
         series_items = [(None, longform.columns)]
 
-    series_points = [(label, _series_points(columns, x, y)) for label, columns in series_items]
+    series_points = [(label, _series_points(columns, x, y, estimate)) for label, columns in series_items]
 
     all_x = [point[0] for _, points in series_points for point in points]
     all_y = [point[1] for _, points in series_points for point in points]
