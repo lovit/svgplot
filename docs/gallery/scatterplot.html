@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>갤러리 — svgplot</title>
-    <meta name="description" content="svgplot 차트 예시 모음." />
+    <title>scatterplot — svgplot</title>
+    <meta name="description" content="x·y 두 수치 컬럼을 점으로 놓는다. hue= 는 색, size= 는 마커 크기에 매핑한다." />
     <style>
       :root {
         --bg: #ffffff;
@@ -79,25 +79,55 @@
     </style>
   </head>
   <body>
-    <nav><a href="../">svgplot</a></nav>
-    <h1>갤러리</h1>
-    <p class="summary">예시 2종. 각 그림 아래에 그것을 그린 코드가 함께 있다.</p>
-    <ul class="index">
-      <li>
-        <a href="lineplot.html">
-          <img src="svg/lineplot-1.svg" alt="lineplot" />
-          <strong>lineplot</strong>
-          <span>x 순으로 점을 이어 선을 그린다. x 는 수치 또는 날짜를 받는다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="scatterplot.html">
-          <img src="svg/scatterplot-1.svg" alt="scatterplot" />
-          <strong>scatterplot</strong>
-          <span>x·y 두 수치 컬럼을 점으로 놓는다. hue= 는 색, size= 는 마커 크기에 매핑한다.</span>
-        </a>
-      </li>
+    <nav><a href="../">svgplot</a> · <a href="./">갤러리</a></nav>
+    <h1>scatterplot</h1>
+    <p class="summary">x·y 두 수치 컬럼을 점으로 놓는다. hue= 는 색, size= 는 마커 크기에 매핑한다.</p>
+    <dl class="meta">
+      <dt>데이터</dt>
+      <dd>x: 수치 · y: 수치 · hue(선택): 아무 타입 · size(선택): 수치</dd>
+    </dl>
+    <h2>데이터</h2>
+    <pre><code>import svgplot as sp
+
+STORES = {
+    &quot;면적&quot;: [30.0, 45.0, 60.0, 85.0, 120.0, 25.0, 50.0, 70.0, 95.0, 140.0],
+    &quot;매출&quot;: [8.0, 14.0, 17.0, 26.0, 31.0, 6.0, 15.0, 21.0, 27.0, 38.0],
+    &quot;직원수&quot;: [2.0, 3.0, 4.0, 6.0, 9.0, 2.0, 4.0, 5.0, 7.0, 11.0],
+    &quot;지역&quot;: [&quot;수도권&quot;] * 5 + [&quot;지방&quot;] * 5,
+}</code></pre>
+    <h2>예시</h2>
+    <h3>기본</h3>
+    <figure>
+      <img src="svg/scatterplot-1.svg" alt="기본" />
+    </figure>
+    <pre><code>sp.scatterplot(STORES, x=&quot;면적&quot;, y=&quot;매출&quot;)</code></pre>
+    <h3>hue= 는 점 색을 나눈다</h3>
+    <figure>
+      <img src="svg/scatterplot-2.svg" alt="hue= 는 점 색을 나눈다" />
+    </figure>
+    <pre><code>sp.scatterplot(STORES, x=&quot;면적&quot;, y=&quot;매출&quot;, hue=&quot;지역&quot;)</code></pre>
+    <h3>size= 는 세 번째 수치를 마커 반지름에 매핑한다</h3>
+    <figure>
+      <img src="svg/scatterplot-3.svg" alt="size= 는 세 번째 수치를 마커 반지름에 매핑한다" />
+    </figure>
+    <pre><code>sp.scatterplot(STORES, x=&quot;면적&quot;, y=&quot;매출&quot;, size=&quot;직원수&quot;)</code></pre>
+    <h3>yscale=&quot;log&quot; — 값이 자릿수로 벌어질 때</h3>
+    <figure>
+      <img src="svg/scatterplot-4.svg" alt="yscale=&quot;log&quot; — 값이 자릿수로 벌어질 때" />
+    </figure>
+    <pre><code>LATENCY = {
+    &quot;요청수&quot;: [10.0, 100.0, 1000.0, 10000.0, 100000.0],
+    &quot;지연ms&quot;: [1.2, 3.0, 14.0, 130.0, 1400.0],
+}
+sp.scatterplot(LATENCY, x=&quot;요청수&quot;, y=&quot;지연ms&quot;, xscale=&quot;log&quot;, yscale=&quot;log&quot;)</code></pre>
+    <h2>메모</h2>
+    <ul class="notes">
+      <li>hue= 와 size= 를 함께 주면 범례가 둘 쌓인다. 캔버스가 그 높이를 감당하지 못하면 잘라 그리는 대신 거부한다.</li>
+      <li>size= 의 반지름은 theme.marker_size 의 0.5배에서 2.5배 사이로 매핑된다. 값이 하나뿐이면 전부 기본 크기가 된다.</li>
+      <li>로그 축은 0 이하 값을 컬럼명을 대고 거부한다. ylim= 이 그 값을 도메인 밖으로 밀어내도 그린다면 마찬가지로 거부한다.</li>
     </ul>
-    <footer><a href="../">svgplot 소개로</a></footer>
+    <footer>
+      <a href="./">갤러리로</a> · <a href="https://github.com/lovit/svgplot/blob/main/gallery/examples/scatterplot.py">이 페이지의 예시 소스</a>
+    </footer>
   </body>
 </html>
