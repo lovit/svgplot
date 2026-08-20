@@ -46,7 +46,7 @@ sp.pieplot(data, values="sales", labels="region", inner_radius=0.5).save("pie.sv
 sp.boxplot(data, x="region", y="sales", mode="1.5IQR").save("box.svg")
 
 # hue=는 카테고리 *안에서* 한 번 더 나눈다 — 밴드가 그룹 수만큼 쪼개져 나란히 그려진다
-sp.boxplot(tips, x="day", y="bill", hue="smoker").save("box-hue.svg")
+sp.boxplot(data, x="region", y="sales", hue="day").save("box-hue.svg")
 ```
 
 ### 분포와 회귀
@@ -118,6 +118,8 @@ sp.barplot({"x": ["a", "a", "a"], "y": [10.0, 20.0, 60.0]}, x="x", y="y", estima
 `estimator=`는 `"mean"` / `"median"` / `"sum"` 또는 그룹의 값을 **행 순서대로** 받아 숫자를 돌려주는 callable 을 받는다. 기본값 `None`은 위의 기존 규칙을 그대로 둔다 — 기본값을 `"mean"`으로 바꾸면 seaborn 과 맞지만 이미 만들어 둔 모든 차트가 조용히 다시 그려진다. 대신 **행이 실제로 버려질 때만** 경고한다(`bar`뿐이다 — `area`는 합산하고 `line`은 둘 다 그리므로 잃는 것이 없다).
 
 ```python
+import warnings
+
 warnings.filterwarnings("ignore", category=sp.AggregationWarning)   # 경고만 끄기
 ```
 
@@ -144,15 +146,18 @@ sp.lineplot(data, x="day", y="sales", width=500)                 # 높이는 기
 `lineplot`과 `scatterplot`이 `xscale=` / `yscale=`을 받는다. `"linear"`(기본)이거나 `"log"`다.
 
 ```python
-sp.scatterplot(data, x="requests", y="latency_ms", yscale="log").save("latency.svg")
-sp.lineplot(data, x="size", y="seconds", xscale="log", yscale="log").save("scaling.svg")
+# 공유 데이터는 자릿수로 벌어지지 않으므로 여기서는 그런 값을 직접 쓴다
+latency = {"requests": [10.0, 100.0, 1000.0, 10000.0], "ms": [1.0, 12.0, 130.0, 1400.0]}
+
+sp.scatterplot(latency, x="requests", y="ms", yscale="log").save("latency.svg")
+sp.lineplot(latency, x="requests", y="ms", xscale="log", yscale="log").save("scaling.svg")
 ```
 
 로그축이 필요한 자리는 응답시간·파일 크기·인구·벤치마크 배수처럼 값이 자릿수로 벌어지는 데이터다. 선형축에서는 작은 값들이 한 픽셀에 뭉개져 차트가 답을 못 준다 — 1부터 1e6까지 걸친 네 점을 실제로 그려 보면, 선형축에서는 앞의 두 점이 **0.05px** 떨어져 사실상 한 픽셀에 겹치고 세 번째까지도 5.2px 안에 들어온다. 로그축에서는 세 간격이 모두 **173.33px**로 똑같다 — 자릿수가 같은 간격으로 벌어지는 것이 로그축의 정의다.
 
 눈금은 10의 거듭제곱에 서고, 한 자릿수 안에 갇힌 도메인은 둥근 선두 숫자(1 / 1,3 / 1,2,5 / …)로 잘게 나눈다. 그것으로도 눈금이 모자랄 만큼 비율이 좁으면(2..3에는 둥근 가수가 둘뿐) 선형 눈금으로 넘어간다 — 그 비율에서 로그축은 시각적으로 거의 선형이고, 가수를 더 쪼개면 `2.15443469` 같은 것이 축에 선다.
 
-**0과 음수는 컬럼명을 대고 거부한다.** matplotlib은 `nonpositive="mask"|"clip"`을 주지만, 전자는 세어 놓은 행을 버리고 후자는 없던 값을 지어낸다 — 둘 다 데이터가 말하지 않는 차트를 그린다. **날짜 컬럼도 거부한다**: 타임스탬프의 로그는 1970을 0으로 골랐다는 사실에서만 나오는 비율이라 2000→2020이 1.6배로 읽힌다.
+**0과 음수는 컬럼명을 대고 거부한다.** matplotlib은 `nonpositive="mask"|"clip"`을 주지만, 전자는 세어 놓은 행을 버리고 후자는 없던 값을 지어낸다 — 둘 다 데이터가 말하지 않는 차트를 그린다. **날짜 컬럼도 거부한다**: 타임스탬프의 로그는 1970을 0으로 골랐다는 사실에서만 나오는 비율이라 2000→2020이 1.67배로 읽힌다.
 
 `areaplot`은 `xscale=`만 받는다. 영역 차트의 채워진 면적이 곧 값이고 그것은 0에서 재는데, 로그축에는 잴 0이 없어 채움이 임의의 자리에서 시작하고 면적이 무엇에도 비례하지 않게 된다.
 
@@ -220,7 +225,8 @@ markdown = chart.to_markdown()
 포맷은 선택이다. 중괄호를 빼면 값이 그대로 실린다 — 텍스트 컬럼을 표에 넣는 방법이고, 숫자에는 축이 쓰는 것과 같은 표기가 적용된다(`2.0`이 아니라 `2`).
 
 ```python
-info=[("지점", "@branch"), ("매출", "@sales{0,0}")]   # 이름은 그대로, 금액은 천 단위 구분
+sp.lineplot(data, x="day", y="sales",
+            info=[("지점", "@region"), ("매출", "@sales{0,0}")])   # 이름은 그대로, 금액은 천 단위 구분
 ```
 
 `@field{}`(빈 중괄호)는 계속 거부한다 — 포맷을 안 쓰기로 한 것과 쓰려다 만 것은 다르다.
