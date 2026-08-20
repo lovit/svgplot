@@ -20,7 +20,13 @@ import math
 
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
-from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, LEGEND_X_OFFSET, format_coord, plot_area
+from svgplot.charts._layout import (
+    LEGEND_X_OFFSET,
+    fit_margin,
+    format_coord,
+    plot_area,
+    resolve_size,
+)
 from svgplot.charts._legend import render_legend
 from svgplot.charts._polar import polar_point, ring_path
 from svgplot.charts._theme_resolve import resolve_theme
@@ -152,6 +158,8 @@ def gaugeplot(
     vmin: float | None = None,
     vmax: float | None = None,
     labels: str | None = None,
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
     """Draw a gauge: one arc per row over a shared ``[vmin, vmax]`` range.
@@ -204,12 +212,13 @@ def gaugeplot(
     low, high = _resolve_bounds([magnitude for _, magnitude in pairs], vmin, vmax)
     angle_of = LinearScale((low, high), (_START_ANGLE, _END_ANGLE))
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=_MARGIN)
+    canvas_width, canvas_height = resolve_size(width, height)
+    document = SvgDocument(width=canvas_width, height=canvas_height)
+    area = plot_area(canvas_width, canvas_height, margin=fit_margin(_MARGIN, canvas_width, canvas_height))
     document.add_node(
         None,
         "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
+        attrib={"x": 0, "y": 0, "width": format_coord(canvas_width), "height": format_coord(canvas_height)},
         classes=["plot-background"],
     )
 

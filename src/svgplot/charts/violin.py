@@ -13,7 +13,16 @@ from __future__ import annotations
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
-from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, format_coord, plot_area
+from svgplot.charts._layout import (
+    MARGIN_WITHOUT_LEGEND,
+    TICK_SPACING_X,
+    TICK_SPACING_Y,
+    fit_margin,
+    format_coord,
+    plot_area,
+    resolve_size,
+    ticks_for,
+)
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
@@ -127,6 +136,8 @@ def violinplot(
     *,
     bandwidth: float | str = "scott",
     inner: str | None = "box",
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
     """Draw one mirrored density per distinct ``x`` value, from that group's ``y`` values.
@@ -164,19 +175,24 @@ def violinplot(
     peak = max(value for curve in curves.values() for value in curve.y)
 
     categories = list(groups)
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITHOUT_LEGEND)
+    canvas_width, canvas_height = resolve_size(width, height)
+    document = SvgDocument(width=canvas_width, height=canvas_height)
+    area = plot_area(canvas_width, canvas_height, margin=fit_margin(MARGIN_WITHOUT_LEGEND, canvas_width, canvas_height))
     document.add_node(
         None,
         "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
+        attrib={"x": 0, "y": 0, "width": format_coord(canvas_width), "height": format_coord(canvas_height)},
         classes=["plot-background"],
     )
 
     x_scale = CategoricalScale(categories, (area.left, area.right), padding=_VIOLIN_PADDING)
     y_scale = LinearScale(grid_range, (area.bottom, area.top))
-    render_x_axis(document, x_scale, area, tick_length=resolved_theme.tick_size)
-    render_y_axis(document, y_scale, area, tick_length=resolved_theme.tick_size)
+    render_x_axis(
+        document, x_scale, area, tick_count=ticks_for(area.width, TICK_SPACING_X), tick_length=resolved_theme.tick_size
+    )
+    render_y_axis(
+        document, y_scale, area, tick_count=ticks_for(area.height, TICK_SPACING_Y), tick_length=resolved_theme.tick_size
+    )
 
     band = x_scale.step
     half_width = x_scale.bandwidth / 2 / peak

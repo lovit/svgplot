@@ -6,13 +6,16 @@ from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
 from svgplot.charts._layout import (
-    DEFAULT_HEIGHT,
-    DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
+    TICK_SPACING_X,
+    TICK_SPACING_Y,
+    fit_margin,
     format_coord,
     plot_area,
+    resolve_size,
+    ticks_for,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
@@ -63,6 +66,8 @@ def barplot(
     *,
     orient: str = "v",
     stacked: bool = False,
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
     """Draw a bar chart from long-form data.
@@ -116,12 +121,17 @@ def barplot(
         value_max = max(all_values) if all_values else 0.0
     value_max = value_max or 1.0  # an all-zero chart still needs a non-degenerate axis
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
+    canvas_width, canvas_height = resolve_size(width, height)
+    document = SvgDocument(width=canvas_width, height=canvas_height)
+    area = plot_area(
+        canvas_width,
+        canvas_height,
+        margin=fit_margin(MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND, canvas_width, canvas_height),
+    )
     document.add_node(
         None,
         "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
+        attrib={"x": 0, "y": 0, "width": format_coord(canvas_width), "height": format_coord(canvas_height)},
         classes=["plot-background"],
     )
 
@@ -131,11 +141,31 @@ def barplot(
     value_scale = LinearScale((0.0, value_max), value_range)
 
     if orient == "v":
-        render_x_axis(document, category_scale, area, tick_length=resolved_theme.tick_size)
-        render_y_axis(document, value_scale, area, tick_length=resolved_theme.tick_size)
+        render_x_axis(
+            document,
+            category_scale,
+            area,
+            tick_count=ticks_for(area.width, TICK_SPACING_X),
+            tick_length=resolved_theme.tick_size,
+        )
+        render_y_axis(
+            document,
+            value_scale,
+            area,
+            tick_count=ticks_for(area.height, TICK_SPACING_Y),
+            tick_length=resolved_theme.tick_size,
+        )
     else:
-        render_y_axis(document, category_scale, area, tick_length=resolved_theme.tick_size)
-        render_x_axis(document, value_scale, area, tick_length=resolved_theme.tick_size)
+        render_y_axis(
+            document,
+            category_scale,
+            area,
+            tick_count=ticks_for(area.height, TICK_SPACING_Y),
+            tick_length=resolved_theme.tick_size,
+        )
+        render_x_axis(
+            document, value_scale, area, tick_count=ticks_for(area.width, TICK_SPACING_X), tick_length=resolved_theme.tick_size
+        )
 
     series_classes = [document.semantic_class("series") for _ in group_items]
     corner_radius = format_coord(resolved_theme.corner_radius) if resolved_theme.corner_radius > 0 else None

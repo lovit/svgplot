@@ -25,7 +25,14 @@ from dataclasses import dataclass
 
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
-from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, LEGEND_X_OFFSET, PlotArea, format_coord, plot_area
+from svgplot.charts._layout import (
+    LEGEND_X_OFFSET,
+    PlotArea,
+    fit_margin,
+    format_coord,
+    plot_area,
+    resolve_size,
+)
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._columns import column_length, extract_columns
@@ -167,6 +174,8 @@ def treemap(
     values: str,
     labels: str | None = None,
     *,
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
     """Draw a treemap from ``values`` (tile area) and, optionally, ``labels``
@@ -218,12 +227,13 @@ def treemap(
     if total == 0:
         raise ValueError("treemap values must not all be zero (sum is 0)")
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=_MARGIN)
+    canvas_width, canvas_height = resolve_size(width, height)
+    document = SvgDocument(width=canvas_width, height=canvas_height)
+    area = plot_area(canvas_width, canvas_height, margin=fit_margin(_MARGIN, canvas_width, canvas_height))
     document.add_node(
         None,
         "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
+        attrib={"x": 0, "y": 0, "width": format_coord(canvas_width), "height": format_coord(canvas_height)},
         classes=["plot-background"],
     )
 
