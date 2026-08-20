@@ -11,9 +11,16 @@ import warnings
 import pytest
 
 import svgplot as sp
+from _svg_probe import strip_document_scope
 from svgplot._svg import SvgDocument
 from svgplot.layout.sizing import apply_size
-from svgplot.scope import RESPONSIVE_CLASS, RESPONSIVE_CSS, apply_scope, scope_token, validate_css_class_name
+from svgplot.scope import (
+    RESPONSIVE_CLASS,
+    RESPONSIVE_CSS,
+    apply_scope,
+    scope_token,
+    validate_css_class_name,
+)
 
 DATA = {"x": [1, 2, 3], "y": [1.0, 2.0, 3.0]}
 CATEGORIES = {"c": ["a", "b"], "v": [1.0, 2.0]}
@@ -89,12 +96,14 @@ _CHARTS = {
     "kdeplot": lambda theme: sp.kdeplot(SAMPLE, x="v", theme=theme),
     "ecdfplot": lambda theme: sp.ecdfplot(SAMPLE, x="v", theme=theme),
     "regplot": lambda theme: sp.regplot(DATA, x="x", y="y", theme=theme),
-    "heatmap": lambda theme: sp.heatmap(GRID, x="c", y="r", values="v", theme=theme),
+    "heatmap": lambda theme: sp.heatmap(GRID, x="c", y="r", values="v", annot=True, theme=theme),
     "radarplot": lambda theme: sp.radarplot(CATEGORIES3, x="c", y="v", theme=theme),
     "treemap": lambda theme: sp.treemap(CATEGORIES, values="v", labels="c", theme=theme),
     "gaugeplot": lambda theme: sp.gaugeplot(GAUGE, value="v", labels="n", theme=theme),
     "sparkline": lambda theme: sp.sparkline({"y": [1.0, 2, 3]}, y="y", theme=theme),
-    "row": lambda theme: sp.row([sp.lineplot(DATA, x="x", y="y", theme=theme), sp.barplot(CATEGORIES, x="c", y="v")]),
+    "row": lambda theme: sp.row(
+        [sp.lineplot(DATA, x="x", y="y", theme=theme), sp.barplot(CATEGORIES, x="c", y="v", theme=theme)]
+    ),
     "facet": lambda theme: sp.facet(sp.lineplot, FACETED, col="g", x="x", y="y", theme=theme),
 }
 
@@ -129,7 +138,12 @@ def test_no_rule_escapes_its_document(name: str, theme: str) -> None:
         if rule.strip() == RESPONSIVE_CSS:
             continue
         for selector in rule.split("{")[0].split(","):
-            assert selector.strip().startswith(":where(."), f"{name} leaks a document-global selector: {selector.strip()!r}"
+            bare = selector.strip()
+            assert bare.startswith(":where(."), f"{name} leaks a document-global selector: {bare!r}"
+            # Exactly one. Two wrappers need two ancestors carrying the token and there is one,
+            # so the rule matches nothing and the chart renders unstyled -- while still passing
+            # every "is it scoped" reading, because it is scoped, twice.
+            assert bare.count(":where(.") == 1, f"{name} scopes a selector more than once: {bare!r}"
 
     # And the scope has to be on the root, or the rules select nothing and the chart renders
     # completely unstyled. Deleting the two lines that set it left every assertion above green.
@@ -146,9 +160,9 @@ def test_the_chart_style_block_stays_flat(name: str) -> None:
     substitution, not a CSS parser, so a ``@media`` block would go through it selector-first
     and come out as ``:where(.tok) @media (...) {`` -- invalid CSS in shipped output.
 
-    Every chart *and* every composition, because there are two ``<style>`` producers
-    (``theme.css`` and ``chart.composition``) and testing one leaves the other free to break
-    the assumption. Checked before the scope is stripped would be circular, so the ``@`` test
+    Every chart *and* every composition, because two producers emit rules through this
+    rewriter (``theme.css`` and ``chart.composition``) and testing one leaves the other free to
+    break the assumption. A third, ``layout.sizing``, is exempt by design. Checked before the scope is stripped would be circular, so the ``@`` test
     reads the rule after ``:where(...)``.
     """
     with warnings.catch_warnings():
@@ -160,7 +174,7 @@ def test_the_chart_style_block_stays_flat(name: str) -> None:
             if not line.strip():
                 continue
             assert line.count("{") == 1 and line.rstrip().endswith("}"), f"not one flat rule: {line!r}"
-            bare = re.sub(r"^:where\(\.[\w-]+\)\s*", "", line.strip())
+            bare = strip_document_scope(line.strip())
             assert not bare.startswith("@"), f"at-rule reaches the rewriter: {line!r}"
 
 

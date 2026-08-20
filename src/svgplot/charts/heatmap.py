@@ -89,18 +89,20 @@ Two terms are needed because the two counts come apart on a sparse grid: a 100x1
 holding a 100-cell diagonal draws 100 rects but still labels 200 ticks. Estimating from
 cells alone put that chart at 8 KB against a real 41 KB; from grid cells alone, at 859 KB.
 
-``drawn * 85 + (rows + cols) * 159 + 2879`` was fitted on four measured points and is within 4% of
-all of them (estimate vs real, as the warning itself prints them -- so the fit is against the
-**integer-divided** KB the reader sees, not against the exact quotient): 50x50 dense 225 vs
-230 KB (-2.35%), 100x100 dense 863 vs 855 KB (+0.89%), 100x100 diagonal 42 vs 43 KB (-3.08%),
-200x200 diagonal 81 vs 80 KB (+1.15%). Worst case -3.08%, on the sparsest.
+``drawn * 85 + (rows + cols) * 159 + 2879`` was fitted on four measured points and is within 4%
+of all of them. The error is the integer estimate the warning prints against the **exact**
+size in KB, which is what ``tests/test_charts_heatmap.py`` compares -- an earlier version of
+this paragraph claimed the integer-divided figure instead, and the two disagree enough to
+reverse the argument below (2.33% vs 3.08%). Measured: 50x50 dense 225 vs 230.4 KB (-2.35%),
+100x100 dense 863 vs 855.4 KB (+0.89%), 100x100 diagonal 42 vs 43.3 KB (-3.08%), 200x200
+diagonal 81 vs 80.1 KB (+1.15%). Worst case -3.08%, on the 100x100 diagonal.
 
 Refitted when axis labels gained rotation (#133), and again when document scoping (#182) added
 a fixed cost the two-term model had been absorbing into these two.
 
-The two slopes are searched exhaustively with the constant pinned to the measured figure
-(see ``_BYTES_FIXED``), so the search is over two parameters rather than three. Read this as
-"slopes fitted, constant measured" -- it is not a global minimum, and deliberately so.
+The two slopes are searched exhaustively with the constant pinned by them (see
+``_BYTES_FIXED``), so the search is over two parameters rather than three. Read this as
+"slopes fitted, constant anchored" -- it is not a global minimum, and deliberately so.
 
 Refitted whenever the drawn output changes, because it is a fit and not a derivation. It has
 moved twice: once when label thinning stopped the tick count tracking the grid, and once when

@@ -10,14 +10,13 @@ without being checked.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 
 import pytest
 
 import svgplot as sp
 import svgplot.charts as charts
-from _svg_probe import style_rules
+from _svg_probe import strip_document_scope, style_rules
 from svgplot.chart.base import Chart
 
 # A label carrying every line ending Python recognises, in blank-line and lone forms, for
@@ -85,7 +84,7 @@ def _scope_stripped(line: str) -> str:
     The closing ``</style>`` rides on the last rule's line -- the serializer writes no
     newline before it -- so it comes off too.
     """
-    return re.sub(r"^:where\(\.[\w-]+\)\s*", "", line).removesuffix("</style>")
+    return strip_document_scope(line).removesuffix("</style>")
 
 
 @pytest.mark.parametrize("name", sorted(CHARTS), ids=sorted(CHARTS))

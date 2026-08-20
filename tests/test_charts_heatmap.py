@@ -772,3 +772,16 @@ def test_an_unregistered_cmap_still_raises_keyerror_from_the_palette() -> None:
         _render(GRID, cmap="nope")
     with pytest.raises(KeyError, match="unknown diverging palette"):
         _render(GRID, cmap="nope", center=5.0)
+
+
+def test_the_fixed_term_reproduces_the_chart_it_is_anchored_to() -> None:
+    """``_BYTES_FIXED``'s whole justification is that the model is exact on a one-cell heatmap,
+    and nothing executed that. The four grid points do not pin it -- a free 3800, which
+    overpredicts this chart by 28%, passes them at 2.40%.
+
+    Single-character labels: two-character ones make the chart 3,286 bytes, so the anchor is
+    a property of this fixture as much as of the model.
+    """
+    one_cell = heatmap({"col": ["a"], "row": ["p"], "v": [1.0]}, x="col", y="row", values="v")
+
+    assert len(one_cell.to_string()) == 1 * _BYTES_PER_CELL + 2 * _BYTES_PER_TICK + _BYTES_FIXED

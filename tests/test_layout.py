@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
+from _svg_probe import strip_document_scope
 from svgplot.chart.base import Chart
 from svgplot.chart.composition import (
     CAPTION_HEIGHT,
@@ -105,7 +106,7 @@ def _selector_of(rule: str) -> str:
     { … }``. The namespacing this module tests is the ``.c0-`` part, which is a separate
     mechanism, so the assertions read past the scope rather than around it.
     """
-    return re.sub(r"^:where\(\.[\w-]+\)\s*", "", rule.strip())
+    return strip_document_scope(rule.strip())
 
 
 def test_composed_children_elements_carry_namespaced_classes() -> None:

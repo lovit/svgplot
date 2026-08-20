@@ -91,6 +91,16 @@ _STYLE_BLOCK_RE = re.compile(r"<style>(.*?)</style>", re.S)
 _DOCUMENT_SCOPE_RE = re.compile(r"^:where\(\.[\w-]+\)\s*")
 
 
+def strip_document_scope(rule: str) -> str:
+    """One CSS rule with its ``:where(.svgplot-fXXXXXXXX)`` wrapper removed.
+
+    Exported so the three modules that need it stop re-spelling the pattern: the point of
+    keeping it in one place is that a change to the scope's shape breaks one function loudly
+    instead of blinding several tests quietly.
+    """
+    return _DOCUMENT_SCOPE_RE.sub("", rule)
+
+
 def style_rules(svg: str) -> list[str]:
     """Every CSS rule in ``svg``'s ``<style>`` blocks, with the document scope stripped.
 
@@ -106,7 +116,7 @@ def style_rules(svg: str) -> list[str]:
     know it is nested. Rules are returned in document order, stripped, blanks dropped.
     """
     return [
-        _DOCUMENT_SCOPE_RE.sub("", line.strip())
+        strip_document_scope(line.strip())
         for block in _STYLE_BLOCK_RE.findall(svg)
         for line in block.splitlines()
         if line.strip()
