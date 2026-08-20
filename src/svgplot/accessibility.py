@@ -17,15 +17,7 @@ precisely so this function is never applied per panel.
 
 from __future__ import annotations
 
-import re
-
-from svgplot._svg import SvgDocument
-
-_ID_RE = re.compile(r"^\S+$")
-"""What HTML5 accepts as an ``id``: any non-empty string with no ASCII whitespace.
-Deliberately not the stricter XML ``ID`` production — ``aria-describedby`` is resolved by
-the *host document's* rules, and every context this package's output lands in (a browser
-parsing HTML, a screen reader reading its accessibility tree) uses the HTML ones."""
+from svgplot._svg import SvgDocument, validate_element_id
 
 
 def add_accessibility(document: SvgDocument, title: str, desc: str | None = None, *, describedby: str | None = None) -> None:
@@ -71,10 +63,10 @@ def add_accessibility(document: SvgDocument, title: str, desc: str | None = None
     """
     if not title.strip():
         raise ValueError(f"title must not be empty: {title!r}")
-    if describedby is not None and not _ID_RE.fullmatch(describedby):
-        raise ValueError(f"describedby must be a non-empty id with no whitespace: {describedby!r}")
+    if describedby is not None:
+        validate_element_id(describedby, parameter="describedby")
     resolved_desc = desc if desc is not None else f'A chart titled "{title}".'
-    _validate_accessibility_text(title, resolved_desc, describedby)
+    _validate_accessibility_text(title, resolved_desc)
 
     document.set_attribute(document.root, "role", "img")
     document.set_attribute(document.root, "aria-label", title)
@@ -84,20 +76,18 @@ def add_accessibility(document: SvgDocument, title: str, desc: str | None = None
     document.add_text(None, resolved_desc, tag="desc")
 
 
-def _validate_accessibility_text(title: str, desc: str, describedby: str | None) -> None:
+def _validate_accessibility_text(title: str, desc: str) -> None:
     """Raise ``ValueError`` if any of these would be rejected, without mutating the real
     document — checked on a throwaway one instead, since ``SvgDocument``'s validation
     lives behind its public API, not exposed for direct reuse (this module isn't the
     escape chokepoint; ``_svg.py`` is).
 
-    ``describedby`` is checked here too, and not only against :data:`_ID_RE`: ``\\S+``
-    happily matches ``"\\x00"``, which ``set_attribute`` then refuses — after ``role``
-    and ``aria-label`` have already been written, which is exactly the half-mutated
-    document this function exists to prevent.
+    ``describedby`` is **not** re-checked here: ``_svg.validate_element_id`` already ran,
+    before this function touched anything, and it applies the stricter of the SVG and HTML
+    rules. A second copy of that check on the scratch document would be a branch no input
+    can take — which a mutation run duly proved by deleting it and killing nothing.
     """
     scratch = SvgDocument()
     scratch.set_attribute(scratch.root, "aria-label", title)
-    if describedby is not None:
-        scratch.set_attribute(scratch.root, "aria-describedby", describedby)
     scratch.add_text(None, title, tag="title")
     scratch.add_text(None, desc, tag="desc")

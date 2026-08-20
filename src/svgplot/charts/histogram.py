@@ -7,7 +7,7 @@ import bisect
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
-from svgplot.charts._describe import describe, group, plural, span
+from svgplot.charts._describe import describe, over, plural, span
 from svgplot.charts._layout import (
     DEFAULT_HEIGHT,
     DEFAULT_WIDTH,
@@ -144,9 +144,7 @@ def histplot(
     observations = f'{plural(len(all_values), "observation")} in {plural(len(edges) - 1, "bin")}'
     description = describe(
         "Histogram",
-        f"{group([str(label) for label, _ in series_items], 'series')} over {observations}"
-        if hue is not None
-        else observations,
+        over([str(label) for label, _ in series_items] if hue is not None else None, observations),
         span("x", edges[0], edges[-1]),
         span("counts", 0, max_count),
     )

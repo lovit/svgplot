@@ -38,6 +38,12 @@ chokepoint that validates XML-forbidden characters and folds line breaks. A cate
 containing a newline therefore reaches the ``<desc>`` folded to a space, exactly as the
 same name reaches its tick label.
 
+Bidirectional and zero-width control characters (U+202E, U+200B and friends) pass through,
+because XML 1.0 permits them and the chokepoint's job is well-formedness, not typography.
+That is the same policy the package already applies to ``<title>``, ``aria-label`` and every
+tick label, so a name that reorders visually here reorders identically on the axis. Noted
+so a later review does not re-derive it as a finding.
+
 Private/internal — not re-exported from ``svgplot.charts``.
 """
 
@@ -62,16 +68,19 @@ misses.
 Where the numbers come from. A screen reader announces a description as one uninterrupted
 utterance, with no way to skim it, so the limit is about what a listener can hold rather
 than about file size — which puts the target near the 125-character guideline in common
-use for alternative text. Measured over one chart of each of the 16 types on ordinary
-data, the finished sentence runs 35-104 characters (median 61). Saturating both caps
-pushes that to 111-176 for the fifteen chart types that name one group of things, and to
-**222 for ``heatmap``**, the one type that names two (columns *and* rows). Past the caps
-the sentence still grows, but only with the *digits* of the counts it reports — the same
-heatmap measures 224 at 20 names per axis, 229 at 100 and 237 at 1000 — never with the
-data. So the caps hold every chart to roughly one to two utterances, and the heatmap's
-worst case is documented here rather than special-cased: shrinking the caps far enough to
-bring it under 125 would strip the names out of the other fifteen on perfectly ordinary
-data.
+use for alternative text. Measured over the 16 sentences pinned in
+``tests/test_charts_describe.py``'s ``EVERY_CHART`` table, one chart of each type on
+ordinary data: **35-102 characters, median 61.5**. A test recomputes those three figures
+from that table, so they cannot drift out of date the way a number copied into prose does.
+
+What the caps actually bound is the *names*, at :data:`MAX_NAME_CHARS` per list — one list
+for fifteen chart types, two for ``heatmap``, which names columns and rows. Everything else
+in the sentence is counts and value ranges, which grow only with their own **digits**, so a
+chart with a thousand times more data gets a sentence a few characters longer, never a
+thousand times longer. An adversarial search over name lengths 1-100 and category counts
+7-12,345 put the longest ``heatmap`` sentence at **264 characters**; a test pins that
+ceiling. Earlier drafts of this docstring quoted 222 as if it were the maximum, which it
+was not — it was one sample.
 
 What happens at the cap. Overflow is reported, never silently dropped: the listed names
 are followed by ``and N more``. A name is never shortened — a half-name is a different
@@ -122,18 +131,46 @@ def group(names: Sequence[str], noun: str) -> str:
     return f"{counted} ({inside})"
 
 
+def fits(name: str) -> bool:
+    """Whether a single caller-supplied string is short enough to read out.
+
+    The same budget the name lists use, applied to the one clause that names something
+    other than a category: ``scatterplot``'s ``size=`` column. Without it that clause was
+    the only place a caller string reached the ``<desc>`` uncapped — measured, a
+    500,000-character column name produced a 500,064-character description while every
+    capped path stayed under 250.
+    """
+    return bool(_fitting([name]))
+
+
+def over(series_names: Sequence[str] | None, count_clause: str) -> str:
+    """``"2 series (north, south) over 10 points"``, or just ``"10 points"`` without ``hue=``.
+
+    Six charts build this same clause. It lives here so the wording is decided once: a
+    change of preposition should not be a change to six files.
+    """
+    if series_names is None:
+        return count_clause
+    return f"{group(series_names, 'series')} over {count_clause}"
+
+
 def number(value: float) -> str:
     """A value as it reads aloud, using the same rounding the chart's own coordinates use.
 
-    Falls back to ``repr`` for anything ``format_coord`` refuses (a non-finite bound).
-    A description is not worth failing a render over: by the time this is called the
-    chart has already drawn, so raising here would turn a chart that renders into a
-    chart that doesn't.
+    Falls back for anything ``format_coord`` refuses (a non-finite bound). A description
+    is not worth failing a render over: by the time this is called the chart has already
+    drawn, so raising here would turn a chart that renders into a chart that doesn't.
+
+    Which is why the fallback is a fixed word rather than ``repr(value)``. ``repr`` of a
+    large enough ``int`` raises on CPython's 4300-digit conversion limit, and ``repr`` of a
+    caller's own object can raise or be arbitrarily long — either would break the promise
+    this function exists to keep. No public path reaches it today (every chart forces its
+    values through ``float()`` first), which is exactly why it must not be able to.
     """
     try:
         return format_coord(value)
     except ValueError:
-        return repr(value)
+        return "an unreportable value"
 
 
 def moment(value: datetime) -> str:

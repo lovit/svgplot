@@ -180,6 +180,31 @@ def _validate_class_name(class_name: str) -> str:
     return _validate_text(class_name, "CSS class")
 
 
+def validate_element_id(value: str, *, parameter: str) -> str:
+    """Reject anything that can't serve as an element ``id`` in both output formats.
+
+    Public, unlike the ``_validate_*`` helpers around it, because an ``id`` is the one
+    piece of caller text this package writes into **two** documents: an SVG attribute
+    (``aria-describedby``) and an HTML ``<table id>``. Those two have different rules — XML
+    1.0 forbids characters HTML happily carries — and letting each caller pick its own
+    check is how they drift apart. Measured before this existed: ``set_table_id("a\x00b")``
+    was accepted, ``to_html_table()`` emitted an ``id`` that is not well-formed XML and (for
+    a lone surrogate) cannot be written to a UTF-8 file at all, and the matching
+    ``to_string()`` then raised — at render time, far from the setter that caused it. So
+    the stricter of the two rules is the single rule.
+
+    Whitespace is rejected on top of that because ``aria-describedby`` is a
+    *space-separated list* of ids: a space inside one silently becomes two references.
+
+    Raises:
+        ValueError: if ``value`` is empty, contains whitespace, or contains a character
+            XML 1.0 forbids. ``parameter`` names the argument in the message.
+    """
+    if not value or any(character.isspace() for character in value):
+        raise ValueError(f"{parameter} must be a non-empty id with no whitespace: {value!r}")
+    return _validate_text(value, parameter)
+
+
 def _format_number(value: float) -> str:
     """Format a number as a clean literal (``120.5``, not ``120.50000000000001``)."""
     try:

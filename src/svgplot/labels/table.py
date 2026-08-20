@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import html
 
+from svgplot._svg import validate_element_id
 from svgplot.data._columns import column_length, extract_columns
 from svgplot.data._missing import is_missing
 from svgplot.labels.spec import LabelField, LabelSpec, render_value
@@ -140,8 +141,9 @@ def render_table(
 
     Raises:
         ValueError: if ``format`` isn't one of :data:`TABLE_FORMATS`, if ``missing``
-            is neither a string nor ``None``, if ``table_id`` is empty or contains
-            whitespace, or if ``table_id`` is given with ``format="markdown"``.
+            is neither a string nor ``None``, if ``table_id`` isn't usable as an element
+            id (see ``_svg.validate_element_id``), or if ``table_id`` is given with
+            ``format="markdown"``.
         KeyError: if a field named in ``spec`` isn't a column in ``data``.
     """
     if format not in TABLE_FORMATS:
@@ -149,8 +151,7 @@ def render_table(
     if table_id is not None:
         if format != "html":
             raise ValueError(f"table_id needs format='html'; a markdown table has no element to carry it: {table_id!r}")
-        if not table_id or any(character.isspace() for character in table_id):
-            raise ValueError(f"table_id must be a non-empty id with no whitespace: {table_id!r}")
+        validate_element_id(table_id, parameter="table_id")
     # Caught here rather than surfacing as an AttributeError from inside an escaper,
     # matching how ``format`` above is rejected.
     if missing is not None and not isinstance(missing, str):

@@ -10,7 +10,7 @@ from __future__ import annotations
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import render_x_axis, render_y_axis
-from svgplot.charts._describe import describe, group, plural, span
+from svgplot.charts._describe import describe, over, plural, span
 from svgplot.charts._layout import (
     DEFAULT_HEIGHT,
     DEFAULT_WIDTH,
@@ -169,9 +169,7 @@ def ecdfplot(
     observations = plural(len(all_values), "observation")
     description = describe(
         "Complementary cumulative distribution plot" if complementary else "Cumulative distribution plot",
-        f"{group([str(label) for label, _ in series_items], 'series')} over {observations}"
-        if hue is not None
-        else observations,
+        over([str(label) for label, _ in series_items] if hue is not None else None, observations),
         span("x", *x_domain),
         span(stat, *y_domain),
     )

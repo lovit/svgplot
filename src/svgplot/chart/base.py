@@ -18,7 +18,7 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 
-from svgplot._svg import SvgDocument
+from svgplot._svg import SvgDocument, validate_element_id
 from svgplot.accessibility import add_accessibility
 from svgplot.labels._source import LabelData
 from svgplot.labels.table import MISSING_TEXT, render_table
@@ -61,13 +61,16 @@ class Chart:
         ``aria-describedby`` resolve to whichever came first, so the second chart would be
         described by the first chart's data. Returns self for chaining.
 
+        Has no effect on a chart built without ``info=``: there is no table to publish, so
+        :attr:`table_id` stays ``None`` and no ``aria-describedby`` is written. The id is
+        still remembered, so setting it before adding ``info=`` is not a trap either.
+
         Raises:
-            ValueError: if ``table_id`` is empty or contains whitespace — an HTML id may
-                be almost anything, but not that, since whitespace in ``aria-describedby``
-                separates one id from the next.
+            ValueError: if ``table_id`` is empty, contains whitespace, or contains a
+                character XML 1.0 forbids — see ``_svg.validate_element_id`` for why the
+                stricter of the two documents' rules applies to both.
         """
-        if not table_id or any(character.isspace() for character in table_id):
-            raise ValueError(f"table_id must be a non-empty id with no whitespace: {table_id!r}")
+        validate_element_id(table_id, parameter="table_id")
         self._table_id = table_id
         return self
 
