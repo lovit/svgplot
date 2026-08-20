@@ -87,9 +87,14 @@ all of them (estimate vs real, as the warning itself prints them -- so the fit i
 200x200 diagonal 82 vs 80 KB (+2.40%). Worst case +2.40%, on the sparsest.
 
 Refitted when axis labels gained rotation (#133), and again when document scoping (#182) added
-a fixed cost the two-term model had been absorbing into these two. The coefficients are the
-triple that minimises the worst relative error over those four points, searched exhaustively
-rather than guessed.
+a fixed cost the two-term model had been absorbing into these two.
+
+The two slopes are searched exhaustively; the constant is **not** free. Letting it float finds
+``(85, 146, 6520)`` at 1.05% worst error, but 6520 exceeds the whole of a one-cell heatmap
+(3,282 bytes measured), so that triple buys its accuracy on these four points by claiming a
+fixed cost the output does not have -- it would drift on any grid shape outside them. Held near
+the measured figure, the best triple is 2.40%, and ``(85, 159, 3800)`` reaches the same. Read
+this as "slopes fitted, constant measured", not as a global minimum.
 
 Refitted whenever the drawn output changes, because it is a fit and not a derivation. It has
 moved twice: once when label thinning stopped the tick count tracking the grid, and once when
