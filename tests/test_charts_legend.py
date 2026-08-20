@@ -72,7 +72,7 @@ def _legend_labels(svg: str) -> list[tuple[float, str]]:
 
 def test_a_long_label_stays_inside_the_canvas() -> None:
     """It used to run past the ``viewBox``, where nothing renders it -- 118px of room on the
-    default canvas is about 11 CJK characters, an ordinary Korean label length."""
+    default canvas is about 10 CJK characters, an ordinary Korean label length."""
     svg = sp.barplot({"x": ["a", "b"], "y": [1.0, 2.0], "g": [_LONG_KO, "짧음"]}, x="x", y="y", hue="g").to_string()
 
     for start, text in _legend_labels(svg):

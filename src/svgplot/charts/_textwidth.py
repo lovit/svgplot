@@ -185,9 +185,17 @@ Comic Sans MS      1.5068  (``Ĳ``, Bold)                          <= 0.664
 **Helvetica / Helvetica Neue**  **1.5560**  (``―``, HN Medium)    <= 0.643
 =================  ==========================================  =========
 
-Every weight, not the regular one -- and for SF NS every *instance*, since it is a variable
-font whose ``hmtx`` describes one point in a design space rather than the nine weights it
-ships. An earlier version of this table listed the regular face
+Every weight, not the regular one -- and for SF NS the nine named weights it ships, at the
+font's default optical size, instanced from the variable font rather than read off its
+``hmtx`` (which describes one point in a design space, not the weights).
+
+Two things that scope deliberately leaves out, both checked and both harmless here. At the
+small optical size a legend actually selects (``opsz=17``) the worst ratio rises to 1.3246,
+and sweeping every named instance of the family -- 369 of them, including widths -- reaches
+1.9953 on Extra Expanded Black. Neither disturbs the threshold: both stay under the 1.5560
+that Helvetica Neue Medium already sets, and an expanded width is not reachable through
+``font-family`` alone (it needs ``font-stretch``/``font-variation-settings``, which this
+package does not emit). An earlier version of this table listed the regular face
 of each family and put Arial at 1.0000 -- Arial Black runs ``¶`` at 1.4408, and Comic Sans
 Bold at 1.5068 was the second-worst face in the whole set and absent from the table entirely.
 The threshold happened to survive that, because the family whose *regular* face was worst is
@@ -196,10 +204,20 @@ also the family with the worst face overall; that is luck, not method.
 A label estimated at fraction *f* of the budget renders at up to 1.5560 *f*, so it stays
 inside only while *f* is under 0.643. 0.60 sits under that with room.
 
+What that ratio decides is **when to attach a ``<title>``**, and only that. Truncation is a
+separate rule that fills the budget to *f* near 1.0, so a label the estimate calls a fit can
+still overflow in a family whose faces run wider than the estimate charges — measured,
+``">" * 18`` in Verdana Regular is estimated at 116.8 px and renders at 162.0 px, 44 px past
+the canvas, with its ``<title>`` correctly attached. **Visual containment is measured only for
+Arial and Helvetica Regular**, the two the per-character table below is built from; for the
+rest of the list the guarantee is that the text is never *lost*, because it is always in the
+file.
+
 **Outside this list the bound does not hold**, and it is a short list on purpose -- these are
 what ``font-family: sans-serif`` resolves to plus the families a caller is likely to name.
 Setting ``theme.font_family`` to something else voids it: Heiti SC needs 0.590, Songti SC
-0.590, DejaVu Sans Bold 0.621, Ayuthaya 0.508. Chasing those would mean titling nearly every
+0.590, Ayuthaya 0.508. (DejaVu Sans Bold's 0.621 is *above* 0.60 and so already covered — it
+is listed here as a near miss, not as a family the threshold fails.) Chasing those would mean titling nearly every
 label, which trades a rare overflow for markup on all of them.
 
 Two earlier answers were wrong the same way, each by measuring too small a set: 0.80 came

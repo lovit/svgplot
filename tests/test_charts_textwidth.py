@@ -27,9 +27,9 @@ def test_an_empty_string_costs_nothing() -> None:
 
 
 def test_a_cjk_character_costs_a_full_em_and_a_latin_one_costs_less() -> None:
-    """The whole reason the estimate is not ``len(text)``: eleven Hangul syllables fill the
-    room that eighteen Latin letters do by this model, and charging them the same is what let a Korean
-    label run off the canvas."""
+    """The whole reason the estimate is not ``len(text)``: ten Hangul syllables fill the room
+    that seventeen Latin letters do by this model (110.0 px against 110.33 px in a legend's
+    118 px), and charging them the same is what let a Korean label run off the canvas."""
     assert text_width("가", 10.0) == 10.0
     assert text_width("a", 10.0) == 10.0 * _NARROW_RATIO
     assert text_width("가", 10.0) > text_width("a", 10.0)
@@ -108,8 +108,8 @@ def test_the_result_is_estimated_to_fit_the_budget(text: str) -> None:
 
 
 def test_wide_text_is_cut_sooner_than_narrow_text() -> None:
-    """Eleven CJK characters take the room eighteen Latin ones do by this model, so the same budget has
-    to keep roughly half as many. A model that ignored width keeps the same count."""
+    """Ten CJK characters take the room seventeen Latin ones do by this model, so the same
+    budget has to keep roughly half as many. A model that ignored width keeps the same count."""
     latin = truncate_to_width("a" * 40, 11.0, 96.0)
     cjk = truncate_to_width("가" * 40, 11.0, 96.0)
 
