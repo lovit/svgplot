@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>갤러리 — svgplot</title>
-    <meta name="description" content="svgplot 차트 예시 모음." />
+    <title>ecdfplot — svgplot</title>
+    <meta name="description" content="값을 정렬해 &quot;이 값 이하가 전체의 몇 퍼센트인가&quot;를 계단으로 그린다. 구간도 대역폭도 고르지 않는다." />
     <style>
       :root {
         --bg: #ffffff;
@@ -79,81 +79,57 @@
     </style>
   </head>
   <body>
-    <nav><a href="../">svgplot</a></nav>
-    <h1>갤러리</h1>
-    <p class="summary">예시 10종. 각 그림 아래에 그것을 그린 코드가 함께 있다.</p>
-    <ul class="index">
-      <li>
-        <a href="areaplot.html">
-          <img src="svg/areaplot-1.svg" alt="areaplot" />
-          <strong>areaplot</strong>
-          <span>선 아래를 0까지 채운다. 채워진 면적이 값이므로 y 축은 항상 0을 포함한다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="barplot.html">
-          <img src="svg/barplot-1.svg" alt="barplot" />
-          <strong>barplot</strong>
-          <span>카테고리마다 막대 하나를 그린다. orient= 로 방향을, hue= 와 stacked= 로 그룹을 정한다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="boxplot.html">
-          <img src="svg/boxplot-1.svg" alt="boxplot" />
-          <strong>boxplot</strong>
-          <span>카테고리마다 사분위 상자와 수염을 그린다. mode= 가 수염의 끝을 무엇으로 정할지 고른다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="ecdfplot.html">
-          <img src="svg/ecdfplot-1.svg" alt="ecdfplot" />
-          <strong>ecdfplot</strong>
-          <span>값을 정렬해 &quot;이 값 이하가 전체의 몇 퍼센트인가&quot;를 계단으로 그린다. 구간도 대역폭도 고르지 않는다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="histplot.html">
-          <img src="svg/histplot-1.svg" alt="histplot" />
-          <strong>histplot</strong>
-          <span>수치 한 컬럼을 구간으로 나눠 각 구간에 든 행 수를 막대로 그린다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="kdeplot.html">
-          <img src="svg/kdeplot-1.svg" alt="kdeplot" />
-          <strong>kdeplot</strong>
-          <span>수치 한 컬럼의 분포를 곡선 하나로 추정해 그린다. 히스토그램과 달리 구간 경계가 없다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="lineplot.html">
-          <img src="svg/lineplot-1.svg" alt="lineplot" />
-          <strong>lineplot</strong>
-          <span>x 순으로 점을 이어 선을 그린다. x 는 수치 또는 날짜를 받는다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="pieplot.html">
-          <img src="svg/pieplot-1.svg" alt="pieplot" />
-          <strong>pieplot</strong>
-          <span>값 하나짜리 컬럼을 원의 조각으로 나눈다. 조각의 각도가 전체 합에 대한 비율이다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="scatterplot.html">
-          <img src="svg/scatterplot-1.svg" alt="scatterplot" />
-          <strong>scatterplot</strong>
-          <span>x·y 두 수치 컬럼을 점으로 놓는다. hue= 는 색, size= 는 마커 크기에 매핑한다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="violinplot.html">
-          <img src="svg/violinplot-1.svg" alt="violinplot" />
-          <strong>violinplot</strong>
-          <span>카테고리마다 좌우 대칭 밀도 곡선을 그린다. 폭이 그 값 근처에 얼마나 몰려 있는지를 나타낸다.</span>
-        </a>
-      </li>
+    <nav><a href="../">svgplot</a> · <a href="./">갤러리</a></nav>
+    <h1>ecdfplot</h1>
+    <p class="summary">값을 정렬해 &quot;이 값 이하가 전체의 몇 퍼센트인가&quot;를 계단으로 그린다. 구간도 대역폭도 고르지 않는다.</p>
+    <dl class="meta">
+      <dt>데이터</dt>
+      <dd>x: 수치 · hue(선택): 아무 타입</dd>
+    </dl>
+    <h2>데이터</h2>
+    <pre><code>import random
+
+import svgplot as sp
+
+_rng = random.Random(13)
+RESPONSE = {
+    &quot;ms&quot;: (
+        [round(_rng.gauss(120, 30)) for _ in range(200)]
+        + [round(_rng.gauss(260, 90)) for _ in range(200)]
+    ),
+    &quot;버전&quot;: [&quot;v1&quot;] * 200 + [&quot;v2&quot;] * 200,
+}</code></pre>
+    <h2>예시</h2>
+    <h3>기본 — stat=&quot;proportion&quot; 은 0에서 1까지 오른다</h3>
+    <figure>
+      <img src="svg/ecdfplot-1.svg" alt="기본 — stat=&quot;proportion&quot; 은 0에서 1까지 오른다" />
+    </figure>
+    <pre><code>sp.ecdfplot(RESPONSE, x=&quot;ms&quot;)</code></pre>
+    <h3>stat=&quot;count&quot; 는 비율 대신 누적 행 수를 쓴다</h3>
+    <figure>
+      <img src="svg/ecdfplot-2.svg" alt="stat=&quot;count&quot; 는 비율 대신 누적 행 수를 쓴다" />
+    </figure>
+    <pre><code>sp.ecdfplot(RESPONSE, x=&quot;ms&quot;, stat=&quot;count&quot;)</code></pre>
+    <h3>complementary=True 는 1에서 빼 생존함수로 뒤집는다</h3>
+    <figure>
+      <img src="svg/ecdfplot-3.svg" alt="complementary=True 는 1에서 빼 생존함수로 뒤집는다" />
+    </figure>
+    <pre><code>sp.ecdfplot(RESPONSE, x=&quot;ms&quot;, complementary=True)</code></pre>
+    <h3>hue= 는 그룹마다 계단을 하나씩 그린다</h3>
+    <figure>
+      <img src="svg/ecdfplot-4.svg" alt="hue= 는 그룹마다 계단을 하나씩 그린다" />
+    </figure>
+    <pre><code>sp.ecdfplot(RESPONSE, x=&quot;ms&quot;, hue=&quot;버전&quot;)</code></pre>
+    <h2>메모</h2>
+    <ul class="notes">
+      <li>정렬과 누적 비율만 쓰므로 stats 모듈을 거치지 않는다. 구간 폭이나 대역폭 같은 고를 것이 없어서 같은 데이터가 언제나 같은 계단을 만든다.</li>
+      <li>stat 은 &quot;proportion&quot; 또는 &quot;count&quot; 다.</li>
+      <li>complementary=True 는 꼬리를 읽을 때 쓴다 — &quot;몇 퍼센트가 이 값을 넘는가&quot;가 y 축이 된다.</li>
+      <li>stat=&quot;count&quot; 에 hue= 를 주면 그룹들이 가장 큰 그룹에 맞춘 y 축을 공유한다. 그룹 크기가 다르면 계단의 최종 높이도 다르다.</li>
+      <li>히스토그램과 달리 구간 경계에 따라 모양이 바뀌지 않는다. 대신 값이 몰린 곳은 계단의 기울기로만 드러난다.</li>
     </ul>
-    <footer><a href="../">svgplot 소개로</a></footer>
+    <footer>
+      <a href="./">갤러리로</a> · <a href="https://github.com/lovit/svgplot/blob/main/gallery/examples/ecdfplot.py">이 페이지의 예시 소스</a>
+    </footer>
   </body>
 </html>
