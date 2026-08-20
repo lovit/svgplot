@@ -79,7 +79,48 @@ _TAG_RE = re.compile(r"<(rect|line|circle|text|path)\b[^>]*>")
 _ATTR_RE = re.compile(r'([\w:-]+)="([^"]*)"')
 
 
-_PATH_COORD_RE = re.compile(r"-?\d+(?:\.\d+)?")
+_PATH_TOKEN_RE = re.compile(r"[A-Za-z]|-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
+# How many numbers each path command takes, and how many of them are coordinates. ``A`` is
+# the one that matters: it takes seven numbers of which only the last two are a point, so
+# splitting a ``d`` on odd/even positions flips x and y for **everything after the first
+# arc** -- and this package's ``pieplot``/``gaugeplot``/donut paths are exactly ``M L A``
+# sequences. A synthetic case proved the old parser reported 0 for a point 50px below the
+# canvas.
+_PATH_ARITY = {"M": 2, "L": 2, "T": 2, "H": 1, "V": 1, "C": 6, "S": 4, "Q": 4, "A": 7, "Z": 0}
+
+
+def _path_points(data: str) -> list[tuple[float, float]]:
+    """The endpoint of every command in a ``d``, as (x, y).
+
+    An arc's radii and flags are dropped rather than misread as a point. Its *bulge* is not
+    sampled, so a curve that leaves the canvas without either endpoint leaving it is still
+    invisible here -- stated rather than implied, because the previous version of this comment
+    claimed the parser over-counted when it in fact under-counted.
+    """
+    tokens = _PATH_TOKEN_RE.findall(data)
+    points: list[tuple[float, float]] = []
+    index = 0
+    command = "M"
+    while index < len(tokens):
+        if tokens[index].isalpha():
+            command = tokens[index].upper()
+            index += 1
+            continue
+        arity = _PATH_ARITY.get(command, 2)
+        if arity == 0:
+            index += 1
+            continue
+        numbers = [float(token) for token in tokens[index : index + arity]]
+        index += arity
+        if len(numbers) < arity:
+            break
+        if command == "H":
+            points.append((numbers[0], points[-1][1] if points else 0.0))
+        elif command == "V":
+            points.append((points[-1][0] if points else 0.0, numbers[0]))
+        else:
+            points.append((numbers[-2], numbers[-1]))
+    return points
 
 
 def _worst_overflow(svg: str, width: float, height: float) -> float:
@@ -90,8 +131,8 @@ def _worst_overflow(svg: str, width: float, height: float) -> float:
     ``d`` unparsed this helper saw nothing at all of ``line``/``area``/``kde``/``ecdf``/
     ``violin``/``radar``/``pie``/``gauge``'s data marks, and with ``r`` ignored it
     under-reported a scatter overflow by the marker radius. An arc's ``A`` parameters are
-    swept up with its endpoints, which over-counts rather than under-counts — the safe
-    direction for a test whose job is to notice things leaving the canvas.
+    dropped rather than read as a point — see :func:`_path_points`, and note that an arc's
+    bulge is not sampled.
 
     Glyph extents are still invisible: this package has no font metrics, so a text element
     contributes only its anchor. The plot background is skipped because it is the canvas.
@@ -124,9 +165,9 @@ def _worst_overflow(svg: str, width: float, height: float) -> float:
                 xs.extend([value + radius for value in xs] + [value - radius for value in xs])
                 ys.extend([value + radius for value in ys] + [value - radius for value in ys])
         if "d" in attrs:
-            numbers = [float(number) for number in _PATH_COORD_RE.findall(attrs["d"])]
-            xs.extend(numbers[0::2])
-            ys.extend(numbers[1::2])
+            for point_x, point_y in _path_points(attrs["d"]):
+                xs.append(point_x)
+                ys.append(point_y)
         worst = max([worst, *(value - width for value in xs), *(-value for value in xs)])
         worst = max([worst, *(value - height for value in ys), *(-value for value in ys)])
     return worst
@@ -335,25 +376,22 @@ def test_a_legend_taller_than_the_canvas_is_refused_rather_than_clipped() -> Non
         sp.heatmap(DATA, x="day", y="group", values="value", width=400, height=MIN_HEIGHT)
 
 
-def test_the_legend_guard_measures_the_space_a_legend_claims() -> None:
-    """The guard checks the space the legend **claims**, which is more than its ink — the
-    difference is a row's own bottom padding. That is deliberate rather than slack: whatever
-    stacks below a legend starts exactly at the claimed end (``render_legend`` returns it for
-    that purpose), so allowing a legend to end past the edge is what put ``scatterplot``'s
-    second legend off the canvas. Read back from what is drawn, so the two stay related.
-    """
-    svg = sp.heatmap(DATA, x="day", y="group", values="value", width=400, height=210).to_string()
+def test_the_legend_guard_measures_ink_not_the_space_a_legend_claims() -> None:
+    """``render_legend`` returns ``rows * _ROW_HEIGHT`` so a caller can stack under it, and
+    that number is bigger than the legend's ink by the last row's own bottom padding. Guarding
+    on it refuses legends that fit: on ``origin/main`` a 29-entry legend at 800x600 puts its
+    lowest ink at y=594 and renders correctly. Read the boundary back from what is drawn."""
+    svg = sp.heatmap(DATA, x="day", y="group", values="value", width=400, height=200).to_string()
     swatches = [tag for tag in re.finditer(r"<rect\b[^>]*/>", svg) if "level-" in tag.group()]
     inked_bottom = max(
         float(dict(_ATTR_RE.findall(tag.group()))["y"]) + float(dict(_ATTR_RE.findall(tag.group()))["height"])
         for tag in swatches
     )
 
-    assert inked_bottom <= 210
-    assert _worst_overflow(svg, 400, 210) == pytest.approx(0.0, abs=1e-6)
-    # One pixel less and the claimed space no longer fits, which is where the guard cuts.
+    assert inked_bottom <= 200
+    assert _worst_overflow(svg, 400, 200) == pytest.approx(0.0, abs=1e-6)
     with pytest.raises(ValueError, match="a legend of 9 entries needs"):
-        sp.heatmap(DATA, x="day", y="group", values="value", width=400, height=209)
+        sp.heatmap(DATA, x="day", y="group", values="value", width=400, height=197)
 
 
 def test_a_second_legend_stacked_below_the_first_is_checked_too() -> None:
@@ -378,9 +416,10 @@ def test_a_second_legend_stacked_below_the_first_is_checked_too() -> None:
 
 
 def test_the_default_canvas_refuses_a_legend_it_used_to_clip() -> None:
-    """The one place this change is *not* transparent to an existing call, pinned to the
-    numbers rather than left to drift. Before, a 29-group chart drew its last rows past the
-    bottom of an 800x600 canvas; now it says so."""
+    """The boundary, pinned to the numbers rather than left to drift -- and pinned to the
+    ones ``origin/main`` actually draws. An earlier version of this guard refused 29 groups on
+    the strength of a claim that main clipped them, which measurement disproved: main puts the
+    29th row's ink at y=594 on a 600px canvas. Thirty reaches 614 and really does overflow."""
 
     def build(groups: int) -> sp.Chart:
         rows = groups * 2
@@ -395,9 +434,9 @@ def test_the_default_canvas_refuses_a_legend_it_used_to_clip() -> None:
             hue="g",
         )
 
-    assert build(28) is not None
-    with pytest.raises(ValueError, match="a legend of 29 entries needs"):
-        build(29)
+    assert build(29) is not None  # 594px of ink on a 600px canvas -- exactly what main drew
+    with pytest.raises(ValueError, match="a legend of 30 entries needs"):
+        build(30)
 
 
 def test_a_taller_canvas_takes_the_same_legend() -> None:
@@ -522,6 +561,28 @@ def test_the_default_size_draws_exactly_the_ticks_it_always_drew() -> None:
     labels = _tick_labels(sp.lineplot(DATA, x="day", y="value").to_string(), 800, 600, MARGIN_WITHOUT_LEGEND)
 
     assert labels == (["1", "1.5", "2", "2.5", "3", "3.5", "4"], ["5", "10", "15", "20"])
+
+
+def test_the_axis_split_survives_a_chart_whose_y_axis_starts_at_a_data_bound() -> None:
+    """``_tick_labels`` splits on x because splitting on y misclassifies: ``render_y_axis``
+    nudges its labels down by half the tick offset, so the label at the domain's minimum lands
+    *below* ``area.bottom``. ``lineplot`` escapes it by having slack in its y domain, which is
+    why every other test here passed under the broken rule — ``histplot``'s count axis starts
+    at exactly zero and does not."""
+    labels = _tick_labels(sp.histplot(DATA, x="value", bins=4).to_string(), 800, 600, MARGIN_WITHOUT_LEGEND)
+
+    assert "0" in labels[1], labels
+    assert "0" not in labels[0], labels
+
+
+def test_the_overflow_detector_reads_arcs_without_transposing_them() -> None:
+    """An ``A`` command takes seven numbers of which only two are a point. Splitting a ``d``
+    on odd/even positions flips x and y for everything after the first arc, and this package's
+    pie/donut/gauge paths are exactly ``M L A`` sequences -- so the detector guarding those
+    charts was reading their coordinates sideways."""
+    arc_then_line = '<svg width="800" height="200"><path d="M 10 50 A 20 20 0 0 1 30 50 L 100 250"/></svg>'
+
+    assert _worst_overflow(arc_then_line, 800, 200) == pytest.approx(50.0)
 
 
 def test_the_y_spacing_constant_is_pinned_to_a_value_not_just_a_role() -> None:
