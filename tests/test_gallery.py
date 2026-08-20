@@ -43,7 +43,6 @@ AWAITING_A_PAGE = {
     "regplot",
     "sparkline",
     "treemap",
-    "violinplot",
 }
 
 
