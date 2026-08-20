@@ -249,6 +249,22 @@ def facet(
     ``barplot``'s ``orient=``) are the caller's to supply via ``**kwargs``, so no
     chart type is special-cased here.
 
+    ``sharex``/``sharey`` default to ``True``, which is what makes panels comparable: every
+    panel gets the same axis, so a line twice as high really is twice as high. Turning both
+    off reproduces the pre-sharing output byte for byte.
+
+    Sharing is not free of the signature, though, and this is the part worth reading before
+    wrapping a chart function. While it is on, ``plot_fn`` is called with whichever of
+    ``xlim=``/``ylim=``/``bins=``/``categories=`` its signature accepts, *in addition* to
+    ``**kwargs`` — so the sentence above is exact only with sharing off. Two consequences:
+
+    - A wrapper that forwards ``**kwargs`` **and** pins one of those names inside itself
+      (``lambda data, **kw: histplot(data, bins=4, **kw)``) now raises ``TypeError`` for a
+      duplicate keyword. Pass ``bins=4`` to ``facet`` instead, or turn sharing off.
+    - A ``plot_fn`` whose signature accepts **none** of them cannot be told the shared axis,
+      so its panels are not shared — silently, because there is nothing to refuse. If a
+      wrapper is needed, give it ``**kwargs`` and forward them.
+
     A group whose rows ``plot_fn`` rejects (e.g. every row missing the plotted
     column) propagates that function's own exception rather than being silently
     dropped: a panel vanishing without explanation is harder to debug than a
