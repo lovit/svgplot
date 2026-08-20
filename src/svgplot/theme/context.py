@@ -2,7 +2,7 @@
 
 context scales font/line-width the way seaborn's paper/notebook/talk/poster
 does, but as a pure function (no rcParams mutation) — see
-docs/research/12-aesthetics.md §1. Scoped context-manager application is a
+docs-research/12-aesthetics.md §1. Scoped context-manager application is a
 2차 addition planned for this same file.
 """
 

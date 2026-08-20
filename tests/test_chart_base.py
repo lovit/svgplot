@@ -124,7 +124,7 @@ def test_save_writes_png_file_when_cairosvg_available(require_cairosvg: None, tm
 
 
 def test_rendered_chart_carries_accessibility_defaults_without_any_setup() -> None:
-    """Accessibility is a default, not an opt-in (docs/research/10-feature-matrix.md A9),
+    """Accessibility is a default, not an opt-in (docs-research/10-feature-matrix.md A9),
     so a chart nobody configured still announces itself to assistive tech.
     """
     svg = _sample_chart().to_string()

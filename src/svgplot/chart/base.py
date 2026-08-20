@@ -1,7 +1,7 @@
 """Chart — the object every ``*plot()`` function returns.
 
 Wraps a single ``svgplot._svg.SvgDocument`` and exposes the imperative
-escape-hatch methods recommended in docs/research/11-api-syntax.md
+escape-hatch methods recommended in docs-research/11-api-syntax.md
 (권고안 B, 근거 5): the primary API is functional (``lineplot(data=...)``),
 but the returned Chart can still be customized and always composes with
 ``svgplot.layout``.

@@ -1,4 +1,4 @@
-"""Theme — the ~25-key style schema (docs/research/12-aesthetics.md §1).
+"""Theme — the ~25-key style schema (docs-research/12-aesthetics.md §1).
 
 Immutable value object: rendering never mutates global state (unlike
 matplotlib rcParams or seaborn's ``set_theme``). Passed explicitly to every
@@ -40,7 +40,7 @@ class Theme:
     ticks, marks, per-element font sizes, legend) — deliberately far short of
     matplotlib's 344 rcParams or pygal's 83-key config, matching the
     "what actually makes a theme identity" set matplotlib's own defaults imply
-    (docs/research/02-matplotlib.md A4). Immutability plus explicit
+    (docs-research/02-matplotlib.md A4). Immutability plus explicit
     render-call passing (rather than a global "current theme") is the design
     principle: two renders using the same ``Theme`` instance always look
     identical, and no render can leak style state into another.
@@ -49,7 +49,7 @@ class Theme:
     # background / foreground
     background: str = "#ffffff"
     foreground: str = "#111111"
-    # palette — colorblind-safe by default (docs/research/12-aesthetics.md §2)
+    # palette — colorblind-safe by default (docs-research/12-aesthetics.md §2)
     palette: tuple[str, ...] = _DEFAULT_PALETTE
     # grid (가이드선)
     grid_color: str = "#e0e0e0"
@@ -81,7 +81,7 @@ class Theme:
     # it is a small cost paid for one uniform rule rather than a per-chart-type default.
     fill_opacity: float = 0.75
     corner_radius: float = 0.0
-    # fonts — one family, size per element (docs/research/12-aesthetics.md §3,
+    # fonts — one family, size per element (docs-research/12-aesthetics.md §3,
     # the "8-set" font structure collapsed into theme fields instead of pygal's
     # separate Style/Config split)
     font_family: str = "sans-serif"

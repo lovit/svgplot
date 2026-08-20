@@ -126,7 +126,7 @@ def render_theme_style(
     comes from its datum, not from its position in ``theme.palette``. There is no other
     legal way to express that: ``_svg.py`` rejects ``style=`` attributes outright, and a
     ``fill=`` presentation attribute would both regress the CSS-class-only styling
-    contract (docs/research/12-aesthetics.md §4) and be invisible to
+    contract (docs-research/12-aesthetics.md §4) and be invisible to
     ``chart.composition``'s selector-namespacing rewrite, so composing two
     value-colored charts would silently cross-theme them.
 

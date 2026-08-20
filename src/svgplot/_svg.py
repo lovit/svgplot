@@ -3,7 +3,7 @@
 Low-level XML tree construction used internally by ``chart.base.Chart`` and
 ``chart.composition.Composition``. Responsible for node creation, pretty-print
 serialization, and assigning semantic (non-random) ``class``/``id`` values so
-the generated SVG stays hand-editable (see docs/research/14-scope-recommendation.md,
+the generated SVG stays hand-editable (see docs-research/14-scope-recommendation.md,
 핵심 원칙 1). Not part of the public API — always accessed through Chart/Composition.
 
 Security note (PR #23/#24 security review, 2 rounds): this is the package's
@@ -260,7 +260,7 @@ class SvgDocument:
         values should already be formatted via :func:`_format_number` by the caller
         so coordinates stay literal. Styling is expressed via ``classes`` (CSS
         classes), not an inline ``style=`` attribute — see
-        docs/research/12-aesthetics.md §4. Each class must not contain whitespace
+        docs-research/12-aesthetics.md §4. Each class must not contain whitespace
         (a single list entry can't smuggle in extra classes). Every argument is fully
         validated before any node is created, so a ``ValueError`` never leaves a
         partial node attached to the tree.

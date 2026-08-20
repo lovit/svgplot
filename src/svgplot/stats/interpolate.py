@@ -1,4 +1,4 @@
-"""Curve interpolation: quadratic/cubic/hermite/lagrange/trigonometric (pygal precedent, docs/research/01-pygal.md A7).
+"""Curve interpolation: quadratic/cubic/hermite/lagrange/trigonometric (pygal precedent, docs-research/01-pygal.md A7).
 
 Display-only smoothing, not a statistical fit (pygal's own framing: "원값 사이를
 매끄럽게 잇는 표시용 기능이지 통계 추정이 아니다") — each method is a legitimate,

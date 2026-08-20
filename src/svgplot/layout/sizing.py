@@ -1,5 +1,5 @@
 """Two-mode sizing (fixed/responsive), replacing Bokeh's 8-value sizing_mode
-for a markdown-embedded static document (docs/research/16-layout-vocabulary.md).
+for a markdown-embedded static document (docs-research/16-layout-vocabulary.md).
 
 Bokeh's six viewport-relative modes assume a viewport whose height constrains
 layout; a markdown document scrolls vertically forever, so only "fixed pixel

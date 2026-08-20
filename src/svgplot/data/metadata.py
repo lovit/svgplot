@@ -1,4 +1,4 @@
-"""Point-level metadata (pygal precedent: dict-valued series entries, docs/research/01-pygal.md A2)."""
+"""Point-level metadata (pygal precedent: dict-valued series entries, docs-research/01-pygal.md A2)."""
 
 from __future__ import annotations
 

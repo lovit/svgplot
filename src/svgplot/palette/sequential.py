@@ -1,4 +1,4 @@
-"""Sequential colormaps (needed for heatmap-family charts, docs/research/10-feature-matrix.md A5).
+"""Sequential colormaps (needed for heatmap-family charts, docs-research/10-feature-matrix.md A5).
 
 Generation algorithms here (light/dark gray-anchor ramp, blend, cubehelix) are
 also reused by ``minilang.py`` for the ``light:``/``dark:``/``blend:``/``ch:``
@@ -28,7 +28,7 @@ SEQUENTIAL_PALETTES: dict[str, str] = {
     "oranges": "#d94801",
 }
 """Named sequential colormaps: each maps to a seed color ramped light-to-seed
-(docs/research/12-aesthetics.md §2, seaborn's ``light_palette``/``dark_palette``
+(docs-research/12-aesthetics.md §2, seaborn's ``light_palette``/``dark_palette``
 "same-hue gray anchor" precedent).
 """
 

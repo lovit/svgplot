@@ -1,7 +1,7 @@
 """What a chart's axes actually spanned, so several charts can be made to agree.
 
 ``layout`` places charts; making their axes line up is a *data*-level question
-(docs/research/16-layout-vocabulary.md, 설계 원칙 3, which names a ``shared_x=``-style
+(docs-research/16-layout-vocabulary.md, 설계 원칙 3, which names a ``shared_x=``-style
 parameter as the intended mechanism). This module is that mechanism's data half: a chart
 records what it used, callers union those records, and the charts are asked to redraw
 against the union.

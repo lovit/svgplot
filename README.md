@@ -3,7 +3,7 @@
 markdown 문서에 박아넣을, 심미성 있고 수정이 쉬운 정적 SVG 차트를 만드는 Python 패키지.
 
 matplotlib/seaborn에 익숙한 문법으로 SVG를 만들되, pygal보다 데이터 시맨틱 매핑(`hue=`, `data=`)과 접근성을 갖추고,
-matplotlib보다 렌더 후에도 CSS로 재테마 가능한 SVG를 목표로 한다. 설계 배경은 [`docs/research/`](docs/research/00-overview.md)를 참고
+matplotlib보다 렌더 후에도 CSS로 재테마 가능한 SVG를 목표로 한다. 설계 배경은 [`docs-research/`](docs-research/00-overview.md)를 참고
 (pygal/matplotlib/seaborn/Bokeh 기능 조사와 그로부터 도출한 설계 결정).
 
 ## 사용법

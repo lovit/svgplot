@@ -46,5 +46,5 @@ class HeatmapSizeWarning(SvgplotWarning):
 
     The chart still renders correctly; the warning carries the cell count and an
     estimated size so the caller can decide whether to aggregate the data or
-    export to PNG instead (docs/research/13-svg-opportunity.md).
+    export to PNG instead (docs-research/13-svg-opportunity.md).
     """

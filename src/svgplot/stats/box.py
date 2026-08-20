@@ -1,4 +1,4 @@
-"""Box-plot statistics: quartiles, whiskers, outliers (pygal's 5 box_mode precedent, docs/research/01-pygal.md A7).
+"""Box-plot statistics: quartiles, whiskers, outliers (pygal's 5 box_mode precedent, docs-research/01-pygal.md A7).
 
 pygal's exact internal box_mode formulas are undocumented in this repo's research notes,
 so each mode below is a clear, internally-consistent, standard-statistics interpretation

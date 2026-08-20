@@ -3,7 +3,7 @@
 Three responsibilities: (1) the default canvas size and margin presets every
 chart starts from, (2) a CSS-box-model-like margin (single value applies
 to all 4 sides, or a 4-tuple for per-side control — pygal precedent,
-docs/research/12-aesthetics.md:31) resolved into a plot-area rect, and
+docs-research/12-aesthetics.md:31) resolved into a plot-area rect, and
 (3) SVG-literal coordinate formatting, so every chart's path/line/rect
 coordinates stay clean literals rather than floating-point noise (mirrors
 ``_svg.py``'s private ``_format_number`` — that function isn't reusable

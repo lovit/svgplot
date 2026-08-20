@@ -2,7 +2,7 @@
 
 Ported from seaborn's ``color_palette()`` grammar but reimplemented with an
 explicit parser instead of ad-hoc ``split(":")``/``startswith`` checks, for
-better error messages (docs/research/12-aesthetics.md §2). Parsing only —
+better error messages (docs-research/12-aesthetics.md §2). Parsing only —
 the actual color generation for each spec form is ``sequential.py``'s (this
 module dispatches into it); a bare name with no recognized prefix falls back
 to :func:`svgplot.palette.qualitative.qualitative`.

@@ -1,5 +1,5 @@
 """Composition-level captions and the Tabs-replacement heading-per-chart pattern
-(docs/research/16-layout-vocabulary.md, "Tabs 대체 관용구" 기본안).
+(docs-research/16-layout-vocabulary.md, "Tabs 대체 관용구" 기본안).
 
 The per-chart heading half of that pattern lives in ``layout.grid`` (the
 ``titles=`` parameter), since headings are positioned as part of cell layout.

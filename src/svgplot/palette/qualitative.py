@@ -17,7 +17,7 @@ def qualitative(name: str, n: int) -> list[str]:
 
     If ``n`` exceeds the palette's size, colors repeat (cycle) rather than erroring —
     perceptually-uniform cyclic extension (varying lightness in e.g. OKLCH instead of
-    flatly repeating) is a 2차 refinement, docs/research/12-aesthetics.md §2.
+    flatly repeating) is a 2차 refinement, docs-research/12-aesthetics.md §2.
 
     Raises:
         ValueError: if ``name`` isn't a string, is in

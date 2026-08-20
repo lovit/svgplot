@@ -1,4 +1,4 @@
-"""SVG string/file export — pretty-printed by default (see docs/research/14-scope-recommendation.md, 핵심 원칙 1)."""
+"""SVG string/file export — pretty-printed by default (see docs-research/14-scope-recommendation.md, 핵심 원칙 1)."""
 
 from __future__ import annotations
 

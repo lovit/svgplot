@@ -1,5 +1,5 @@
 """LabelSpec — field selection + format spec, ported from Bokeh's ``tooltips=[("label", "@field{format}")]``
-mini-language (docs/research/17-static-hover-alternative.md). numeral/datetime/printf are the three
+mini-language (docs-research/17-static-hover-alternative.md). numeral/datetime/printf are the three
 format schemes; ``{safe}``-style raw HTML is deliberately not supported.
 
 Security note (PR #23 security review): the "printf" scheme's format string

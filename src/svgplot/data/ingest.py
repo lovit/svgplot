@@ -7,7 +7,7 @@ list of dict records, and normalizes all three into the same column-dict shape
 both build on).
 
 Wide-form auto-detection is a 2차 addition planned for this same file
-(docs/research/10-feature-matrix.md A2, docs/research/14-scope-recommendation.md).
+(docs-research/10-feature-matrix.md A2, docs-research/14-scope-recommendation.md).
 """
 
 from __future__ import annotations

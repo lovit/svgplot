@@ -1,4 +1,4 @@
-"""Automatic histogram binning (docs/research/10-feature-matrix.md A7).
+"""Automatic histogram binning (docs-research/10-feature-matrix.md A7).
 
 The strategies are numpy's, reimplemented here rather than delegated. Delegating was one
 import in one line, and it made ``numpy`` a required dependency of a package whose job is to

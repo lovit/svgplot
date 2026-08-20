@@ -1,4 +1,4 @@
-"""Multi-chart composition: row/column/grid/caption/sizing/facet — docs/research/16-layout-vocabulary.md."""
+"""Multi-chart composition: row/column/grid/caption/sizing/facet — docs-research/16-layout-vocabulary.md."""
 
 from __future__ import annotations
 

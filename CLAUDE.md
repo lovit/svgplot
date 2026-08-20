@@ -1,7 +1,7 @@
 # svgplot
 
 markdown 문서에 박아넣을, 심미성 있고 수정이 쉬운 정적 SVG 차트를 Python으로 만드는 패키지.
-설계 배경은 `docs/research/`를 참고(pygal/matplotlib/seaborn/Bokeh 기능 조사 + 설계 결정, `docs/research/00-overview.md`부터 읽기).
+설계 배경은 `docs-research/`를 참고(pygal/matplotlib/seaborn/Bokeh 기능 조사 + 설계 결정, `docs-research/00-overview.md`부터 읽기).
 
 ## 개발 워크플로
 
@@ -85,4 +85,4 @@ CI와 동일하게 확인: `mise run check`
 - Git 워크플로: @.claude/rules/branch.md
 - Python 스타일: @.claude/rules/python-style.md
 - 리뷰 정책: @.claude/rules/review-policy.md
-- 설계 배경(사전 조사): `docs/research/00-overview.md`
+- 설계 배경(사전 조사): `docs-research/00-overview.md`

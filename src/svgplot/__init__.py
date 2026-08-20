@@ -1,6 +1,6 @@
 """svgplot: aesthetic, markdown-friendly SVG plotting for Python.
 
-Design background: docs/research/00-overview.md.
+Design background: docs-research/00-overview.md.
 """
 
 from __future__ import annotations
