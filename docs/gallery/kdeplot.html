@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>갤러리 — svgplot</title>
-    <meta name="description" content="svgplot 차트 예시 모음." />
+    <title>kdeplot — svgplot</title>
+    <meta name="description" content="수치 한 컬럼의 분포를 곡선 하나로 추정해 그린다. 히스토그램과 달리 구간 경계가 없다." />
     <style>
       :root {
         --bg: #ffffff;
@@ -79,74 +79,57 @@
     </style>
   </head>
   <body>
-    <nav><a href="../">svgplot</a></nav>
-    <h1>갤러리</h1>
-    <p class="summary">예시 9종. 각 그림 아래에 그것을 그린 코드가 함께 있다.</p>
-    <ul class="index">
-      <li>
-        <a href="areaplot.html">
-          <img src="svg/areaplot-1.svg" alt="areaplot" />
-          <strong>areaplot</strong>
-          <span>선 아래를 0까지 채운다. 채워진 면적이 값이므로 y 축은 항상 0을 포함한다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="barplot.html">
-          <img src="svg/barplot-1.svg" alt="barplot" />
-          <strong>barplot</strong>
-          <span>카테고리마다 막대 하나를 그린다. orient= 로 방향을, hue= 와 stacked= 로 그룹을 정한다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="boxplot.html">
-          <img src="svg/boxplot-1.svg" alt="boxplot" />
-          <strong>boxplot</strong>
-          <span>카테고리마다 사분위 상자와 수염을 그린다. mode= 가 수염의 끝을 무엇으로 정할지 고른다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="histplot.html">
-          <img src="svg/histplot-1.svg" alt="histplot" />
-          <strong>histplot</strong>
-          <span>수치 한 컬럼을 구간으로 나눠 각 구간에 든 행 수를 막대로 그린다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="kdeplot.html">
-          <img src="svg/kdeplot-1.svg" alt="kdeplot" />
-          <strong>kdeplot</strong>
-          <span>수치 한 컬럼의 분포를 곡선 하나로 추정해 그린다. 히스토그램과 달리 구간 경계가 없다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="lineplot.html">
-          <img src="svg/lineplot-1.svg" alt="lineplot" />
-          <strong>lineplot</strong>
-          <span>x 순으로 점을 이어 선을 그린다. x 는 수치 또는 날짜를 받는다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="pieplot.html">
-          <img src="svg/pieplot-1.svg" alt="pieplot" />
-          <strong>pieplot</strong>
-          <span>값 하나짜리 컬럼을 원의 조각으로 나눈다. 조각의 각도가 전체 합에 대한 비율이다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="scatterplot.html">
-          <img src="svg/scatterplot-1.svg" alt="scatterplot" />
-          <strong>scatterplot</strong>
-          <span>x·y 두 수치 컬럼을 점으로 놓는다. hue= 는 색, size= 는 마커 크기에 매핑한다.</span>
-        </a>
-      </li>
-      <li>
-        <a href="violinplot.html">
-          <img src="svg/violinplot-1.svg" alt="violinplot" />
-          <strong>violinplot</strong>
-          <span>카테고리마다 좌우 대칭 밀도 곡선을 그린다. 폭이 그 값 근처에 얼마나 몰려 있는지를 나타낸다.</span>
-        </a>
-      </li>
+    <nav><a href="../">svgplot</a> · <a href="./">갤러리</a></nav>
+    <h1>kdeplot</h1>
+    <p class="summary">수치 한 컬럼의 분포를 곡선 하나로 추정해 그린다. 히스토그램과 달리 구간 경계가 없다.</p>
+    <dl class="meta">
+      <dt>데이터</dt>
+      <dd>x: 수치(그룹마다 2개 이상, 분산 0 불가) · hue(선택): 아무 타입</dd>
+    </dl>
+    <h2>데이터</h2>
+    <pre><code>import random
+
+import svgplot as sp
+
+_rng = random.Random(5)
+SESSION = {
+    &quot;체류분&quot;: (
+        [round(_rng.gauss(3, 1.0), 2) for _ in range(150)]
+        + [round(_rng.gauss(11, 3.5), 2) for _ in range(150)]
+    ),
+    &quot;기기&quot;: [&quot;모바일&quot;] * 150 + [&quot;데스크톱&quot;] * 150,
+}</code></pre>
+    <h2>예시</h2>
+    <h3>기본</h3>
+    <figure>
+      <img src="svg/kdeplot-1.svg" alt="기본" />
+    </figure>
+    <pre><code>sp.kdeplot(SESSION, x=&quot;체류분&quot;)</code></pre>
+    <h3>fill=True 는 곡선 아래를 축까지 채우고 윤곽을 남긴다</h3>
+    <figure>
+      <img src="svg/kdeplot-2.svg" alt="fill=True 는 곡선 아래를 축까지 채우고 윤곽을 남긴다" />
+    </figure>
+    <pre><code>sp.kdeplot(SESSION, x=&quot;체류분&quot;, fill=True)</code></pre>
+    <h3>hue= 그룹은 하나의 x 그리드를 공유한다</h3>
+    <figure>
+      <img src="svg/kdeplot-3.svg" alt="hue= 그룹은 하나의 x 그리드를 공유한다" />
+    </figure>
+    <pre><code>sp.kdeplot(SESSION, x=&quot;체류분&quot;, hue=&quot;기기&quot;, fill=True)</code></pre>
+    <h3>bandwidth= 를 작게 주면 곡선이 데이터를 더 따라간다</h3>
+    <figure>
+      <img src="svg/kdeplot-4.svg" alt="bandwidth= 를 작게 주면 곡선이 데이터를 더 따라간다" />
+    </figure>
+    <pre><code>sp.kdeplot(SESSION, x=&quot;체류분&quot;, hue=&quot;기기&quot;, bandwidth=0.3)</code></pre>
+    <h2>메모</h2>
+    <ul class="notes">
+      <li>hue= 그룹은 하나의 x 그리드를 공유한다. histplot 이 구간 경계를 공유하는 것과 같은 이유로, 그래야 곡선끼리 같은 자리에서 견줘진다.</li>
+      <li>그 공유의 대가는 violinplot 과 같다 — 그룹들의 크기가 자릿수로 다르면 그리드 간격이 좁은 쪽의 대역폭을 넘어서고 그 그룹이 어디서나 0 으로 평가된다.</li>
+      <li>그룹마다 값이 2개 이상이고 분산이 0 이 아니어야 한다. 아니면 그룹 이름을 대고 거부한다.</li>
+      <li>bandwidth= 는 수치 또는 scott·silverman 이다. 곡선의 매끄러움은 데이터가 아니라 이 값이 정한다.</li>
+      <li>입력이 2,000 점에서 잘린다. 그보다 많은 표본이 곡선 모양을 눈에 띄게 바꾸지 않기 때문이다.</li>
     </ul>
-    <footer><a href="../">svgplot 소개로</a></footer>
+    <footer>
+      <a href="./">갤러리로</a> · <a href="https://github.com/lovit/svgplot/blob/main/gallery/examples/kdeplot.py">이 페이지의 예시 소스</a>
+    </footer>
   </body>
 </html>
