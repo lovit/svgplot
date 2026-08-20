@@ -17,7 +17,15 @@ import re
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-FORMAT_SCHEMES = ("numeral", "datetime", "printf")
+FORMAT_SCHEMES = ("plain", "numeral", "datetime", "printf")
+"""The four ways a field's value can be turned into label text.
+
+``plain`` is what a bare ``@field`` gets: render the value as it is. It exists because the
+other three all require a *number* or a *date*, which left no way to put a text column in a
+label at all -- ``@name`` and ``@name{}`` were both refused and ``@name{s}`` was read as a
+numeral spec, so the only working spelling was ``@name{%s}`` and nothing pointed at it. Bokeh,
+which this mini-language is taken from, renders a bare ``@field`` exactly this way.
+"""
 
 # Defense in depth against a pathological format spec (e.g. width/precision digits
 # many characters long) — no legitimate spec in this mini-language needs to be long.
@@ -83,7 +91,7 @@ def _classify_scheme(format_spec: str) -> str:
     return "numeral"
 
 
-def _split_field(raw: str) -> tuple[str, str]:
+def _split_field(raw: str) -> tuple[str, str | None]:
     """Split ``"@field{format}"`` into its two parts.
 
     The field name is validated with ``str.isidentifier()`` rather than a character-class
@@ -97,16 +105,25 @@ def _split_field(raw: str) -> tuple[str, str]:
     exactly, and NFKC-folding it here would make ``@ﬁeld`` silently look up ``field``.
 
     Raises:
-        ValueError: if ``raw`` isn't ``@name{...}`` with a name that is an identifier.
+        ValueError: if ``raw`` is neither ``@name`` nor ``@name{...}`` with a name that is an
+            identifier. The format spec is optional; an *empty* one is not.
     """
-    invalid = ValueError(f"invalid label spec {raw!r} — expected '@field_name{{format}}'")
-    if not raw.startswith(_FIELD_PREFIX) or not raw.endswith(_FIELD_CLOSE):
+    invalid = ValueError(f"invalid label spec {raw!r} — expected '@field_name' or '@field_name{{format}}'")
+    if not raw.startswith(_FIELD_PREFIX):
+        raise invalid
+    open_at = raw.find(_FIELD_OPEN)
+    if open_at == -1:
+        # No braces at all: render the value as it is. ``None`` rather than ``""`` because the
+        # two mean different things and only one of them is allowed -- ``@name{}`` is someone
+        # who started writing a format and stopped, which is the safer thing to refuse.
+        field = raw[len(_FIELD_PREFIX) :]
+        if not field.isidentifier():
+            raise invalid
+        return field, None
+    if not raw.endswith(_FIELD_CLOSE):
         raise invalid
     # The format spec may itself contain braces, so the split is at the *first* opening
     # brace and the *last* closing one -- what the previous greedy regex also did.
-    open_at = raw.find(_FIELD_OPEN)
-    if open_at == -1:
-        raise invalid
     field = raw[len(_FIELD_PREFIX) : open_at]
     if not field.isidentifier():
         raise invalid
@@ -117,6 +134,8 @@ def _parse_field(label: str, raw: str) -> LabelField:
     if not isinstance(label, str) or not isinstance(raw, str):
         raise ValueError(f"expected (str, str) pair, got ({label!r}, {raw!r})")
     field, format_spec = _split_field(raw)
+    if format_spec is None:
+        return LabelField(label=label, field=field, format_spec="", scheme="plain")
     scheme = _classify_scheme(format_spec)
     return LabelField(label=label, field=field, format_spec=format_spec, scheme=scheme)
 
@@ -165,11 +184,34 @@ def render_value(field: LabelField, value: object) -> str:
     """
     if value is None:
         raise ValueError(f"cannot render a missing value for field {field.field!r} — substitute or skip it upstream")
+    if field.scheme == "plain":
+        return _format_plain(value)
     if field.scheme == "numeral":
         return _format_numeral(field.format_spec, value)
     if field.scheme == "datetime":
         return _format_datetime(field.format_spec, value)
     return _format_printf(field.format_spec, value)
+
+
+def _format_plain(value: object) -> str:
+    """A bare ``@field``: the value as it is, with this package's own number spelling.
+
+    ``format_value_label`` rather than ``str`` so a float column reads ``30`` and not ``30.0``
+    -- the same rule the axes already apply to the same numbers, so a value does not change
+    spelling depending on whether the reader met it on an axis or in a footnote. ``bool`` is
+    excluded from that on purpose: ``True`` is not ``1`` to a reader.
+    """
+    # Imported here, not at module scope: ``charts`` imports ``chart.base``, which imports
+    # this package, so a top-level import closes a cycle. Sharing the rule still beats copying
+    # its two lines -- a value should not change spelling depending on whether the reader met
+    # it on an axis or in a footnote.
+    from svgplot.charts._layout import format_value_label
+
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, int | float) and math.isfinite(value):
+        return format_value_label(float(value))
+    return str(value)
 
 
 def _require_finite_number(value: object, *, context: str) -> float:

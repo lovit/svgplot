@@ -462,7 +462,6 @@ def test_a_field_name_may_be_any_python_identifier(raw: str, field: str) -> None
         "@x%s}",
         "@xyz}",
         "@매출}",
-        "@x",
         "",
     ],
 )
@@ -471,9 +470,10 @@ def test_a_field_name_that_is_not_an_identifier_is_still_rejected(raw: str) -> N
     is not a column reference, and letting it through would defer the failure to a
     confusing lookup error later.
 
-    @xyz} is the case that only the explicit opening-brace check catches: with no
-    { at all the name still looks like an identifier, so it would parse with the
-    whole string as its own format spec."""
+    ``@xyz}`` is the case the brace handling has to get right from the other side now that a
+    bare ``@field`` is legal: with no ``{`` the whole tail is the name, and ``xyz}`` is not an
+    identifier. ``@x`` was in this list until a bare field became meaningful -- see the test
+    below, which pins that it parses rather than leaving its absence here to imply it."""
     with pytest.raises(ValueError, match="invalid label spec"):
         LabelSpec.parse([("L", raw)])
 
@@ -635,3 +635,51 @@ def test_gfm_autolink_is_documented_as_out_of_reach(value: str) -> None:
     is a user-submitted CSV. Killing them would mean rewriting the value, so this pins the
     limit rather than pretending it away."""
     assert _markdown_cell(value) == f"| {value} |"
+
+
+# --- a bare @field ---------------------------------------------------------------------
+
+
+def test_a_bare_field_renders_the_value_as_it_is() -> None:
+    """The whole point: the three formatting schemes all demand a number or a date, so before
+    this there was no way to put a text column in a label. ``@name`` and ``@name{}`` were both
+    refused and ``@name{s}`` was read as a numeral spec — only ``@name{%s}`` worked, and
+    nothing in the mini-language pointed at it. Bokeh, where this syntax comes from, renders a
+    bare ``@field`` exactly this way."""
+    spec = LabelSpec.parse([("city", "@name")])
+
+    (field,) = spec.fields
+    assert field.scheme == "plain"
+    assert render_value(field, "서울") == "서울"
+
+
+def test_a_bare_field_spells_numbers_the_way_the_axes_do() -> None:
+    """A value should not change spelling depending on whether the reader met it on an axis or
+    in a footnote, so this shares ``format_value_label`` rather than falling back to ``str``."""
+    (field,) = LabelSpec.parse([("v", "@v")]).fields
+
+    assert render_value(field, 30.0) == "30"
+    assert render_value(field, 3.25) == "3.25"
+    assert render_value(field, 3000) == "3000"
+
+
+def test_a_bare_field_leaves_a_bool_alone() -> None:
+    """``True`` is not ``1`` to a reader, so the number rule deliberately skips it."""
+    (field,) = LabelSpec.parse([("ok", "@ok")]).fields
+
+    assert render_value(field, True) == "True"
+
+
+def test_an_empty_format_is_still_refused() -> None:
+    """Optional and empty are different. ``@name{}`` reads as someone who started writing a
+    format and stopped, which is the safer of the two to refuse."""
+    with pytest.raises(ValueError, match="format spec must not be empty"):
+        LabelSpec.parse([("v", "@v{}")])
+
+
+def test_a_bare_field_may_be_named_in_any_script() -> None:
+    """The identifier rule is unchanged — it just now applies to the whole tail."""
+    (field,) = LabelSpec.parse([("매출", "@매출")]).fields
+
+    assert field.field == "매출"
+    assert field.scheme == "plain"
