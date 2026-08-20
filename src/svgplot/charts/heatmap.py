@@ -29,7 +29,7 @@ import math
 import warnings
 
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._axes import fit_left_margin, fit_rotated_labels, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
@@ -59,21 +59,26 @@ LEVELS = 9
 """How many colour steps a value is quantised into. Odd, so a ``center=`` lands on a
 middle level with the same number of steps either side."""
 
-_BYTES_PER_CELL = 85
+_BYTES_PER_CELL = 84
 """Measured marginal output cost of one drawn cell."""
 
-_BYTES_PER_TICK = 163
+_BYTES_PER_TICK = 168
 """Measured marginal output cost of one axis tick (a row or a column label).
 
 Two terms are needed because the two counts come apart on a sparse grid: a 100x100 grid
 holding a 100-cell diagonal draws 100 rects but still labels 200 ticks. Estimating from
 cells alone put that chart at 8 KB against a real 41 KB; from grid cells alone, at 859 KB.
 
-``drawn * 85 + (rows + cols) * 163`` was fitted on four measured points and is within 3% of
+``drawn * 84 + (rows + cols) * 168`` was fitted on four measured points and is within 4% of
 all of them (estimate vs real, as the warning itself prints them -- so the fit is against the
-**integer-divided** KB the reader sees, not against the exact quotient): 50x50 dense 223 vs
-229 KB (-2.45%), 100x100 dense 861 vs 853 KB (+0.92%), 100x100 diagonal 40 vs 41 KB (-2.58%),
-200x200 diagonal 80 vs 78 KB (+2.96%). Worst case +2.96%, on the sparsest.
+**integer-divided** KB the reader sees, not against the exact quotient): 50x50 dense 221 vs
+229 KB (-3.49%), 100x100 dense 853 vs 854 KB (-0.12%), 100x100 diagonal 41 vs 42 KB (-2.38%),
+200x200 diagonal 82 vs 79 KB (+3.80%). Worst case +3.80%, on the sparsest.
+
+Refitted when axis labels gained rotation (#133): a turned tick carries a ``transform`` and a
+``<title>``, so the per-tick term rose from 163 to 168 while the per-cell term barely moved.
+The coefficients are the pair that minimises the worst relative error over those four points,
+searched exhaustively rather than guessed.
 
 Refitted whenever the drawn output changes, because it is a fit and not a derivation. It has
 moved twice: once when label thinning stopped the tick count tracking the grid, and once when
@@ -224,12 +229,17 @@ def heatmap(
     colors = _colormap(cmap, center=center)
 
     canvas_width, canvas_height = resolve_size(width, height)
+    fitted = fit_left_margin(MARGIN_WITH_LEGEND, rows, width=canvas_width, font_size=resolved_theme.tick_label_font_size)
+    fitted, turn_labels = fit_rotated_labels(
+        fitted,
+        columns,
+        height=canvas_height,
+        plot_width=canvas_width - fitted[3] - fitted[1],
+        font_size=resolved_theme.tick_label_font_size,
+        tick_length=resolved_theme.tick_size,
+    )
     document, area = new_canvas(
-        fit_margin(
-            fit_left_margin(MARGIN_WITH_LEGEND, rows, width=canvas_width, font_size=resolved_theme.tick_label_font_size),
-            canvas_width,
-            canvas_height,
-        ),
+        fit_margin(fitted, canvas_width, canvas_height),
         width=canvas_width,
         height=canvas_height,
     )
@@ -243,6 +253,7 @@ def heatmap(
         tick_count=ticks_for(area.width, TICK_SPACING_X),
         tick_length=resolved_theme.tick_size,
         font_size=resolved_theme.tick_label_font_size,
+        rotate=turn_labels,
     )
     render_y_axis(
         document,
