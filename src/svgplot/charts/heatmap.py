@@ -60,9 +60,9 @@ LEVELS = 9
 middle level with the same number of steps either side."""
 
 _BYTES_PER_CELL = 85
-"""Measured marginal output cost of one drawn cell."""
+"""Marginal output cost of one drawn cell -- fitted, see ``_BYTES_PER_TICK``."""
 
-_BYTES_FIXED = 3800
+_BYTES_FIXED = 2879
 """Output cost that does not scale with the grid: the ``<style>`` block, the axes, the
 legend, the accessibility nodes.
 
@@ -70,31 +70,33 @@ Added when document scoping (#182) started wrapping every rule in ``:where(.svgp
 That is ~27 bytes times the rule count -- a constant, and a two-term model has nowhere to put
 a constant except by smearing it across the per-cell and per-tick terms. Doing so cost real
 accuracy: the best two-term refit lands at 4.90% worst error against a 5% assertion, which
-would leave the next person a test that fails for reasons unrelated to their change. With the
-constant named, the worst error is 2.40%."""
+would leave the next person a test that fails for reasons unrelated to their change.
+
+Its value is **measured, not fitted**: a one-cell heatmap serializes to 3,282 bytes, which is
+one cell and two ticks plus this. Pinning it that way costs accuracy on the four grid points
+(3.08% worst against 2.40% for a free constant) and buys the model being right about the chart
+it was measured on. A free 3800 overpredicts that chart by 28%, and 6520 -- which reaches 1.05%
+on the four points -- exceeds the entire chart, so neither can be called a fixed cost."""
 
 _BYTES_PER_TICK = 159
-"""Measured marginal output cost of one axis tick (a row or a column label).
+"""Marginal output cost of one axis tick (a row or a column label) -- fitted, not measured.
 
 Two terms are needed because the two counts come apart on a sparse grid: a 100x100 grid
 holding a 100-cell diagonal draws 100 rects but still labels 200 ticks. Estimating from
 cells alone put that chart at 8 KB against a real 41 KB; from grid cells alone, at 859 KB.
 
-``drawn * 85 + (rows + cols) * 159 + 3800`` was fitted on four measured points and is within 3% of
+``drawn * 85 + (rows + cols) * 159 + 2879`` was fitted on four measured points and is within 4% of
 all of them (estimate vs real, as the warning itself prints them -- so the fit is against the
-**integer-divided** KB the reader sees, not against the exact quotient): 50x50 dense 226 vs
-230 KB (-1.92%), 100x100 dense 864 vs 855 KB (+1.01%), 100x100 diagonal 43 vs 43 KB (-0.77%),
-200x200 diagonal 82 vs 80 KB (+2.40%). Worst case +2.40%, on the sparsest.
+**integer-divided** KB the reader sees, not against the exact quotient): 50x50 dense 225 vs
+230 KB (-2.35%), 100x100 dense 863 vs 855 KB (+0.89%), 100x100 diagonal 42 vs 43 KB (-3.08%),
+200x200 diagonal 81 vs 80 KB (+1.15%). Worst case -3.08%, on the sparsest.
 
 Refitted when axis labels gained rotation (#133), and again when document scoping (#182) added
 a fixed cost the two-term model had been absorbing into these two.
 
-The two slopes are searched exhaustively; the constant is **not** free. Letting it float finds
-``(85, 146, 6520)`` at 1.05% worst error, but 6520 exceeds the whole of a one-cell heatmap
-(3,282 bytes measured), so that triple buys its accuracy on these four points by claiming a
-fixed cost the output does not have -- it would drift on any grid shape outside them. Held near
-the measured figure, the best triple is 2.40%, and ``(85, 159, 3800)`` reaches the same. Read
-this as "slopes fitted, constant measured", not as a global minimum.
+The two slopes are searched exhaustively with the constant pinned to the measured figure
+(see ``_BYTES_FIXED``), so the search is over two parameters rather than three. Read this as
+"slopes fitted, constant measured" -- it is not a global minimum, and deliberately so.
 
 Refitted whenever the drawn output changes, because it is a fit and not a derivation. It has
 moved twice: once when label thinning stopped the tick count tracking the grid, and once when

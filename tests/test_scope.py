@@ -118,25 +118,50 @@ def test_no_rule_escapes_its_document(name: str, theme: str) -> None:
         svg = _CHARTS[name](theme).to_string()
 
     rules = [line for block in re.findall(r"<style>(.*?)</style>", svg, re.S) for line in block.splitlines() if line.strip()]
-    escaped = [rule for rule in rules if not rule.startswith(":where(.") and rule.strip() != RESPONSIVE_CSS]
+    scopes = set(re.findall(r"class=\"([^\"]*)\"", re.search(r"<svg[^>]*>", svg).group(0)))
 
     assert rules, f"{name} emitted no CSS at all"
-    assert not escaped, f"{name} leaks {len(escaped)} document-global rule(s): {escaped[:3]}"
+
+    # Every *selector*, not every line. A comma list prefixed once reads as scoped and leaves
+    # its second selector document-global -- the leak `_scope_rule`'s comma split exists to
+    # prevent, and the one shape a line-start check cannot see.
+    for rule in rules:
+        if rule.strip() == RESPONSIVE_CSS:
+            continue
+        for selector in rule.split("{")[0].split(","):
+            assert selector.strip().startswith(":where(."), f"{name} leaks a document-global selector: {selector.strip()!r}"
+
+    # And the scope has to be on the root, or the rules select nothing and the chart renders
+    # completely unstyled. Deleting the two lines that set it left every assertion above green.
+    tokens = {match.group(1) for rule in rules for match in [re.match(r":where\(\.([\w-]+)\)", rule)] if match}
+    root_classes = {name for value in scopes for name in value.split()}
+
+    assert tokens, f"{name} has no scoped rule to check"
+    assert tokens <= root_classes, f"{name} scopes rules to {tokens - root_classes} but its root carries {root_classes}"
 
 
-def test_the_chart_style_block_stays_flat() -> None:
+@pytest.mark.parametrize("name", sorted(_CHARTS), ids=sorted(_CHARTS))
+def test_the_chart_style_block_stays_flat(name: str) -> None:
     """The invariant the rewriter rests on: one rule per line, no at-rules. It is a token
-    substitution, not a CSS parser, so a ``@media`` block would put a line starting with ``@``
-    and a bare closing brace through it, and a selector list split across two lines would leave
-    the second selector document-global."""
-    svg = sp.lineplot(DATA, x="x", y="y").to_string()
+    substitution, not a CSS parser, so a ``@media`` block would go through it selector-first
+    and come out as ``:where(.tok) @media (...) {`` -- invalid CSS in shipped output.
+
+    Every chart *and* every composition, because there are two ``<style>`` producers
+    (``theme.css`` and ``chart.composition``) and testing one leaves the other free to break
+    the assumption. Checked before the scope is stripped would be circular, so the ``@`` test
+    reads the rule after ``:where(...)``.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        svg = _CHARTS[name]("light").to_string()
 
     for block in re.findall(r"<style>(.*?)</style>", svg, re.S):
         for line in block.splitlines():
             if not line.strip():
                 continue
             assert line.count("{") == 1 and line.rstrip().endswith("}"), f"not one flat rule: {line!r}"
-            assert not line.lstrip().startswith("@"), f"at-rule reaches the rewriter: {line!r}"
+            bare = re.sub(r"^:where\(\.[\w-]+\)\s*", "", line.strip())
+            assert not bare.startswith("@"), f"at-rule reaches the rewriter: {line!r}"
 
 
 # --------------------------------------------------------------------------- the token
