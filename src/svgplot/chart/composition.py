@@ -330,9 +330,13 @@ class Composition:
         """The child charts, in placement order (a copy — mutating it changes nothing)."""
         return list(self._charts)
 
-    def to_string(self, *, pretty: bool = True) -> str:
-        """Serialize to an SVG string. See svgplot.output.svg."""
-        return to_string(self._accessible_document(), pretty=pretty)
+    def to_string(self, *, pretty: bool = True, declaration: bool = True) -> str:
+        """Serialize to an SVG string. See svgplot.output.svg.
+
+        ``declaration=False`` drops the ``<?xml …?>`` prolog, for inlining into an HTML
+        document. Same contract as :meth:`svgplot.chart.base.Chart.to_string`.
+        """
+        return to_string(self._accessible_document(), pretty=pretty, declaration=declaration)
 
     def to_markdown(self) -> str:
         """Serialize to inline markdown. See svgplot.output.markdown.

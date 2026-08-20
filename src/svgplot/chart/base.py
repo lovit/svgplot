@@ -153,9 +153,16 @@ class Chart:
         )
         return document
 
-    def to_string(self, *, pretty: bool = True) -> str:
-        """Serialize to an SVG string. See svgplot.output.svg."""
-        return to_string(self._accessible_document(), pretty=pretty)
+    def to_string(self, *, pretty: bool = True, declaration: bool = True) -> str:
+        """Serialize to an SVG string. See svgplot.output.svg.
+
+        ``declaration=False`` drops the ``<?xml …?>`` prolog. That is what inlining into an
+        HTML document needs: a prolog is only legal at the very start of an entity, so one
+        sitting mid-document renders as text and refuses to parse. Passed through rather
+        than stripped by the caller so serialization stays in one place --
+        :meth:`svgplot._svg.SvgDocument.to_string` gives the reasoning.
+        """
+        return to_string(self._accessible_document(), pretty=pretty, declaration=declaration)
 
     def to_markdown(self) -> str:
         """Serialize to inline markdown. See svgplot.output.markdown.
