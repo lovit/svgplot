@@ -139,7 +139,10 @@ def test_past_the_threshold_only_the_deviation_estimators_diverge_and_only_sligh
     module's headline claim. Several seeds, and a check that the strategies which do not use
     a standard deviation do not drift at all, is what makes it bite.
     """
-    deviation_based = {"scott", "doane", "auto"}
+    # ``auto`` is *not* in here. It reaches ``fd`` and ``sturges``, neither of which uses a
+    # standard deviation, and a 2,629-comparison sweep at 1e15-1e17 found it diverging zero
+    # times -- so listing it would licence a drift that does not happen.
+    deviation_based = {"scott", "doane"}
     worst = 0
     for seed in range(6):
         rng = random.Random(f"dwarfed-{seed}")

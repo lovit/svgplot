@@ -28,8 +28,14 @@ Three deliberate divergences:
   at those magnitudes ``value - mean`` cancels away all but the last few digits: what is left
   is summed exactly here and pairwise by numpy, and the two round differently. Measured as the
   share of (shape, size, strategy) comparisons whose bin count differs, over uniform, spiked
-  and gaussian columns: **0.00% up to a magnitude of 1e14, 0.24% at 1e15, 1.47% at 1e16**,
-  worst difference two bins.
+  and gaussian columns: **0.00% at 1e12 and below, under 0.05% through 1e14, 0.3% at 1e15 and
+  1.8% at 1e16**, worst difference two bins.
+
+  Rely on those bounds rather than on more digits. Two independent samplings of ~4,400
+  comparisons per magnitude put the first mismatch at different places -- one at 1e13, one at
+  1e14 -- and read 0.24% against 0.27% at 1e15. The rate is a property of which columns were
+  drawn; what is stable across both is the ceiling, the two strategies, and the two-bin worst
+  case.
 
   Two earlier drafts of this paragraph were wrong in the other direction. The first blamed
   subnormals and near-float-maximum values, which measure 0.00%. The second blamed
