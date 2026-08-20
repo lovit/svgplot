@@ -88,6 +88,57 @@ _LINE_HEIGHT = 1.2
 glyph, so this is the pitch below which a left axis has to thin."""
 
 
+ROTATION_DEGREES = 45.0
+"""How far a category label turns when it will not fit its band lying flat.
+
+Forty-five, not ninety. The research this package is built from names rotation as the way to
+avoid overlap *without measuring text* (``docs/research/12-aesthetics.md`` §3), and 45 is what
+pygal's ``x_label_rotation`` and matplotlib's ``rotation=`` are reached for in practice. At 90
+a label is read sideways and costs its full width in vertical margin; at 45 it costs
+``width x sin(45)`` = 71% of that and stays readable at a glance. The tradeoff only gets worse
+past 45, because the vertical cost rises while legibility falls.
+"""
+
+_MAX_BOTTOM_MARGIN_FRACTION = 0.35
+"""How much of the canvas height rotated labels may take, mirroring the left-margin cap.
+
+Slightly more than :data:`_MAX_LEFT_MARGIN_FRACTION` (0.30) because the bottom margin starts
+smaller: the presets give the left 60px of 800 and the bottom 50px of 600, so the same
+fraction would buy the bottom less room than the labels there actually need. Past the cap the
+label is shortened as before -- the chart is still worth more than its axis.
+"""
+
+
+def rotated_label_extent(labels: Sequence[str], font_size: float) -> float:
+    """How far below the axis a rotated label reaches, for the widest of ``labels``.
+
+    A label turned by :data:`ROTATION_DEGREES` projects ``width x sin(theta)`` onto the
+    vertical. That projection is the whole reason rotation solves this: flat, a label's budget
+    is the band it sits in, which shrinks as categories are added; rotated, its budget is the
+    bottom margin, which does not depend on how many categories there are.
+    """
+    if not labels:
+        return 0.0
+    widest = max(text_width(label, font_size) for label in labels)
+    return widest * math.sin(math.radians(ROTATION_DEGREES))
+
+
+def wants_rotation(categories: Sequence[str], *, bandwidth: float, font_size: float) -> bool:
+    """Whether the widest category label needs turning to stay distinguishable.
+
+    The test is the same budget :func:`render_x_axis` gives a flat label, so this answers
+    "would the label be shortened?" -- and shortening is what rotation exists to avoid. It is
+    not "would it be shortened *to nothing*": by the time a label is cut to a few characters,
+    every label on the axis has been cut to the **same** prefix and the axis has stopped
+    naming anything. Measured on eight ``2024년 N분기 실적`` categories, a 500px canvas drew
+    ``2024…`` eight times and a 360px one drew ``20…`` eight times.
+    """
+    if not categories or bandwidth <= 0.0:
+        return False
+    room = max(bandwidth - font_size / 2, 0.0)
+    return any(text_width(str(category), font_size) > room for category in categories)
+
+
 def _label_stride(positions: list[float], needed: float) -> int:
     """Draw every n-th label, so that each has ``needed`` pixels of the axis to itself.
 
@@ -254,6 +305,7 @@ def render_x_axis(
     tick_count: int = 5,
     tick_length: float = _DEFAULT_TICK_LENGTH,
     font_size: float = _DEFAULT_LABEL_FONT_SIZE,
+    rotate: bool = False,
 ) -> None:
     """Draw the bottom spine, vertical grid lines, tick marks, and tick labels for ``scale``.
 
@@ -261,6 +313,12 @@ def render_x_axis(
     (``theme.tick_size``) so a theme's tick length actually takes visual effect —
     it defaults to a sane constant only for direct/standalone callers that don't
     have a ``Theme`` in scope.
+
+    ``rotate`` turns category labels by :data:`ROTATION_DEGREES` instead of shortening them,
+    and is decided by the caller because the bottom margin has to be widened to match *before*
+    the plot area exists — see :func:`fit_bottom_margin`. It is ignored on a numeric or time
+    axis: those labels are values, they are never shortened in the first place, and turning
+    them only makes them harder to read.
     """
     document.add_node(
         None,
@@ -293,7 +351,19 @@ def render_x_axis(
         * max((text_width(_tick_label_text(scale, tick, time_format=time_format), font_size) for tick in ticks), default=0.0)
         + font_size / 2
     )
-    stride = _label_stride([_tick_position(scale, tick) for tick in ticks], needed)
+    # Turning is for names, not values -- see the ``rotate`` note in this function's docstring.
+    turning = rotate and isinstance(scale, CategoricalScale)
+    positions = [_tick_position(scale, tick) for tick in ticks]
+    if turning:
+        # Turned labels are parallel strips, so what separates them is the distance *across*
+        # the strips, not along the axis: two of them collide when the band pitch projected
+        # perpendicular to the text -- ``pitch x sin(theta)`` -- falls under a line height.
+        # Their lengths never enter it, which is why turning buys so much: 60 short categories
+        # still need thinning at an 11.7px pitch, while 8 long ones at 87.5px do not, and
+        # measuring the *horizontal* footprint instead dropped half of those eight for a
+        # collision that does not happen.
+        needed = _LINE_HEIGHT * font_size / math.sin(math.radians(ROTATION_DEGREES))
+    stride = _label_stride(positions, needed)
     for index, tick in enumerate(ticks):
         x = _tick_position(scale, tick)
         document.add_node(
@@ -326,6 +396,37 @@ def render_x_axis(
         # into a neighbour is the same defect as running off the canvas and harder to spot,
         # because both labels are still there and both are legible.
         if index % stride:
+            continue
+        if turning:
+            # ``end`` anchoring puts the label's *last* character at the tick, which is what
+            # makes a column of turned labels line up along the axis instead of drifting away
+            # from their own ticks.
+            label = _tick_label_text(scale, tick, time_format=time_format)
+            baseline = area.bottom + label_offset
+            # Turning buys a much larger budget than the band, but not an unlimited one: on a
+            # small canvas the margin caps in ``fit_rotated_labels`` bind before the label
+            # ends. What is left is measured here, from this label's own anchor, because the
+            # room differs per tick -- the leftmost label runs out of canvas sideways long
+            # before the rightmost one does. Letting it run over instead was measured at 110px
+            # outside a 240x180 poster chart, and "outside the canvas" is not a lesser defect
+            # than "shortened": it is the one this package refuses everywhere else.
+            turn = math.radians(ROTATION_DEGREES)
+            budget = min(x / math.cos(turn), (document.height - baseline) / math.sin(turn))
+            shown = truncate_to_width(label, font_size, budget)
+            node = document.add_text(
+                None,
+                shown,
+                tag="text",
+                attrib={
+                    "x": format_coord(x),
+                    "y": format_coord(baseline),
+                    "text-anchor": "end",
+                    "transform": f"rotate({format_coord(-ROTATION_DEGREES)} {format_coord(x)} {format_coord(baseline)})",
+                },
+                classes=["tick-label"],
+            )
+            if shown != label or needs_full_text(label, font_size, budget):
+                document.add_text(node, label, tag="title")
             continue
         room = max(getattr(scale, "bandwidth", 0.0) * stride - font_size / 2, 0.0)
         shown, keep_full = _shown_label(scale, tick, room, font_size, time_format)
@@ -471,3 +572,80 @@ def fit_left_margin(
     # shrink a caller's own margin -- 60px became 30 at ``width=100`` -- which is the opposite
     # of what the name says and what #120 will hit.
     return top, right, bottom, max(left, min(needed, width * _MAX_LEFT_MARGIN_FRACTION))
+
+
+def fit_rotated_labels(
+    margin: Margin,
+    categories: Sequence[str],
+    *,
+    height: float,
+    plot_width: float,
+    font_size: float = _DEFAULT_LABEL_FONT_SIZE,
+    tick_length: float = _DEFAULT_TICK_LENGTH,
+    padding: float = 0.0,
+) -> tuple[Margin, bool]:
+    """``margin`` opened up for turned category labels, and whether they are turned at all.
+
+    Returns the pair rather than just the margin because the caller needs both and they have
+    to agree: the decision to rotate and the room rotation needs are the same decision, and
+    computing them in two places is how they drift apart. :func:`render_x_axis` takes the
+    boolean, :func:`~svgplot.charts._layout.new_canvas` takes the margin.
+
+    **Two** sides, not one, which is why this is not called ``fit_bottom_margin``. A turned
+    label reaches down *and* to the left of its tick, and the leftmost category's tick is only
+    half a band inside the plot -- measured at the ``poster`` label size, that label started
+    25.8px outside the canvas while the bottom margin was comfortably deep enough. Fitting the
+    depth and forgetting the reach is the same bug as not fitting at all, just harder to see.
+
+    ``plot_width`` is the width the *plot area* will have, not the canvas: the band a label
+    has to fit inside is a share of the plot, so passing the canvas width would find the
+    labels roomier than they are and leave them flat when they needed turning.
+
+    Both sides are capped (:data:`_MAX_BOTTOM_MARGIN_FRACTION`, :data:`_MAX_LEFT_MARGIN_FRACTION`).
+    Past a cap the labels are still turned and the longest is clipped at its far end, which
+    keeps their beginnings distinct -- where a flat label shortened past its common prefix
+    leaves every label on the axis reading the same thing.
+    """
+    top, right, bottom, left = resolve_margin(margin)
+    names = [str(category) for category in categories]
+    if not names:
+        return (top, right, bottom, left), False
+    # ``padding`` because a padded ``CategoricalScale`` gives a label *less* room than the
+    # pitch suggests -- ``violinplot`` insets its bands by 20%, so an 87.5px pitch is a 70px
+    # budget. Deciding on the pitch while ``render_x_axis`` measures against the real band made
+    # the two disagree exactly where it matters: a 73.2px label came out whole on ``boxplot``
+    # and shortened to "카테고리…" on ``violinplot``, which is the defect rotation exists to fix.
+    pitch = plot_width / len(names)
+    bandwidth = pitch * (1.0 - padding)
+    if not wants_rotation(names, bandwidth=bandwidth, font_size=font_size):
+        return (top, right, bottom, left), False
+    widest = max(text_width(name, font_size) for name in names)
+    turn = math.radians(ROTATION_DEGREES)
+    # Everything between the plot's bottom edge and the label's far corner, in the order the
+    # renderer stacks it: the tick mark, the gap under it, the label's own vertical projection,
+    # and finally the label's *height* turned sideways -- at 45 degrees a line of text is a
+    # parallelogram, not a segment, so its far corner sits one rotated line-height further down
+    # than its baseline does.
+    depth = tick_length + _TICK_LABEL_OFFSET + widest * math.sin(turn) + font_size * math.cos(turn)
+    # The leftmost tick stands half a band inside the plot area, and the label reaches back from
+    # it by its turned horizontal footprint. Whatever that reach exceeds is what the left margin
+    # still owes -- but widening the left margin narrows the plot, which narrows the band, which
+    # moves that tick further left and lengthens the debt. Solved rather than approximated:
+    # with ``extra`` added to the left, the band becomes ``(plot_width - extra) / n``, so
+    #
+    #     left + extra >= widest*cos - (plot_width - extra) / 2n
+    #
+    # and rearranging gives the line below. Ignoring the feedback and adding the first-pass
+    # figure left the ``poster`` label 2.6px outside the canvas; ignoring the half-band credit
+    # instead would over-reserve 70px of left margin on a five-category chart.
+    owed = widest * math.cos(turn) - pitch / 2 - left
+    # Minus, not plus. Widening the left *narrows* the band, so the half-band credit shrinks as
+    # the margin grows and the debt is larger than the first pass says -- the sign that makes
+    # the difference between closing the overflow and making it worse.
+    extra = max(0.0, owed / (1.0 - 1.0 / (2 * len(names)))) if len(names) > 1 else max(0.0, owed) * 2.0
+    return (
+        top,
+        right,
+        max(bottom, min(depth, height * _MAX_BOTTOM_MARGIN_FRACTION)),
+        left + min(extra, plot_width * _MAX_LEFT_MARGIN_FRACTION),
+    ), True

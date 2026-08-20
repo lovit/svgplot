@@ -12,6 +12,7 @@ tests blind to the estimate itself being wrong -- which is the subject of
 
 from __future__ import annotations
 
+import math
 import re
 import warnings
 import xml.etree.ElementTree as ET
@@ -20,6 +21,7 @@ from itertools import pairwise
 import pytest
 
 import svgplot as sp
+from svgplot.charts._axes import _LINE_HEIGHT, _TICK_LABEL_OFFSET, ROTATION_DEGREES, fit_rotated_labels
 from svgplot.charts._layout import DEFAULT_WIDTH
 from svgplot.charts._textwidth import text_width
 
@@ -55,17 +57,47 @@ def _tick_rows(svg: str) -> list[tuple[float, float, str, str]]:
         if not node.tag.endswith("text") or "tick-label" not in (node.get("class") or "").split():
             continue
         text = ((node.text or "") + "".join(child.tail or "" for child in node)).strip()
-        rows.append((float(node.get("y")), float(node.get("x")), node.get("text-anchor", "start"), text))
+        rows.append((float(node.get("y")), float(node.get("x")), node.get("text-anchor", "start"), text, _rotation(node)))
     return rows
 
 
-def _extent(position: float, anchor: str, width: float) -> tuple[float, float]:
-    """The span a label occupies, from where it is anchored and how it is anchored."""
+def _rotation(node: ET.Element) -> float:
+    """The label's own rotation in degrees, or ``0.0``.
+
+    Read rather than assumed. A detector that ignores ``transform`` measures a turned label
+    as if it were lying flat, which is the same shape of blindness the rest of this file
+    warns about -- and it reports a *false* overflow, so it fails a working chart instead of
+    passing a broken one.
+    """
+    match = re.search(r"rotate\(\s*(-?[\d.]+)", node.get("transform") or "")
+    return float(match.group(1)) if match else 0.0
+
+
+def _extent(position: float, anchor: str, width: float, rotation: float = 0.0) -> tuple[float, float]:
+    """The horizontal span a label occupies, from its anchor, its anchoring and its rotation.
+
+    A turned label costs ``width x |cos(theta)|`` horizontally rather than its whole width --
+    that reduction is the entire point of turning it, so a detector that leaves it out is
+    measuring a chart that was never drawn.
+    """
+    horizontal = width * abs(math.cos(math.radians(rotation)))
     if anchor == "start":
-        return position, position + width
+        return position, position + horizontal
     if anchor == "end":
-        return position - width, position
-    return position - width / 2, position + width / 2
+        return position - horizontal, position
+    return position - horizontal / 2, position + horizontal / 2
+
+
+def _vertical_extent(baseline: float, width: float, rotation: float, size: float) -> tuple[float, float]:
+    """The vertical span a label occupies, which only rotation makes interesting.
+
+    Flat, a label is one line tall and sits on its baseline. Turned, its far end drops
+    ``width x |sin(theta)|`` below that -- the direction this package turns labels, into the
+    bottom margin. Nothing checked this before, because before rotation there was nothing to
+    check: a flat label cannot leave the canvas downward.
+    """
+    drop = width * abs(math.sin(math.radians(rotation)))
+    return baseline - size, baseline + drop + size * abs(math.cos(math.radians(rotation)))
 
 
 def _bottom_labels(svg: str) -> list[tuple[float, float, str]]:
@@ -80,8 +112,8 @@ def _bottom_labels(svg: str) -> list[tuple[float, float, str]]:
     rows, size = _tick_rows(svg), _font_size(svg)
     if not rows:
         return []
-    baseline = max(y for y, _, _, _ in rows)
-    return [(*_extent(x, anchor, text_width(text, size)), text) for y, x, anchor, text in rows if y == baseline]
+    baseline = max(y for y, _, _, _, _ in rows)
+    return [(*_extent(x, anchor, text_width(text, size), turn), text) for y, x, anchor, text, turn in rows if y == baseline]
 
 
 def _left_labels(svg: str) -> list[tuple[float, float, str]]:
@@ -89,8 +121,8 @@ def _left_labels(svg: str) -> list[tuple[float, float, str]]:
     rows, size = _tick_rows(svg), _font_size(svg)
     if not rows:
         return []
-    baseline = max(y for y, _, _, _ in rows)
-    return [(*_extent(x, anchor, text_width(text, size)), text) for y, x, anchor, text in rows if y != baseline]
+    baseline = max(y for y, _, _, _, _ in rows)
+    return [(*_extent(x, anchor, text_width(text, size), turn), text) for y, x, anchor, text, turn in rows if y != baseline]
 
 
 def _centred(svg: str) -> list[tuple[float, str]]:
@@ -116,8 +148,20 @@ def _right_aligned_rows(svg: str) -> list[tuple[float, float, str]]:
     rows = _tick_rows(svg)
     if not rows:
         return []
-    left_edge = min(x for _, x, _, _ in rows)
-    return [(x, y, text) for y, x, _, text in rows if x <= left_edge + 1.0]
+    left_edge = min(x for _, x, _, _, _ in rows)
+    return [(x, y, text) for y, x, _, text, _ in rows if x <= left_edge + 1.0]
+
+
+_SUBPIXEL = 0.5
+"""How far past an edge is still "inside", and why there is a tolerance at all.
+
+``fit_rotated_labels`` solves for the margin that puts the longest turned label's far corner
+*exactly* on the canvas edge, so the honest answer here is zero and floating point delivers
+``-1.4e-14``. A detector that reads that as an overflow fails a chart that is correct by
+construction. Half a pixel is below anything a renderer can draw and still an order of
+magnitude under the smallest real overflow this file has caught (2.6px), so it separates
+arithmetic noise from the defect without softening the check.
+"""
 
 
 def _outside_the_canvas(svg: str) -> list[str]:
@@ -129,11 +173,32 @@ def _outside_the_canvas(svg: str) -> list[str]:
     """
     labels = _bottom_labels(svg) + _left_labels(svg)
     assert labels, "detector found no tick labels at all"
-    return [text for left, right, text in labels if left < 0 or right > DEFAULT_WIDTH]
+    return [text for left, right, text in labels if left < -_SUBPIXEL or right > DEFAULT_WIDTH + _SUBPIXEL]
 
 
 def _overlapping(svg: str) -> list[tuple[str, str]]:
-    """Adjacent bottom labels whose extents intersect, whatever their anchors."""
+    """Adjacent bottom labels that collide, whatever their anchors or rotation.
+
+    Two rules, because turned and flat labels collide differently. Flat, they are segments on
+    one line and overlap when their horizontal extents intersect. Turned, they are **parallel
+    strips**: what separates them is the distance measured across the strips, ``pitch x
+    sin(theta)``, and their lengths never enter it. Judging turned labels by horizontal extent
+    reports every one of 60 as overlapping its neighbour when they are in fact 16.5px apart
+    across a 12px line -- a false positive that fails a chart drawn exactly as intended.
+    """
+    rows = _tick_rows(svg)
+    if not rows:
+        return []
+    baseline = max(y for y, _, _, _, _ in rows)
+    bottom = sorted((x, text, turn) for y, x, _, text, turn in rows if y == baseline)
+    turned = [row for row in bottom if row[2]]
+    if turned:
+        line = _LINE_HEIGHT * _font_size(svg)
+        return [
+            (turned[index][1], turned[index + 1][1])
+            for index in range(len(turned) - 1)
+            if (turned[index + 1][0] - turned[index][0]) * abs(math.sin(math.radians(turned[index][2]))) < line
+        ]
     labels = sorted(_bottom_labels(svg))
     return [
         (labels[index][2], labels[index + 1][2]) for index in range(len(labels) - 1) if labels[index][1] > labels[index + 1][0]
@@ -221,11 +286,36 @@ def test_a_numeric_label_is_never_shortened(top: float) -> None:
 
 def test_a_shortened_category_label_keeps_its_full_text() -> None:
     """The other half: shortening a name costs presentation, not information, and that only
-    holds while the full form is somewhere in the file."""
-    svg = _many_category_chart(8, "조금 긴 카테고리")
+    holds while the full form is somewhere in the file.
 
-    assert any(text.endswith("…") for _, text in _centred(svg)), "nothing was shortened, so this proves nothing"
-    assert "<title>조금 긴 카테고리0</title>" in svg
+    A *horizontal* bar, because that is where shortening still happens. Its categories run down
+    the left axis, which stacks rather than crowds and is never turned -- the bottom axis of a
+    vertical bar now rotates these same labels instead of cutting them (see the test below).
+    """
+    # A horizontal bar, and a name long enough that ``fit_left_margin`` runs out of room to
+    # widen into. Those two conditions are now the *only* way a category label gets shortened:
+    # a left axis stacks rather than crowds so it is never turned, and it grows its margin
+    # first, so a merely long name comes out whole. The bottom axis of a vertical bar reaches
+    # for rotation instead (see the test below).
+    name = "매우 긴 카테고리 이름입니다" * 2
+    categories = [f"{name}{index}" for index in range(6)]
+    svg = sp.barplot({"c": categories, "v": [float(index + 1) for index in range(6)]}, x="c", y="v", orient="h").to_string()
+
+    assert any(text.endswith("…") for _, _, text in _left_labels(svg)), "nothing was shortened, so this proves nothing"
+    assert f"<title>{categories[0]}</title>" in svg
+
+
+def test_a_turned_label_is_not_shortened_at_all() -> None:
+    """Rotation replaces shortening rather than joining it. Turned, a label's budget is the
+    bottom margin instead of its band, so there is nothing left to cut it against -- and
+    cutting it anyway would give up the distinctness the rotation was for."""
+    categories = [f"2024년 {quarter}분기 실적" for quarter in range(1, 9)]
+    svg = sp.barplot({"c": categories, "v": [float(i + 1) for i in range(8)]}, x="c", y="v").to_string()
+
+    turned = [text for _, _, text in _bottom_labels(svg)]
+
+    assert set(turned) == set(categories), turned
+    assert "…" not in svg
 
 
 def test_short_labels_are_left_exactly_as_they_were() -> None:
@@ -434,3 +524,147 @@ def test_a_left_label_is_measured_against_the_room_left_of_the_tick_mark() -> No
     svg = sp.barplot({"c": ["가" * 40], "v": [1.0]}, x="c", y="v", orient="h").to_string()
 
     assert _outside_the_canvas(svg) == []
+
+
+# ---------------------------------------------------------------------------
+# rotation, and the geometry it commits to
+
+
+_TURNED_CATEGORIES = [f"2024년 {quarter}분기 실적 요약" for quarter in range(1, 9)]
+
+
+def _turned(svg: str) -> list[tuple[float, float, float, str]]:
+    """Every turned label as ``(anchor_x, anchor_y, degrees, text)``."""
+    return [(x, y, turn, text) for y, x, _, text, turn in _tick_rows(svg) if turn]
+
+
+def _far_corner(x: float, y: float, degrees: float, text: str, size: float) -> tuple[float, float]:
+    """Where an ``end``-anchored turned label's first character sits.
+
+    The anchor holds its *last* character, so the run goes backwards along the rotated axis --
+    and that far end is the only part of the label that can leave the canvas.
+    """
+    width = text_width(text, size)
+    angle = math.radians(degrees)
+    return x - width * math.cos(angle), y - width * math.sin(angle)
+
+
+def _turned_chart(width: float, height: float, context: str) -> str:
+    return sp.barplot(
+        {"c": _TURNED_CATEGORIES, "v": [float(index + 1) for index in range(8)]},
+        x="c",
+        y="v",
+        width=width,
+        height=height,
+        theme=_themed(context),
+    ).to_string()
+
+
+def test_a_turned_label_reaches_into_the_bottom_margin_and_not_into_the_plot() -> None:
+    """Which way it turns is the whole design. The bottom margin is *below* the axis, so the
+    label has to lie down into it; turning the other way lays it across the bars it is naming,
+    which is why the sign of the rotation is pinned here rather than left to read like a taste."""
+    svg = _turned_chart(500, 400, "notebook")
+    turned = _turned(svg)
+    assert turned, "nothing was turned, so this proves nothing"
+
+    for x, y, degrees, text in turned:
+        far_x, far_y = _far_corner(x, y, degrees, text, _font_size(svg))
+        assert far_y > y, f"{text} leans up into the plot"
+        assert far_x < x, f"{text} leans right instead of back along the axis"
+
+
+def test_a_turned_label_ends_at_its_own_tick() -> None:
+    """``end`` anchoring is what lines a column of turned labels up along the axis. Anchored
+    in the middle they drift half their own length away from the tick they name, and a long
+    label ends up pointing at a different bar than the one it belongs to."""
+    svg = _turned_chart(500, 400, "notebook")
+    rows = [(x, anchor) for _, x, anchor, _, turn in _tick_rows(svg) if turn]
+    assert rows, "nothing was turned, so this proves nothing"
+
+    assert {anchor for _, anchor in rows} == {"end"}
+
+
+@pytest.mark.parametrize("context", ["paper", "notebook", "talk", "poster"])
+@pytest.mark.parametrize(("width", "height"), [(240, 180), (300, 220), (400, 300), (800, 600)])
+def test_no_turned_label_leaves_the_canvas(context: str, width: float, height: float) -> None:
+    """The acceptance criterion, swept. Every term in ``fit_rotated_labels`` exists to keep
+    this true and each was measured failing it: forgetting the tick length put a label 4px
+    past the bottom, ignoring the left reach put one 25.8px past the left edge, ignoring that
+    widening the left narrows the band left 4.7px, and letting a capped margin clip instead of
+    shorten put one 110px outside a 240x180 poster chart."""
+    svg = _turned_chart(width, height, context)
+    size = _font_size(svg)
+
+    for x, y, degrees, text in _turned(svg):
+        far_x, far_y = _far_corner(x, y, degrees, text, size)
+        assert far_x >= -_SUBPIXEL, f"{text!r} starts {-far_x:.1f}px left of the canvas"
+        assert far_y <= height + _SUBPIXEL, f"{text!r} ends {far_y - height:.1f}px below the canvas"
+
+
+def test_a_turned_label_is_shortened_only_when_the_margin_caps_run_out() -> None:
+    """Turning buys a large budget, not an unlimited one. On a canvas near the minimum the
+    caps bind, and then the label is cut to what is left rather than drawn past the edge --
+    with its full text kept in a ``<title>``, the same bargain a flat label makes."""
+    roomy = _turned_chart(500, 400, "notebook")
+    cramped = _turned_chart(240, 180, "poster")
+
+    assert "…" not in roomy
+    assert any(text.endswith("…") for *_, text in _turned(cramped))
+    assert f"<title>{_TURNED_CATEGORIES[0]}</title>" in cramped
+
+
+def test_turned_labels_thin_by_the_distance_across_them_not_along_the_axis() -> None:
+    """Turned labels are parallel strips, so their lengths do not decide whether they collide
+    -- the pitch projected perpendicular to the text does. Judging them by horizontal footprint
+    instead dropped four of eight labels at 800px for a collision that does not happen, while
+    still needing to thin 60 short ones whose pitch really is too tight."""
+    eight = _turned(_turned_chart(800, 600, "notebook"))
+    # Fifty, chosen to sit *between* the two rules rather than outside both: a 14.0px pitch is
+    # above a 12px line height and below the 17.0px the perpendicular rule asks for, so the
+    # correct rule thins here and the flat one does not. At sixty the pitch clears neither and
+    # both rules agree, which is why sixty could not tell them apart.
+    crowded = sp.barplot(
+        {"c": [f"카테고리{index}" for index in range(50)], "v": [float(index + 1) for index in range(50)]},
+        x="c",
+        y="v",
+    ).to_string()
+
+    assert len(eight) == 8, "long labels at a roomy pitch were thinned for nothing"
+    assert 0 < len(_turned(crowded)) < 50, "a 14px pitch under a 12px line height has to be thinned"
+    assert _overlapping(crowded) == []
+
+
+def test_the_bottom_margin_accounts_for_everything_between_the_axis_and_the_label() -> None:
+    """The depth is a sum of four terms and each was measured missing. Asserted against the
+    parts rather than a number, so the check still means something after a constant moves."""
+    categories = [f"{'긴이름' * 4}{index}" for index in range(8)]
+    plot_width, height, size, tick = 700.0, 600.0, 10.0, 4.0
+
+    (_, _, bottom, _), turning = fit_rotated_labels(
+        (30.0, 40.0, 50.0, 60.0), categories, height=height, plot_width=plot_width, font_size=size, tick_length=tick
+    )
+    widest = max(text_width(name, size) for name in categories)
+    turn = math.radians(ROTATION_DEGREES)
+
+    assert turning
+    assert bottom == pytest.approx(tick + _TICK_LABEL_OFFSET + widest * math.sin(turn) + size * math.cos(turn))
+
+
+def test_a_padded_category_axis_decides_on_the_room_it_actually_gives() -> None:
+    """``violinplot`` insets its bands by 20%, so an 87.5px pitch is a 70px budget. Deciding
+    to rotate on the pitch while ``render_x_axis`` measures the real band made the two
+    disagree exactly where it matters: a 73.2px label came out whole on ``boxplot`` and
+    shortened to the same prefix eight times on ``violinplot`` -- the defect rotation exists
+    to remove, reintroduced by the chart that pads."""
+    categories = [f"카테고리 이름{index}" for index in range(8)]
+    values = {"c": categories * 3, "v": [float(index % 7) for index in range(24)]}
+
+    violin = sp.violinplot(values, x="c", y="v").to_string()
+    box = sp.boxplot(values, x="c", y="v").to_string()
+
+    # The label fits an unpadded band and not a padded one, so the two charts must differ --
+    # and neither may shorten, which is the point.
+    assert len(_turned(violin)) == 8
+    assert _turned(box) == []
+    assert "…" not in violin and "…" not in box
