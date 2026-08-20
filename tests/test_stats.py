@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from svgplot.stats.binning import histogram_bins
+from svgplot.stats.binning import MAX_BINS, histogram_bins
 from svgplot.stats.box import MODES as BOX_MODES, box_stats
 from svgplot.stats.interpolate import METHODS, interpolate
 
@@ -473,3 +473,42 @@ def test_an_integer_too_large_for_a_float_is_refused_as_a_value_error() -> None:
     arithmetic further down."""
     with pytest.raises(ValueError, match="too large to be a float"):
         histogram_bins([10**400, 1, 2], "fd")
+
+
+def test_histogram_bins_over_a_stated_range_ignores_the_values_extremes() -> None:
+    """Two charts binned separately land their boundaries in different places, so a "count
+    of 3" covers a different amount of data in each -- which is the comparison a shared axis
+    promises and would otherwise not deliver."""
+    edges = histogram_bins([1.0, 2.0, 3.0, 4.0], bins=4, bin_range=(1.0, 92.0))
+
+    assert edges == [1.0, 23.75, 46.5, 69.25, 92.0]
+    assert histogram_bins([1.0, 2.0, 3.0, 4.0], bins=4) == [1.0, 1.75, 2.5, 3.25, 4.0]
+
+
+def test_two_samples_binned_over_one_range_get_identical_edges() -> None:
+    """The property the range exists for, stated directly."""
+    span = (0.0, 100.0)
+
+    assert histogram_bins([1.0, 2.0], bins=5, bin_range=span) == histogram_bins([90.0, 99.0], bins=5, bin_range=span)
+
+
+@pytest.mark.parametrize("bad", [(5.0, 5.0), (5.0, 1.0), (float("nan"), 1.0), (0.0, float("inf"))])
+def test_histogram_bins_rejects_a_degenerate_or_non_finite_range(bad: tuple[float, float]) -> None:
+    """numpy accepts a reversed range and returns edges that run backwards, which draws bars
+    at negative widths rather than failing."""
+    with pytest.raises(ValueError, match="bin_range must be an increasing pair"):
+        histogram_bins([1.0, 2.0], bins=4, bin_range=bad)
+
+
+def test_a_strategy_may_choose_more_bins_than_a_caller_is_allowed_to_ask_for() -> None:
+    """Two ceilings, because two different things are being judged. A caller writing 15,885
+    wants something a chart cannot show; ``fd`` handed a spiked column arrives at that number
+    honestly, and a facet panel that did so renders on ``main``. Capping the strategy at
+    ``MAX_BINS`` refused that panel, naming a number the caller never wrote."""
+    spike = [n / 500.0 for n in range(500)] + [2000.0]
+
+    chosen = len(histogram_bins(spike, "fd")) - 1
+
+    assert chosen > MAX_BINS
+    with pytest.raises(ValueError, match="bins must be between 1"):
+        histogram_bins(spike, chosen)

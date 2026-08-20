@@ -9,22 +9,21 @@ Marks are filled (``mark_style="fill"``), unlike lineplot's stroked paths.
 
 from __future__ import annotations
 
-from svgplot._svg import SvgDocument
+from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
-from svgplot.charts._axes import render_x_axis, render_y_axis
+from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._layout import (
-    DEFAULT_HEIGHT,
     DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
     format_coord,
-    plot_area,
+    new_canvas,
 )
 from svgplot.charts._legend import render_legend
+from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data.ingest import ingest_longform
-from svgplot.data.semantic import extract_channels
 from svgplot.scales import LinearScale
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
@@ -89,6 +88,8 @@ def areaplot(
     *,
     stacked: bool = False,
     theme: Theme | str | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> Chart:
     """Draw a filled area chart from long-form data.
 
@@ -105,6 +106,11 @@ def areaplot(
     their combined value there. This holds identically in stacked and unstacked
     mode.
 
+    ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
+    exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
+    which uses them to give faceted panels one axis -- and replace rather than widen, so a
+    caller asking for a narrower view gets one.
+
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
             is a string that isn't a registered preset name.
@@ -117,13 +123,7 @@ def areaplot(
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
 
-    if hue is not None:
-        groups = extract_channels(data, hue=hue)
-        if not groups:
-            raise ValueError(f"no rows with a non-missing {hue!r} value")
-        series_items = sorted(groups.items(), key=lambda item: str(item[0]))
-    else:
-        series_items = [(None, longform.columns)]
+    series_items = build_series(data, longform.columns, hue)
 
     series_points = [(label, _series_points(columns, x, y)) for label, columns in series_items]
 
@@ -153,20 +153,26 @@ def areaplot(
         y_domain_values = [0.0, *all_y]
 
     y_domain = (min(y_domain_values), max(y_domain_values))
+    x_domain = apply_limit(x_domain, xlim)
+    y_domain = apply_limit(y_domain, ylim)
 
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND)
-    document.add_node(
-        None,
-        "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
-        classes=["plot-background"],
+    document, area = new_canvas(
+        fit_left_margin(
+            MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
+            y_domain,
+            width=DEFAULT_WIDTH,
+            font_size=resolved_theme.tick_label_font_size,
+        )
     )
 
     pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
-    render_x_axis(document, pixel_x_scale, area, tick_length=resolved_theme.tick_size)
-    render_y_axis(document, pixel_y_scale, area, tick_length=resolved_theme.tick_size)
+    render_x_axis(
+        document, pixel_x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+    )
+    render_y_axis(
+        document, pixel_y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+    )
 
     baseline_y = pixel_y_scale(0.0)
     series_classes: list[str] = []
@@ -204,8 +210,15 @@ def areaplot(
                 legend_entries.append((str(label), series_class))
 
     if legend_entries:
-        render_legend(document, legend_entries, x=area.right + LEGEND_X_OFFSET, y=area.top, mark_style="fill")
+        render_legend(
+            document,
+            legend_entries,
+            x=area.right + LEGEND_X_OFFSET,
+            y=area.top,
+            mark_style="fill",
+            font_size=resolved_theme.legend_font_size,
+        )
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    return Chart(document)
+    return Chart(document, domains=Domains(x=x_domain, y=y_domain))

@@ -18,9 +18,10 @@ comparing 52,000-odd individual edges, with zero mismatches.
 
 Three deliberate divergences:
 
-- A strategy that asks for more than :data:`_MAX_BINS` is refused. numpy builds the array;
-  building the same list in Python is eight times the memory and slow enough to look like a
-  hang, and no chart can show a million bars either way.
+- A count past a ceiling is refused where numpy builds the array. Two ceilings, because two
+  different things are being judged: :data:`MAX_BINS` gates the number a *caller* wrote, and
+  :data:`_MAX_STRATEGY_BINS` -- a hundred times higher -- gates what a strategy chose for
+  itself, which on spiked data is legitimately larger than anyone would type.
 - ``stone`` is not implemented. numpy accepts it; a call that used it now gets a ``ValueError``
   naming the seven that remain.
 - A column whose **magnitude dwarfs its spread** can come back with a bin or two more or
@@ -42,10 +43,10 @@ Three deliberate divergences:
   ``math.fsum`` against numpy's pairwise summation -- but CPython's own ``sum`` is compensated
   too, and no input was found where the two disagree. The real cause of that draft's numbers
   was the **quantile interpolation**: the weighted form lost everything two large neighbouring
-  values had in common, so a spiked column at 1e15 measured an inter-quartile range of zero
-  where numpy measured 0.25, and ``fd`` drew one bar where numpy drew 431. That is fixed in
-  ``stats/quantile.py`` rather than documented, which is why the numbers above are so much
-  smaller than the ones they replace.
+  values had in common, which moves the inter-quartile range and so moves ``fd``. Restoring
+  the weighted form puts 112 of 3,044 fd bin counts (3.68%) at odds with numpy at 1e14-1e16,
+  worst 4,642 bars where numpy drew 6,189. That is fixed in ``stats/quantile.py`` rather than
+  documented, which is why the numbers above are so much smaller than the ones they replace.
 
 ``tests/test_stats_binning_numpy_parity.py`` covers the ordinary range and is skipped when
 numpy is absent.
@@ -59,10 +60,19 @@ from itertools import pairwise
 
 from svgplot.stats.quantile import quantile
 
-_MAX_BINS = 10_000
+MAX_BINS = 10_000
 """Sane upper bound on an explicit int ``bins`` count -- without this, e.g.
 ``bins=10**8`` returns ~800MB of edges from a single call, matching the spirit
 of ``_MAX_PRECISION`` in ``stats.interpolate``."""
+
+_MAX_STRATEGY_BINS = 1_000_000
+"""The same backstop for a count a *strategy* chose rather than a caller.
+
+Far above :data:`MAX_BINS` on purpose. A spiked column can push ``fd`` past ten thousand
+honestly -- a facet panel picking 15,885 draws a real chart -- so the caller's gate is the
+wrong ceiling for a number the caller never wrote. This one is where building the list stops
+being free: measured at 0.36s and 32MB for a million edges, 1.8s and 164MB for five million,
+and 7.3s and 641MB for twenty, which is the "did it hang?" range this exists to refuse."""
 
 _STRATEGIES = ("auto", "fd", "doane", "scott", "rice", "sturges", "sqrt")
 
@@ -162,13 +172,13 @@ def _even_edges(low: float, high: float, count: int) -> list[float]:
         # range -- divides the span into nothing. ``linspace(low, high, 0 + 1)`` is one edge,
         # which is what numpy returns and is as much as such data supports.
         return [low]
-    if count > _MAX_BINS:
-        # The cap belongs here and not only on an explicit ``bins=``, because a *strategy* can
-        # ask for billions on spiked data and numpy does not stop it either -- it just fails
-        # inside C. Building the same list in Python is eight times the memory and slow enough
-        # to look like a hang, so this is a deliberate divergence: numpy would eventually
-        # produce (or die making) the array, and this says which number was too large.
-        raise ValueError(f"bins must be at most {_MAX_BINS}, got {count} from the chosen strategy")
+    if count > _MAX_STRATEGY_BINS:
+        # Not :data:`MAX_BINS`. That one gates the number a *caller* wrote, and a caller asking
+        # for a million wants something a chart cannot show. A strategy is a different case: on
+        # spiked data it can legitimately choose far more than any caller would type, and a
+        # facet panel choosing 15,885 renders fine. Capping a strategy at ``MAX_BINS`` refused
+        # that panel, naming a number the caller never wrote.
+        raise ValueError(f"bins must be at most {_MAX_STRATEGY_BINS}, got {count} from the chosen strategy")
     step = (high - low) / count
     edges = [low + index * step for index in range(count + 1)]
     edges[-1] = high
@@ -182,29 +192,39 @@ def _even_edges(low: float, high: float, count: int) -> list[float]:
     return edges
 
 
-def histogram_bins(values: list[float], bins: str | int = "auto") -> list[float]:
+def histogram_bins(
+    values: list[float], bins: str | int = "auto", *, bin_range: tuple[float, float] | None = None
+) -> list[float]:
     """Histogram bin edges for ``values``.
 
     ``bins`` is a count or one of :data:`_STRATEGIES`.
+
+    ``bin_range`` bins over a stated range instead of over ``values``' own extremes. Two charts
+    binned separately land their boundaries in different places, so their bars come out
+    different widths and a "count of 3" means a different amount of data in each -- which
+    is exactly the comparison a shared axis promises and would otherwise not deliver. It is
+    the same rule ``histplot`` already applies to ``hue=`` groups, extended to callers that
+    know a wider range than the values in hand.
 
     Raises:
         ValueError: if ``values`` is empty or holds a non-numeric or non-finite value, if the
             span isn't finite (individually finite values, e.g. ``-1e308`` and ``1e308``, can
             still overflow), if ``bins`` isn't a ``str``/``int``, if an int ``bins`` exceeds
-            :data:`_MAX_BINS` or is below 1, if a str ``bins`` chooses more than
-            :data:`_MAX_BINS` (numpy has no such limit -- see :func:`_even_edges`), if a str
-            ``bins`` isn't a known strategy, or if the requested division is finer than the
-            float grid between the edges allows.
+            :data:`MAX_BINS` or is below 1, if a str ``bins`` chooses more than
+            :data:`_MAX_STRATEGY_BINS` (numpy has no such limit -- see :func:`_even_edges`), if a str
+            ``bins`` isn't a known strategy, if ``bin_range`` isn't an increasing pair of
+            finite numbers, or if the requested division is finer than the float grid between
+            the edges allows.
     """
     if not values:
         raise ValueError("values must not be empty")
     if not isinstance(bins, str | int) or isinstance(bins, bool):
         raise ValueError(f"bins must be a string or int, got {bins!r}")
-    if isinstance(bins, int) and not 1 <= bins <= _MAX_BINS:
+    if isinstance(bins, int) and not 1 <= bins <= MAX_BINS:
         # Both ends. The upper one keeps ``bins=10**8`` from returning ~800MB of edges; the
         # lower one keeps ``bins=0`` from being read as "one bin", which is a different chart
         # from the one the caller asked for and no error at all.
-        raise ValueError(f"bins must be between 1 and {_MAX_BINS}, got {bins}")
+        raise ValueError(f"bins must be between 1 and {MAX_BINS}, got {bins}")
     if isinstance(bins, str) and bins not in _STRATEGIES:
         raise ValueError(f"bins must be an int or one of {', '.join(sorted(_STRATEGIES))}, got {bins!r}")
     for value in values:
@@ -219,21 +239,35 @@ def histogram_bins(values: list[float], bins: str | int = "auto") -> list[float]
             raise ValueError(f"cannot bin a value too large to be a float: {value!r}") from error
         if not finite:
             raise ValueError(f"cannot bin a non-finite value: {value!r}")
-    low, high = float(min(values)), float(max(values))
-    # The span is measured on the *same floats* the edges are built from. Measured on the raw
-    # values it can disagree with them: two Python ints either side of ``2**53`` differ by
-    # exactly 1 as integers and collapse to one float, which left the selectors a real span
-    # to divide and the edges nothing to divide it into -- ``ceil(0 / width)`` bins, and
-    # ``_even_edges`` answering with a single edge. That is a chart with **no bars**, which
-    # this module's own degenerate-edge check exists to refuse rather than draw; numpy raises
-    # there and so, now, does this.
-    span = high - low
-    if not math.isfinite(span):
-        raise ValueError(f"values span (max - min = {span!r}) must be finite")
-    if low == high:
-        # A single distinct value has no width to divide. numpy widens by half a unit either
-        # side so the bar has somewhere to be drawn.
-        low, high = low - 0.5, high + 0.5
+    if bin_range is not None:
+        low, high = bin_range
+        if not (math.isfinite(low) and math.isfinite(high)) or low >= high:
+            raise ValueError(f"bin_range must be an increasing pair of finite numbers, got {bin_range!r}")
+        low, high = float(low), float(high)
+        # numpy drops the values outside the range *before* asking a selector for a width, so
+        # the width follows the data actually being shown rather than the tail being cut off.
+        # The bin *count* then divides the stated range, not that data's own extent -- which is
+        # the whole point: two charts given the same range get the same boundaries.
+        values = [value for value in values if low <= value <= high]
+        if not values:
+            return _even_edges(low, high, bins if isinstance(bins, int) else 1)
+        span = float(max(values)) - float(min(values))
+    else:
+        low, high = float(min(values)), float(max(values))
+        # The span is measured on the *same floats* the edges are built from. Measured on the
+        # raw values it can disagree with them: two Python ints either side of ``2**53`` differ
+        # by exactly 1 as integers and collapse to one float, which left the selectors a real
+        # span to divide and the edges nothing to divide it into -- ``ceil(0 / width)`` bins,
+        # and ``_even_edges`` answering with a single edge. That is a chart with **no bars**,
+        # which this module's own degenerate-edge check exists to refuse rather than draw;
+        # numpy raises there and so, now, does this.
+        span = high - low
+        if not math.isfinite(span):
+            raise ValueError(f"values span (max - min = {span!r}) must be finite")
+        if low == high:
+            # A single distinct value has no width to divide. numpy widens by half a unit
+            # either side so the bar has somewhere to be drawn.
+            low, high = low - 0.5, high + 0.5
     if isinstance(bins, int):
         return _even_edges(low, high, bins)
     width = _bin_width(bins, values, span)

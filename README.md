@@ -123,6 +123,12 @@ sp.grid(
 sp.facet(sp.lineplot, data, col="region", x="day", y="sales").save("facet.svg")
 ```
 
+패널은 **기본적으로 축을 공유한다**(`sharex=False`/`sharey=False`로 끌 수 있다). 공유하지 않으면 두 패널의 선이 같은 높이에 그려지는데 하나는 3, 다른 하나는 300이고 그 사실이 지면 어디에도 적히지 않는다.
+
+```python
+sp.facet(sp.lineplot, data, col="region", x="day", y="sales", sharey=False)
+```
+
 ### 테마
 
 기본 팔레트는 색맹 안전(Okabe-Ito)이며, 스타일은 렌더 후에도 CSS 클래스로 재정의할 수 있다.

@@ -16,7 +16,7 @@ import random
 
 import pytest
 
-from svgplot.stats.binning import _MAX_BINS as MAX_BINS, histogram_bins
+from svgplot.stats.binning import _MAX_STRATEGY_BINS as MAX_STRATEGY_BINS, histogram_bins
 
 numpy = pytest.importorskip("numpy", reason="install the numpy-parity extra to check this")
 
@@ -70,9 +70,10 @@ def test_the_edges_are_the_ones_numpy_would_have_returned(shape: str, bins: obje
             with pytest.raises(ValueError):
                 histogram_bins(values, bins)  # type: ignore[arg-type]
             continue
-        if len(expected) - 1 > MAX_BINS:
-            # The one deliberate divergence: a strategy that asks for more bins than a chart
-            # can show is refused here and built by numpy. See ``_even_edges``.
+        if len(expected) - 1 > MAX_STRATEGY_BINS:
+            # The one deliberate divergence, and it starts a hundred times above the gate on an
+            # explicit ``bins=``: a strategy may honestly choose more bins than any caller would
+            # type -- a facet panel picking 15,885 draws a real chart. See ``_even_edges``.
             with pytest.raises(ValueError, match="at most"):
                 histogram_bins(values, bins)  # type: ignore[arg-type]
             continue
