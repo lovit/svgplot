@@ -17,6 +17,7 @@ Private/internal — not re-exported from ``svgplot.charts``.
 from __future__ import annotations
 
 import math
+import numbers
 from dataclasses import dataclass
 
 from svgplot._svg import SvgDocument
@@ -48,6 +49,81 @@ SPARKLINE_HEIGHT = 24.0
 prose or a table cell, so its size is bounded by the surrounding text rather than
 chosen for readable axis labels — and it draws no axes, legend or labels at all, so
 the margin presets above have nothing to reserve space for."""
+
+
+MIN_WIDTH = 240.0
+MIN_HEIGHT = 180.0
+"""The smallest canvas this package will draw an axed chart on.
+
+**Where 240 comes from.** Two measured floors, and a round number above both. The binding
+constraint on a narrow canvas is the legend gutter -- not the plot area, which stays a fixed
+share of the width, and not the ticks, which thin out. The right margin after
+:func:`fit_margin` is ``160 * (MAX_MARGIN_FRACTION * width / 220)``, of which
+:data:`LEGEND_X_OFFSET` (20), the swatch (16) and its gap (6) are fixed. Solving that against
+``charts._legend.minimum_legend_text_width(11.0)`` -- the room below which shortening a label
+stops helping -- gives **209.0 px**; solving it against ``charts._textwidth.text_width`` of a
+five-character label gives **227.5 px**, the width at which such a label renders whole rather
+than shortened. 240 is above both, and pairs with :data:`MIN_HEIGHT` at the same 4:3 the
+package's 800 x 600 default uses. A test pins the two floors and that this clears them.
+
+It is deliberately not itself a boundary. An earlier version claimed it was, deriving 239.25
+from a hand-rolled estimate of 0.55 em per character on the premise that a label's width was
+"unknowable here". Both halves were wrong: ``charts/_textwidth.py`` measures it, and 0.55 sat
+below a digit's own 0.556, so the estimate under-reserved exactly where a label overflows.
+
+A caller whose legend labels are longer than the gutter does **not** need a wider canvas:
+``render_legend`` shortens the label with an ellipsis and keeps the full text in a ``<title>``
+child, which assistive technology reads. At 240 a five-character label renders whole and a
+nine-character one comes out as ``sou…`` with ``southeast`` in its title (measured).
+
+**Where 180 comes from.** The same 4:3, applied to the width. Nothing vertical binds anywhere
+near it: at 180 the plot area is still 100 px tall, four times the 24 px that two tick labels
+need at a 1.2 line height.
+
+**Refused, not clamped or warned about.** ``gaugeplot``'s precedent, for geometry that would
+render but not be readable — "a silently unreadable chart is worse than a message naming the
+limit" — rather than ``heatmap``'s, which warns because its output is still correct, just
+large. A caller who asked for 100 px and silently got 240 would have a chart that does not
+fit where they meant to put it, and no way to find out except by measuring the file.
+
+``sparkline`` is exempt and always has been: it draws no axes, legend or labels, so none of
+the above applies. Its own 120 x 24 default is well under these numbers."""
+
+MAX_MARGIN_FRACTION = 0.45
+"""How much of each dimension the margins may take between them before they are scaled
+down. The presets above are absolute pixel values tuned for an 800 x 600 canvas, where
+they take 220/800 = 27.5% of the width and 80/600 = 13.3% of the height. Left alone on a
+300 px canvas they would take 73%, leaving an 80 px plot area — the issue's own example.
+
+45% is the point at which the plot area still gets the majority of the canvas. It is above
+what the default size uses, which is the property that matters most: the clamp cannot
+engage at the default size, so every existing chart is byte-identical.
+
+Scaling both sides of a pair by the same factor, rather than trimming the larger one,
+keeps the legend gutter in proportion to the tick-label gutter — the two are competing for
+the same space and neither is more expendable than the other."""
+
+TICK_SPACING_X = 128.0
+TICK_SPACING_Y = 104.0
+"""Target pixels per tick, derived from what the package already draws at its default size
+so that deriving the count changes nothing there.
+
+Every axed chart passes a fixed ``tick_count=5`` today. At 800 x 600 that count is applied
+to a plot area of either 700 x 520 (``MARGIN_WITHOUT_LEGEND``) or 580 x 520
+(``MARGIN_WITH_LEGEND``) — two different widths asking for the same five ticks. A single
+horizontal spacing has to round both to 5, which pins it to the interval 127.3-128.9;
+128 is the round number inside it. Vertically both presets leave 520 px, so 520/5 = 104
+falls out directly.
+
+The two differ because the labels do: an x tick label sits *beside* its neighbours and a y
+tick label sits *above* its neighbours, so the horizontal axis needs room for a label's
+width and the vertical only for its height."""
+
+MIN_TICKS = 2
+MAX_TICKS = 10
+"""Bounds on the derived tick count. Two is the fewest that still shows a scale (the ends);
+ten is where ``scales.make_ticks``' nice-number search stops helping and the labels start
+competing for space even on a wide canvas."""
 
 
 @dataclass(frozen=True)
@@ -138,20 +214,111 @@ def format_value_label(value: float) -> str:
     return str(int(value)) if value.is_integer() else str(value)
 
 
-def new_canvas(margin: Margin) -> tuple[SvgDocument, PlotArea]:
+def new_canvas(
+    margin: Margin, *, width: float = DEFAULT_WIDTH, height: float = DEFAULT_HEIGHT
+) -> tuple[SvgDocument, PlotArea]:
     """A default-sized document with its background drawn, and the plot area inside ``margin``.
 
     Fifteen charts opened with the same six lines and differed only in the margin. The
     background rect is the part worth centralising: it carries the ``plot-background`` class
     every theme styles, and a chart that forgot it would render on whatever the host page's
     background happens to be -- a difference nobody notices until the page is dark.
+
+    ``width``/``height`` default to the package size, so a caller that does not pass them gets
+    exactly what this returned before charts could be given a size (#120).
     """
-    document = SvgDocument(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT)
-    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=margin)
+    document = SvgDocument(width=width, height=height)
+    area = plot_area(width, height, margin=margin)
     document.add_node(
         None,
         "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(DEFAULT_WIDTH), "height": format_coord(DEFAULT_HEIGHT)},
+        attrib={"x": 0, "y": 0, "width": format_coord(width), "height": format_coord(height)},
         classes=["plot-background"],
     )
     return document, area
+
+
+def resolve_size(width: float | None, height: float | None) -> tuple[float, float]:
+    """Resolve caller-supplied ``width``/``height`` into a validated canvas size.
+
+    ``None`` means "the package default", so a chart called the way every existing chart
+    is called gets :data:`DEFAULT_WIDTH` x :data:`DEFAULT_HEIGHT` and byte-identical output.
+
+    Raises:
+        ValueError: if either is not a finite number, or is below :data:`MIN_WIDTH` /
+            :data:`MIN_HEIGHT`. Refusing rather than clamping: a caller who asked for 100
+            px and silently got 240 would have a chart that does not fit where they meant
+            to put it, and no way to find out except by measuring the file.
+    """
+    resolved_width = DEFAULT_WIDTH if width is None else _finite(width, "width")
+    resolved_height = DEFAULT_HEIGHT if height is None else _finite(height, "height")
+    if resolved_width < MIN_WIDTH or resolved_height < MIN_HEIGHT:
+        raise ValueError(
+            f"canvas must be at least {MIN_WIDTH}x{MIN_HEIGHT} for an axed chart, " f"got {resolved_width}x{resolved_height}"
+        )
+    return resolved_width, resolved_height
+
+
+def _finite(value: float, name: str) -> float:
+    """A caller-supplied length, as a float.
+
+    ``numbers.Real`` rather than ``int | float``: a size very often arrives from the same
+    array library the data did, and ``numpy.float32``/``numpy.int64`` are neither of those
+    two while being perfectly good lengths. ``bool`` is excluded even though it is ``Real``,
+    because ``width=True`` is a mistake, not a request for one pixel.
+    """
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
+        raise ValueError(f"{name} must be a finite number, got {value!r}")
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError) as error:
+        # A ``Real`` too large to be a float -- ``Fraction(10**400)``. ``format_coord`` in this
+        # same module already normalises that to ``ValueError``; this is the rule, not an
+        # exception to it, and ``resolve_size`` documents ``ValueError`` and nothing else.
+        raise ValueError(f"{name} must be a finite number, got {value!r}") from error
+    if not math.isfinite(number):
+        raise ValueError(f"{name} must be a finite number, got {value!r}")
+    return number
+
+
+def fit_margin(margin: Margin, width: float, height: float) -> tuple[float, float, float, float]:
+    """Scale a margin preset down until it leaves the plot area most of the canvas.
+
+    The presets are absolute pixel values chosen for an 800 x 600 canvas. On a small one
+    they are the whole chart: at 300 px wide, ``MARGIN_WITH_LEGEND``'s 60 + 160 leaves an
+    80 px plot area. Each pair is scaled by one factor so the two sides keep their ratio —
+    see :data:`MAX_MARGIN_FRACTION`.
+
+    Never scales *up*. A caller who passes a small margin on a large canvas asked for a
+    large plot area and gets one.
+    """
+    top, right, bottom, left = resolve_margin(margin)
+    horizontal = _fit_pair(left, right, width)
+    vertical = _fit_pair(top, bottom, height)
+    return (vertical[0], horizontal[1], vertical[1], horizontal[0])
+
+
+def _fit_pair(first: float, second: float, extent: float) -> tuple[float, float]:
+    budget = extent * MAX_MARGIN_FRACTION
+    total = first + second
+    # A negative side is refused rather than scaled. It cannot be scaled sensibly -- the
+    # pair's *sum* can sit under the budget while one side is -500, which put the plot area
+    # 500 px above the canvas -- and no preset here has one. Refusing keeps this function
+    # honest about taking "whatever margin it is given", which its own tests rely on.
+    if first < 0 or second < 0:
+        raise ValueError(f"margin sides must not be negative, got {first!r} and {second!r}")
+    if total <= budget or total <= 0:
+        return first, second
+    factor = budget / total
+    return first * factor, second * factor
+
+
+def ticks_for(extent: float, spacing: float) -> int:
+    """How many ticks a plot-area extent has room for, at :data:`TICK_SPACING_X` /
+    :data:`TICK_SPACING_Y` pixels apiece and clamped to :data:`MIN_TICKS`/:data:`MAX_TICKS`.
+
+    This is a *request*: ``scales.make_ticks`` treats its ``count`` as a target and returns
+    whatever nice round numbers land near it, which is why the result can be one more or
+    one fewer than asked for. What matters here is that the request tracks the canvas.
+    """
+    return max(MIN_TICKS, min(MAX_TICKS, round(extent / spacing)))

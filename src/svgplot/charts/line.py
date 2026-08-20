@@ -20,12 +20,16 @@ from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estima
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, over, plural, span
 from svgplot.charts._layout import (
-    DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
+    TICK_SPACING_X,
+    TICK_SPACING_Y,
+    fit_margin,
     format_coord,
     new_canvas,
+    resolve_size,
+    ticks_for,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._series import series_items as build_series
@@ -165,6 +169,8 @@ def lineplot(
     interpolate: str = "linear",
     estimator: Estimator | None = None,
     info: LabelSpec | list[tuple[str, str]] | None = None,
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
     xlim: tuple[float, float] | None = None,
     ylim: tuple[float, float] | None = None,
@@ -210,6 +216,13 @@ def lineplot(
     single calendar day carries no date anywhere in its output**. That is a real limit for a figure meant to be
     pasted into a document and read away from its caption; naming the date once on the axis
     is left to a later change rather than guessed at here.
+
+    ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
+    call that does not mention them is byte-identical to one written before they existed. The
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
+    refused rather than clamped, and a chart may refuse a larger one if its own legend does
+    not fit.
 
     Raises:
         ValueError: if ``x`` holds a type with no position on an axis (``datetime.time`` is
@@ -260,13 +273,20 @@ def lineplot(
     # After the checks above, so a bad column still reports the chart's own error first.
     label_data = collect_label_data(data, info, required=(x, y, hue))
 
+    canvas_width, canvas_height = resolve_size(width, height)
     document, area = new_canvas(
-        fit_left_margin(
-            MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
-            y_domain,
-            width=DEFAULT_WIDTH,
-            font_size=resolved_theme.tick_label_font_size,
-        )
+        fit_margin(
+            fit_left_margin(
+                MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
+                y_domain,
+                width=canvas_width,
+                font_size=resolved_theme.tick_label_font_size,
+            ),
+            canvas_width,
+            canvas_height,
+        ),
+        width=canvas_width,
+        height=canvas_height,
     )
 
     pixel_x_scale = LinearScale(numeric_x_domain, (area.left, area.right))
@@ -277,10 +297,20 @@ def lineplot(
         else pixel_x_scale
     )
     render_x_axis(
-        document, tick_x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        document,
+        tick_x_scale,
+        area,
+        tick_count=ticks_for(area.width, TICK_SPACING_X),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
     )
     render_y_axis(
-        document, pixel_y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        document,
+        pixel_y_scale,
+        area,
+        tick_count=ticks_for(area.height, TICK_SPACING_Y),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
     )
 
     series_classes: list[str] = []

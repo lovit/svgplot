@@ -17,8 +17,10 @@ from svgplot.chart.base import Chart
 from svgplot.charts._describe import describe, group, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
+    fit_margin,
     format_coord,
     new_canvas,
+    resolve_size,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._polar import label_anchor, polar_point
@@ -116,6 +118,8 @@ def radarplot(
     hue: str | None = None,
     *,
     fill: bool = True,
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
     """Draw a radar chart: one spoke per ``x`` category, one closed polygon per series.
@@ -137,6 +141,13 @@ def radarplot(
     Values are distances from the centre, so they must be finite and non-negative: a
     negative radius reflects its vertex onto the opposite spoke, where it reads as another
     category's value.
+
+    ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
+    call that does not mention them is byte-identical to one written before they existed. The
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
+    refused rather than clamped, and a chart may refuse a larger one if its own legend does
+    not fit.
 
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme`` is a
@@ -190,7 +201,12 @@ def radarplot(
         # from real mid-scale data. pieplot refuses an all-zero column for the same reason.
         raise ValueError("radar values must not all be zero; there is no scale to draw them against")
 
-    document, area = new_canvas(_MARGIN_WITH_LEGEND if hue is not None else _MARGIN_WITHOUT_LEGEND)
+    canvas_width, canvas_height = resolve_size(width, height)
+    document, area = new_canvas(
+        fit_margin(_MARGIN_WITH_LEGEND if hue is not None else _MARGIN_WITHOUT_LEGEND, canvas_width, canvas_height),
+        width=canvas_width,
+        height=canvas_height,
+    )
 
     centre = ((area.left + area.right) / 2, (area.top + area.bottom) / 2)
     outer_radius = min(area.right - area.left, area.bottom - area.top) / 2 - _LABEL_GAP

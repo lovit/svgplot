@@ -361,47 +361,69 @@ def _labels(count: int) -> list[str]:
     return [f"s{index}" for index in range(count)]
 
 
+_TALL_ENOUGH = 830
+"""A canvas the forty-row legends below actually fit on.
+
+Forty rows put ``legend_ink_height(40)`` = 788px of ink below y=30, so 818 is the floor
+and the default 600 is not it -- #120's legend guard refuses those calls, correctly. The
+cap under test here is the *name* cap, not the legend one, so the canvas is made to fit
+rather than the list made shorter."""
+
+
 CAPPED_LISTS = [
     # (name, builder, how many things it names) -- one entry per kind of list a chart makes.
-    ("pie slices", lambda n: sp.pieplot({"v": _values(n), "l": _labels(n)}, values="v", labels="l"), 40),
-    ("treemap tiles", lambda n: sp.treemap({"v": _values(n), "l": _labels(n)}, values="v", labels="l"), 40),
+    ("pie slices", lambda n: sp.pieplot({"v": _values(n), "l": _labels(n)}, values="v", labels="l", height=_TALL_ENOUGH), 40),
+    (
+        "treemap tiles",
+        lambda n: sp.treemap({"v": _values(n), "l": _labels(n)}, values="v", labels="l", height=_TALL_ENOUGH),
+        40,
+    ),
     # 12, not 40: a gauge refuses more rows than it can draw readable rings for.
     ("gauge arcs", lambda n: sp.gaugeplot({"v": _values(n), "l": _labels(n)}, value="v", labels="l"), 12),
-    ("bar series", lambda n: sp.barplot({"x": ["a"] * n, "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g"), 40),
+    (
+        "bar series",
+        lambda n: sp.barplot({"x": ["a"] * n, "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g", height=_TALL_ENOUGH),
+        40,
+    ),
     ("radar spokes", lambda n: sp.radarplot({"x": _labels(n), "y": _values(n)}, x="x", y="y"), 40),
     ("heatmap axes", lambda n: sp.heatmap({"x": _labels(n), "y": _labels(n), "v": _values(n)}, x="x", y="y", values="v"), 40),
     (
         "line series",
-        lambda n: sp.lineplot({"x": _values(n), "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g"),
+        lambda n: sp.lineplot({"x": _values(n), "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g", height=_TALL_ENOUGH),
         40,
     ),
     # The other five callers of _describe.over(). The clause is shared, but each chart
     # assembles the *arguments* to it, and a mistake there is invisible to the others.
     (
         "scatter series",
-        lambda n: sp.scatterplot({"x": _values(n), "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g"),
+        lambda n: sp.scatterplot(
+            {"x": _values(n), "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g", height=_TALL_ENOUGH
+        ),
         40,
     ),
     (
         "area series",
-        lambda n: sp.areaplot({"x": _values(n), "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g"),
+        lambda n: sp.areaplot({"x": _values(n), "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g", height=_TALL_ENOUGH),
         40,
     ),
     (
         "histogram series",
-        lambda n: sp.histplot({"x": _values(n), "g": _labels(n)}, x="x", hue="g", bins=4),
+        lambda n: sp.histplot({"x": _values(n), "g": _labels(n)}, x="x", hue="g", bins=4, height=_TALL_ENOUGH),
         40,
     ),
     (
         "kde series",
         lambda n: sp.kdeplot(
-            {"x": [*_values(n), *(value + 1.0 for value in _values(n))], "g": [*_labels(n), *_labels(n)]}, x="x", hue="g"
+            {"x": [*_values(n), *(value + 1.0 for value in _values(n))], "g": [*_labels(n), *_labels(n)]},
+            x="x",
+            hue="g",
+            height=_TALL_ENOUGH,
         ),
         40,
     ),
     (
         "ecdf series",
-        lambda n: sp.ecdfplot({"x": _values(n), "g": _labels(n)}, x="x", hue="g"),
+        lambda n: sp.ecdfplot({"x": _values(n), "g": _labels(n)}, x="x", hue="g", height=_TALL_ENOUGH),
         40,
     ),
 ]

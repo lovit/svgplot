@@ -18,7 +18,7 @@ from __future__ import annotations
 from svgplot._svg import SvgDocument
 from svgplot.chart.base import Chart
 from svgplot.charts._describe import describe, plural, span
-from svgplot.charts._layout import SPARKLINE_HEIGHT, SPARKLINE_WIDTH, format_coord, plot_area
+from svgplot.charts._layout import SPARKLINE_HEIGHT, SPARKLINE_WIDTH, _finite, format_coord, plot_area
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
@@ -60,6 +60,10 @@ def sparkline(
         ValueError: if ``data`` has no rows, if no rows remain after dropping missing
             values, or if ``width``/``height`` leave no room for the inset margin.
     """
+    # The minimum-canvas rule is not sparkline's -- it draws no axes, legend or labels -- but
+    # the *validation* is. Without this, `width="120"` came back as a TypeError about `str`
+    # minus `float` and `width=nan` as one about an SVG literal, neither naming the argument.
+    canvas_width, canvas_height = _finite(width, "width"), _finite(height, "height")
     resolved_theme = resolve_theme(theme)
     longform = ingest_longform(data, y)
     if len(longform) == 0:
@@ -69,12 +73,12 @@ def sparkline(
     if not values:
         raise ValueError("no rows with a non-missing y value after dropping missing values")
 
-    document = SvgDocument(width=width, height=height)
-    area = plot_area(width, height, margin=_MARGIN)
+    document = SvgDocument(width=canvas_width, height=canvas_height)
+    area = plot_area(canvas_width, canvas_height, margin=_MARGIN)
     document.add_node(
         None,
         "rect",
-        attrib={"x": 0, "y": 0, "width": format_coord(width), "height": format_coord(height)},
+        attrib={"x": 0, "y": 0, "width": format_coord(canvas_width), "height": format_coord(canvas_height)},
         classes=["plot-background"],
     )
 

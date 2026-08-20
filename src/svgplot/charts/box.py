@@ -8,10 +8,14 @@ from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import (
-    DEFAULT_WIDTH,
     MARGIN_WITHOUT_LEGEND,
+    TICK_SPACING_X,
+    TICK_SPACING_Y,
+    fit_margin,
     format_coord,
     new_canvas,
+    resolve_size,
+    ticks_for,
 )
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data.ingest import ingest_longform
@@ -45,6 +49,8 @@ def boxplot(
     y: str,
     *,
     mode: str = "1.5IQR",
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
     categories: tuple[str, ...] | None = None,
     ylim: tuple[float, float] | None = None,
@@ -65,6 +71,13 @@ def boxplot(
     sharing the list; it simply has no mark drawn in it. Minting the class for an undrawn
     category is the point: skipping it would shift every later category's colour, and two
     panels would disagree about what blue means.
+
+    ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
+    call that does not mention them is byte-identical to one written before they existed. The
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
+    refused rather than clamped, and a chart may refuse a larger one if its own legend does
+    not fit.
 
     Raises:
         KeyError: if ``x``/``y`` isn't a column in ``data``, or if ``theme`` is a
@@ -92,14 +105,37 @@ def boxplot(
     ]
     y_domain = apply_limit((min(all_low), max(all_high)), ylim)
 
+    canvas_width, canvas_height = resolve_size(width, height)
     document, area = new_canvas(
-        fit_left_margin(MARGIN_WITHOUT_LEGEND, y_domain, width=DEFAULT_WIDTH, font_size=resolved_theme.tick_label_font_size)
+        fit_margin(
+            fit_left_margin(
+                MARGIN_WITHOUT_LEGEND, y_domain, width=canvas_width, font_size=resolved_theme.tick_label_font_size
+            ),
+            canvas_width,
+            canvas_height,
+        ),
+        width=canvas_width,
+        height=canvas_height,
     )
 
     x_scale = CategoricalScale(drawn_categories, (area.left, area.right))
     y_scale = LinearScale(y_domain, (area.bottom, area.top))
-    render_x_axis(document, x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size)
-    render_y_axis(document, y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size)
+    render_x_axis(
+        document,
+        x_scale,
+        area,
+        tick_count=ticks_for(area.width, TICK_SPACING_X),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
+    )
+    render_y_axis(
+        document,
+        y_scale,
+        area,
+        tick_count=ticks_for(area.height, TICK_SPACING_Y),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
+    )
 
     series_classes: list[str] = []
     box_half_width = x_scale.bandwidth * _BOX_WIDTH_FRACTION / 2

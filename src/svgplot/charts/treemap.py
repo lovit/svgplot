@@ -29,8 +29,10 @@ from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_SIDE_LEGEND,
     PlotArea,
+    fit_margin,
     format_coord,
     new_canvas,
+    resolve_size,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._textwidth import needs_full_text, truncate_to_width
@@ -173,6 +175,8 @@ def treemap(
     values: str,
     labels: str | None = None,
     *,
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
     """Draw a treemap from ``values`` (tile area) and, optionally, ``labels``
@@ -184,6 +188,13 @@ def treemap(
 
     Only a single level of tiles is drawn; nested/hierarchical treemaps are out
     of scope (see this module's docstring).
+
+    ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
+    call that does not mention them is byte-identical to one written before they existed. The
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
+    refused rather than clamped, and a chart may refuse a larger one if its own legend does
+    not fit.
 
     Raises:
         KeyError: if ``values``/``labels`` isn't a column in ``data``, or if
@@ -224,7 +235,12 @@ def treemap(
     if total == 0:
         raise ValueError("treemap values must not all be zero (sum is 0)")
 
-    document, area = new_canvas(MARGIN_WITH_SIDE_LEGEND)
+    canvas_width, canvas_height = resolve_size(width, height)
+    document, area = new_canvas(
+        fit_margin(MARGIN_WITH_SIDE_LEGEND, canvas_width, canvas_height),
+        width=canvas_width,
+        height=canvas_height,
+    )
 
     # Scale values into pixel area up front so the layout's aspect-ratio comparisons
     # operate in one unit, and sort descending (squarified's precondition).

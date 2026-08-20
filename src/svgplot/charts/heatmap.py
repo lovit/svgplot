@@ -32,11 +32,15 @@ from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import (
-    DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
+    TICK_SPACING_X,
+    TICK_SPACING_Y,
+    fit_margin,
     format_coord,
     new_canvas,
+    resolve_size,
+    ticks_for,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
@@ -159,6 +163,8 @@ def heatmap(
     cmap: str = "blues",
     center: float | None = None,
     annot: bool = False,
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
     """Draw a heatmap from long-form ``(x, y, value)`` rows.
@@ -179,6 +185,13 @@ def heatmap(
     Warns:
         HeatmapSizeWarning: above :data:`_WARN_CELL_COUNT` cells. The chart still renders;
             the warning carries the cell count, an estimated size, and the one mitigation.
+
+    ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
+    call that does not mention them is byte-identical to one written before they existed. The
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
+    refused rather than clamped, and a chart may refuse a larger one if its own legend does
+    not fit.
 
     Raises:
         KeyError: if ``x``/``y``/``values`` isn't a column in ``data``, if ``theme`` is a
@@ -210,14 +223,35 @@ def heatmap(
     normalize = Normalize.from_values(magnitudes, center=center)
     colors = _colormap(cmap, center=center)
 
+    canvas_width, canvas_height = resolve_size(width, height)
     document, area = new_canvas(
-        fit_left_margin(MARGIN_WITH_LEGEND, rows, width=DEFAULT_WIDTH, font_size=resolved_theme.tick_label_font_size)
+        fit_margin(
+            fit_left_margin(MARGIN_WITH_LEGEND, rows, width=canvas_width, font_size=resolved_theme.tick_label_font_size),
+            canvas_width,
+            canvas_height,
+        ),
+        width=canvas_width,
+        height=canvas_height,
     )
 
     x_scale = CategoricalScale(columns, (area.left, area.right))
     y_scale = CategoricalScale(rows, (area.top, area.bottom))
-    render_x_axis(document, x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size)
-    render_y_axis(document, y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size)
+    render_x_axis(
+        document,
+        x_scale,
+        area,
+        tick_count=ticks_for(area.width, TICK_SPACING_X),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
+    )
+    render_y_axis(
+        document,
+        y_scale,
+        area,
+        tick_count=ticks_for(area.height, TICK_SPACING_Y),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
+    )
 
     # One class per level, minted up front so every cell of the same level shares a rule --
     # which is what makes a nine-line hand edit recolour the whole chart.

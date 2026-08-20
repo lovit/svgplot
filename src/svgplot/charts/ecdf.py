@@ -12,12 +12,16 @@ from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, over, plural, span
 from svgplot.charts._layout import (
-    DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
+    TICK_SPACING_X,
+    TICK_SPACING_Y,
+    fit_margin,
     format_coord,
     new_canvas,
+    resolve_size,
+    ticks_for,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._series import series_items as build_series
@@ -89,6 +93,8 @@ def ecdfplot(
     *,
     stat: str = "proportion",
     complementary: bool = False,
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
     xlim: tuple[float, float] | None = None,
     ylim: tuple[float, float] | None = None,
@@ -108,6 +114,13 @@ def ecdfplot(
     exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
     which uses them to give faceted panels one axis -- and replace rather than widen, so a
     caller asking for a narrower view gets one.
+
+    ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
+    call that does not mention them is byte-identical to one written before they existed. The
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
+    refused rather than clamped, and a chart may refuse a larger one if its own legend does
+    not fit.
 
     Raises:
         KeyError: if ``x``/``hue`` isn't a column in ``data``, or if ``theme`` is a
@@ -137,22 +150,39 @@ def ecdfplot(
     x_domain = apply_limit(x_domain, xlim)
     y_domain = apply_limit(y_domain, ylim)
 
+    canvas_width, canvas_height = resolve_size(width, height)
     document, area = new_canvas(
-        fit_left_margin(
-            MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
-            y_domain,
-            width=DEFAULT_WIDTH,
-            font_size=resolved_theme.tick_label_font_size,
-        )
+        fit_margin(
+            fit_left_margin(
+                MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
+                y_domain,
+                width=canvas_width,
+                font_size=resolved_theme.tick_label_font_size,
+            ),
+            canvas_width,
+            canvas_height,
+        ),
+        width=canvas_width,
+        height=canvas_height,
     )
 
     pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
     render_x_axis(
-        document, pixel_x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        document,
+        pixel_x_scale,
+        area,
+        tick_count=ticks_for(area.width, TICK_SPACING_X),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
     )
     render_y_axis(
-        document, pixel_y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        document,
+        pixel_y_scale,
+        area,
+        tick_count=ticks_for(area.height, TICK_SPACING_Y),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
     )
 
     series_classes: list[str] = []

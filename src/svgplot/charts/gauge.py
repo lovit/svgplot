@@ -24,9 +24,11 @@ from svgplot.charts._describe import describe, group, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_SIDE_LEGEND,
+    fit_margin,
     format_coord,
     format_value_label,
     new_canvas,
+    resolve_size,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._polar import label_anchor, polar_point, ring_path
@@ -128,6 +130,8 @@ def gaugeplot(
     vmin: float | None = None,
     vmax: float | None = None,
     labels: str | None = None,
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
     """Draw a gauge: one arc per row over a shared ``[vmin, vmax]`` range.
@@ -142,6 +146,13 @@ def gaugeplot(
     to the largest value. ``labels`` names the legend column; without it, rows are numbered
     from 1, and a single unlabelled row gets no legend at all -- its number is already
     printed in the middle.
+
+    ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
+    call that does not mention them is byte-identical to one written before they existed. The
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
+    refused rather than clamped, and a chart may refuse a larger one if its own legend does
+    not fit.
 
     Raises:
         KeyError: if ``value``/``labels`` isn't a column in ``data``, or if ``theme`` is a
@@ -180,7 +191,12 @@ def gaugeplot(
     low, high = _resolve_bounds([magnitude for _, magnitude in pairs], vmin, vmax)
     angle_of = LinearScale((low, high), (_START_ANGLE, _END_ANGLE))
 
-    document, area = new_canvas(MARGIN_WITH_SIDE_LEGEND)
+    canvas_width, canvas_height = resolve_size(width, height)
+    document, area = new_canvas(
+        fit_margin(MARGIN_WITH_SIDE_LEGEND, canvas_width, canvas_height),
+        width=canvas_width,
+        height=canvas_height,
+    )
 
     cx, cy = area.left + area.width / 2, area.top + area.height / 2
     outer_radius = min(area.width, area.height) / 2 - _LABEL_MARGIN

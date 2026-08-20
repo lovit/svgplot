@@ -17,9 +17,11 @@ from svgplot.charts._describe import describe, group, number, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_SIDE_LEGEND,
+    fit_margin,
     format_coord,
     format_value_label,
     new_canvas,
+    resolve_size,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._polar import FULL_CIRCLE_TOLERANCE, full_ring_path, polar_point, ring_path
@@ -41,6 +43,8 @@ def pieplot(
     *,
     inner_radius: float = 0.0,
     info: LabelSpec | list[tuple[str, str]] | None = None,
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
 ) -> Chart:
     """Draw a pie chart from ``values`` (slice angle) and, optionally, ``labels``
@@ -52,6 +56,13 @@ def pieplot(
     Each slice's value is drawn as a label directly on the slice; ``labels``
     (when given) drives the legend instead, matching the fact that a slice's
     angle is only meaningful relative to its own numeric value.
+
+    ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
+    call that does not mention them is byte-identical to one written before they existed. The
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
+    refused rather than clamped, and a chart may refuse a larger one if its own legend does
+    not fit.
 
     Raises:
         KeyError: if ``values``/``labels`` isn't a column in ``data``, or if
@@ -100,7 +111,12 @@ def pieplot(
     # After the checks above, so a bad column still reports the chart's own error first.
     label_data = collect_label_data(data, info, required=(values, labels))
 
-    document, area = new_canvas(MARGIN_WITH_SIDE_LEGEND)
+    canvas_width, canvas_height = resolve_size(width, height)
+    document, area = new_canvas(
+        fit_margin(MARGIN_WITH_SIDE_LEGEND, canvas_width, canvas_height),
+        width=canvas_width,
+        height=canvas_height,
+    )
 
     cx, cy = area.left + area.width / 2, area.top + area.height / 2
     outer_radius = min(area.width, area.height) / 2

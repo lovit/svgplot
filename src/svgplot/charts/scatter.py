@@ -15,14 +15,18 @@ from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, fits, over, plural, span
 from svgplot.charts._layout import (
-    DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
+    TICK_SPACING_X,
+    TICK_SPACING_Y,
+    fit_margin,
     format_coord,
     new_canvas,
+    resolve_size,
+    ticks_for,
 )
-from svgplot.charts._legend import render_legend
+from svgplot.charts._legend import render_legend, require_room, size_legend_ink_height
 from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.data._missing import numeric_or_none
@@ -36,6 +40,7 @@ from svgplot.theme.css import render_theme_style
 _SIZE_LEGEND_GAP = 24.0  # vertical gap between the hue legend and the size legend
 _SIZE_LEGEND_ROW_PADDING = 8.0  # vertical breathing room between size-legend rows
 _SIZE_LEGEND_LABEL_GAP = 6.0
+_SIZE_LEGEND_BASELINE = 4.0  # how far a row's label sits below its marker's centre
 
 # A point's radius ranges from 0.5x to 2.5x the theme's base marker size when size=
 # is mapped from data — wide enough to read as "varying," not so wide that the
@@ -84,6 +89,21 @@ def _render_size_legend(
     """
     low, high = min(size_values), max(size_values)
     samples = sorted({low, (low + high) / 2, high})
+    # Checked before the first circle, and against the same rule the hue legend uses: **ink**,
+    # not the space claimed. This legend is drawn *below* the hue legend, starting at the space
+    # that one claimed, so each can look fine alone while the pair runs off the bottom -- with
+    # both guards removed at 400x180, three hue groups fit (lowest ink y=175) and the fourth is
+    # the first to overflow, by 15px, every further group adding 20.
+    #
+    # Summing ``2r + padding`` over every sample would count the last row's bottom padding,
+    # which nothing is drawn in, and that refuses legends that fit: ``scatterplot(hue=3, size=)``
+    # at 400x180 was rejected while its lowest ink sat at 175 on a 180px canvas.
+    require_room(
+        document,
+        y,
+        size_legend_ink_height([radius_of(sample) for sample in samples], _SIZE_LEGEND_ROW_PADDING, _SIZE_LEGEND_BASELINE),
+        what=f"a size legend of {len(samples)} samples",
+    )
     # Rows advance by each sample's own diameter (plus padding), not a fixed height:
     # the largest sample's radius scales with theme.marker_size, so a fixed row height
     # lets big markers overlap the row above at perfectly ordinary theme settings.
@@ -103,7 +123,7 @@ def _render_size_legend(
             tag="text",
             attrib={
                 "x": format_coord(x + 2 * (max(radius_of(high), radius_of(low))) + _SIZE_LEGEND_LABEL_GAP),
-                "y": format_coord(row_y + 4),
+                "y": format_coord(row_y + _SIZE_LEGEND_BASELINE),
             },
             classes=["legend-text"],
         )
@@ -132,6 +152,8 @@ def scatterplot(
     size: str | None = None,
     *,
     info: LabelSpec | list[tuple[str, str]] | None = None,
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
     xlim: tuple[float, float] | None = None,
     ylim: tuple[float, float] | None = None,
@@ -148,6 +170,13 @@ def scatterplot(
     exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
     which uses them to give faceted panels one axis -- and replace rather than widen, so a
     caller asking for a narrower view gets one.
+
+    ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
+    call that does not mention them is byte-identical to one written before they existed. The
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
+    refused rather than clamped, and a chart may refuse a larger one if its own legend does
+    not fit.
 
     Raises:
         KeyError: if ``x``/``y``/``hue``/``size`` isn't a column in ``data``, or if
@@ -193,22 +222,39 @@ def scatterplot(
     # After the checks above, so a bad column still reports the chart's own error first.
     label_data = collect_label_data(data, info, required=(x, y, hue, size))
 
+    canvas_width, canvas_height = resolve_size(width, height)
     document, area = new_canvas(
-        fit_left_margin(
-            MARGIN_WITH_LEGEND if has_legend else MARGIN_WITHOUT_LEGEND,
-            y_domain,
-            width=DEFAULT_WIDTH,
-            font_size=resolved_theme.tick_label_font_size,
-        )
+        fit_margin(
+            fit_left_margin(
+                MARGIN_WITH_LEGEND if has_legend else MARGIN_WITHOUT_LEGEND,
+                y_domain,
+                width=canvas_width,
+                font_size=resolved_theme.tick_label_font_size,
+            ),
+            canvas_width,
+            canvas_height,
+        ),
+        width=canvas_width,
+        height=canvas_height,
     )
 
     pixel_x_scale = LinearScale(x_domain, (area.left, area.right))
     pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
     render_x_axis(
-        document, pixel_x_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        document,
+        pixel_x_scale,
+        area,
+        tick_count=ticks_for(area.width, TICK_SPACING_X),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
     )
     render_y_axis(
-        document, pixel_y_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+        document,
+        pixel_y_scale,
+        area,
+        tick_count=ticks_for(area.height, TICK_SPACING_Y),
+        tick_length=resolved_theme.tick_size,
+        font_size=resolved_theme.tick_label_font_size,
     )
 
     radius_of = _radius_mapper([row[2] for row in all_rows], resolved_theme.marker_size) if size is not None else None

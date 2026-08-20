@@ -10,12 +10,16 @@ from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estima
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, group, number, span
 from svgplot.charts._layout import (
-    DEFAULT_WIDTH,
     LEGEND_X_OFFSET,
     MARGIN_WITH_LEGEND,
     MARGIN_WITHOUT_LEGEND,
+    TICK_SPACING_X,
+    TICK_SPACING_Y,
+    fit_margin,
     format_coord,
     new_canvas,
+    resolve_size,
+    ticks_for,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._series import series_items as build_series
@@ -76,6 +80,8 @@ def barplot(
     orient: str = "v",
     stacked: bool = False,
     estimator: Estimator | None = None,
+    width: float | None = None,
+    height: float | None = None,
     theme: Theme | str | None = None,
     categories: tuple[str, ...] | None = None,
     xlim: tuple[float, float] | None = None,
@@ -111,6 +117,13 @@ def barplot(
     Warns:
         AggregationWarning: when ``estimator=None`` and rows were actually discarded.
             Once per call, not once per category.
+
+    ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
+    call that does not mention them is byte-identical to one written before they existed. The
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
+    refused rather than clamped, and a chart may refuse a larger one if its own legend does
+    not fit.
 
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
@@ -160,13 +173,20 @@ def barplot(
     # along x. Taking ylim there would mean "share the y axis" moved the bars sideways.
     value_domain = apply_limit((0.0, value_max), xlim if orient == "h" else ylim)
 
+    canvas_width, canvas_height = resolve_size(width, height)
     document, area = new_canvas(
-        fit_left_margin(
-            MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
-            drawn_categories if orient == "h" else value_domain,
-            width=DEFAULT_WIDTH,
-            font_size=resolved_theme.tick_label_font_size,
-        )
+        fit_margin(
+            fit_left_margin(
+                MARGIN_WITH_LEGEND if hue is not None else MARGIN_WITHOUT_LEGEND,
+                drawn_categories if orient == "h" else value_domain,
+                width=canvas_width,
+                font_size=resolved_theme.tick_label_font_size,
+            ),
+            canvas_width,
+            canvas_height,
+        ),
+        width=canvas_width,
+        height=canvas_height,
     )
 
     category_range = (area.left, area.right) if orient == "v" else (area.top, area.bottom)
@@ -176,17 +196,37 @@ def barplot(
 
     if orient == "v":
         render_x_axis(
-            document, category_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+            document,
+            category_scale,
+            area,
+            tick_count=ticks_for(area.width, TICK_SPACING_X),
+            tick_length=resolved_theme.tick_size,
+            font_size=resolved_theme.tick_label_font_size,
         )
         render_y_axis(
-            document, value_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+            document,
+            value_scale,
+            area,
+            tick_count=ticks_for(area.height, TICK_SPACING_Y),
+            tick_length=resolved_theme.tick_size,
+            font_size=resolved_theme.tick_label_font_size,
         )
     else:
         render_y_axis(
-            document, category_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+            document,
+            category_scale,
+            area,
+            tick_count=ticks_for(area.height, TICK_SPACING_Y),
+            tick_length=resolved_theme.tick_size,
+            font_size=resolved_theme.tick_label_font_size,
         )
         render_x_axis(
-            document, value_scale, area, tick_length=resolved_theme.tick_size, font_size=resolved_theme.tick_label_font_size
+            document,
+            value_scale,
+            area,
+            tick_count=ticks_for(area.width, TICK_SPACING_X),
+            tick_length=resolved_theme.tick_size,
+            font_size=resolved_theme.tick_label_font_size,
         )
 
     series_classes = [document.semantic_class("series") for _ in group_items]

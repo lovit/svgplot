@@ -26,6 +26,91 @@ _TEXT_BASELINE_OFFSET = 4.0
 _SWATCH_HEIGHT = 10.0
 
 
+_SHORTENING_FLOOR_EMS = 2.4
+"""What the legend gutter is checked against — the room below which shortening stops helping.
+
+Not a font measurement of its own. ``charts/_textwidth.py`` owns that, and it is a *measured*
+model: each character is charged the worst advance of its Unicode class in Arial, verified
+against the font's ``hmtx`` table. An earlier version of this module carried its own estimate
+of 0.55 em per character on the premise that "a label's real width is unknowable here", which
+is no longer true and was never conservative — 0.55 sits below a digit's own 0.556, so six
+digits cost more than it charged.
+
+The floor is a floor rather than a full label because a label that does not fit is **not** a
+failure: ``render_legend`` shortens it with an ellipsis and keeps the full text in a
+``<title>`` that assistive technology reads. What a gutter has to guarantee is that
+shortening still leaves something, which is the same 2.4 em ``charts/_axes.py`` uses for the
+same decision.
+"""
+
+
+def minimum_legend_text_width(font_size: float) -> float:
+    """The narrowest gutter a legend label can be shortened into and still say anything."""
+    return _SHORTENING_FLOOR_EMS * font_size
+
+
+def legend_ink_height(rows: int) -> float:
+    """How far below ``y`` a legend of ``rows`` rows actually puts ink.
+
+    Not ``rows * _ROW_HEIGHT``. That is the space the legend *claims* — what
+    :func:`render_legend` returns so a caller can stack under it — and it includes the last
+    row's own bottom padding, which nothing is drawn in. Guarding on the claimed space refuses
+    legends that fit: measured on ``origin/main``, a 29-entry legend on an 800x600 canvas puts
+    its lowest ink at y=594 and renders correctly, while the claim-space rule would have
+    rejected it. Thirty entries reach y=614 and really do overflow.
+
+    The allowance below the last baseline is the same ``_TEXT_BASELINE_OFFSET`` used above it:
+    the offset centres the row's text, and a descender reaches about as far below the baseline
+    as the centring lifted it.
+    """
+    return max(rows - 1, 0) * _ROW_HEIGHT + 2 * _TEXT_BASELINE_OFFSET
+
+
+def size_legend_ink_height(radii: list[float], row_padding: float, baseline_offset: float) -> float:
+    """The same measurement for a size legend, whose rows are as tall as their own markers.
+
+    Two differences from :func:`legend_ink_height`, and both come from the rows not being a
+    fixed height. The padding between rows is counted ``n - 1`` times rather than ``n``, for
+    the same reason as above -- the last row's padding has nothing drawn in it. And the last
+    row's own extent is whichever reaches lower, the bottom of its circle or the descender
+    under its label: a small marker with a big number beside it is limited by the text, a big
+    marker by the circle.
+    """
+    if not radii:
+        return 0.0
+    above = sum(2 * radius + row_padding for radius in radii[:-1])
+    last = radii[-1]
+    return above + max(2 * last, last + baseline_offset + 2 * _TEXT_BASELINE_OFFSET)
+
+
+def require_room(document: SvgDocument, y: float, needed: float, *, what: str) -> None:
+    """Refuse to start drawing ``needed`` pixels of legend at ``y`` on a shorter canvas.
+
+    ``needed`` is ink, not claimed space — see :func:`legend_ink_height`. A second legend
+    stacked below the first starts at the *claimed* end of it, so it is checked from there
+    and against its own ink. That pairing is what catches ``scatterplot(hue=, size=)``, where
+    each legend on its own looks fine: measured at 400x180 with both guards removed, three
+    hue groups fit (lowest ink y=175) and the fourth is the first to overflow, by 15px, with
+    every further group adding 20px — 75px at seven, and unbounded after that.
+
+    An earlier version of this paragraph said 46px, which no number of groups produces. The
+    figures above were measured by rendering with the guards disabled and reading the lowest
+    ink out of the document.
+    """
+    if y + needed > document.height:
+        raise ValueError(
+            f"{what} needs {format_coord(needed)}px below y={format_coord(y)}, "
+            f"but the canvas is only {format_coord(document.height)}px tall; "
+            f"use a taller canvas or fewer groups"
+        )
+
+
+def legend_text_room(gutter: float) -> float:
+    """Pixels left for a legend label's glyphs, given the gutter between the plot area's
+    right edge and the canvas edge."""
+    return gutter - _SWATCH_WIDTH - _LABEL_GAP
+
+
 def render_legend(
     document: SvgDocument,
     entries: list[tuple[str, str]],
@@ -67,9 +152,23 @@ def render_legend(
 
     Raises:
             ValueError: if ``mark_style`` isn't ``"stroke"`` or ``"fill"``.
+
+    The rows must fit on the canvas. They always did at 800 x 600 for any legend this
+    package produces, so nothing checked — but a caller-chosen canvas (issue #120) can be
+    shorter than the legend is tall, and a legend that runs off the bottom is not a smaller
+    legend, it is a missing one. ``heatmap``'s nine colour levels need 210 px of the 180 px
+    a minimum-size canvas has, which is how this was found. Refused rather than clipped, for
+    ``gaugeplot``'s reason: a silently unreadable chart is worse than a message naming the
+    limit. A chart with more legend entries than an 800 x 600 canvas could ever hold (29 or
+    more) now reports that instead of drawing them past the edge.
+
+    Raises:
+        ValueError: if ``mark_style`` isn't ``"stroke"`` or ``"fill"``, or if the legend's
+            rows would extend past the bottom of ``document``.
     """
     if mark_style not in ("stroke", "fill"):
         raise ValueError(f"mark_style must be 'stroke' or 'fill', got {mark_style!r}")
+    require_room(document, y, legend_ink_height(len(entries)), what=f"a legend of {len(entries)} entries")
     for index, (label, css_class) in enumerate(entries):
         row_y = y + index * _ROW_HEIGHT
         if mark_style == "stroke":
