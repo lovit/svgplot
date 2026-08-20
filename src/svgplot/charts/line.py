@@ -28,8 +28,10 @@ from svgplot.charts._layout import (
     fit_margin,
     format_coord,
     new_canvas,
+    resolve_axis_scale,
     resolve_size,
     ticks_for,
+    value_scale,
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._series import series_items as build_series
@@ -38,7 +40,7 @@ from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.labels._source import collect_label_data
 from svgplot.labels.spec import LabelSpec
-from svgplot.scales import LinearScale, TimeScale
+from svgplot.scales import TimeScale
 from svgplot.stats.interpolate import interpolate as interpolate_curve
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
@@ -174,6 +176,8 @@ def lineplot(
     theme: Theme | str | None = None,
     xlim: tuple[float, float] | None = None,
     ylim: tuple[float, float] | None = None,
+    xscale: str = "linear",
+    yscale: str = "linear",
 ) -> Chart:
     """Draw a line chart from long-form data.
 
@@ -224,6 +228,12 @@ def lineplot(
     refused rather than clamped, and a chart may refuse a larger one if its own legend does
     not fit.
 
+    ``xscale=``/``yscale=`` choose that axis' scale: ``"linear"`` (the default) or ``"log"``.
+    A log axis is what makes response times, file sizes or populations legible -- on a linear
+    axis the small values collapse into one pixel. Values at or below zero are **refused by
+    column name** rather than masked or clipped: a logarithm is undefined there, and both of
+    the alternatives silently draw a different chart than the data describes.
+
     Raises:
         ValueError: if ``x`` holds a type with no position on an axis (``datetime.time`` is
             a time of day with no day, so two values a week apart are the same point), if it
@@ -258,7 +268,11 @@ def lineplot(
     if not all_x:
         raise ValueError("no rows with both x and y present after dropping missing values")
     is_time = _is_time_axis(all_x, x)
-    numeric_x_domain = (min(_numeric_x(v, x) for v in all_x), max(_numeric_x(v, x) for v in all_x))
+    # Once, and reused: a log x axis has to be told the values as well as the domain (a narrow
+    # ``xlim`` can exclude a zero the chart still draws), and on a time axis these are the
+    # timestamps rather than the datetimes.
+    numeric_all_x = [_numeric_x(value, x) for value in all_x]
+    numeric_x_domain = (min(numeric_all_x), max(numeric_all_x))
     # The tick axis is built from the *original* datetimes, not from these numbers rebuilt
     # by ``fromtimestamp``. That round trip returns a naive local value, so an aware column
     # lost its offset and every label became a reading of whichever machine drew the chart:
@@ -273,6 +287,8 @@ def lineplot(
     # After the checks above, so a bad column still reports the chart's own error first.
     label_data = collect_label_data(data, info, required=(x, y, hue))
 
+    resolved_xscale = resolve_axis_scale(xscale, parameter="xscale")
+    resolved_yscale = resolve_axis_scale(yscale, parameter="yscale")
     canvas_width, canvas_height = resolve_size(width, height)
     document, area = new_canvas(
         fit_margin(
@@ -289,8 +305,8 @@ def lineplot(
         height=canvas_height,
     )
 
-    pixel_x_scale = LinearScale(numeric_x_domain, (area.left, area.right))
-    pixel_y_scale = LinearScale(y_domain, (area.bottom, area.top))
+    pixel_x_scale = value_scale(resolved_xscale, numeric_x_domain, (area.left, area.right), column=x, values=numeric_all_x)
+    pixel_y_scale = value_scale(resolved_yscale, y_domain, (area.bottom, area.top), column=y, values=all_y)
     tick_x_scale = (
         TimeScale((_as_datetime(time_domain[0]), _as_datetime(time_domain[1])), (area.left, area.right))
         if is_time

@@ -47,6 +47,49 @@ class LinearScale:
         return range_min + ratio * (range_max - range_min)
 
 
+class LogScale:
+    """Maps a positive numeric domain to a pixel range on a base-10 logarithm.
+
+    The scale three of the four libraries this package is measured against offer
+    (``pygal``'s ``logarithmic=True``, matplotlib's ``set_yscale("log")``, Bokeh's
+    ``y_axis_type="log"``) and the one ``docs/research/10-feature-matrix.md`` never got a row
+    for. It matters for the data this package is aimed at -- response times, file sizes,
+    populations, benchmark ratios -- where a linear axis crushes the small values into one
+    pixel and the chart stops answering the question it was drawn for.
+
+    **Non-positive values are refused, not clipped or masked.** matplotlib offers
+    ``nonpositive="mask"|"clip"``; this package's rule everywhere else is to name the problem
+    rather than quietly redraw a different chart, and both alternatives do the latter --
+    masking drops rows the caller still counted, clipping invents a value they never had.
+
+    Raises:
+        ValueError: if either end of ``domain`` is not finite and strictly positive, or if
+            ``domain`` is a single point (there is no span to take a ratio across).
+    """
+
+    def __init__(self, domain: tuple[float, float], range_: tuple[float, float]) -> None:
+        for value in range_:
+            _require_finite(value, "range value")
+        for value in domain:
+            _require_finite(value, "domain value")
+            if value <= 0.0:
+                raise ValueError(f"a log scale needs strictly positive values, got {value!r}")
+        self.domain = domain
+        self.range = range_
+
+    def __call__(self, value: float) -> float:
+        """Map a data value to a pixel position."""
+        _require_finite(value, "value")
+        if value <= 0.0:
+            raise ValueError(f"a log scale needs strictly positive values, got {value!r}")
+        domain_min, domain_max = self.domain
+        range_min, range_max = self.range
+        if domain_max == domain_min:
+            return (range_min + range_max) / 2
+        ratio = math.log10(value / domain_min) / math.log10(domain_max / domain_min)
+        return range_min + ratio * (range_max - range_min)
+
+
 class CategoricalScale:
     """Maps discrete category values to evenly spaced pixel bands (d3's ``scaleBand``).
 
@@ -196,7 +239,7 @@ def _nice_linear_ticks(domain_min: float, domain_max: float, count: int) -> list
     return list(dict.fromkeys(ticks))
 
 
-Scale = LinearScale | CategoricalScale | TimeScale
+Scale = LinearScale | LogScale | CategoricalScale | TimeScale
 
 
 _SUB_MONTH_STEPS = (
@@ -254,6 +297,62 @@ day; stepped by the month field it reads ``2024-02``, ``2024-03``."""
 
 _MONTH_STEPS = (1, 2, 3, 6)
 _YEAR_STEPS = (1, 2, 5, 10, 25, 50, 100, 250, 500, 1000)
+
+
+_LOG_MANTISSAS = ((1,), (1, 3), (1, 2, 5), (1, 2, 3, 5, 7), tuple(range(1, 10)))
+"""Ladders of leading digits, coarsest first, for a log axis too narrow for its decades alone.
+
+Powers of ten are the ticks a reader expects on a log axis, and across several decades they
+are all it needs. Inside one decade there is exactly one of them, which is not an axis -- so
+the ladder subdivides, taking the first rung that clears :data:`_MIN_TICKS`. The rungs are
+the round leading digits in the order a reader tolerates them: halves and fifths before
+thirds and sevenths, and every digit only as a last resort.
+"""
+
+
+def _log_ticks(domain_min: float, domain_max: float, count: int) -> list[float]:
+    """Ticks at round mantissas times powers of ten, spanning ``[domain_min, domain_max]``.
+
+    Not :func:`_nice_linear_ticks` on the exponents: that would put ticks at 10**0.5, which is
+    3.1622776601683795 and reads as noise on an axis whose whole point is round magnitudes.
+
+    The count is a request, as everywhere else here. What is guaranteed is the floor: the
+    ladder keeps subdividing until at least :data:`_MIN_TICKS` land inside the domain, so a
+    domain of 3 to 9 gets an axis rather than a single ``10`` that is not even in it.
+    """
+    low, high = sorted((domain_min, domain_max))
+    if low == high:
+        return [low]
+    first, last = math.floor(math.log10(low)), math.ceil(math.log10(high))
+    best: list[float] = []
+    for mantissas in _LOG_MANTISSAS:
+        ticks = [
+            value
+            for exponent in range(first, last + 1)
+            for mantissa in mantissas
+            if low <= (value := mantissa * 10.0**exponent) <= high
+        ]
+        # ``sorted`` because a mantissa ladder walks decades in the outer loop, and the last
+        # mantissa of one decade can exceed the first of the next only if the ladder is
+        # malformed -- keeping the sort makes that impossible to depend on either way.
+        best = sorted(dict.fromkeys(ticks))
+        if len(best) >= _MIN_TICKS:
+            return best
+    # Even every leading digit was not enough, which means the domain spans less than one
+    # round step -- 2 to 3 offers exactly two of them. Over a ratio that small a log axis is
+    # visually almost a linear one (2..3 stretches by 1.5x end to end), so the linear ladder
+    # both reaches ``_MIN_TICKS`` here and reads as round numbers rather than as 2.15443469.
+    # Asked for more until it is enough, the way the month and year ladders above do. The
+    # count is a request everywhere in this module, so passing ``_MIN_TICKS`` does not *get*
+    # ``_MIN_TICKS`` -- a request of three over 1e-10..1.5e-10 comes back with two. The floor
+    # is not a request, so it is reached by stepping rather than by asking once.
+    requested = max(count, _MIN_TICKS)
+    while requested <= 4 * _MIN_TICKS:
+        ticks = _nice_linear_ticks(low, high, requested)
+        if len(ticks) >= _MIN_TICKS:
+            return ticks
+        requested += 1
+    return _nice_linear_ticks(low, high, requested)
 
 
 _MIN_TICKS = 3
@@ -508,6 +607,9 @@ def make_ticks(scale: Scale, count: int = 5) -> list[float] | list[str] | list[d
         # a property of the local clock, not of the step that produced them.
         ticks = _distinct_instants(ticks, (domain_min.timestamp(), domain_max.timestamp()))
         return ticks or list(dict.fromkeys([domain_min, domain_max]))
+    if isinstance(scale, LogScale):
+        domain_min, domain_max = scale.domain
+        return _log_ticks(domain_min, domain_max, count)
     if isinstance(scale, LinearScale):
         domain_min, domain_max = scale.domain
         return _nice_linear_ticks(domain_min, domain_max, count)
