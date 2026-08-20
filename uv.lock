@@ -492,11 +492,11 @@ wheels = [
 name = "svgplot"
 version = "0.1.0"
 source = { editable = "." }
-dependencies = [
-    { name = "numpy" },
-]
 
 [package.optional-dependencies]
+numpy-parity = [
+    { name = "numpy" },
+]
 png = [
     { name = "cairosvg" },
 ]
@@ -511,9 +511,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "cairosvg", marker = "extra == 'png'", specifier = ">=2.7.0" },
-    { name = "numpy", specifier = ">=2.5.2" },
+    { name = "numpy", marker = "extra == 'numpy-parity'", specifier = ">=2.3.0" },
 ]
-provides-extras = ["png"]
+provides-extras = ["png", "numpy-parity"]
 
 [package.metadata.requires-dev]
 dev = [
