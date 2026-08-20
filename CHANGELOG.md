@@ -59,9 +59,12 @@
 - **여러 줄 라벨 미지원**(`_svg.py`의 `_fold_newlines` docstring) — 텍스트 노드의 개행은 공백으로 접힌다. 진짜 여러 줄 라벨은 `dy`를 가진 `<tspan>`이 필요하고 이 패키지는 글리프를 측정하지 않는다.
 - **markdown 표 셀의 GFM autolink**(`labels/table.py`의 `_escape_markdown_cell` docstring) — 맨 URL·`www.` 접두·이메일 주소는 마크업 없이 링크가 되므로 이스케이프로 막을 수 없다. 값을 고쳐 쓰는 것은 호출자가 주지 않은 데이터를 보고하는 일이라 하지 않는다.
 
+### Changed
+
+- `bins=0`·음수를 거부한다. 이전에는 numpy가 `bins must be positive`로 막던 것이 조용히 1-bin 차트가 됐다.
 - **런타임 의존성이 없다.** `numpy`가 필수 의존성에서 빠졌다 — 쓰는 곳이 `stats/binning.py`의 한 줄뿐이었고, 나머지 통계 모듈은 전부 순수 stdlib이다(`stats/kde.py`가 그 선택의 측정 근거를 담고 있다). markdown 문서에 SVG를 박아넣는 도구가 문서 빌드 파이프라인에 numpy를 끌고 들어갈 이유가 없다.
-- 그 한 줄이 하던 일(`numpy.histogram_bin_edges`)을 직접 구현했다. 폴백이 아니라 **대체**다 — 폴백이면 numpy 설치 여부에 따라 같은 입력이 다른 SVG를 내는데, 그건 이 패키지의 정체성("같은 입력 → 같은 SVG")과 어긋난다. 경계는 numpy 2.5.2와 **비트 단위로 동일**하며, 24,000개 조합(2,000개 데이터셋 × 10가지 모양 × 크기 1~5,000 × 전략 7종 + 명시 개수 5종)으로 확인했다. 그 대조는 `numpy-parity` extra 를 설치하면 재실행된다.
-- 부수 효과로 bin 개수가 **설치된 numpy 버전에 의존하지 않는다.** numpy의 `auto`는 `min(fd, sturges)`였다가 2.5에서 `min(max(fd, sqrt/2), sturges)`로 바뀌었다 — 스파이크가 있는 데이터에서 bin 이 수천 개가 되는 것을 막는 휴리스틱이다. 위임하는 동안에는 독자의 환경이 차트의 막대 수를 정했다.
+- 그 한 줄이 하던 일(`numpy.histogram_bin_edges`)을 직접 구현했다. 폴백이 아니라 **대체**다 — 폴백이면 numpy 설치 여부에 따라 같은 입력이 다른 SVG를 내는데, 그건 이 패키지의 정체성("같은 입력 → 같은 SVG")과 어긋난다. 경계는 통상 데이터에서 numpy와 **비트 단위로 동일**하다(9가지 모양 × 12가지 크기 × 전략 7종, 28,000 비교, 불일치 0). 의도적으로 갈리는 곳이 셋 있다: `_MAX_BINS`를 넘는 전략 결과는 거부하고(numpy는 만든다), `stone` 전략은 구현하지 않았으며(**breaking** — 쓰던 호출은 남은 7종을 알려주는 `ValueError`가 된다), subnormal·float 최대 근처의 적대적 입력 약 0.4%가 bin 하나 차이난다. 대조는 `numpy-parity` extra 를 설치하면 재실행된다.
+- 부수 효과로 bin 개수가 **설치된 numpy 버전에 의존하지 않는다.** numpy의 `auto`는 `min(fd, sturges)`였다가 **2.3.0**에서 `min(max(fd, sqrt/2), sturges)`로 바뀌었다 — 스파이크가 있는 데이터에서 bin 이 수천 개가 되는 것을 막는 휴리스틱이다. 위임하는 동안에는 독자의 환경이 차트의 막대 수를 정했다.
 
 ### Fixed
 
