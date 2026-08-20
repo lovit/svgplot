@@ -11,16 +11,28 @@ versions: it used to be ``min(fd, sturges)`` and in 2.5 it is
 thousands of bins. A package whose identity is "same input, same SVG" cannot have its bin
 count depend on which numpy the reader happens to have installed.
 
-The edges these produce are **bit-identical to numpy 2.5.2** over a corpus of 24,000
-combinations -- 2,000 datasets across ten shapes (uniform, gaussian, constant, spiked, tiny,
-huge, negative, integral, bimodal, exponential) and sizes 1 to 5,000, against all seven
-strategies and five explicit counts. ``tests/test_stats_binning.py`` keeps a sample of that
-comparison, skipped when numpy is absent.
+The edges these produce are **bit-identical to numpy** over ordinary data: 28,000 comparisons
+across nine shapes (uniform, gaussian, exponential, log-normal, integral, tied, two-valued,
+all-negative, spiked), twelve sizes and seven strategies, zero mismatches.
+
+Three deliberate divergences, all at the edges of the float grid rather than in the model:
+
+- A strategy that asks for more than :data:`_MAX_BINS` is refused. numpy builds the array;
+  building the same list in Python is eight times the memory and slow enough to look like a
+  hang, and no chart can show a million bars either way.
+- ``stone`` is not implemented. numpy accepts it; a call that used it now gets a ``ValueError``
+  naming the seven that remain.
+- Around 0.4% of *adversarial* inputs -- subnormals, values within a factor of ten of the float
+  maximum -- differ by one bin, because the arithmetic that decides the count is itself at the
+  limit of the grid. ``tests/test_stats_binning_numpy_parity.py`` covers the ordinary range and
+  is skipped when numpy is absent.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
+from itertools import pairwise
 
 from svgplot.stats.quantile import quantile
 
@@ -32,10 +44,28 @@ of ``_MAX_PRECISION`` in ``stats.interpolate``."""
 _STRATEGIES = ("auto", "fd", "doane", "scott", "rice", "sturges", "sqrt")
 
 
+def _saturating(compute: Callable[[], float]) -> float:
+    """``compute()``, giving ``inf`` where the float range runs out.
+
+    Python raises ``OverflowError`` from ``fsum`` and from ``**``; float64 arithmetic
+    saturates to infinity instead. A column around 1e308 therefore turned a working
+    ``scott``/``doane`` call into an exception the documented contract does not mention.
+    Saturating keeps the two agreeing: an infinite width means one bin, which is the honest
+    answer for data that wide.
+    """
+    try:
+        return compute()
+    except OverflowError:
+        return math.inf
+
+
 def _population_stdev(values: list[float]) -> float:
     """Standard deviation with ``ddof=0``, which is what ``numpy.std`` defaults to."""
-    mean = math.fsum(values) / len(values)
-    return math.sqrt(math.fsum((value - mean) ** 2 for value in values) / len(values))
+    mean = _saturating(lambda: math.fsum(values)) / len(values)
+    if not math.isfinite(mean):
+        return math.inf
+    total = _saturating(lambda: math.fsum(_saturating(lambda v=value: (v - mean) ** 2) for value in values))
+    return math.sqrt(total / len(values)) if math.isfinite(total) else math.inf
 
 
 def _bin_width(strategy: str, values: list[float], span: float) -> float:
@@ -74,7 +104,9 @@ def _bin_width(strategy: str, values: list[float], span: float) -> float:
     if deviation == 0.0:
         return 0.0
     mean = math.fsum(values) / count
-    skew = math.fsum(((value - mean) / deviation) ** 3 for value in values) / count
+    skew = (
+        _saturating(lambda: math.fsum(_saturating(lambda v=value: ((v - mean) / deviation) ** 3) for value in values)) / count
+    )
     correction = math.sqrt(6.0 * (count - 2) / ((count + 1.0) * (count + 3)))
     return span / (1.0 + math.log2(count) + math.log2(1.0 + abs(skew) / correction))
 
@@ -88,10 +120,27 @@ def _even_edges(low: float, high: float, count: int) -> list[float]:
     histogram whose last edge falls short of its own maximum drops that value.
     """
     if count < 1:
-        return [low, high]
+        # An infinite bin width -- a strategy handed data wide enough to saturate the float
+        # range -- divides the span into nothing. ``linspace(low, high, 0 + 1)`` is one edge,
+        # which is what numpy returns and is as much as such data supports.
+        return [low]
+    if count > _MAX_BINS:
+        # The cap belongs here and not only on an explicit ``bins=``, because a *strategy* can
+        # ask for billions on spiked data and numpy does not stop it either -- it just fails
+        # inside C. Building the same list in Python is eight times the memory and slow enough
+        # to look like a hang, so this is a deliberate divergence: numpy would eventually
+        # produce (or die making) the array, and this says which number was too large.
+        raise ValueError(f"bins must be at most {_MAX_BINS}, got {count} from the chosen strategy")
     step = (high - low) / count
     edges = [low + index * step for index in range(count + 1)]
     edges[-1] = high
+    if any(earlier >= later for earlier, later in pairwise(edges)):
+        # The divisions asked for are finer than the float grid between ``low`` and ``high``,
+        # so two edges land on the same number and the bin between them can hold nothing. It
+        # happens at ordinary magnitudes, not only contrived ones: past 2**53 the half-unit
+        # widening a single distinct value gets is a no-op, so one row of an epoch-nanosecond
+        # or ID column produces a chart with no bars at all rather than an error.
+        raise ValueError(f"too many bins for the data range: cannot make {count} bins between {low!r} and {high!r}")
     return edges
 
 
@@ -104,14 +153,20 @@ def histogram_bins(values: list[float], bins: str | int = "auto") -> list[float]
         ValueError: if ``values`` is empty or holds a non-numeric or non-finite value, if the
             span isn't finite (individually finite values, e.g. ``-1e308`` and ``1e308``, can
             still overflow), if ``bins`` isn't a ``str``/``int``, if an int ``bins`` exceeds
-            :data:`_MAX_BINS`, or if a str ``bins`` isn't a known strategy.
+            :data:`_MAX_BINS` or is below 1, if a str ``bins`` chooses more than
+            :data:`_MAX_BINS` (numpy has no such limit -- see :func:`_even_edges`), if a str
+            ``bins`` isn't a known strategy, or if the requested division is finer than the
+            float grid between the edges allows.
     """
     if not values:
         raise ValueError("values must not be empty")
     if not isinstance(bins, str | int) or isinstance(bins, bool):
         raise ValueError(f"bins must be a string or int, got {bins!r}")
-    if isinstance(bins, int) and bins > _MAX_BINS:
-        raise ValueError(f"bins must be at most {_MAX_BINS}, got {bins}")
+    if isinstance(bins, int) and not 1 <= bins <= _MAX_BINS:
+        # Both ends. The upper one keeps ``bins=10**8`` from returning ~800MB of edges; the
+        # lower one keeps ``bins=0`` from being read as "one bin", which is a different chart
+        # from the one the caller asked for and no error at all.
+        raise ValueError(f"bins must be between 1 and {_MAX_BINS}, got {bins}")
     if isinstance(bins, str) and bins not in _STRATEGIES:
         raise ValueError(f"bins must be an int or one of {', '.join(sorted(_STRATEGIES))}, got {bins!r}")
     for value in values:

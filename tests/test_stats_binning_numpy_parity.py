@@ -16,7 +16,7 @@ import random
 
 import pytest
 
-from svgplot.stats.binning import histogram_bins
+from svgplot.stats.binning import _MAX_BINS as MAX_BINS, histogram_bins
 
 numpy = pytest.importorskip("numpy", reason="install the numpy-parity extra to check this")
 
@@ -62,7 +62,20 @@ def test_the_edges_are_the_ones_numpy_would_have_returned(shape: str, bins: obje
     rng = random.Random(f"{shape}-{bins}")
     for size in _SIZES:
         values = _dataset(shape, size, rng)
-        expected = numpy.histogram_bin_edges(values, bins=bins).tolist()  # type: ignore[arg-type]
+        try:
+            expected = numpy.histogram_bin_edges(values, bins=bins).tolist()  # type: ignore[arg-type]
+        except ValueError:
+            # numpy refuses degenerate edges ("Too many bins for data range"); so do we, and
+            # matching the refusal matters as much as matching the numbers.
+            with pytest.raises(ValueError):
+                histogram_bins(values, bins)  # type: ignore[arg-type]
+            continue
+        if len(expected) - 1 > MAX_BINS:
+            # The one deliberate divergence: a strategy that asks for more bins than a chart
+            # can show is refused here and built by numpy. See ``_even_edges``.
+            with pytest.raises(ValueError, match="at most"):
+                histogram_bins(values, bins)  # type: ignore[arg-type]
+            continue
 
         assert histogram_bins(values, bins) == expected, f"{shape} n={size} bins={bins}"  # type: ignore[arg-type]
 

@@ -26,7 +26,9 @@ dependencies = []
 png = ["cairosvg>=2.7.0"]
 
 # Only for the tests that check stats.binning still agrees with numpy edge for edge. Nothing
-# in svgplot imports numpy.
+# in svgplot imports numpy. `mise run install` installs this extra so CI actually runs that
+# comparison -- `uv sync --all-groups` installs dependency *groups* and no extras, so without
+# it the one automated defence of this package's headline claim is skipped on every run.
 numpy-parity = ["numpy>=2.5.2"]
 
 [project.urls]

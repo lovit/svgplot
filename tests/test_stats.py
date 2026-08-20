@@ -334,8 +334,12 @@ def test_box_stats_rejects_non_finite_values() -> None:
 @pytest.mark.parametrize("strategy", ["auto", "fd", "doane", "scott", "rice", "sturges", "sqrt"])
 def test_every_strategy_numpy_accepted_is_still_accepted(strategy: str) -> None:
     """The list is the public surface. Delegating meant numpy decided it; now this module
-    does, and dropping one would turn a working call into a ``ValueError`` at import time for
-    nobody's benefit."""
+    does, and dropping one turns a working call into a ``ValueError``.
+
+    One *was* dropped, deliberately: numpy's ``stone`` does leave-one-out cross-validation over
+    a range of candidate counts, which is a different order of work from the closed-form
+    seven. It is a breaking change and the CHANGELOG says so; this test's job is to keep the
+    remaining seven from following it by accident."""
     assert len(histogram_bins([float(index % 13) for index in range(200)], strategy)) > 1
 
 
@@ -368,12 +372,26 @@ def test_the_last_edge_is_the_maximum_and_not_a_float_that_drifted_past_it() -> 
 
 
 def test_scotts_coefficient_is_the_exact_one_and_not_the_rounded_3_49() -> None:
-    """``(24 * sqrt(pi)) ** (1/3)`` is 3.4906, and every textbook writes it as 3.49. The two
-    agree to four places and disagree about the bin *count* whenever the quotient lands near
-    an integer -- ``range(224)`` gives six bins by the exact coefficient and seven by 3.49.
+    """``(24 * sqrt(pi)) ** (1/3)`` is 3.4908, and every textbook writes it as 3.49. The two
+    differ by 0.024% and disagree about the bin *count* whenever the quotient lands near an
+    integer -- ``range(224)`` gives six bins by the exact coefficient and seven by 3.49.
 
     Nothing else here notices: every other dataset in this file and in the numpy-parity sweep
     rounds the same way either way, so the rounded constant survives them all."""
     values = [float(index) for index in range(224)]
 
     assert len(histogram_bins(values, "scott")) - 1 == 6
+
+
+def test_the_strategies_this_module_dropped_are_the_ones_it_meant_to() -> None:
+    """A guard against silent narrowing. ``stone`` is absent on purpose; anything else going
+    missing would be an accident, and the only way to notice is to compare against the list
+    numpy actually offers."""
+    numpy = pytest.importorskip("numpy", reason="install the numpy-parity extra to check this")
+    from numpy.lib import _histograms_impl
+
+    from svgplot.stats.binning import _STRATEGIES
+
+    assert set(_histograms_impl._hist_bin_selectors) - set(_STRATEGIES) == {"stone"}
+    assert set(_STRATEGIES) - set(_histograms_impl._hist_bin_selectors) == set()
+    assert numpy is not None
