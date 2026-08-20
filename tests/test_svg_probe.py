@@ -21,6 +21,9 @@ _SVG = """
   <rect x="7"/>
   <text x="4" class="tick-label">grid-line</text>
   <text x="5" class="tick-label"><title>grid-line</title></text>
+  <text class="twin">first</text>
+  <text class="twin">second</text>
+  <rect class="twin"/>
   <path d="M0 0" id="grid-line-path" class="series-2"/>
 </svg>
 """
@@ -102,3 +105,26 @@ def test_the_text_of_a_matched_element_comes_back_in_document_order() -> None:
     hand-written ``class="[^"]*X[^"]*"`` is the very form this module replaces."""
     assert texts(_SVG, "text", "tick-label") == ["grid-line", ""]
     assert texts(_SVG, "text", "no-such-class") == []
+
+
+def test_two_elements_with_identical_opening_tags_keep_their_own_text() -> None:
+    """Two labels at the same coordinates have byte-identical opening tags. Finding what
+    follows a tag by looking the tag *string* up returns the first one's content for both --
+    ``['first', 'first']`` -- which is exactly the "counts one thing, silently reports
+    another" failure this module exists to remove, reappearing in the module itself."""
+    assert texts(_SVG, "text", "twin") == ["first", "second"]
+
+
+def test_a_self_closing_element_contributes_no_text() -> None:
+    """It has no content, so it must not pick up whatever happens to sit after it in the
+    file. Dropping the guard makes ``texts`` report a sibling's text as this element's."""
+    assert texts(_SVG, "rect", "twin") == []
+
+
+def test_content_stops_at_the_first_child_and_keeps_its_whitespace() -> None:
+    """What "content" means, pinned rather than assumed. ``_svg.py`` already plans ``<tspan>``
+    for multi-line labels, and the day that lands this helper starts returning the first line
+    only -- better that a test says so than that a chart's assertions quietly narrow."""
+    nested = '<svg><text class="c">before<tspan>mid</tspan>after</text><text class="c"> pad </text></svg>'
+
+    assert texts(nested, "text", "c") == ["before", " pad "]
