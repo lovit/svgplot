@@ -837,3 +837,16 @@ def test_a_good_caption_still_applies_after_a_rejected_one(location: str) -> Non
     add_caption(clean, "good caption", location=location)
 
     assert failed.to_string() == clean.to_string()
+
+
+def test_composition_to_string_matches_charts_declaration_contract() -> None:
+    """A composition is what a reader inlines when they want two panels, so it needs the same
+    door a single chart has. Kept in one test because the point is that the two agree."""
+    composition = row([make_chart(), make_chart()])
+
+    with_prolog = composition.to_string()
+    without = composition.to_string(declaration=False)
+
+    assert with_prolog.startswith('<?xml version="1.0" encoding="UTF-8"?>\n')
+    assert without.startswith("<svg")
+    assert with_prolog == '<?xml version="1.0" encoding="UTF-8"?>\n' + without
