@@ -4,6 +4,13 @@ Four test modules each grew their own ``_tags`` and three of them meant differen
 two matched a class by substring and one only saw self-closing tags. A helper whose meaning
 you have to open the file to learn is worse than no helper: the tests using it look alike and
 are not, and the two that were fixed after a review left the other two behind.
+
+Six modules use it now: the original four plus ``regression`` and ``gauge``, both of which
+held the same idea under a different name. Three still do not, and they are listed rather
+than left to be rediscovered -- ``test_charts_ecdf.py``, ``test_charts_kde.py`` and
+``test_charts_scatter.py`` each match ``/>``-only and test the class by substring. Nothing
+over-matches in them today, which is exactly what was true of the four before a class with a
+longer name would have appeared. Issue #117 named four; these are the follow-up.
 """
 
 from __future__ import annotations
@@ -13,11 +20,18 @@ import re
 _ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 
 
-def _matches(svg: str, element: str, css_class: str) -> list[tuple[str, dict[str, str]]]:
-    """Opening tags of ``element`` carrying ``css_class``, each with its own source text."""
+def _matches(svg: str, element: str, css_class: str) -> list[tuple[re.Match[str], dict[str, str]]]:
+    """Opening tags of ``element`` carrying ``css_class``, each with its match position.
+
+    The match rather than the tag string, because two elements can have byte-identical opening
+    tags -- two labels at the same coordinates, say -- and looking the tag up by ``str.index``
+    to find what follows it then returns the *first* one's content for both.
+    """
     return [
-        (tag, attributes)
-        for tag, attributes in ((tag, dict(_ATTR_RE.findall(tag))) for tag in re.findall(rf"<{element}\b[^>]*?/?>", svg))
+        (match, attributes)
+        for match, attributes in (
+            (match, dict(_ATTR_RE.findall(match.group()))) for match in re.finditer(rf"<{element}\b[^>]*?/?>", svg)
+        )
         if css_class in attributes.get("class", "").split()
     ]
 
@@ -45,9 +59,15 @@ def texts(svg: str, element: str, css_class: str) -> list[str]:
     regex by hand is how the substring bug gets reintroduced -- a ``class="[^"]*X[^"]*"``
     pattern is exactly the form this module exists to replace, and it reads as harmless right
     up until a ``X-major`` class appears.
+
+    "Content" means the text up to the first child element, so
+    ``<text>before<tspan>mid</tspan>after</text>`` gives ``"before"``. Whitespace is kept, and
+    entities are not unescaped -- what the file says, not what a browser would show. A
+    self-closing element has no content and contributes nothing rather than whatever happens
+    to follow it.
     """
     return [
-        svg[svg.index(tag) + len(tag) :].split("<", 1)[0]
-        for tag, _ in _matches(svg, element, css_class)
-        if not tag.endswith("/>")
+        svg[match.end() :].split("<", 1)[0]
+        for match, _ in _matches(svg, element, css_class)
+        if not match.group().endswith("/>")
     ]
