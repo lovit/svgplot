@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -203,3 +204,48 @@ def test_a_blank_title_falls_back_to_the_default_instead_of_erroring(blank: str)
 
     assert f'aria-label="{Chart.DEFAULT_TITLE}"' in svg
     assert f"<title>{Chart.DEFAULT_TITLE}</title>" in svg
+
+
+def test_to_string_carries_an_xml_prolog_by_default() -> None:
+    """The default is unchanged, and that matters more than it looks: every committed SVG in
+    the repo starts with this line, so a silent flip would rewrite all of them."""
+    assert _sample_chart().to_string().startswith('<?xml version="1.0" encoding="UTF-8"?>\n')
+
+
+def test_to_string_without_a_declaration_starts_at_the_svg_element() -> None:
+    """What inlining into an HTML document needs. A prolog is only legal at the very start of
+    an entity, so one sitting mid-document renders as text and refuses to parse."""
+    output = _sample_chart().to_string(declaration=False)
+
+    assert output.startswith("<svg")
+    assert "<?xml" not in output
+
+
+def test_dropping_the_declaration_changes_nothing_else() -> None:
+    """Not `in`: the two must differ by the prolog and by nothing at all -- a version that
+    also reformatted, or dropped the namespace, would pass a substring check."""
+    chart = _sample_chart()
+
+    assert chart.to_string() == '<?xml version="1.0" encoding="UTF-8"?>\n' + chart.to_string(declaration=False)
+
+
+def test_a_declaration_free_string_parses_where_a_prolog_bearing_one_would_not() -> None:
+    """The failure this parameter exists to prevent, stated as the pair it comes in."""
+    chart = _sample_chart()
+
+    ET.fromstring(f"<div>{chart.to_string(declaration=False)}</div>")
+    with pytest.raises(ET.ParseError, match="declaration not at start"):
+        ET.fromstring(f"<div>{chart.to_string()}</div>")
+
+
+def test_declaration_is_keyword_only_and_composes_with_pretty() -> None:
+    chart = _sample_chart()
+
+    compact = chart.to_string(pretty=False, declaration=False)
+
+    assert compact.startswith("<svg")
+    # ``declaration`` is a no-op in compact mode -- the clause ``_svg.py`` states, and a
+    # library property rather than a property of this fixture.
+    assert compact == chart.to_string(pretty=False)
+    with pytest.raises(TypeError):
+        chart.to_string(False)  # type: ignore[misc]

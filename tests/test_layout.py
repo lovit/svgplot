@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import inspect
 import re
+import xml.etree.ElementTree as ET
 
 import pytest
 
@@ -18,6 +20,8 @@ from svgplot.layout.caption import add_caption
 from svgplot.layout.facet import facet
 from svgplot.layout.grid import column, grid, row
 from svgplot.layout.sizing import SIZE_MODES, apply_size
+
+_PROLOG = '<?xml version="1.0" encoding="UTF-8"?>\n'
 
 DATA = {"x": [1, 2, 3], "y": [1.0, 2.0, 3.0]}
 HUE_DATA = {"x": [1, 2, 3, 1, 2, 3], "y": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], "g": ["a", "a", "a", "b", "b", "b"]}
@@ -837,3 +841,53 @@ def test_a_good_caption_still_applies_after_a_rejected_one(location: str) -> Non
     add_caption(clean, "good caption", location=location)
 
     assert failed.to_string() == clean.to_string()
+
+
+def test_composition_to_string_has_the_same_signature_as_a_charts() -> None:
+    """The two drifting apart is the failure mode, and comparing prose in two docstrings does
+    not catch it. Dropping ``*`` from one of them leaves every other test in the suite green."""
+    assert inspect.signature(Composition.to_string) == inspect.signature(Chart.to_string)
+
+
+@pytest.mark.parametrize("pretty", [True, False])
+def test_composition_to_string_drops_only_the_prolog(pretty: bool) -> None:
+    """Both ``pretty`` values, because the prolog is written on a different branch in each and
+    an implementation can be right on one and wrong on the other."""
+    composition = row([make_chart(), make_chart()])
+
+    default = composition.to_string(pretty=pretty)
+    without = composition.to_string(pretty=pretty, declaration=False)
+
+    assert without.startswith("<svg")
+    assert "<?xml" not in without
+    if pretty:
+        assert default == _PROLOG + without
+    else:
+        # Compact output never carries a prolog, so there is nothing for the flag to drop.
+        assert default == without
+
+
+def test_composition_compact_output_never_carries_a_prolog() -> None:
+    """``declaration`` is a no-op when ``pretty=False`` -- the contract ``_svg.py`` states and
+    the one an implementation is most likely to get half-right."""
+    composition = row([make_chart(), make_chart()])
+
+    assert composition.to_string(pretty=False) == composition.to_string(pretty=False, declaration=False)
+
+
+def test_composition_pretty_output_keeps_the_serializers_shape() -> None:
+    """An independent anchor for Composition's pretty bytes, which nothing else holds.
+
+    ``Chart`` has one by accident: ``tests/test_gallery.py`` byte-compares committed output,
+    and the gallery is all charts. A composition appears nowhere in it, so every other
+    assertion about this method compares it against itself -- ``to_string()`` against
+    ``to_string(declaration=False)`` -- and any corruption applied to both cancels out.
+    Trimming the trailing newline, or re-indenting, passes the whole suite without this.
+    """
+    composition = row([make_chart(), make_chart()])
+
+    output = composition.to_string()
+
+    assert output.endswith(">\n") and not output.endswith("\n\n")
+    assert "\n  <" in output, "pretty output indents its children"
+    assert ET.fromstring(output.removeprefix(_PROLOG)).tag.endswith("svg")
