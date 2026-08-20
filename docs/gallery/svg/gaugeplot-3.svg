@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Chart">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="115.421852" y1="421" x2="111.957751" y2="423" class="tick-line" />
+  <text x="103.297497" y="428" text-anchor="end" dominant-baseline="middle" class="tick-label">0</text>
+  <line x1="101.822878" y1="206.426648" x2="98.134" y2="204.879981" class="tick-line" />
+  <text x="88.911805" y="201.013314" text-anchor="end" dominant-baseline="middle" class="tick-label">20</text>
+  <line x1="264.385571" y1="65.714083" x2="263.38368" y2="61.841588" class="tick-line" />
+  <text x="260.878952" y="52.160352" text-anchor="end" dominant-baseline="middle" class="tick-label">40</text>
+  <line x1="474.793397" y1="109.931754" x2="477.269321" y2="106.79013" class="tick-line" />
+  <text x="483.45913" y="98.93607" text-anchor="start" dominant-baseline="middle" class="tick-label">60</text>
+  <line x1="566.963948" y1="304.177075" x2="570.963352" y2="304.246118" class="tick-line" />
+  <text x="580.961862" y="304.418724" text-anchor="start" dominant-baseline="middle" class="tick-label">80</text>
+  <path d="M 115.421852,421 A 242,242 0 1 1 534.578148,421 L 491.47895,396.116667 A 192.233333,192.233333 0 1 0 158.52105,396.116667 Z" class="gauge-track spine" />
+  <path d="M 115.421852,421 A 242,242 0 1 1 552.24645,216.795127 L 505.513812,233.905991 A 192.233333,192.233333 0 1 0 158.52105,396.116667 Z" class="series-1 gauge-value" />
+  <path d="M 161.985151,394.116667 A 188.233333,188.233333 0 1 1 488.014849,394.116667 L 444.915651,369.233333 A 138.466667,138.466667 0 1 0 205.084349,369.233333 Z" class="gauge-track spine" />
+  <path d="M 161.985151,394.116667 A 188.233333,188.233333 0 1 1 488.014849,394.116667 L 444.915651,369.233333 A 138.466667,138.466667 0 1 0 205.084349,369.233333 Z" class="series-2 gauge-value" />
+  <path d="M 208.548451,367.233333 A 134.466667,134.466667 0 1 1 441.451549,367.233333 L 398.352352,342.35 A 84.7,84.7 0 1 0 251.647648,342.35 Z" class="gauge-track spine" />
+  <path d="M 208.548451,367.233333 A 134.466667,134.466667 0 0 1 279.494721,173.467182 L 296.336412,220.297499 A 84.7,84.7 0 0 0 251.647648,342.35 Z" class="series-3 gauge-value" />
+  <text x="325" y="282" text-anchor="middle" dominant-baseline="middle" class="legend-text">72</text>
+  <text x="325" y="300" text-anchor="middle" dominant-baseline="middle" class="legend-text">91</text>
+  <text x="325" y="318" text-anchor="middle" dominant-baseline="middle" class="legend-text">38</text>
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">가동률</text>
+  <rect x="640" y="45" width="16" height="10" class="series-2" />
+  <text x="662" y="54" class="legend-text">적중률</text>
+  <rect x="640" y="65" width="16" height="10" class="series-3" />
+  <text x="662" y="74" class="legend-text">재구매율</text>
+  <style>.plot-background { fill: #ffffff; }
+.grid-line { stroke: #e0e0e0; stroke-width: 1; }
+.spine { stroke: #333333; stroke-width: 1; fill: none; }
+.tick-line { stroke: #333333; }
+.tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+.legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+.series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }
+.series-2 { stroke: #56B4E9; stroke-width: 2; fill: #56B4E9; fill-opacity: 0.75; opacity: 1; }
+.series-3 { stroke: #009E73; stroke-width: 2; fill: #009E73; fill-opacity: 0.75; opacity: 1; }</style>
+  <title>Chart</title>
+  <desc>Gauge, 3 arcs (가동률, 적중률, 재구매율), values 38 to 91, range 0 to 91.</desc>
+</svg>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Chart">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="115.421852" y1="421" x2="111.957751" y2="423" class="tick-line" />
+  <text x="103.297497" y="428" text-anchor="end" dominant-baseline="middle" class="tick-label">0</text>
+  <line x1="94.844323" y1="225.217887" x2="91.040097" y2="223.981819" class="tick-line" />
+  <text x="81.529532" y="220.891649" text-anchor="end" dominant-baseline="middle" class="tick-label">20</text>
+  <line x1="226.569732" y1="78.921999" x2="224.942786" y2="75.267817" class="tick-line" />
+  <text x="220.875419" y="66.132363" text-anchor="end" dominant-baseline="middle" class="tick-label">40</text>
+  <line x1="423.430268" y1="78.921999" x2="425.057214" y2="75.267817" class="tick-line" />
+  <text x="429.124581" y="66.132363" text-anchor="start" dominant-baseline="middle" class="tick-label">60</text>
+  <line x1="555.155677" y1="225.217887" x2="558.959903" y2="223.981819" class="tick-line" />
+  <text x="568.470468" y="220.891649" text-anchor="start" dominant-baseline="middle" class="tick-label">80</text>
+  <line x1="534.578148" y1="421" x2="538.042249" y2="423" class="tick-line" />
+  <text x="546.702503" y="428" text-anchor="start" dominant-baseline="middle" class="tick-label">100</text>
+  <path d="M 115.421852,421 A 242,242 0 1 1 534.578148,421 L 398.352352,342.35 A 84.7,84.7 0 1 0 251.647648,342.35 Z" class="gauge-track spine" />
+  <path d="M 115.421852,421 A 242,242 0 0 1 517.76024,153.687014 L 392.466084,248.790455 A 84.7,84.7 0 0 0 251.647648,342.35 Z" class="series-1 gauge-value" />
+  <text x="325" y="300" text-anchor="middle" dominant-baseline="middle" class="legend-text">72</text>
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">가동률</text>
+  <style>.plot-background { fill: #ffffff; }
+.grid-line { stroke: #e0e0e0; stroke-width: 1; }
+.spine { stroke: #333333; stroke-width: 1; fill: none; }
+.tick-line { stroke: #333333; }
+.tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+.legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+.series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }</style>
+  <title>Chart</title>
+  <desc>Gauge, 1 arc (가동률), values 72 to 72, range 0 to 100.</desc>
+</svg>
