@@ -87,6 +87,13 @@ def regplot(
     ``seed`` is forwarded to :func:`svgplot.stats.regression.confidence_band`, which makes
     the whole chart reproducible: the same data and seed serialize to byte-identical SVG.
 
+    ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
+    call that does not mention them is byte-identical to one written before they existed. The
+    margin presets shrink to keep the plot area the majority of a small canvas and the tick
+    count follows the plot extent — see ``charts/_layout.py``. Canvases below 240x180 are
+    refused rather than clamped, and a chart may refuse a larger one if its own legend does
+    not fit.
+
     Raises:
         KeyError: if ``x``/``y`` isn't a column in ``data``, or if ``theme`` is a string
             that isn't a registered preset name.
