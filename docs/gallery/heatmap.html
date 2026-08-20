@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>heatmap — svgplot</title>
+    <meta name="description" content="행·열 카테고리가 만드는 격자에서 값을 색으로 나타낸다. 색은 9단계로 양자화된다." />
+    <style>
+      :root {
+        --bg: #ffffff;
+        --fg: #16181d;
+        --muted: #5c6370;
+        --rule: #e3e6ea;
+        --accent: #1d4ed8;
+        --code-bg: #f4f5f7;
+        --figure-bg: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14161a;
+          --fg: #e8eaed;
+          --muted: #9aa1ac;
+          --rule: #2a2e35;
+          --accent: #7aa2f7;
+          --code-bg: #1d2027;
+          --figure-bg: #f7f8fa;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0 auto;
+        max-width: 52rem;
+        padding: 3rem 1.5rem 6rem;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
+        line-height: 1.7;
+      }
+      a { color: var(--accent); }
+      nav { margin-bottom: 2.5rem; font-size: 0.9rem; color: var(--muted); }
+      h1 { margin: 0 0 0.35rem; font-size: 2rem; letter-spacing: -0.02em; }
+      h2 {
+        margin: 3rem 0 1rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--rule);
+        font-size: 1.1rem;
+      }
+      h3 { margin: 2.5rem 0 0.75rem; font-size: 1rem; }
+      .summary { margin: 0 0 1.75rem; color: var(--muted); font-size: 1.02rem; }
+      dl.meta { margin: 0 0 2rem; padding: 0.9rem 1.1rem; background: var(--code-bg); border-radius: 6px; }
+      dl.meta dt { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      dl.meta dd { margin: 0.15rem 0 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; }
+      dl.meta dd:last-child { margin-bottom: 0; }
+      pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
+      pre code { font-size: 0.84rem; line-height: 1.55; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
+         CSS does not reach inside it. That isolation is the point: two charts on one page
+         both define .series-1 with opposite rules, and inlining them would let the later
+         one restyle the earlier. */
+      figure { margin: 0 0 1rem; }
+      figure img {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        background: var(--figure-bg);
+        border: 1px solid var(--rule);
+        border-radius: 6px;
+      }
+      ul.notes { margin: 0; padding-left: 1.2rem; color: var(--muted); }
+      ul.notes li { margin-bottom: 0.3rem; }
+      ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
+      ul.index a { display: block; text-decoration: none; color: inherit; }
+      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
+      ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+      footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <nav><a href="../">svgplot</a> · <a href="./">갤러리</a></nav>
+    <h1>heatmap</h1>
+    <p class="summary">행·열 카테고리가 만드는 격자에서 값을 색으로 나타낸다. 색은 9단계로 양자화된다.</p>
+    <dl class="meta">
+      <dt>데이터</dt>
+      <dd>x: 열 카테고리 · y: 행 카테고리 · values: 수치 · 셀 하나에 행 하나(중복 거부)</dd>
+    </dl>
+    <h2>데이터</h2>
+    <pre><code>import svgplot as sp
+
+_hours = [&quot;09시&quot;, &quot;12시&quot;, &quot;15시&quot;, &quot;18시&quot;, &quot;21시&quot;]
+_days = [&quot;월&quot;, &quot;수&quot;, &quot;금&quot;]
+_load = [
+    [12.0, 48.0, 35.0, 61.0, 44.0],
+    [18.0, 52.0, 41.0, 58.0, 39.0],
+    [22.0, 66.0, 47.0, 82.0, 71.0],
+]
+TRAFFIC = {
+    &quot;시간&quot;: [hour for _ in _days for hour in _hours],
+    &quot;요일&quot;: [day for day in _days for _ in _hours],
+    &quot;요청&quot;: [value for row in _load for value in row],
+}</code></pre>
+    <h2>예시</h2>
+    <h3>기본 — sequential 컬러맵</h3>
+    <figure>
+      <img src="svg/heatmap-1.svg" alt="기본 — sequential 컬러맵" />
+    </figure>
+    <pre><code>sp.heatmap(TRAFFIC, x=&quot;시간&quot;, y=&quot;요일&quot;, values=&quot;요청&quot;)</code></pre>
+    <h3>annot=True 는 셀 안에 값을 쓴다</h3>
+    <figure>
+      <img src="svg/heatmap-2.svg" alt="annot=True 는 셀 안에 값을 쓴다" />
+    </figure>
+    <pre><code>sp.heatmap(TRAFFIC, x=&quot;시간&quot;, y=&quot;요일&quot;, values=&quot;요청&quot;, annot=True)</code></pre>
+    <h3>center= 는 발산 컬러맵과 함께 준다 — 가운데 단계가 그 값을 뜻하게 된다</h3>
+    <figure>
+      <img src="svg/heatmap-3.svg" alt="center= 는 발산 컬러맵과 함께 준다 — 가운데 단계가 그 값을 뜻하게 된다" />
+    </figure>
+    <pre><code>DIFF = {
+    &quot;시간&quot;: TRAFFIC[&quot;시간&quot;],
+    &quot;요일&quot;: TRAFFIC[&quot;요일&quot;],
+    &quot;증감&quot;: [value - 45.0 for value in TRAFFIC[&quot;요청&quot;]],
+}
+sp.heatmap(DIFF, x=&quot;시간&quot;, y=&quot;요일&quot;, values=&quot;증감&quot;, cmap=&quot;coolwarm&quot;, center=0.0, annot=True)</code></pre>
+    <h2>메모</h2>
+    <ul class="notes">
+      <li>long-form (x, y, value) 를 받는다. 행렬 모양의 wide-form 이 아니다.</li>
+      <li>셀 하나에 행이 둘이면 거부한다. 어느 값을 쓸지 정하는 것은 이 차트의 몫이 아니다.</li>
+      <li>빠진 셀은 0 이 아니라 구멍으로 남는다 — 값이 0 인 것과 값이 없는 것은 다르다.</li>
+      <li>색이 9단계로 양자화된다. 연속 램프가 아닌 이유는 CSS 규칙 9개면 손으로 다시 칠할 수 있지만 셀마다 규칙 하나면 그러지 못하기 때문이고, 덤으로 범례가 스와치 9개로 끝난다.</li>
+      <li>cmap 과 center 는 짝이 맞아야 한다 — 발산 컬러맵(&quot;coolwarm&quot;·&quot;purplegreen&quot;)에 center= 가 없거나 sequential(&quot;blues&quot;·&quot;greens&quot;·&quot;oranges&quot;)에 center= 를 주면 고치는 법을 알려주며 거부한다.</li>
+      <li>annot=True 의 글자 색은 테마가 아니라 셀 색의 휘도에서 고른다. 그래서 어느 프리셋에서도 대비가 유지된다.</li>
+      <li>격자 셀이 2,500 개를 넘으면 크기를 경고하되 그린다. 100x100 은 셀 하나가 7x5px 이라 개별 식별이 어려워진다.</li>
+    </ul>
+    <footer>
+      <a href="./">갤러리로</a> · <a href="https://github.com/lovit/svgplot/blob/main/gallery/examples/heatmap.py">이 페이지의 예시 소스</a>
+    </footer>
+  </body>
+</html>
