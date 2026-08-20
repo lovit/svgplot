@@ -72,11 +72,15 @@ a constant except by smearing it across the per-cell and per-tick terms. Doing s
 accuracy: the best two-term refit lands at 4.90% worst error against a 5% assertion, which
 would leave the next person a test that fails for reasons unrelated to their change.
 
-Its value is **measured, not fitted**: a one-cell heatmap serializes to 3,282 bytes, which is
-one cell and two ticks plus this. Pinning it that way costs accuracy on the four grid points
-(3.08% worst against 2.40% for a free constant) and buys the model being right about the chart
-it was measured on. A free 3800 overpredicts that chart by 28%, and 6520 -- which reaches 1.05%
-on the four points -- exceeds the entire chart, so neither can be called a fixed cost."""
+Its value is **anchored to a measurement rather than fitted freely**: a one-cell heatmap
+serializes to 3,282 bytes, and the constant is whatever makes the model reproduce that exactly
+(``3282 - 1*85 - 2*159``). So it is not a pure measurement either -- it inherits the two
+slopes -- but it is pinned to a chart that exists rather than chosen to flatter four points.
+
+That pinning costs accuracy on the four grid points, 3.08% worst against 2.40% for a free
+constant, and buys the model being right about the chart it was anchored to. A free 3800
+overpredicts that chart by 28%, and 6520 -- which reaches 1.05% on the four points -- exceeds
+the entire chart, so neither can honestly be called a fixed cost."""
 
 _BYTES_PER_TICK = 159
 """Marginal output cost of one axis tick (a row or a column label) -- fitted, not measured.
