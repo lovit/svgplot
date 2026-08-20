@@ -4,13 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>svgplot</title>
-    <meta
-      name="description"
-      content="markdown 문서에 박아넣을, 심미성 있고 수정이 쉬운 정적 SVG 차트를 만드는 Python 패키지."
-    />
+    <meta name="description" content="markdown 문서에 넣을 정적 SVG 차트를 만드는 Python 패키지." />
     <style>
-      /* 라이트/다크 양쪽을 토큰으로 잡는다. 방문자의 OS 설정만이 신호이므로
-         prefers-color-scheme 하나로 갈리고, 색은 전부 토큰을 거친다. */
       :root {
         --bg: #ffffff;
         --fg: #16181d;
@@ -39,7 +34,7 @@
         background: var(--bg);
         color: var(--fg);
         font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
-        line-height: 1.7;
+        line-height: 1.75;
       }
       h1 {
         margin: 0 0 0.25rem;
@@ -58,10 +53,14 @@
         font-size: 1.15rem;
         letter-spacing: -0.01em;
       }
+      p {
+        margin: 0 0 1rem;
+      }
       code {
         background: var(--code-bg);
         padding: 0.12em 0.36em;
         border-radius: 3px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: 0.9em;
       }
       pre {
@@ -73,34 +72,51 @@
       pre code {
         background: none;
         padding: 0;
-        font-size: 0.875rem;
+        font-size: 0.86rem;
         line-height: 1.6;
       }
       a {
         color: var(--accent);
       }
-      ul.charts {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
-        gap: 0.4rem 1rem;
-        margin: 0;
-        padding: 0;
-        list-style: none;
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0 0 1rem;
+        font-size: 0.95rem;
       }
-      ul.charts li code {
-        background: none;
-        padding: 0;
+      th,
+      td {
+        padding: 0.45rem 0.6rem;
+        border-bottom: 1px solid var(--rule);
+        text-align: left;
+        vertical-align: top;
       }
-      dl {
-        margin: 0;
-      }
-      dt {
-        margin-top: 1.1rem;
+      th {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
         font-weight: 600;
       }
-      dd {
-        margin: 0.2rem 0 0;
-        color: var(--muted);
+      td:first-child {
+        white-space: nowrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.9em;
+      }
+      ul {
+        margin: 0 0 1rem;
+        padding-left: 1.2rem;
+      }
+      li {
+        margin-bottom: 0.3rem;
+      }
+      .gallery-link {
+        display: inline-block;
+        margin-top: 0.5rem;
+        padding: 0.55rem 1.1rem;
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        text-decoration: none;
       }
       footer {
         margin-top: 3.5rem;
@@ -113,66 +129,126 @@
   </head>
   <body>
     <h1>svgplot</h1>
-    <p class="lede">markdown 문서에 박아넣을, 심미성 있고 수정이 쉬운 정적 SVG 차트를 만드는 Python 패키지.</p>
+    <p class="lede">markdown 문서에 넣을 정적 SVG 차트를 만드는 Python 패키지.</p>
 
     <pre><code>import svgplot as sp
 
 data = {"day": [1, 2, 3, 4, 5], "sales": [10.0, 15.0, 7.0, 20.0, 12.0]}
 sp.lineplot(data, x="day", y="sales").save("chart.svg")</code></pre>
 
-    <h2>무엇이 다른가</h2>
-    <dl>
-      <dt>렌더 후에도 다시 칠할 수 있다</dt>
-      <dd>
-        좌표 덤프가 아니라 의미 있는 CSS 클래스를 붙인다. 색을 바꾸려고 차트를 다시 그릴 필요가 없다 —
-        스타일시트를 고치면 된다.
-      </dd>
-      <dt>손으로 고칠 수 있다</dt>
-      <dd>출력이 사람이 읽을 수 있는 SVG다. 한 줄을 지우거나 값을 고치는 일이 에디터에서 끝난다.</dd>
-      <dt>접근성이 기본값이다</dt>
-      <dd>
-        모든 차트가 <code>role="img"</code>와 <code>&lt;title&gt;</code>·<code>&lt;desc&gt;</code>를 내보낸다.
-        <code>&lt;desc&gt;</code>는 제목을 되풀이하지 않고 차트 종류·데이터 규모·값 범위를 실제로 말한다.
-      </dd>
-      <dt>같은 입력이면 같은 SVG</dt>
-      <dd>난수를 쓰는 곳은 시드를 받는다. 문서 빌드에서 diff 가 흔들리지 않는다.</dd>
-    </dl>
+    <p><a class="gallery-link" href="gallery/">차트 16종 갤러리 →</a></p>
 
-    <h2>차트 16종</h2>
-    <ul class="charts">
-      <li><code>lineplot</code></li>
-      <li><code>scatterplot</code></li>
-      <li><code>barplot</code></li>
-      <li><code>areaplot</code></li>
-      <li><code>histplot</code></li>
-      <li><code>boxplot</code></li>
-      <li><code>violinplot</code></li>
-      <li><code>kdeplot</code></li>
-      <li><code>ecdfplot</code></li>
-      <li><code>regplot</code></li>
-      <li><code>pieplot</code></li>
-      <li><code>heatmap</code></li>
-      <li><code>radarplot</code></li>
-      <li><code>treemap</code></li>
-      <li><code>gaugeplot</code></li>
-      <li><code>sparkline</code></li>
+    <h2>배경</h2>
+    <p>
+      기존 라이브러리를 조사하면서 목표를 "markdown 문서에 넣을, 고치기 쉬운 정적 SVG"로 잡았다. 조사에서 확인한
+      각 라이브러리의 자리는 이렇다.
+    </p>
+    <table>
+      <tr>
+        <th>라이브러리</th>
+        <th>SVG 출력</th>
+      </tr>
+      <tr>
+        <td>pygal</td>
+        <td>SVG를 직접 만들지만 통계 계산이 없다</td>
+      </tr>
+      <tr>
+        <td>matplotlib</td>
+        <td>SVG 백엔드가 좌표를 덤프한다</td>
+      </tr>
+      <tr>
+        <td>seaborn</td>
+        <td>자체 SVG 출력이 없다(matplotlib에 위임)</td>
+      </tr>
+      <tr>
+        <td>Bokeh</td>
+        <td>Python이 SVG를 만들지 않는다(Canvas/WebGL, export는 헤드리스 브라우저)</td>
+      </tr>
+    </table>
+    <p>
+      seaborn이 matplotlib을 감싸서 제공하는 기능 목록을 "실사용자가 반복적으로 필요로 한 것"의 증거로 보고,
+      그 목록(tidy 데이터 시맨틱 매핑, 자동 집계, 패싯)을 기능 범위의 출발점으로 삼았다. 호출 문법도
+      <code>data=, x=, y=, hue=</code> 형태를 따른다.
+    </p>
+
+    <h2>정적으로 만든 이유</h2>
+    <p>
+      markdown 렌더러에 <code>&lt;img src="chart.svg"&gt;</code>로 삽입된 SVG는 브라우저가 이미지로 취급한다.
+      그 안에서는 <code>&lt;script&gt;</code>가 실행되지 않고 <code>:hover</code>도 대부분 동작하지 않는다.
+      이 제약을 나중에 우회할 대상이 아니라 설계의 출발점으로 두었다. 패키지는 JS를 방출하지 않으며,
+      <code>&lt;script&gt;</code> 태그와 인라인 <code>style=</code> 속성은 직렬화 단계에서 차단된다.
+    </p>
+    <p>
+      같은 이유로 텍스트 폭을 실제로 측정하지 않는다. SVG 문자열 생성기에는 렌더러가 없어 글리프를 잴 수 없고,
+      그래서 레이아웃은 측정 없이 동작하는 방식(고정 여백 프리셋, 폭 추정, 라벨 회전)으로 짜여 있다.
+      추정이 어느 방향으로 틀리는지는 <code>charts/_textwidth.py</code>에 적혀 있다.
+    </p>
+
+    <h2>범위 밖</h2>
+    <p>다음은 넣지 않기로 한 것이다.</p>
+    <ul>
+      <li>등고선·hexbin·3D·수식(mathtext) 렌더링</li>
+      <li>클러스터맵, pair/joint grid — 복합 레이아웃 엔진이 필요하다</li>
+      <li>logistic·robust·lowess 회귀 — statsmodels 의존이 생긴다</li>
+      <li>애니메이션, 탭 전환 UI, 내부 스크롤 — markdown에서 재현되지 않는다</li>
+      <li>JavaScript</li>
     </ul>
 
-    <h2>그 밖에</h2>
+    <h2>지금 있는 것</h2>
+    <table>
+      <tr>
+        <td>차트</td>
+        <td>16종 — 갤러리에서 볼 수 있다</td>
+      </tr>
+      <tr>
+        <td>시맨틱 매핑</td>
+        <td><code>hue=</code>, <code>size=</code>, <code>col=</code>/<code>row=</code> 패싯(패널이 축을 공유한다)</td>
+      </tr>
+      <tr>
+        <td>축</td>
+        <td>선형·로그·시간축, <code>xlim=</code>/<code>ylim=</code></td>
+      </tr>
+      <tr>
+        <td>테마</td>
+        <td>~25키 스키마, 프리셋 5종 × 컨텍스트 4종, 시드 색에서 파생하는 파라메트릭 테마</td>
+      </tr>
+      <tr>
+        <td>출력</td>
+        <td>SVG 문자열·파일, markdown, Jupyter 표시, PNG(선택 의존성)</td>
+      </tr>
+      <tr>
+        <td>접근성</td>
+        <td>
+          모든 차트가 <code>role="img"</code>·<code>&lt;title&gt;</code>·<code>&lt;desc&gt;</code>를 낸다.
+          <code>&lt;desc&gt;</code>는 차트 종류, 데이터 규모, 값 범위를 적는다
+        </td>
+      </tr>
+      <tr>
+        <td>의존성</td>
+        <td>런타임 의존성 없음. numpy는 테스트에서 대조용으로만 쓴다</td>
+      </tr>
+    </table>
     <p>
-      <code>hue=</code>·<code>size=</code> 시맨틱 매핑, <code>col=</code>/<code>row=</code> 패싯(패널이 축을 공유한다),
-      선형/로그 축, 테마 프리셋 5종(<code>light</code>·<code>dark</code>·<code>minimal</code>·<code>high_contrast</code>·<code>print</code>)과
-      시드 색에서 파생하는 파라메트릭 테마, SVG·PNG·markdown 출력, Jupyter 자동 표시.
+      같은 입력은 같은 SVG를 낸다. 난수를 쓰는 곳(<code>regplot</code>의 부트스트랩)은 시드를 인자로 받고
+      기본값이 고정되어 있다.
+    </p>
+
+    <h2>알아둘 것</h2>
+    <p>
+      GitHub는 렌더된 markdown에서 인라인 SVG를 제거한다. <code>chart.save("x.md")</code>로 만든 문서를
+      github.com에서 보면 각주 표만 보이고 그림은 보이지 않는다. MkDocs·Sphinx·VS Code 미리보기에서는
+      둘 다 렌더된다.
     </p>
 
     <footer>
       <p>
+        <a href="gallery/">갤러리</a> ·
         <a href="https://github.com/lovit/svgplot">GitHub 저장소</a> ·
-        <a href="https://github.com/lovit/svgplot#readme">README(사용법 전체)</a> ·
+        <a href="https://github.com/lovit/svgplot#readme">README</a> ·
         <a href="https://github.com/lovit/svgplot/blob/main/CHANGELOG.md">CHANGELOG</a>
       </p>
       <p>
-        설계 배경(pygal·matplotlib·seaborn·Bokeh 기능 조사와 그로부터 나온 결정)은 저장소의
+        조사 기록(pygal·matplotlib·seaborn·Bokeh 기능 비교와 그로부터 나온 결정)은 저장소의
         <a href="https://github.com/lovit/svgplot/tree/main/docs-research">docs-research/</a>에 있다.
       </p>
     </footer>
