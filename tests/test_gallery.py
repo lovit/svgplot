@@ -40,7 +40,6 @@ AWAITING_A_PAGE = {
     "gaugeplot",
     "heatmap",
     "kdeplot",
-    "pieplot",
     "radarplot",
     "regplot",
     "sparkline",
