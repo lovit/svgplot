@@ -9,6 +9,7 @@ claimed where it cannot hold.
 from __future__ import annotations
 
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -27,8 +28,24 @@ def _chart(**kwargs: object) -> sp.Chart:
 
 
 def _describedby(svg: str) -> str | None:
-    match = re.search(r'aria-describedby="([^"]*)"', svg)
-    return match.group(1) if match else None
+    """The ``aria-describedby`` of the **root ``<svg>``**, or ``None``.
+
+    Read off the parsed root rather than found anywhere in the string. Assistive
+    technology resolves the attribute from the element carrying ``role="img"`` — nowhere
+    else — so a helper that searched the whole document would keep passing if a regression
+    moved the attribute onto a child, and all 29 tests here would go on asserting nothing.
+    A reviewer demonstrated exactly that by attaching it to a stray ``<g>``.
+
+    Markdown output is not a bare SVG, so the SVG block is extracted first; the point of
+    the assertion there is that the attribute is absent, and finding it *anywhere* in that
+    file would be a failure either way.
+    """
+    if not svg.lstrip().startswith(("<?xml", "<svg")):
+        match = re.search(r"<svg\b.*?</svg>", svg, re.S)
+        if match is None:
+            return None
+        svg = match.group()
+    return ET.fromstring(svg).get("aria-describedby")
 
 
 def test_a_chart_with_info_points_at_its_table() -> None:
@@ -88,12 +105,42 @@ def test_an_id_that_would_smuggle_a_second_reference_is_refused(bad: str) -> Non
         _chart(info=SPEC).set_table_id(bad)
 
 
+@pytest.mark.parametrize(
+    "bad", ["id\x00x", "id\ud800x", "id\uffffx", "id\x0ex"], ids=["nul", "surrogate", "noncharacter", "so"]
+)
+def test_an_id_xml_forbids_is_refused_at_the_setter_not_at_render_time(bad: str) -> None:
+    """These pass a whitespace-only check and then break *later*, differently in each
+    output: ``to_html_table()`` emits an id that is not well-formed XML (and, for a lone
+    surrogate, cannot be written to a UTF-8 file at all), while ``to_string()`` raises —
+    at render time, far from the call that caused it. One rule, the stricter one, applied
+    at the setter."""
+    with pytest.raises(ValueError, match="not allowed in XML 1.0"):
+        _chart(info=SPEC).set_table_id(bad)
+
+
+def test_the_two_halves_agree_on_which_ids_are_usable() -> None:
+    """The SVG attribute and the HTML table are written by different code down different
+    paths. An id either reaches both or neither -- a table published under an id the SVG
+    would refuse is a reference that can never resolve."""
+    for candidate in ("ok-id", "id\x00x", "two ids", ""):
+        chart = _chart(info=SPEC)
+        try:
+            chart.set_table_id(candidate)
+        except ValueError:
+            with pytest.raises(ValueError):
+                render_table(DATA, PARSED_SPEC, format="html", table_id=candidate)
+            continue
+        assert f'<table id="{candidate}">' in chart.to_html_table()
+        assert _describedby(chart.to_string()) == candidate
+
+
 def test_a_rejected_id_leaves_the_previous_one_in_place() -> None:
     chart = _chart(info=SPEC).set_table_id("good")
     with pytest.raises(ValueError):
         chart.set_table_id("bad id")
 
     assert _describedby(chart.to_string()) == "good"
+    assert '<table id="good">' in chart.to_html_table()
 
 
 def test_an_id_is_escaped_into_the_table_rather_than_closing_the_attribute() -> None:

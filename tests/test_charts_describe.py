@@ -8,12 +8,15 @@ file exists to prevent is the one the issue opened with: a ``<desc>`` that parse
 from __future__ import annotations
 
 import re
+import statistics
+import warnings
+import xml.etree.ElementTree as ET
 from datetime import datetime
 
 import pytest
 
 import svgplot as sp
-from svgplot.charts._describe import MAX_NAME_CHARS, MAX_NAMES, describe, group, plural, span
+from svgplot.charts._describe import MAX_NAME_CHARS, MAX_NAMES, describe, group, moment, number, plural, span
 
 CATEGORICAL = {"x": ["Mon", "Tue", "Wed"], "y": [1.0, 5.0, 9.0], "g": ["north", "north", "south"]}
 XY = {"x": [1.0, 2.0, 3.0], "y": [3.0, 20.0, 7.0], "s": [1.0, 2.0, 3.0], "g": ["north", "south", "north"]}
@@ -23,9 +26,19 @@ WEIGHTED = {"v": [1.0, 2.0, 3.0], "l": ["alpha", "beta", "gamma"]}
 
 
 def desc_of(chart: sp.Chart) -> str:
-    match = re.search(r"<desc>(.*?)</desc>", chart.to_string(), re.S)
-    assert match is not None, "every chart writes a <desc>"
-    return match.group(1)
+    """The text of the ``<desc>`` that is a **direct child of the root ``<svg>``**.
+
+    Parsed rather than regex-searched, and the parent is checked. A helper that merely
+    found ``<desc>`` anywhere in the string would keep passing if a regression nested the
+    element under some other node — where no assistive technology would ever read it — and
+    every string-equality assertion in this file would go on asserting nothing. That
+    failure mode has bitten this repo twice; a reviewer demonstrated it here by moving
+    ``<desc>`` into a stray ``<g>`` and watching all 52 tests still pass.
+    """
+    root = ET.fromstring(chart.to_string())
+    descs = [child for child in root if child.tag.endswith("desc")]
+    assert len(descs) == 1, f"expected exactly one <desc> directly under <svg>, found {len(descs)}"
+    return descs[0].text or ""
 
 
 # --- what each of the 16 chart types says ------------------------------------------------
@@ -204,6 +217,18 @@ def test_a_size_channel_names_its_column() -> None:
     assert desc_of(sp.scatterplot(XY, x="x", y="y", size="s")).endswith('marker size from "s".')
 
 
+def test_a_size_column_too_long_to_read_out_is_not_read_out() -> None:
+    """The one clause that names something the caller typed rather than something the data
+    contains. Uncapped, a 500,000-character column name produced a 500,064-character
+    description while every other path stayed under 300."""
+    long_name = "S" * (MAX_NAME_CHARS + 1)
+    data = {"x": [1.0, 2.0], "y": [1.0, 2.0], long_name: [1.0, 2.0]}
+    described = desc_of(sp.scatterplot(data, x="x", y="y", size=long_name))
+
+    assert described.endswith("marker size from another column.")
+    assert "SSSSSSSSSS" not in described
+
+
 def test_donut_and_pie_are_different_kinds() -> None:
     assert desc_of(sp.pieplot(WEIGHTED, values="v", labels="l", inner_radius=0.5)).startswith("Donut chart,")
     assert desc_of(sp.pieplot(WEIGHTED, values="v", labels="l")).startswith("Pie chart,")
@@ -258,6 +283,32 @@ def test_the_character_cap_binds_where_the_count_cap_does_not() -> None:
     assert len(listed.split(" and ")[0]) <= MAX_NAME_CHARS
 
 
+def test_a_name_of_exactly_the_character_cap_still_fits() -> None:
+    """The ``>`` vs ``>=`` boundary. Without this, flipping the comparison drops a name
+    that should have been listed and nothing notices."""
+    exact = "z" * MAX_NAME_CHARS
+    data = {"x": [exact, "b"], "y": [1.0, 2.0]}
+
+    assert desc_of(sp.barplot(data, x="x", y="y")) == f"Bar chart, 2 categories ({exact} and 1 more), values 1 to 2."
+
+
+def test_the_cap_counts_code_points_not_visible_glyphs() -> None:
+    """Documented behaviour, pinned: a name of combining marks is one or two glyphs on
+    screen and many code points here, and the cap is about what gets read out."""
+    combining = "n" + "\u0301" * MAX_NAME_CHARS
+    data = {"x": [combining, "b"], "y": [1.0, 2.0]}
+
+    assert desc_of(sp.barplot(data, x="x", y="y")) == "Bar chart, 2 categories, values 1 to 2."
+
+
+def test_an_empty_category_name_is_listed_as_the_empty_string_it_is() -> None:
+    """Not special-cased. A placeholder would report a name the data does not have, and
+    dropping it would misreport the order; the reader hears a gap, which is the truth."""
+    data = {"x": ["", "b"], "y": [1.0, 2.0]}
+
+    assert desc_of(sp.barplot(data, x="x", y="y")) == "Bar chart, 2 categories (, b), values 1 to 2."
+
+
 def test_a_name_is_never_shortened_to_make_it_fit() -> None:
     """A truncated label is a different label. The whole parenthetical is dropped instead."""
     long_name = "z" * (MAX_NAME_CHARS + 1)
@@ -289,6 +340,11 @@ CAPPED_LISTS = [
     ("bar series", lambda n: sp.barplot({"x": ["a"] * n, "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g"), 40),
     ("radar spokes", lambda n: sp.radarplot({"x": _labels(n), "y": _values(n)}, x="x", y="y"), 40),
     ("heatmap axes", lambda n: sp.heatmap({"x": _labels(n), "y": _labels(n), "v": _values(n)}, x="x", y="y", values="v"), 40),
+    (
+        "line series",
+        lambda n: sp.lineplot({"x": _values(n), "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g"),
+        40,
+    ),
 ]
 
 
@@ -384,3 +440,50 @@ def test_a_single_name_is_not_pluralized_by_the_group_clause() -> None:
 
 def test_a_range_reads_low_to_high() -> None:
     assert span("x", 1.5, 2.0) == "x 1.5 to 2"
+
+
+def test_a_non_finite_bound_is_named_rather_than_raising() -> None:
+    """The fallback exists so a description can never turn a chart that renders into a
+    chart that doesn't. No public path reaches it today, which is why it needs a test."""
+    assert number(float("inf")) == "an unreportable value"
+    assert number(float("nan")) == "an unreportable value"
+    assert span("y", 1.0, float("inf")) == "y 1 to an unreportable value"
+
+
+def test_the_fallback_cannot_itself_raise_on_a_value_repr_would_refuse() -> None:
+    """``repr`` of a large enough int raises on CPython's digit-conversion limit, which is
+    why the fallback is a fixed word rather than ``repr(value)``."""
+    assert number(10**200000) == "an unreportable value"
+
+
+def test_midnight_is_dropped_but_one_microsecond_past_it_is_not() -> None:
+    assert moment(datetime(2024, 1, 1)) == "2024-01-01"
+    assert moment(datetime(2024, 1, 1, 0, 0, 0, 1)) == "2024-01-01 00:00:00.000001"
+
+
+def test_the_ordinary_data_figures_in_the_cap_docstring_still_hold() -> None:
+    """``MAX_NAME_CHARS``'s docstring quotes 35-102 characters, median 61.5, measured over
+    the table above. Recomputed here rather than copied, because a figure in prose is a
+    figure that goes stale — this file's own history is the reason for the rule."""
+    lengths = sorted(len(expected) for _, _, expected in EVERY_CHART)
+
+    assert (lengths[0], lengths[-1]) == (35, 102)
+    assert statistics.median(lengths) == 61.5
+
+
+def test_the_adversarial_ceiling_in_the_cap_docstring_still_holds() -> None:
+    """The same docstring quotes 264 characters as the longest ``heatmap`` sentence found
+    over name lengths 1-100 and counts 7-12,345. Re-run at a coarser grid that includes the
+    configuration that produced it, so a cap change that blows past the ceiling fails here.
+    """
+    longest = 0
+    for name_length in (1, 12, 60, 100):
+        for count in (7, 20, 12345):
+            names = [f"{'n' * name_length}{index}" for index in range(count)]
+            values = [float(index + 1) for index in range(count)]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", sp.HeatmapSizeWarning)
+                described = desc_of(sp.heatmap({"x": names, "y": names, "v": values}, x="x", y="y", values="v"))
+            longest = max(longest, len(described))
+
+    assert longest == 264
