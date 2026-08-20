@@ -40,7 +40,9 @@ per panel until they are closed:
 from __future__ import annotations
 
 import inspect
+import warnings
 from collections.abc import Callable
+from typing import TypeVar
 
 from svgplot.chart._domain import Domains, union
 from svgplot.chart.base import Chart
@@ -48,6 +50,8 @@ from svgplot.chart.composition import Composition
 from svgplot.data.semantic import extract_channels
 from svgplot.layout.grid import column as arrange_column, grid as arrange_grid, row as arrange_row
 from svgplot.stats.binning import MAX_BINS
+
+_Pass = TypeVar("_Pass")
 
 
 def _sorted_unique(values: list[object]) -> list[object]:
@@ -190,6 +194,29 @@ def _shared_kwargs(panels: list[Chart], *, sharex: bool, sharey: bool, explicit:
     return {name: value for name, value in overrides.items() if _may_override(name, explicit)}
 
 
+def _quietly(
+    build: Callable[[dict[str, object]], _Pass], extra: dict[str, object]
+) -> tuple[_Pass, list[warnings.WarningMessage]]:
+    """One render pass, with its warnings set aside rather than emitted.
+
+    Sharing renders the panels up to three times and returns only the last, so a warning
+    emitted as it goes is repeated once per discarded pass -- a faceted ``barplot`` whose
+    rows share an x warned six times for two panels. The panels the reader never sees have
+    nothing to warn about. :func:`_replay` re-emits the winning pass's warnings afterwards,
+    at the call sites they originally named, so the caller still hears each one exactly once.
+    """
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = build(extra)
+    return result, list(caught)
+
+
+def _replay(caught: list[warnings.WarningMessage]) -> None:
+    """Re-emit the warnings of the pass that produced the returned charts."""
+    for entry in caught:
+        warnings.warn_explicit(entry.message, entry.category, entry.filename, entry.lineno)
+
+
 def _accepted(plot_fn: Callable[..., object], overrides: dict[str, object]) -> dict[str, object]:
     """The overrides ``plot_fn`` can actually be given.
 
@@ -306,13 +333,14 @@ def facet(
             drawn = [cell for row_cells in cells for cell in row_cells if cell is not None]
             return _accepted(plot_fn, _shared_kwargs(drawn, sharex=sharex, sharey=sharey, explicit=_stated(plot_fn, kwargs)))
 
-        matrix, titles = build({})
+        (matrix, titles), caught = _quietly(build, {})
         horizontal = _horizontal_only(share(matrix))
         if horizontal:
-            matrix, titles = build(horizontal)
+            (matrix, titles), caught = _quietly(build, horizontal)
         settled = share(matrix)
         if settled and settled != horizontal:
-            matrix, titles = build({**horizontal, **settled})
+            (matrix, titles), caught = _quietly(build, {**horizontal, **settled})
+        _replay(caught)
         return arrange_grid(matrix, titles=titles)
 
     channel = col if col is not None else row
@@ -325,13 +353,14 @@ def facet(
         panels = [chart for chart in drawn if chart is not None]
         return _accepted(plot_fn, _shared_kwargs(panels, sharex=sharex, sharey=sharey, explicit=_stated(plot_fn, kwargs)))
 
-    charts: list[Chart | None] = draw({})
+    charts, caught = _quietly(draw, {})
     horizontal = _horizontal_only(share(charts))
     if horizontal:
-        charts = draw(horizontal)
+        charts, caught = _quietly(draw, horizontal)
     settled = share(charts)
     if settled and settled != horizontal:
-        charts = draw({**horizontal, **settled})
+        charts, caught = _quietly(draw, {**horizontal, **settled})
+    _replay(caught)
     titles = [f"{channel} = {value}" for value in values]
     if col is not None:
         return arrange_row(charts, titles=titles)

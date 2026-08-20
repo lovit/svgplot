@@ -9,8 +9,11 @@ Marks are filled (``mark_style="fill"``), unlike lineplot's stroked paths.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
+from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._layout import (
     DEFAULT_WIDTH,
@@ -29,23 +32,32 @@ from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
 
-def _series_points(columns: dict[str, list], x: str, y: str) -> list[tuple[float, float]]:
-    """Drop rows with a missing x or y value, sum any rows sharing an x, then sort
+def _series_points(
+    columns: dict[str, list], x: str, y: str, estimate: Callable[[list[float]], float] | None
+) -> list[tuple[float, float]]:
+    """Drop rows with a missing x or y value, fold any rows sharing an x, then sort
     by x (mirrors ``charts/line.py``'s ``_series_points`` — no datetime x support
     here, this issue's AC doesn't call for it).
 
     An area is a function of x: exactly one filled height per x. Rows sharing an x
-    are therefore summed into one point rather than kept as separate vertices, and
+    are therefore folded into one point rather than kept as separate vertices, and
     the aggregation happens here so the stacked and unstacked paths — which both
     build on this — can never disagree about what a repeated x means.
+
+    ``estimate=None`` sums, which is the rule this chart has always used and the reason
+    it never warns: nothing is discarded, so there is nothing to advise about. An explicit
+    ``estimator="sum"`` folds with ``math.fsum`` instead, and a test pins that the two
+    produce byte-identical SVG -- CPython 3.12+ already compensates ``sum()`` over floats,
+    so writing the historical rule out by name is documentation, not a behaviour change.
     """
-    totals: dict[float, float] = {}
+    groups: dict[float, list[float]] = {}
     for xv, yv in zip(columns[x], columns[y], strict=True):
         if xv is None or yv is None or (isinstance(yv, float) and yv != yv):
             continue
-        key = float(xv)
-        totals[key] = totals.get(key, 0.0) + float(yv)
-    return sorted(totals.items())
+        groups.setdefault(float(xv), []).append(float(yv))
+    if estimate is None:
+        return sorted((key, sum(values)) for key, values in groups.items())
+    return sorted((key, apply_estimator(estimate, values, group=str(key))) for key, values in groups.items())
 
 
 def _closed_path_data(xs: list[float], ys: list[float], baseline_y: float) -> str:
@@ -87,6 +99,7 @@ def areaplot(
     hue: str | None = None,
     *,
     stacked: bool = False,
+    estimator: Estimator | None = None,
     theme: Theme | str | None = None,
     xlim: tuple[float, float] | None = None,
     ylim: tuple[float, float] | None = None,
@@ -111,12 +124,20 @@ def areaplot(
     which uses them to give faceted panels one axis -- and replace rather than widen, so a
     caller asking for a narrower view gets one.
 
+    ``estimator=`` replaces that sum: ``"mean"``/``"median"``/``"sum"``, or any callable
+    taking the group's values in row order and returning a number. The default stays
+    ``None`` (the historical sum) so no existing chart changes — see
+    ``charts/_aggregate.py``. Nothing is discarded on either path, so unlike ``barplot``
+    this chart never warns about repeated x values.
+
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
             is a string that isn't a registered preset name.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
-        ValueError: if ``data`` has no rows, or no rows survive after dropping
-            rows with a missing x or y value.
+        ValueError: if ``data`` has no rows, if no rows survive after dropping
+            rows with a missing x or y value, or if ``estimator`` is an unknown name or
+            returns a value that can't be plotted.
+        TypeError: if ``estimator`` is neither a name, a callable, nor ``None``.
     """
     resolved_theme = resolve_theme(theme)
     longform = ingest_longform(data, x, y)
@@ -125,7 +146,8 @@ def areaplot(
 
     series_items = build_series(data, longform.columns, hue)
 
-    series_points = [(label, _series_points(columns, x, y)) for label, columns in series_items]
+    estimate = resolve_estimator(estimator)
+    series_points = [(label, _series_points(columns, x, y, estimate)) for label, columns in series_items]
 
     all_x = [point[0] for _, points in series_points for point in points]
     all_y = [point[1] for _, points in series_points for point in points]
