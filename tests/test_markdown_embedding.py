@@ -95,7 +95,10 @@ def test_no_chart_leaves_a_stray_line_break_inside_an_element(name: str) -> None
     treats a multi-line ``<svg>`` as a paragraph and inserts ``<br/>`` mid-element. The
     only line breaks left in the output must be the pretty-printer's own, between tags."""
     svg = CHARTS[name]().to_string()
-    css = set(style_rules(svg))
+    # Only whole rules count. ``style_rules`` splits on newlines, so a rule broken across two
+    # physical lines would put both halves in here and whitelist the very break this test
+    # looks for -- the allowlist would be built from the document it is judging.
+    css = {rule for rule in style_rules(svg) if "{" in rule and rule.endswith("}")}
 
     for line in svg.splitlines():
         stripped = line.strip()

@@ -45,6 +45,13 @@ every sanctioned caller earns that trust by validating what it embeds:
   (no interpolation, so nothing to validate).
 - ``chart.composition`` — rewrites already-validated selectors produced by
   the two callers above; it interpolates no new user-derived values.
+- ``scope.apply_scope`` — prefixes those same selectors with a scope class.
+  The class is either a ``sha256`` digest or a caller name put through
+  ``scope.validate_css_class_name``, which is stricter than the element-id
+  rule: XML 1.0 permits ``{``/``}``/``;``, which break out of a CSS rule.
+  It rewrites existing rule text rather than composing new declarations, so
+  it relies on the flat one-rule-per-line shape the first caller emits —
+  ``test_the_chart_style_block_stays_flat`` is what holds that.
 
 Any *new* ``<style>`` producer must independently validate every value it
 interpolates before calling ``add_text``, and be added to this list — the

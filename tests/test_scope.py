@@ -6,6 +6,7 @@ import re
 import subprocess
 import sys
 import textwrap
+import warnings
 
 import pytest
 
@@ -16,6 +17,12 @@ from svgplot.scope import RESPONSIVE_CSS, apply_scope, scope_token, validate_css
 
 DATA = {"x": [1, 2, 3], "y": [1.0, 2.0, 3.0]}
 CATEGORIES = {"c": ["a", "b"], "v": [1.0, 2.0]}
+SPREAD = {"c": ["a"] * 6, "v": [1.0, 2, 3, 4, 5, 6]}
+SAMPLE = {"v": [1.0, 2, 2, 3, 3, 3, 4, 4, 5]}
+CATEGORIES3 = {"c": ["a", "b", "c"], "v": [3.0, 1.0, 2.0]}
+GAUGE = {"n": ["a"], "v": [50.0]}
+GRID = {"c": ["a", "b", "a", "b"], "r": ["p", "p", "q", "q"], "v": [1.0, 2.0, 3.0, 4.0]}
+FACETED = {"x": [1, 2, 1, 2], "y": [1.0, 2.0, 3.0, 4.0], "g": ["a", "a", "b", "b"]}
 
 _SCOPED_SELECTOR = re.compile(r":where\(\.[\w-]+\) (\.[\w-]+)")
 
@@ -68,6 +75,68 @@ def test_every_selector_in_a_comma_list_is_scoped() -> None:
     token = apply_scope(document)
 
     assert f":where(.{token}) .a, :where(.{token}) .b {{ fill: red; }}" in document.to_string()
+
+
+_CHARTS = {
+    "lineplot": lambda theme: sp.lineplot(DATA, x="x", y="y", theme=theme),
+    "scatterplot": lambda theme: sp.scatterplot(DATA, x="x", y="y", theme=theme),
+    "barplot": lambda theme: sp.barplot(CATEGORIES, x="c", y="v", theme=theme),
+    "areaplot": lambda theme: sp.areaplot(DATA, x="x", y="y", theme=theme),
+    "histplot": lambda theme: sp.histplot(SAMPLE, x="v", theme=theme),
+    "pieplot": lambda theme: sp.pieplot(CATEGORIES, values="v", labels="c", theme=theme),
+    "boxplot": lambda theme: sp.boxplot(SPREAD, x="c", y="v", theme=theme),
+    "violinplot": lambda theme: sp.violinplot(SPREAD, x="c", y="v", theme=theme),
+    "kdeplot": lambda theme: sp.kdeplot(SAMPLE, x="v", theme=theme),
+    "ecdfplot": lambda theme: sp.ecdfplot(SAMPLE, x="v", theme=theme),
+    "regplot": lambda theme: sp.regplot(DATA, x="x", y="y", theme=theme),
+    "heatmap": lambda theme: sp.heatmap(GRID, x="c", y="r", values="v", theme=theme),
+    "radarplot": lambda theme: sp.radarplot(CATEGORIES3, x="c", y="v", theme=theme),
+    "treemap": lambda theme: sp.treemap(CATEGORIES, values="v", labels="c", theme=theme),
+    "gaugeplot": lambda theme: sp.gaugeplot(GAUGE, value="v", labels="n", theme=theme),
+    "sparkline": lambda theme: sp.sparkline({"y": [1.0, 2, 3]}, y="y", theme=theme),
+    "row": lambda theme: sp.row([sp.lineplot(DATA, x="x", y="y", theme=theme), sp.barplot(CATEGORIES, x="c", y="v")]),
+    "facet": lambda theme: sp.facet(sp.lineplot, FACETED, col="g", x="x", y="y", theme=theme),
+}
+
+
+@pytest.mark.parametrize("name", sorted(_CHARTS), ids=sorted(_CHARTS))
+@pytest.mark.parametrize("theme", sorted(sp.PRESETS), ids=sorted(sp.PRESETS))
+def test_no_rule_escapes_its_document(name: str, theme: str) -> None:
+    """The guarantee this module exists to give, asserted directly rather than inferred.
+
+    Every other test here reads rules through a ``:where(...)`` pattern, so a rule that escaped
+    the rewrite is invisible to them *by construction* -- they would find one fewer match and
+    pass. Only the committed-gallery byte diff notices, and that fires for any output change at
+    all, which makes it useless for saying *what* broke. Verified by injecting a leaking rule
+    (``".legend-swatch,"`` on its own line) into ``theme.css``: this test fails and the rest of
+    the file still passes.
+
+    ``RESPONSIVE_CSS`` is the one rule allowed to stay global -- see :func:`apply_scope`.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        svg = _CHARTS[name](theme).to_string()
+
+    rules = [line for block in re.findall(r"<style>(.*?)</style>", svg, re.S) for line in block.splitlines() if line.strip()]
+    escaped = [rule for rule in rules if not rule.startswith(":where(.") and rule.strip() != RESPONSIVE_CSS]
+
+    assert rules, f"{name} emitted no CSS at all"
+    assert not escaped, f"{name} leaks {len(escaped)} document-global rule(s): {escaped[:3]}"
+
+
+def test_the_chart_style_block_stays_flat() -> None:
+    """The invariant the rewriter rests on: one rule per line, no at-rules. It is a token
+    substitution, not a CSS parser, so a ``@media`` block would put a line starting with ``@``
+    and a bare closing brace through it, and a selector list split across two lines would leave
+    the second selector document-global."""
+    svg = sp.lineplot(DATA, x="x", y="y").to_string()
+
+    for block in re.findall(r"<style>(.*?)</style>", svg, re.S):
+        for line in block.splitlines():
+            if not line.strip():
+                continue
+            assert line.count("{") == 1 and line.rstrip().endswith("}"), f"not one flat rule: {line!r}"
+            assert not line.lstrip().startswith("@"), f"at-rule reaches the rewriter: {line!r}"
 
 
 # --------------------------------------------------------------------------- the token
