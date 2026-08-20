@@ -46,7 +46,6 @@ AWAITING_A_PAGE = {
     "pieplot",
     "radarplot",
     "regplot",
-    "scatterplot",
     "sparkline",
     "treemap",
     "violinplot",
