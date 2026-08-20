@@ -548,8 +548,18 @@ def test_a_number_that_fits_is_left_as_the_literal_the_chart_draws() -> None:
 
 
 def test_the_scientific_form_only_starts_past_the_documented_length() -> None:
+    """Literals, not expressions in ``MAX_NUMBER_CHARS``.
+
+    Both assertions used to read the constant on each side, so moving the cap moved the test
+    with it and 16 -> 17 changed real output — ``number(1e16)`` becomes the seventeen-digit
+    ``10000000000000000`` — while all 1,924 tests still passed. These two numbers are the
+    boundary the module docstring names as a divergence from ``format_coord``, so they are
+    the two worth writing out.
+    """
+    assert number(1e15) == "1000000000000000"
+    assert number(1e16) == "1e+16"
+    # The relationship to the cap, kept alongside rather than instead of the literals.
     assert len(number(10.0 ** (MAX_NUMBER_CHARS - 2))) == MAX_NUMBER_CHARS - 1
-    assert "e+" in number(10.0**MAX_NUMBER_CHARS)
 
 
 def test_an_empty_name_is_not_a_name_worth_reading_out() -> None:
@@ -576,11 +586,19 @@ def test_the_sentence_grows_only_with_the_digits_of_its_counts() -> None:
     """``MAX_NAME_CHARS``'s docstring gives a growth rate rather than a maximum, because
     there is no maximum: the counts keep gaining digits. What has to hold is that *only*
     the digits grow — ten times the data must cost about eight characters, not ten times
-    the characters. The measured points are pinned exactly, so a cap change fails here."""
+    the characters. The measured points are pinned exactly, so a cap change fails here.
+
+    The **whole** range of name lengths, not a sample of it. An earlier version swept
+    ``(1, 12, 60)`` and stepped over 28, which is where the maximum actually is — two names
+    of 29 characters plus ``", "`` is exactly ``MAX_NAME_CHARS``, so 28 is the last length
+    at which two names still fit. It pinned 239/254/262 as maxima when they are 243/258/266,
+    and a later reader who measured the range the docstring claimed would have been failed by
+    this test rather than helped by it.
+    """
     measured = {}
-    for count in (7, 123, 1234):
+    for count in (7, 123):
         longest = 0
-        for name_length in (1, 12, 60):
+        for name_length in range(1, MAX_NAME_CHARS + 1):
             names = [f"{'n' * name_length}{index}" for index in range(count)]
             # Value magnitude is varied too, and that is the point: an earlier version left
             # it small, so a single unbounded value -- 1e308 is 309 digits as a decimal
@@ -596,7 +614,25 @@ def test_the_sentence_grows_only_with_the_digits_of_its_counts() -> None:
                 longest = max(longest, len(described))
         measured[count] = longest
 
-    assert measured == {7: 239, 123: 254, 1234: 262}
-    # 7 -> 1,234 is 2.25 ten-fold steps, so "about ten characters per step" bounds the
-    # whole span at 25. Linear growth in the data would blow past this by three orders.
-    assert measured[1234] - measured[7] <= 25
+    assert measured == {7: 243, 123: 258}
+    # 1.24 ten-fold steps at the measured twelve characters each bounds the span at 16. This
+    # first step is the expensive one -- it gains a digit in the ``and N more`` count as well
+    # as in the category count -- and later steps cost eight. Linear growth in the data would
+    # blow past any of these by two orders.
+    assert measured[123] - measured[7] <= 16
+
+
+def test_the_longest_sentence_is_where_the_name_budget_saturates() -> None:
+    """Why the sweep above has to be a range and not a sample. The listing is longest at the
+    last name length where *two* names still fit inside ``MAX_NAME_CHARS``; one character more
+    and only one fits, so the sentence gets shorter. Pinning the position, not just the value,
+    is what stops a future sample from stepping over it again."""
+
+    def listed(name_length: int) -> int:
+        names = [f"{'n' * name_length}{index}" for index in range(7)]
+        return len(group(names, "category"))
+
+    saturating = max(range(1, MAX_NAME_CHARS + 1), key=listed)
+
+    assert listed(saturating) > listed(saturating + 1)
+    assert 2 * (saturating + 1) + len(", ") == MAX_NAME_CHARS

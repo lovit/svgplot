@@ -81,10 +81,19 @@ thousand times longer. There is no single worst number, and two earlier drafts o
 docstring gave one anyway — 222, then 264. What there is, is a **growth rate**: with both
 caps and :data:`MAX_NUMBER_CHARS` in place the only thing still growing is the digits of the
 counts, so the sentence lengthens logarithmically in the data. Measured on ``heatmap``, the
-worst of the sixteen, over name lengths 1-60 and value magnitudes up to ``1e308``: **239
-characters at 7 categories per axis, 254 at 123, 262 at 1,234, 270 at 12,345** — about ten
-characters per ten-fold increase. A test pins the first three of those and the growth rate
-between them; the fourth costs a minute to render and lives in the PR body.
+worst of the sixteen, over name lengths 1-60 and value magnitudes up to ``1e308``: **243
+characters at 7 categories per axis, 258 at 123, 266 at 1,234, 274 at 12,345** — **9.5
+characters per ten-fold increase** across that span, and eight per ten-fold once past the
+first (the first step also gains a digit in the ``and N more`` count, which is why it costs
+twelve).
+
+Every one of those maxima is at a name length of **28**, and that is structural rather than
+lucky: two names of 29 characters plus ``", "`` is exactly :data:`MAX_NAME_CHARS`, so 28 is
+the last length at which two names still fit and the listing is at its longest. One character
+more and only one name fits, and the sentence gets *shorter*. A third draft of this paragraph
+read 239/254/262/270 because its test swept ``(1, 12, 60)`` and stepped straight over 28 --
+the same shape of mistake as the two drafts before it, which is why the test now sweeps the
+whole range at the two counts cheap enough to do so, and pins the saturating length itself.
 
 What happens at the cap. Overflow is reported, never silently dropped: the listed names
 are followed by ``and N more``. A name is never shortened — a half-name is a different

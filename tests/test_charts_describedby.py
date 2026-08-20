@@ -260,3 +260,13 @@ def test_add_accessibility_writes_no_attribute_when_no_id_is_given() -> None:
     add_accessibility(document, title="Chart")
 
     assert document.root.get("aria-describedby") is None
+
+
+def test_an_unusable_id_is_reported_even_when_the_format_is_also_wrong() -> None:
+    """The two checks run in a deliberate order and nothing pinned it. A caller who passed a
+    markdown format *and* an id with a space in it should hear about the id — that is the
+    harder mistake to see, and swapping the order sends them to fix the easy one first and
+    then hit the other. The two existing cases pair markdown with a *valid* id and html with
+    an invalid one, so neither crosses the two."""
+    with pytest.raises(ValueError, match="table_id must be a non-empty id with no whitespace"):
+        render_table(DATA, PARSED_SPEC, format="markdown", table_id="a b")
