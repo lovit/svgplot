@@ -24,6 +24,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import CategoricalScale, LinearScale
@@ -71,6 +72,39 @@ def _fold(values: dict[str, list[float]], estimate: Callable[[list[float]], floa
     return {category: apply_estimator(estimate, group, group=category) for category, group in values.items()}
 
 
+def _bar_tooltip(*, x: str, y: str, hue: str | None, category: str, value: float, label: object) -> str:
+    """What one bar's ``<title>`` says: the category it stands on and the value it reached.
+
+    The value is the bar's own -- for a stacked chart that is the segment, not the running
+    total, and where ``estimator=`` folded several rows it is the folded number. Both are what
+    the rectangle is: a bar chart's mark is an aggregate, and a tooltip naming the rows behind
+    it would be describing something that was never drawn.
+
+    The category goes through :func:`format_label` even though it is already a string, because
+    it is the first tooltip *value* in the package that comes straight out of somebody's file
+    rather than out of :func:`format_number`. Passed through raw, a three-bar chart with a
+    5,000-character category name went from 17,959 bytes to 33,114, and one ``<title>`` held
+    5,022 characters; through the cap it is 18,100. A category too long to read is dropped from
+    the tooltip rather than truncated, and so is one that draws nothing:
+    ``"category:  · value: 1"`` names a bar with a label that is not there.
+
+    The bound is :data:`~svgplot.charts._tooltip.MAX_TOOLTIP_CHARS`, 120 -- not ``_describe``'s
+    60, which is a share of one ``<desc>`` sentence and drops two 62-character depot names,
+    leaving both bars named ``"value: 10"``. The column names and the ``hue=`` labels are capped
+    the same way. **The axis tick is not**: its drawn text is shortened but its own ``<title>``
+    still holds the category in full, so the 5,000 characters above are in the file either way
+    -- 15,000 of those 17,959 baseline bytes. That sink predates this argument and closing it
+    would change the output of charts that never asked for a tooltip.
+    """
+    parts: list[str] = []
+    if (shown := format_label(category)) is not None:
+        parts.append(clause(x, shown))
+    parts.append(clause(y, format_number(value)))
+    if hue is not None and (shown := format_label(label)) is not None:
+        parts.append(clause(hue, shown))
+    return " · ".join(parts)
+
+
 def barplot(
     data: object,
     x: str,
@@ -80,6 +114,7 @@ def barplot(
     orient: str = "v",
     stacked: bool = False,
     estimator: Estimator | None = None,
+    tooltip: bool = False,
     width: float | None = None,
     height: float | None = None,
     theme: Theme | str | None = None,
@@ -116,6 +151,20 @@ def barplot(
     difference from :func:`~svgplot.charts.box.boxplot` and
     :func:`~svgplot.charts.violin.violinplot`, whose identically-worded paragraphs are about
     charts that really do rotate the palette per category.
+
+    ``tooltip=True`` gives every bar a ``<title>`` naming its category and its value, plus its
+    ``hue=`` group where there is one. The value is the bar's own: a segment in a stacked
+    chart, and the folded number where ``estimator=`` folded several rows -- what the rectangle
+    actually is. A browser shows it on hover, and it is also the bar's accessible name.
+
+    A clause naming something the caller supplied -- the column names, the category, the
+    ``hue=`` label -- is left out when it is over 120 characters or would draw nothing, because
+    it is written once per bar. The bar still says its value.
+
+    ``tooltip=False`` is the default. A ``<title>`` per bar is an element per bar, so turning
+    it on changes the bytes of every existing caller's output for a feature they did not ask
+    for. It also only works where the SVG is *inlined* into the page: inside an ``<img>`` the
+    file is a separate document and the browser draws it without interaction.
 
     ``estimator=`` decides what happens when several rows share a category within one
     series. The default, ``None``, keeps the historical rule — **the last row wins**, and
@@ -267,7 +316,7 @@ def barplot(
     slot_gap = (slot_width - bar_width) / 2
 
     stack_cumulative = dict.fromkeys(drawn_categories, 0.0)
-    for group_index, (_, lookup) in enumerate(group_lookups):
+    for group_index, (label, lookup) in enumerate(group_lookups):
         series_class = series_classes[group_index]
         slot_index = 0 if is_stacked else group_index
         for category in drawn_categories:
@@ -301,7 +350,9 @@ def barplot(
             )
             if corner_radius is not None:
                 attrib["rx"] = corner_radius
-            document.add_node(None, "rect", attrib=attrib, classes=[series_class])
+            bar = document.add_node(None, "rect", attrib=attrib, classes=[series_class])
+            if tooltip:
+                add_tooltip(document, bar, _bar_tooltip(x=x, y=y, hue=hue, category=category, value=value, label=label))
 
     if hue is not None:
         legend_entries = [(str(label), series_classes[index]) for index, (label, _) in enumerate(group_items)]

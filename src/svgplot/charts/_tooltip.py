@@ -44,7 +44,6 @@ import unicodedata
 import xml.etree.ElementTree as ET
 
 from svgplot._svg import SvgDocument
-from svgplot.charts._describe import fits
 from svgplot.charts._layout import format_value_label
 
 _TITLE_TAG = "title"
@@ -69,6 +68,33 @@ prepended concatenation marks (U+0600-0605, U+06DD, U+070F), the interlinear ann
 loses its full text here. ``Cf`` is not ``Default_Ignorable``; it is the nearest thing the
 standard library exposes, which is the whole reason this is a list rather than that property.
 """
+
+
+MAX_TOOLTIP_CHARS = 120
+"""How long one caller string may be before a tooltip leaves it out.
+
+**Not** ``_describe.MAX_NAME_CHARS``, which is 60, and the difference is the whole reason this
+constant exists. That budget is for a *list of up to six names sharing one ``<desc>``
+sentence*, so 60 is what is left for each after the sentence's counts and ranges take their
+share. A mark's ``<title>`` is one string announced by itself. Spending the six-name budget on
+it drops things a reader would obviously want: two categories named ``"Northern Territory
+Regional Distribution Centre (Alice Spring)"`` and ``"Southern Territory Regional Distribution
+Centre (Darwin Depot)"`` are 62 characters each, and under ``fits`` both bars ended up with the
+accessible name ``"value: 10"`` -- the same name, naming neither. That is worse than the size
+problem the cap was added for, and the axis tick beside them still held each full name.
+
+120 is the alternative-text guideline ``MAX_NAME_CHARS``'s docstring cites, applied to one
+string rather than divided among six. What it has to bound is repetition: a clause here is
+written **once per mark**, so a thousand-point chart multiplies it a thousand times. 120 keeps
+that at 120 KB rather than the 100 MB an uncapped label measured at.
+
+Dropped rather than truncated, for :func:`clause`'s reason: half a name is a different name.
+"""
+
+
+def fits_a_tooltip(text: str) -> bool:
+    """Whether one caller string is short enough to repeat once per mark."""
+    return bool(text) and len(text) <= MAX_TOOLTIP_CHARS
 
 
 def has_visible_text(text: str) -> bool:
@@ -131,7 +157,9 @@ def format_label(value: object) -> str | None:
     value two ways -- a numeric ``hue=`` column would otherwise read ``x: 1 · group: 1.0``.
 
     ``None`` for a label that is unreadably long or draws nothing, and that bound is the point:
-    a label reaches here once *per mark*, where the legend says it once.
+    a label reaches here once *per mark*, where the legend says it once. The bound is
+    :data:`MAX_TOOLTIP_CHARS`, not ``_describe``'s six-names-in-one-sentence budget -- see that
+    constant for the two 62-character category names the narrower one silently erased.
 
     Measured before it existed, on 1,000 points whose ``x`` and ``y`` are ``0.0``..``999.0``
     and whose single hue group is named with 100,000 Hangul characters: ``len(to_string())``
@@ -147,8 +175,28 @@ def format_label(value: object) -> str | None:
     """
     if isinstance(value, bool) or not isinstance(value, int | float):
         text = str(value)
-        return text if fits(text) and has_visible_text(text) else None
+        return text if fits_a_tooltip(text) and has_visible_text(text) else None
     return format_number(float(value))
+
+
+def clause(name: str, value: str) -> str:
+    r"""``"name: value"``, or the value alone when the name is not worth repeating.
+
+    Column names are caller strings and a tooltip repeats one **once per mark**, so an
+    unreadably long name would be the largest thing in the file. Dropped rather than truncated,
+    for ``scatter._size_clause``'s reason: half a column name is a different column name. The
+    bound is :data:`MAX_TOOLTIP_CHARS` rather than ``_describe.fits``, which is a share of one
+    ``<desc>`` sentence and too narrow for a string that is announced alone.
+    :func:`has_visible_text` covers the other direction -- a name of one tab is short enough to
+    fit and still reads as ``"\t: 45"``.
+
+    **Only the name is measured.** The value is the caller's to bound, and every caller does it
+    before getting here -- :func:`format_number` for a number, :func:`format_label` for a label
+    out of the data. That is not a division this function can enforce: a caller passing a raw
+    category through would put an unbounded string in the file once per mark, and the ``name``
+    half of the rule would still read as satisfied.
+    """
+    return f"{name}: {value}" if fits_a_tooltip(name) and has_visible_text(name) else value
 
 
 def add_tooltip(document: SvgDocument, node: ET.Element, text: str) -> ET.Element | None:

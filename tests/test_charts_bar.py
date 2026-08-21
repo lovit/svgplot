@@ -389,3 +389,166 @@ def test_a_rowless_category_gets_a_band_but_not_a_colour() -> None:
     assert "gap" in svg, "the rowless category still gets its tick"
     assert len(_bars(svg)) == 2, "and no mark of its own"
     assert _series_classes(svg) == {"series-1"}, "and takes no palette entry with it"
+
+
+# --------------------------------------------------------------------------------- tooltips
+
+
+def _titles(svg: str) -> list[str]:
+    """Bar tooltips, in document order: the ``<title>`` that is a ``<rect class="series-N">``'s
+    first child.
+
+    Matched through the mark rather than by dropping the last one. Two other things in this file
+    emit a ``<title>``: the chart's own, which is last, and an axis tick whose label had to be
+    shortened, which comes *first* -- so ``findall(...)[:-1]`` returns the tick's title as if it
+    were a bar's, and a category of thirty characters is enough to get one. Counting titles
+    against bars then passes on a chart that has a spare title and a missing one.
+    """
+    return re.findall(r'<rect\b[^>]*\bclass="(?:[^"]* )?series-\d+(?: [^"]*)?"[^>]*>\s*<title>([^<]*)</title>', svg)
+
+
+def test_a_bar_tooltip_names_its_category_and_its_value() -> None:
+    svg = barplot(SINGLE_SERIES, x="category", y="value", tooltip=True).to_string()
+
+    assert _titles(svg) == ["category: a · value: 10", "category: b · value: 20", "category: c · value: 15"]
+
+
+def test_a_hued_bar_tooltip_names_its_group_too() -> None:
+    svg = barplot(HUE_SERIES, x="category", y="value", hue="group", tooltip=True).to_string()
+
+    assert "<title>category: a · value: 10 · group: x</title>" in svg
+    assert "<title>category: a · value: 5 · group: y</title>" in svg
+
+
+def test_a_stacked_segment_says_its_own_value_not_the_running_total() -> None:
+    """The rectangle is the segment, so that is what its accessible name has to be. Reading the
+    cumulative height would name a shape nobody drew -- and would make the top segment of every
+    category claim the column's total."""
+    # Values chosen so no cumulative total equals any segment: 10+1, 20+2, 30+3 are 11, 22, 33
+    # and none of those is a value in the data. With ``HUE_SERIES`` the total for "a" is 15,
+    # which is also "c"'s own value -- the wrong implementation and the right one would both
+    # put "15" somewhere in the file.
+    data = {
+        "category": ["a", "b", "c", "a", "b", "c"],
+        "value": [10.0, 20.0, 30.0, 1.0, 2.0, 3.0],
+        "group": ["x"] * 3 + ["y"] * 3,
+    }
+    svg = barplot(data, x="category", y="value", hue="group", stacked=True, tooltip=True).to_string()
+
+    assert sorted(_titles(svg)) == sorted(
+        f"category: {category} · value: {value} · group: {group}"
+        for category, value, group in zip(data["category"], (10, 20, 30, 1, 2, 3), data["group"], strict=True)
+    )
+    for total in (11, 22, 33):
+        assert f"value: {total}" not in svg, "a segment reported the column's running total"
+
+
+def test_a_folded_bar_says_the_folded_value() -> None:
+    """``estimator=`` makes the mark an aggregate of several rows. The tooltip names the
+    aggregate because that is what was drawn; naming the rows would describe something the
+    chart does not contain."""
+    data = {"category": ["a", "a", "b"], "value": [10.0, 20.0, 7.0]}
+    svg = barplot(data, x="category", y="value", estimator="mean", tooltip=True).to_string()
+
+    assert _titles(svg) == ["category: a · value: 15", "category: b · value: 7"]
+
+
+def test_the_default_draws_no_tooltip_and_saying_so_changes_nothing() -> None:
+    """What this can check is that ``tooltip=False`` is the same call as not writing it, and
+    that neither emits a ``<title>``.
+
+    It is deliberately *not* named for byte-identity with the version before ``tooltip=``
+    existed, which it cannot see: both sides here are this branch's code, so any change that
+    hits every bar unconditionally passes. ``docs/gallery/*.html`` is the guard that actually
+    holds those bytes -- committed output from before this branch, rebuilt and compared by
+    ``test_gallery.py::test_the_committed_gallery_is_what_a_fresh_build_produces``. Adding an
+    unconditional ``data-mark="bar"`` to every bar rect leaves every test in this file green --
+    42 of them at the time of writing -- and turns that one red, and only that one.
+    """
+    omitted = barplot(HUE_SERIES, x="category", y="value", hue="group").to_string()
+    explicit = barplot(HUE_SERIES, x="category", y="value", hue="group", tooltip=False).to_string()
+
+    assert omitted == explicit
+    assert "<title>" not in omitted.replace("<title>Chart</title>", "")
+
+
+def test_tooltip_on_gives_every_bar_exactly_one() -> None:
+    svg = barplot(HUE_SERIES, x="category", y="value", hue="group", tooltip=True).to_string()
+
+    assert len(_titles(svg)) == len(_bars(svg)) == 6
+
+
+def test_a_category_too_long_to_read_is_left_out_of_the_tooltip() -> None:
+    """The category is the first tooltip *value* in the package that is a string out of the
+    data rather than a formatted number, and it is written once per bar. Uncapped, the three
+    bars below took the file from 17,959 bytes to 33,114 and put 5,022 characters in one
+    ``<title>``; capped it is 18,100.
+
+    The bound is a size bound rather than ``"면" * 5000 not in svg`` -- the assertion
+    ``test_charts_tooltip_contract.py`` makes about a ``size=`` column name -- because the
+    category *is* still in the file. The axis tick's drawn text is shortened but its own
+    ``<title>`` holds the name in full, which is 15,000 of the 17,959 baseline bytes. That sink
+    is on ``main`` and is not this argument's to close."""
+    data = {"category": ["면" * 5000, "b", "c"], "value": [10.0, 20.0, 30.0]}
+    svg = barplot(data, x="category", y="value", tooltip=True).to_string()
+
+    assert _titles(svg) == ["value: 10", "category: b · value: 20", "category: c · value: 30"]
+    assert len(svg.encode()) < 20_000, "the unreadable category was written into the file anyway"
+
+
+def test_a_long_but_readable_category_is_kept() -> None:
+    """The other half, and the one that decides which cap to use. Under ``_describe.fits`` (60,
+    a share of one ``<desc>`` sentence) these two 62-character names were both dropped and the
+    two bars ended up with the *same* accessible name, ``"value: 10"`` -- naming neither, while
+    the axis tick beside them still held each name in full.
+
+    120 is :data:`~svgplot.charts._tooltip.MAX_TOOLTIP_CHARS`; the boundary is asserted here so
+    the constant cannot be narrowed back without something going red."""
+    depots = {
+        "category": [
+            "Northern Territory Regional Distribution Centre (Alice Spring)",
+            "Southern Territory Regional Distribution Centre (Darwin Depot)",
+        ],
+        "value": [10.0, 10.0],
+    }
+    kept = {"category": ["가" * 120, "b"], "value": [1.0, 2.0]}
+    dropped = {"category": ["가" * 121, "b"], "value": [1.0, 2.0]}
+
+    assert len(depots["category"][0]) == 62, "the fixture stopped being the case _describe.fits drops"
+    assert _titles(barplot(depots, x="category", y="value", tooltip=True).to_string()) == [
+        "category: Northern Territory Regional Distribution Centre (Alice Spring) · value: 10",
+        "category: Southern Territory Regional Distribution Centre (Darwin Depot) · value: 10",
+    ]
+    assert _titles(barplot(kept, x="category", y="value", tooltip=True).to_string())[0].startswith("category: 가")
+    assert _titles(barplot(dropped, x="category", y="value", tooltip=True).to_string())[0] == "value: 1"
+
+
+def test_a_category_that_draws_nothing_is_left_out_too() -> None:
+    """``"category:  · value: 1"`` names the bar with a label that is not on screen. A category
+    of one tab is data, not a caller's mistake, so the clause goes rather than the chart."""
+    data = {"category": ["", "\t", "b"], "value": [1.0, 2.0, 3.0]}
+
+    assert _titles(barplot(data, x="category", y="value", tooltip=True).to_string()) == [
+        "value: 1",
+        "value: 2",
+        "category: b · value: 3",
+    ]
+
+
+def test_a_horizontal_bar_says_the_same_thing_as_a_vertical_one() -> None:
+    """``orient="h"`` is the one place the rectangle's ``attrib`` is assembled differently, and
+    the point of this is that the *tooltip* does not go through there: ``_bar_tooltip`` takes
+    the category and value from the lookup, never from the geometry, and ``orient`` is not one
+    of its arguments.
+
+    So the equality below is close to a tautology today, and it is kept as the statement of
+    that property rather than as a search for a bug: the day someone reaches for ``attrib["x"]``
+    to build a tooltip, it stops being one. The second assertion is what carries weight now --
+    it names a specific segment's own value, and dies when the hue clause or the stacked value
+    is wrong."""
+    kwargs = {"x": "category", "y": "value", "hue": "group", "stacked": True, "tooltip": True}
+    vertical = barplot(HUE_SERIES, **kwargs).to_string()
+    horizontal = barplot(HUE_SERIES, orient="h", **kwargs).to_string()
+
+    assert sorted(_titles(horizontal)) == sorted(_titles(vertical))
+    assert "category: a · value: 10 · group: x" in _titles(horizontal)

@@ -87,6 +87,23 @@
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+      /* Controls sit inside the figure element, before the chart, as its direct children:
+         the sibling combinator in the generated rules depends on that, and a wrapper would
+         quietly break every one of them. Left as native checkboxes -- a real control is
+         reachable with Tab and operated with Space without anything here arranging it. */
+      figure > .series-toggle { margin: 0 0.3rem 0.75rem 0; vertical-align: -0.1em; }
+      figure > .series-toggle + label { margin-right: 1.1rem; font-size: 0.9rem; color: var(--muted); }
+      .interaction-note { margin: 0 0 1.75rem; color: var(--muted); font-size: 0.9rem; }
+      /* svgplot-barplot-2 */
+      #svgplot-barplot-2-toggle-1:not(:checked) ~ svg :is(.series-1) { opacity: 0.15; }
+      #svgplot-barplot-2-toggle-1:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      #svgplot-barplot-2-toggle-2:not(:checked) ~ svg :is(.series-2) { opacity: 0.15; }
+      #svgplot-barplot-2-toggle-2:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      /* svgplot-barplot-3 */
+      #svgplot-barplot-3-toggle-1:not(:checked) ~ svg :is(.series-1) { opacity: 0.15; }
+      #svgplot-barplot-3-toggle-1:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      #svgplot-barplot-3-toggle-2:not(:checked) ~ svg :is(.series-2) { opacity: 0.15; }
+      #svgplot-barplot-3-toggle-2:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
     </style>
   </head>
   <body>
@@ -106,6 +123,7 @@ QUARTERS = {
     &quot;채널&quot;: [&quot;온라인&quot;] * 4 + [&quot;오프라인&quot;] * 4,
 }</code></pre>
     <h2>예시</h2>
+    <p class="interaction-note">체크를 끄면 시리즈가 사라지지 않고 흐려진다. 축·눈금·카테고리 밴드는 그릴 때 한 번 정해지고 다시 계산되지 않으므로, 감추면 남은 그림이 자기보다 넓은 축 위에 서게 된다. 흐리게 하는 것은 &quot;이건 지금 보지 말라&quot;는 말이고, 감추는 것은 &quot;이 값은 없다&quot;는 말이다 — 뒤쪽은 사실이 아니다.</p>
     <h3>기본 — 카테고리당 한 행</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-barplot-1" role="img" aria-label="기본 — 카테고리당 한 행">
@@ -155,6 +173,10 @@ QUARTERS = {
 sp.barplot(ONE_ROW, x=&quot;분기&quot;, y=&quot;매출&quot;)</code></pre>
     <h3>hue= 는 밴드를 그룹 수만큼 나눠 나란히 놓는다</h3>
     <figure>
+      <input type="checkbox" class="series-toggle" id="svgplot-barplot-2-toggle-1" checked="checked" />
+      <label for="svgplot-barplot-2-toggle-1">오프라인</label>
+      <input type="checkbox" class="series-toggle" id="svgplot-barplot-2-toggle-2" checked="checked" />
+      <label for="svgplot-barplot-2-toggle-2">온라인</label>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-barplot-2" role="img" aria-label="hue= 는 밴드를 그룹 수만큼 나눠 나란히 놓는다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
@@ -210,6 +232,10 @@ sp.barplot(ONE_ROW, x=&quot;분기&quot;, y=&quot;매출&quot;)</code></pre>
     <pre><code>sp.barplot(QUARTERS, x=&quot;분기&quot;, y=&quot;매출&quot;, hue=&quot;채널&quot;)</code></pre>
     <h3>stacked=True 는 같은 자리에 쌓는다</h3>
     <figure>
+      <input type="checkbox" class="series-toggle" id="svgplot-barplot-3-toggle-1" checked="checked" />
+      <label for="svgplot-barplot-3-toggle-1">오프라인</label>
+      <input type="checkbox" class="series-toggle" id="svgplot-barplot-3-toggle-2" checked="checked" />
+      <label for="svgplot-barplot-3-toggle-2">온라인</label>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-barplot-3" role="img" aria-label="stacked=True 는 같은 자리에 쌓는다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
@@ -327,8 +353,91 @@ sp.barplot(ONE_ROW, x=&quot;분기&quot;, y=&quot;매출&quot;)</code></pre>
 </svg>
     </figure>
     <pre><code>sp.barplot(QUARTERS, x=&quot;분기&quot;, y=&quot;매출&quot;, hue=&quot;채널&quot;, orient=&quot;h&quot;)</code></pre>
+    <h3>tooltip=True — 막대마다 자기 카테고리와 값을 말한다</h3>
+    <figure>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-barplot-5" role="img" aria-label="tooltip=True — 막대마다 자기 카테고리와 값을 말한다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="640" y2="550" class="spine" />
+  <line x1="132.5" y1="30" x2="132.5" y2="550" class="grid-line" />
+  <line x1="132.5" y1="550" x2="132.5" y2="554" class="tick-line" />
+  <text x="132.5" y="572" text-anchor="middle" class="tick-label">1분기</text>
+  <line x1="277.5" y1="30" x2="277.5" y2="550" class="grid-line" />
+  <line x1="277.5" y1="550" x2="277.5" y2="554" class="tick-line" />
+  <text x="277.5" y="572" text-anchor="middle" class="tick-label">2분기</text>
+  <line x1="422.5" y1="30" x2="422.5" y2="550" class="grid-line" />
+  <line x1="422.5" y1="550" x2="422.5" y2="554" class="tick-line" />
+  <text x="422.5" y="572" text-anchor="middle" class="tick-label">3분기</text>
+  <line x1="567.5" y1="30" x2="567.5" y2="550" class="grid-line" />
+  <line x1="567.5" y1="550" x2="567.5" y2="554" class="tick-line" />
+  <text x="567.5" y="572" text-anchor="middle" class="tick-label">4분기</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="550" x2="640" y2="550" class="grid-line" />
+  <line x1="56" y1="550" x2="60" y2="550" class="tick-line" />
+  <text x="54" y="554" text-anchor="end" class="tick-label">0</text>
+  <line x1="60" y1="465.309446" x2="640" y2="465.309446" class="grid-line" />
+  <line x1="56" y1="465.309446" x2="60" y2="465.309446" class="tick-line" />
+  <text x="54" y="469.309446" text-anchor="end" class="tick-label">50</text>
+  <line x1="60" y1="380.618893" x2="640" y2="380.618893" class="grid-line" />
+  <line x1="56" y1="380.618893" x2="60" y2="380.618893" class="tick-line" />
+  <text x="54" y="384.618893" text-anchor="end" class="tick-label">100</text>
+  <line x1="60" y1="295.928339" x2="640" y2="295.928339" class="grid-line" />
+  <line x1="56" y1="295.928339" x2="60" y2="295.928339" class="tick-line" />
+  <text x="54" y="299.928339" text-anchor="end" class="tick-label">150</text>
+  <line x1="60" y1="211.237785" x2="640" y2="211.237785" class="grid-line" />
+  <line x1="56" y1="211.237785" x2="60" y2="211.237785" class="tick-line" />
+  <text x="54" y="215.237785" text-anchor="end" class="tick-label">200</text>
+  <line x1="60" y1="126.547231" x2="640" y2="126.547231" class="grid-line" />
+  <line x1="56" y1="126.547231" x2="60" y2="126.547231" class="tick-line" />
+  <text x="54" y="130.547231" text-anchor="end" class="tick-label">250</text>
+  <line x1="60" y1="41.856678" x2="640" y2="41.856678" class="grid-line" />
+  <line x1="56" y1="41.856678" x2="60" y2="41.856678" class="tick-line" />
+  <text x="54" y="45.856678" text-anchor="end" class="tick-label">300</text>
+  <rect x="74.5" y="407.71987" width="116" height="142.28013" class="series-1">
+    <title>분기: 1분기 · 매출: 84 · 채널: 오프라인</title>
+  </rect>
+  <rect x="219.5" y="394.169381" width="116" height="155.830619" class="series-1">
+    <title>분기: 2분기 · 매출: 92 · 채널: 오프라인</title>
+  </rect>
+  <rect x="364.5" y="363.680782" width="116" height="186.319218" class="series-1">
+    <title>분기: 3분기 · 매출: 110 · 채널: 오프라인</title>
+  </rect>
+  <rect x="509.5" y="328.110749" width="116" height="221.889251" class="series-1">
+    <title>분기: 4분기 · 매출: 131 · 채널: 오프라인</title>
+  </rect>
+  <rect x="74.5" y="204.462541" width="116" height="203.257329" class="series-2">
+    <title>분기: 1분기 · 매출: 120 · 채널: 온라인</title>
+  </rect>
+  <rect x="219.5" y="148.566775" width="116" height="245.602606" class="series-2">
+    <title>분기: 2분기 · 매출: 145 · 채널: 온라인</title>
+  </rect>
+  <rect x="364.5" y="197.687296" width="116" height="165.993485" class="series-2">
+    <title>분기: 3분기 · 매출: 98 · 채널: 온라인</title>
+  </rect>
+  <rect x="509.5" y="30" width="116" height="298.110749" class="series-2">
+    <title>분기: 4분기 · 매출: 176 · 채널: 온라인</title>
+  </rect>
+  <rect x="660" y="25" width="16" height="10" class="series-1" />
+  <text x="682" y="34" class="legend-text">오프라인</text>
+  <rect x="660" y="45" width="16" height="10" class="series-2" />
+  <text x="682" y="54" class="legend-text">온라인</text>
+  <style>:where(.svgplot-barplot-5) .plot-background { fill: #ffffff; }
+:where(.svgplot-barplot-5) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-barplot-5) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-barplot-5) .tick-line { stroke: #333333; }
+:where(.svgplot-barplot-5) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-barplot-5) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-barplot-5) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-barplot-5) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
+  <title>tooltip=True — 막대마다 자기 카테고리와 값을 말한다</title>
+  <desc>Stacked bar chart, 4 categories (1분기, 2분기, 3분기, 4분기), 2 series (오프라인, 온라인), values 84 to 176, stacked totals up to 307.</desc>
+</svg>
+    </figure>
+    <pre><code>sp.barplot(QUARTERS, x=&quot;분기&quot;, y=&quot;매출&quot;, hue=&quot;채널&quot;, stacked=True, tooltip=True)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
+      <li>두 번째와 세 번째 그림에 체크박스가 붙어 있다. 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.</li>
+      <li>세 번째(누적)가 이 갤러리에서 흐리게 하는 쪽을 고른 이유를 가장 잘 보여준다. 한 층을 꺼도 막대의 전체 높이가 그대로 있다 — 감췄다면 남은 층이 아래로 내려앉아 일어나지 않은 재배치를 주장했을 것이다.</li>
+      <li>tooltip=True 는 막대마다 &lt;title&gt; 을 붙인다. 값은 그 막대 자신의 것이다 — 누적이면 그 층의 값이지 누계가 아니고, estimator= 가 여러 행을 접었으면 접힌 값이다. 막대의 마크는 집계이므로 뒤에 있는 행들을 말하면 그려지지 않은 것을 말하는 셈이 된다.</li>
       <li>음수 값을 거부한다.</li>
       <li>같은 카테고리에 행이 여럿이고 estimator= 를 주지 않으면 마지막 행이 이기고, 몇 행을 버렸는지 AggregationWarning 이 알린다. estimator=&quot;mean&quot;/&quot;median&quot;/&quot;sum&quot; 또는 그룹의 값을 행 순서대로 받는 callable 로 접는 방법을 고를 수 있다.</li>
       <li>색은 hue= 만 따른다. hue= 가 없으면 카테고리가 몇 개든 막대는 전부 한 시리즈이고 한 색이다 — 카테고리는 이미 위치와 축 라벨로 구분되고, 그 아래에서 팔레트가 돌면 색이 뭔가를 뜻한다고 읽힌다. hue= 가 있으면 hue 값마다 팔레트를 하나씩 가져가므로 같은 그룹이 모든 카테고리에서 같은 색이 된다.</li>
