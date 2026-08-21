@@ -492,20 +492,33 @@ def test_a_violin_tooltip_says_the_quartiles_the_outline_cannot_show() -> None:
     }
 
 
-def test_every_mark_of_a_violin_says_the_same_thing_and_none_is_left_silent() -> None:
+@pytest.mark.parametrize("hue", [pytest.param(None, id="no-hue"), pytest.param("s", id="hue")])
+def test_every_mark_of_a_violin_says_the_same_thing_and_none_is_left_silent(hue: str | None) -> None:
     """The pointer stops at the topmost element under it, so an untitled inner box is a hole in
     the middle of a violin that otherwise responds. Three marks per violin under the default
     ``inner="box"``: body, box, median tick.
 
-    Asserted as "every mark has one, and each violin's are equal" rather than against the
-    number three, so it stays true if a violin grows a fourth mark."""
-    data = {"g": ["a"] * 6 + ["b"] * 6, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]}
-    marks = _marks(violinplot(data, x="g", y="v", tooltip=True).to_string())
+    Parametrized over ``hue=`` because the two paths differ: titling only the body when a hue is
+    given left every test in this file green and only the committed gallery red, and the gallery
+    caught it only because example 5 happens to use ``hue=``.
+
+    Counted against the marks the chart drew rather than against the number three, so it stays
+    true if a violin grows a fourth mark. The legend swatches are excluded by class -- they
+    carry a series class and no tooltip, and filtering on "has a title" instead would drop a
+    silent violin mark the same way."""
+    data = {
+        "g": ["a"] * 6 + ["b"] * 6,
+        "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0],
+        "s": ["l", "r"] * 6,
+    }
+    violins = 2 if hue is None else 4
+    drawn = _marks(violinplot(data, x="g", y="v", hue=hue, tooltip=True).to_string())
+    marks = [(cls, title) for cls, title in drawn if cls.startswith("violin-")]
 
     assert marks, "the fixture stopped drawing anything"
     assert all(title is not None for _, title in marks), "a mark was left without a tooltip"
-    assert len(marks) == 6, "two violins, three marks each"
-    assert len({title for _, title in marks}) == 2, "and one sentence per violin, repeated"
+    assert len(marks) == violins * 3, "three marks each"
+    assert len({title for _, title in marks}) == violins, "and one sentence per violin, repeated"
 
 
 def test_the_quartiles_are_said_even_when_no_box_is_drawn() -> None:
@@ -528,10 +541,15 @@ def test_the_tooltip_cannot_disagree_with_the_box_or_the_median_tick() -> None:
     svg = chart.to_string()
     (box,) = _tags(svg, "rect", "violin-box")
     said = next(title for cls, title in _marks(svg) if cls == "violin-box")
-    # The y domain is the shared KDE grid, not min/max of the data, so it is taken from the
-    # chart rather than recomputed here -- a second copy of that rule is a second thing to go
-    # stale.
-    scale = LinearScale(chart.domains.y, (AREA.bottom, AREA.top))
+    # Both ends come from the chart. The domain is the shared KDE grid rather than min/max of
+    # the data; the plot area is read back from the drawn baseline rather than from ``AREA``,
+    # which is a constant for *this* margin preset -- give the fixture a long category name and
+    # ``fit_rotated_labels`` moves the bottom to 471.93, and the test fails blaming the tooltip
+    # for a margin change.
+    spine_y = [float(line["y1"]) for line in _tags(svg, "line", "spine")] + [
+        float(line["y2"]) for line in _tags(svg, "line", "spine")
+    ]
+    scale = LinearScale(chart.domains.y, (max(spine_y), min(spine_y)))
 
     q1 = float(said.split("Q1 ")[1].split(" ")[0])
     q3 = float(said.split("Q3 ")[1].split(" ")[0])
@@ -551,9 +569,15 @@ def test_a_hued_violin_names_its_group_as_well_as_its_category() -> None:
         "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0],
         "s": ["l", "r"] * 6,
     }
-    said = {title for _, title in _marks(violinplot(data, x="g", y="v", hue="s", tooltip=True).to_string()) if title}
+    # Filtered on the *mark* class rather than on "has a title": the legend swatches carry a
+    # series class and no tooltip, and ``if title`` drops a violin mark that lost its tooltip
+    # in exactly the same way. Titling only the body under ``hue=`` left every test in this
+    # file green and only the committed gallery red.
+    marks = _marks(violinplot(data, x="g", y="v", hue="s", tooltip=True).to_string())
+    said = {title for cls, title in marks if cls.startswith("violin-")}
 
-    assert said, "the fixture stopped drawing violins"
+    assert len(said) == 4, f"two categories x two groups, one sentence each: {said}"
+    assert None not in said, "a violin mark was left without a tooltip"
     assert all(" · s: " in title for title in said)
     assert {title.split(" · ")[1] for title in said} == {"s: l", "s: r"}
 
