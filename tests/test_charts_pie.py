@@ -291,3 +291,92 @@ def test_pieplot_raises_keyerror_for_unknown_theme_preset() -> None:
 def test_pieplot_raises_typeerror_for_bad_theme_type() -> None:
     with pytest.raises(TypeError):
         pieplot(DATA, values="value", labels="label", theme=123)  # type: ignore[arg-type]
+
+
+# --------------------------------------------------------------------------------- tooltips
+
+
+def _slice_titles(svg: str) -> list[str]:
+    """The ``<title>`` that is a slice ``<path>``'s first child, in document order.
+
+    Matched through the mark: the chart's own ``<title>`` is here too, and a value label whose
+    text had to be shortened would carry one.
+    """
+    return re.findall(r'<path\b[^>]*\bclass="series-\d+"[^>]*>\s*<title>([^<]*)</title>', svg)
+
+
+def test_a_slice_says_its_share_and_the_share_of_everything_before_it() -> None:
+    """The running share is in the picture and written nowhere. A pie is read clockwise from
+    twelve o'clock, so where a slice ends is already a statement about the whole -- and the only
+    way to read it off the drawing is to add the slices back up."""
+    data = {"label": ["검색", "추천", "직접", "기타"], "value": [420.0, 310.0, 180.0, 90.0]}
+    svg = pieplot(data, values="value", labels="label", tooltip=True).to_string()
+
+    assert _slice_titles(svg) == [
+        "검색 · value: 420 · 42.0% · 42.0% cumulative",
+        "추천 · value: 310 · 31.0% · 73.0% cumulative",
+        "직접 · value: 180 · 18.0% · 91.0% cumulative",
+        "기타 · value: 90 · 9.0% · 100.0% cumulative",
+    ]
+
+
+def test_the_running_share_follows_the_drawing_order_not_the_sort_order() -> None:
+    """The cumulative number is only meaningful if it counts the slices in the order they are
+    drawn -- it is a reading of where the wedge *ends*, not of anything about the data. So a
+    fixture whose values ascend proves it: sorted descending, the running shares would be
+    50/80/100 instead of 20/50/100."""
+    ascending = {"label": ["a", "b", "c"], "value": [20.0, 30.0, 50.0]}
+    said = _slice_titles(pieplot(ascending, values="value", labels="label", tooltip=True).to_string())
+
+    assert [title.split(" · ")[-1] for title in said] == ["20.0% cumulative", "50.0% cumulative", "100.0% cumulative"]
+
+
+def test_the_last_slice_closes_the_circle() -> None:
+    """Whatever the values, the running share of the final slice is 100% -- it is the same
+    statement as "the wedge ends where the first one started". Values that do not divide evenly
+    are the case that would drift if the number were accumulated from the rounded shares rather
+    than from the values."""
+    thirds = {"label": ["a", "b", "c"], "value": [1.0, 1.0, 1.0]}
+    said = _slice_titles(pieplot(thirds, values="value", labels="label", tooltip=True).to_string())
+
+    assert [title.split(" · ")[2] for title in said] == ["33.3%", "33.3%", "33.3%"]
+    assert said[-1].endswith("100.0% cumulative"), "the shares round to 99.9 but the running share does not"
+
+
+def test_every_slice_gets_exactly_one_tooltip() -> None:
+    svg = pieplot(DATA, values="value", labels="label", tooltip=True).to_string()
+
+    assert len(_slice_titles(svg)) == len(_slice_paths(svg)) == len(DATA["value"])
+
+
+def test_the_value_label_stops_taking_the_pointer_when_the_slices_have_something_to_say() -> None:
+    """A value label sits *on top of* its own slice, so it takes the pointer at the one place
+    the reader aims for. Conditional for ``treemap``'s reason: with tooltips off there is
+    nothing to put in its place."""
+    assert ".pie-value { pointer-events: none; }" in pieplot(DATA, values="value", labels="label", tooltip=True).to_string()
+    assert "pointer-events" not in pieplot(DATA, values="value", labels="label").to_string()
+
+
+def test_the_default_draws_no_tooltip_and_saying_so_changes_nothing() -> None:
+    """What this can check is that ``tooltip=False`` is the same call as not writing it, and
+    that no slice is titled. It is deliberately not named for byte-identity with the version
+    before ``tooltip=`` existed, which it cannot see -- both sides are this branch's code.
+    ``docs/gallery/*.html`` holds those bytes."""
+    omitted = pieplot(DATA, values="value", labels="label").to_string()
+    explicit = pieplot(DATA, values="value", labels="label", tooltip=False).to_string()
+
+    assert omitted == explicit
+    assert _slice_titles(omitted) == []
+
+
+def test_a_label_too_long_to_read_is_left_out_of_the_tooltip() -> None:
+    """The name is written once per slice. Dropped rather than truncated, and the slice still
+    says its value and both shares."""
+    long_name = "면" * 5000
+    data = {"label": [long_name, "b"], "value": [60.0, 40.0]}
+    svg = pieplot(data, values="value", labels="label", tooltip=True).to_string()
+
+    assert _slice_titles(svg) == [
+        "value: 60 · 60.0% · 60.0% cumulative",
+        "b · value: 40 · 40.0% · 100.0% cumulative",
+    ]
