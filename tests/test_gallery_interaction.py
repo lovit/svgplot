@@ -57,6 +57,19 @@ QUARTERS = {
 _BAR = 'sp.barplot(QUARTERS, x="분기", y="매출", hue="채널")'
 _BOX = 'sp.boxplot(QUARTERS, x="분기", y="매출", hue="채널")'
 
+_CLASS_IN_SELECTOR = re.compile(r"\.(series-\d+(?:-[\w-]+)?)\b")
+
+
+def _selected_classes(rules: str) -> set[str]:
+    """Every ``series-*`` class the selectors in ``rules`` actually name.
+
+    A set of whole tokens, because ``f".{name}" in rules`` -- the shape this replaced -- is a
+    prefix match: ``".series-1"`` is inside ``".series-1-marker"``. Both directions of the
+    boxplot check passed on the exact bug they were written against, one naming only
+    ``.series-1-marker`` and one naming ``.series-1-nope``, a class no figure has.
+    """
+    return {match.group(1) for line in rules.splitlines() for match in _CLASS_IN_SELECTOR.finditer(line.split("{")[0])}
+
 
 def _stub(examples: list[tuple[str, str]], interactions: dict[int, str] | None = None, name: str = "stub") -> Page:
     """A gallery page built here rather than committed.
@@ -138,9 +151,11 @@ def test_a_rule_names_every_class_its_series_actually_has() -> None:
     rules = interaction.css(example.controls[0])
 
     assert drawn[1] == ("series-1", "series-1-marker"), "the fixture stopped being the two-class case"
+    named = _selected_classes(rules)
     for classes in drawn.values():
         for name in classes:
-            assert f".{name}" in rules, f"{name} is drawn but no rule dims it"
+            assert name in named, f"{name} is drawn but no rule dims it"
+    assert named <= {name for classes in drawn.values() for name in classes}, "a rule names a class no figure has"
 
 
 def test_a_control_is_named_by_the_legend_even_when_the_legend_shortened_it() -> None:
@@ -195,11 +210,78 @@ def test_one_figure_can_carry_a_toggle_and_hover_at_once() -> None:
     assert interaction.markup(controls[0]) and not interaction.markup(controls[1])
 
 
+def test_the_markup_of_every_kind_reaches_the_page_not_just_the_first() -> None:
+    """``markup`` returns ``""`` for hover, and every page written so far lists ``toggle``
+    first, so the loop over ``example.controls`` could be a loop over ``controls[:1]`` and
+    nothing would notice -- three spellings of that mutation, including reverting the change
+    outright, left this file green. Declaring the kinds the other way round is what makes the
+    second iteration the one that emits anything."""
+    page = _stub([("bars", _BAR)], {1: ("hover", "toggle")})
+    figure = chart_page(page)
+
+    assert [control.kind for control in page.examples[0].controls] == ["hover", "toggle"]
+    assert figure.count('type="checkbox"') == 2, "the toggle came second and its markup was dropped"
+
+
+def test_a_switched_off_series_does_not_answer_the_pointer() -> None:
+    """The two kinds on one figure would otherwise contradict each other. The dim rule carries
+    an id so it wins ``opacity``, but it sets no ``stroke`` -- and the chart's own
+    ``:where(.scope) .series-1`` is (0,1,0) against the hover rule's (0,3,0) -- so pointing at
+    a series the reader switched off drew a dark outline round a ghost.
+
+    Keyed on ``:checked``, the two selectors cannot both match, which is a stronger statement
+    than winning the cascade: there is no state in which a rule for a hidden series applies.
+    """
+    page = _stub([("bars", _BAR)], {1: ("toggle", "hover")})
+    rules = interaction.stylesheet(list(page.examples[0].controls))
+    hover = [line for line in rules.splitlines() if ":hover" in line]
+
+    assert hover, "the fixture stopped emitting hover rules"
+    for line in hover:
+        assert ":checked ~ svg" in line and ":not(:checked)" not in line, line
+
+
+def test_hover_alone_is_not_keyed_on_a_checkbox_that_does_not_exist() -> None:
+    """The other half: a hover-only figure has no ``<input>``, so a ``#id:checked`` prefix would
+    be a selector that never matches and a figure that never responds."""
+    page = _stub([("bars", _BAR)], {1: "hover"})
+    rules = interaction.stylesheet(list(page.examples[0].controls))
+
+    assert ":checked" not in rules
+    assert ":hover" in rules
+
+
 def test_a_single_kind_is_still_a_kind() -> None:
     """A bare string is what fifteen of the sixteen pages will write, so it stays legal."""
     page = _stub([("bars", _BAR)], {1: "toggle"})
 
     assert [control.kind for control in page.examples[0].controls] == ["toggle"]
+
+
+def test_a_list_of_kinds_is_a_sequence_of_kinds_too() -> None:
+    """The declared contract is "a string or a sequence"; narrowing the check to ``tuple`` alone
+    left every test green, because nothing passed a list with a valid kind in it."""
+    page = _stub([("bars", _BAR)], {1: ["toggle", "hover"]})
+
+    assert [control.kind for control in page.examples[0].controls] == ["toggle", "hover"]
+
+
+@pytest.mark.parametrize(
+    ("declared", "message"),
+    [
+        pytest.param((), "write no entry at all", id="empty-tuple"),
+        pytest.param([], "write no entry at all", id="empty-list"),
+        pytest.param(("toggle", "toggle"), "names a kind twice", id="repeated"),
+    ],
+)
+def test_an_entry_that_asks_for_nothing_or_for_the_same_thing_twice_is_refused(declared: object, message: str) -> None:
+    """A figure *listed* in ``INTERACTIONS`` asked for something. An empty sequence read as
+    "nothing" is the silence the ``TypeError`` beside it exists to prevent, and a repeated kind
+    builds a page with two ``<input>`` elements sharing one id -- which
+    :func:`test_every_control_reference_resolves_on_its_own_page` cannot see, because it
+    compares sets."""
+    with pytest.raises(ValueError, match=message):
+        _stub([("bars", _BAR)], {1: declared})  # type: ignore[dict-item]
 
 
 @pytest.mark.parametrize(
@@ -264,9 +346,11 @@ def test_a_hover_rule_names_every_class_its_series_actually_has() -> None:
     rules = interaction.css(example.controls[0])
 
     assert drawn[1] == ("series-1", "series-1-marker"), "the fixture stopped being the two-class case"
+    named = _selected_classes(rules)
     for classes in drawn.values():
         for name in classes:
-            assert f".{name}:hover" in rules, f"{name} is drawn but nothing emphasises it"
+            assert name in named, f"{name} is drawn but nothing emphasises it"
+    assert named <= {name for classes in drawn.values() for name in classes}, "a rule names a class no figure has"
 
 
 def test_a_page_with_only_hover_gets_no_control_chrome() -> None:
@@ -390,6 +474,63 @@ def test_every_control_reference_resolves_on_its_own_page(html: str) -> None:
     assert labelled <= present, f"label for= names {sorted(labelled - present)}, which is not on the page"
     assert keyed <= present, f"a rule is keyed on {sorted(keyed - present)}, which is not on the page"
     assert keyed == labelled, "every control must have both a rule and a label"
+
+
+@pytest.mark.parametrize("html", [pytest.param(html, id=name) for name, html in _PAGES])
+def test_every_rule_reaches_the_figure_it_was_written_for(html: str) -> None:
+    """Resolving the ids is only half of it. A rule can name an id that exists, a combinator
+    that reaches nothing, and a class no figure has, and stay silent in every one of those
+    cases -- the browser applies nothing and the page looks like a page whose author did not
+    ask for controls.
+
+    Watched failing with three separate mutations of the emitter, each of which the id check
+    above and the whole rest of this file passed: scoping a hover rule to ``.{figure}-nope``,
+    changing the toggle's ``~ svg`` to ``~ nosuchtag``, and renaming every target class to one
+    no figure draws.
+    """
+    figures = [ET.fromstring(markup) for markup in re.findall(r"<figure>.*?</figure>", blank_style_bodies(html), re.S)]
+    # The page's own stylesheet, which sits in <head>; each chart's <style> is inside its own
+    # <svg> and scopes itself with :where(), and those rules are not what this is about.
+    page_css = html.split("<figure>", 1)[0]
+    rules = [line for line in page_css.splitlines() if _CLASS_IN_SELECTOR.search(line.split("{")[0]) and "}" in line]
+    if not rules:
+        pytest.skip("this page declares no controls")
+
+    for rule in rules:
+        selector, _ = rule.split("{", 1)
+        wanted = {match.group(1) for match in _CLASS_IN_SELECTOR.finditer(selector)}
+        anchor = re.search(r"#([\w-]+):(?:not\(:checked\)|checked)", selector) or re.search(r"\.(svgplot-[\w-]+)", selector)
+        assert anchor, f"a rule is anchored on nothing: {rule}"
+        # The figure this rule claims: the one holding that <input> id, or the one whose <svg>
+        # carries that scope class.
+        owners = [
+            figure
+            for figure in figures
+            if any(
+                element.get("id") == anchor.group(1) or anchor.group(1) in (element.get("class") or "").split()
+                for element in figure.iter()
+            )
+        ]
+        assert len(owners) == 1, f"{anchor.group(1)} is on {len(owners)} figures: {rule}"
+        drawn = {
+            name for element in owners[0].iter() for name in (element.get("class") or "").split() if name.startswith("series-")
+        }
+        assert wanted <= drawn, f"the rule names {sorted(wanted - drawn)}, which that figure does not draw: {rule}"
+        if walked := re.search(r"~\s+([\w-]+)", selector):
+            tags = [child.tag.split("}")[-1] for child in owners[0]]
+            targets = [index for index, tag in enumerate(tags) if tag == walked.group(1)]
+            inputs = [index for index, tag in enumerate(tags) if tag == "input"]
+            assert targets, f"the rule walks to <{walked.group(1)}>, which is not a child of that figure: {rule}"
+            assert inputs, "the sibling combinator has no <input> to start from"
+            assert min(inputs) < min(targets), f"the <input> must precede <{walked.group(1)}> for ~ to reach it"
+
+
+def test_some_page_actually_has_a_rule_to_check() -> None:
+    """The check above skips a page with no controls, which is most of them. Without this, the
+    day the emitter stops emitting is the day that test reports sixteen skips and no failures."""
+    with_rules = [name for name, html in _PAGES if _CLASS_IN_SELECTOR.search(html.split("<figure>", 1)[0].replace("\n", " "))]
+
+    assert len(with_rules) >= 3, f"only {with_rules} carry page-level series rules"
 
 
 def test_the_index_carries_no_controls() -> None:
