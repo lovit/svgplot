@@ -17,6 +17,12 @@ RESPONSE = {
     ),
     "버전": ["v1"] * 200 + ["v2"] * 200,
 }
+
+# 그룹 크기가 다른 같은 데이터. stat="count" 는 이것을 하나의 y 축에 얹는다.
+UNEVEN = {
+    "ms": RESPONSE["ms"][:200] + RESPONSE["ms"][200:260],
+    "버전": ["v1"] * 200 + ["v2"] * 60,
+}
 """
 
 EXAMPLES = [
@@ -27,9 +33,21 @@ EXAMPLES = [
         'sp.ecdfplot(RESPONSE, x="ms", complementary=True)',
     ),
     ("hue= 는 그룹마다 계단을 하나씩 그린다", 'sp.ecdfplot(RESPONSE, x="ms", hue="버전")'),
+    (
+        'stat="count" 와 hue= 를 함께 주면 그룹들이 하나의 y 축을 나눠 쓴다',
+        'sp.ecdfplot(UNEVEN, x="ms", hue="버전", stat="count")',
+    ),
 ]
 
+INTERACTIONS = {4: "toggle", 5: "toggle"}
+
 NOTES = [
+    "네 번째와 다섯 번째 그림에 체크박스가 붙어 있다. 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.",
+    "이 두 그림이 같은 기제를 쓰지만 값은 다르게 치른다. "
+    'stat="proportion" (네 번째)은 각 계단이 자기 그룹 수로 나뉘므로 하나를 감춰도 남은 계단이 y 를 0에서 1까지 그대로 채운다 — '
+    "감춰도 축이 거짓이 되지 않는 드문 경우다. "
+    'stat="count" (다섯 번째)는 그룹들이 가장 큰 그룹에 맞춘 축을 나눠 쓰므로, v1 을 감추면 200까지 뻗은 축 위에 60까지만 오르는 계단 하나가 남는다. '
+    "그런데도 둘 다 흐리게 한다 — 기제가 페이지마다 다르면 독자가 매번 어느 쪽인지 확인해야 하고, 그 확인은 그림이 아니라 문서를 읽어야 알 수 있다.",
     "정렬과 누적 비율만 쓰므로 stats 모듈을 거치지 않는다. 구간 폭이나 대역폭 같은 고를 것이 없어서 같은 데이터가 언제나 같은 계단을 만든다.",
     'stat 은 "proportion" 또는 "count" 다.',
     'complementary=True 는 꼬리를 읽을 때 쓴다 — "몇 퍼센트가 이 값을 넘는가"가 y 축이 된다.',
