@@ -313,5 +313,8 @@ def _render_value_text(document: SvgDocument, magnitudes: list[float], cx: float
                 "text-anchor": "middle",
                 "dominant-baseline": "middle",
             },
-            classes=["legend-text"],
+            # See ``pie-value`` in charts/pie.py. The dial's numbers sit in the hole at the
+            # centre, over nothing -- but the arcs reach the hole's edge, so the outermost line
+            # of numbers overlaps them.
+            classes=["gauge-value", "legend-text"],
         )
