@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -472,3 +473,54 @@ def test_info_does_not_turn_tooltips_on_by_itself() -> None:
 
     assert svg.count("<title>") == 1, "only the chart's own title belongs in a default render"
     assert 'aria-describedby="svgplot-data-table"' in svg, "the table reference is info='s own doing"
+
+
+def test_a_value_the_spec_cannot_format_leaves_the_chart_buildable() -> None:
+    """Turning tooltips on must not turn a rendering chart into one that cannot be built.
+
+    ``Chart.to_markdown`` documents the failure for an unformattable ``info=`` value as
+    deferred to the moment somebody asks for the table, precisely so that ``info=`` costs
+    nothing at plot time. Reading the spec once per mark put it back at plot time: every
+    fixture in ``test_a_value_the_spec_cannot_format_fails_at_markdown_time`` raised on
+    construction with ``tooltip=True``, while the same call renders without it. The mark falls
+    back to its channels; the table's refusal is untouched.
+    """
+    data = {"day": [1.0, 2.0], "sales": [10.0, 20.0], "n": [float("inf"), 1.0]}
+    spec = [("N", "@n{0.0}")]
+
+    chart = sp.scatterplot(data, x="day", y="sales", info=spec, tooltip=True)
+
+    assert _tooltips(chart) == ["day: 1 · sales: 10", "N: 1.0"], "only the unspellable row falls back"
+    with pytest.raises(ValueError, match="finite"):
+        chart.to_markdown()
+
+
+def test_a_slice_whose_value_cannot_be_formatted_keeps_its_own_words() -> None:
+    """The same for the chart whose fallback is not "its channels" but its name and value."""
+    data = {"region": ["동부", "서부"], "sales": [40.0, 60.0], "n": [float("inf"), 1.0]}
+
+    chart = sp.pieplot(data, values="sales", labels="region", info=[("N", "@n{0.0}")], tooltip=True)
+
+    assert _tooltips(chart) == ["동부 · sales: 40 · 40.0% · 40.0% cumulative", "N: 1.0 · 60.0% · 100.0% cumulative"]
+
+
+def test_a_tooltip_lookup_does_not_cost_more_the_more_marks_there_are() -> None:
+    """``LabelData.row`` is called once per mark, so rebuilding its index each time is
+    quadratic. Measured before the fix: 8,000 points took 1.38s against 0.05s with tooltips
+    off, and 64,000 took 85s where the same lookups cost 7ms. Asserted as a ratio between two
+    sizes rather than as a wall-clock budget, so a slow machine fails it for the right reason.
+    """
+
+    def elapsed(count: int) -> float:
+        data = {
+            "x": [float(i) for i in range(count)],
+            "y": [float(i % 7) for i in range(count)],
+            "m": [f"r{i}" for i in range(count)],
+        }
+        start = time.perf_counter()
+        sp.scatterplot(data, x="x", y="y", info=[("M", "@m")], tooltip=True).to_string()
+        return time.perf_counter() - start
+
+    small, large = elapsed(1000), elapsed(8000)
+
+    assert large < small * 24, f"8x the marks cost {large / small:.1f}x the time — the lookup is not O(1)"

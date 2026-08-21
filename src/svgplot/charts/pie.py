@@ -45,7 +45,7 @@ def _slice_tooltip(
     cumulative: float,
     total: float,
     labels: LabelData | None = None,
-    index: int = 0,
+    index: int,
 ) -> str:
     """What one slice's ``<title>`` says: its name, its value, its share, and the share of
     everything up to and including it.

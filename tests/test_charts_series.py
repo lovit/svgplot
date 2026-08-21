@@ -72,17 +72,20 @@ def test_every_column_survives_the_split_not_just_the_plotted_ones() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_series_items_is_series_rows_with_the_indices_dropped() -> None:
-    """Four of the policies above are asserted through ``series_items``; this is what keeps
-    those assertions true of ``series_rows`` as well.
+def test_series_items_is_a_view_of_series_rows_not_a_second_split() -> None:
+    """Both functions answer with the labels and columns an independent split would give.
 
-    They are one function and a projection of it, not two functions that happen to agree. The
-    ordering in particular is what pairs a series with its palette colour, and a second sort
-    would be a second place for it to change -- with the symptom appearing not in the series
-    but in a tooltip that names another point's row.
+    Written against a stated expectation rather than against ``series_rows`` itself. The first
+    draft compared ``series_items(...)`` with the same comprehension ``series_items`` is
+    *defined* as, which is ``f(x) == f(x)``: reversing the series order, reversing every
+    column and returning row 99 for every row all left it passing. What is worth pinning is
+    not that the projection exists -- the source shows that -- but that the pair really is the
+    split seven charts expect, ordered the way the palette is assigned.
     """
-    for hue in (None, "g"):
-        assert series_items(_ROWS, _ROWS, hue) == [(label, columns) for label, columns, _ in series_rows(_ROWS, _ROWS, hue)]
+    expected = [("a", {"x": [2, 4], "y": [2.0, 4.0], "g": ["a", "a"]}), ("b", {"x": [1, 3], "y": [1.0, 3.0], "g": ["b", "b"]})]
+
+    assert series_items(_ROWS, _ROWS, "g") == expected
+    assert [(label, columns) for label, columns, _ in series_rows(_ROWS, _ROWS, "g")] == expected
 
 
 def test_each_series_knows_which_input_rows_it_holds() -> None:

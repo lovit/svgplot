@@ -119,8 +119,8 @@ STORES = {
     &quot;면적&quot;: [30.0, 45.0, 60.0, 85.0, 120.0, 25.0, 50.0, 70.0, 95.0, 140.0],
     &quot;매출&quot;: [8.0, 14.0, 17.0, 26.0, 31.0, 6.0, 15.0, 21.0, 27.0, 38.0],
     &quot;직원수&quot;: [2.0, 3.0, 4.0, 6.0, 9.0, 2.0, 4.0, 5.0, 7.0, 11.0],
-    &quot;지역&quot;: [&quot;수도권&quot;] * 5 + [&quot;지방&quot;] * 5,
-    &quot;점포&quot;: [&quot;강남&quot;, &quot;분당&quot;, &quot;일산&quot;, &quot;송도&quot;, &quot;판교&quot;, &quot;대전&quot;, &quot;대구&quot;, &quot;광주&quot;, &quot;부산&quot;, &quot;울산&quot;],
+    &quot;지역&quot;: [&quot;수도권&quot;, &quot;지방&quot;, &quot;수도권&quot;, &quot;지방&quot;, &quot;수도권&quot;, &quot;지방&quot;, &quot;수도권&quot;, &quot;지방&quot;, &quot;수도권&quot;, &quot;지방&quot;],
+    &quot;점포&quot;: [&quot;강남&quot;, &quot;대전&quot;, &quot;분당&quot;, &quot;대구&quot;, &quot;일산&quot;, &quot;광주&quot;, &quot;송도&quot;, &quot;부산&quot;, &quot;판교&quot;, &quot;울산&quot;],
 }</code></pre>
     <h2>예시</h2>
     <p class="interaction-note">체크를 끄면 시리즈가 사라지지 않고 흐려진다. 축·눈금·카테고리 밴드는 그릴 때 한 번 정해지고 다시 계산되지 않으므로, 감추면 남은 그림이 자기보다 넓은 축 위에 서게 된다. 흐리게 하는 것은 &quot;이건 지금 보지 말라&quot;는 말이고, 감추는 것은 &quot;이 값은 없다&quot;는 말이다 — 뒤쪽은 사실이 아니다.</p>
@@ -235,14 +235,14 @@ STORES = {
   <line x1="56" y1="78.75" x2="60" y2="78.75" class="tick-line" />
   <text x="54" y="82.75" text-anchor="end" class="tick-label">35</text>
   <circle cx="85.217391" cy="517.5" r="5" class="series-1 scatter-point" />
-  <circle cx="160.869565" cy="420" r="5" class="series-1 scatter-point" />
   <circle cx="236.521739" cy="371.25" r="5" class="series-1 scatter-point" />
-  <circle cx="362.608696" cy="225" r="5" class="series-1 scatter-point" />
   <circle cx="539.130435" cy="143.75" r="5" class="series-1 scatter-point" />
+  <circle cx="186.086957" cy="403.75" r="5" class="series-1 scatter-point" />
+  <circle cx="413.043478" cy="208.75" r="5" class="series-1 scatter-point" />
+  <circle cx="160.869565" cy="420" r="5" class="series-2 scatter-point" />
+  <circle cx="362.608696" cy="225" r="5" class="series-2 scatter-point" />
   <circle cx="60" cy="550" r="5" class="series-2 scatter-point" />
-  <circle cx="186.086957" cy="403.75" r="5" class="series-2 scatter-point" />
   <circle cx="286.956522" cy="306.25" r="5" class="series-2 scatter-point" />
-  <circle cx="413.043478" cy="208.75" r="5" class="series-2 scatter-point" />
   <circle cx="640" cy="30" r="5" class="series-2 scatter-point" />
   <rect x="660" y="25" width="16" height="10" class="series-1" />
   <text x="682" y="34" class="legend-text">수도권</text>
@@ -376,29 +376,29 @@ STORES = {
   <circle cx="85.217391" cy="517.5" r="2.5" class="series-1 scatter-point">
     <title>면적: 30 · 매출: 8 · 직원수: 2 · 지역: 수도권</title>
   </circle>
-  <circle cx="160.869565" cy="420" r="3.611111" class="series-1 scatter-point">
-    <title>면적: 45 · 매출: 14 · 직원수: 3 · 지역: 수도권</title>
-  </circle>
   <circle cx="236.521739" cy="371.25" r="4.722222" class="series-1 scatter-point">
     <title>면적: 60 · 매출: 17 · 직원수: 4 · 지역: 수도권</title>
-  </circle>
-  <circle cx="362.608696" cy="225" r="6.944444" class="series-1 scatter-point">
-    <title>면적: 85 · 매출: 26 · 직원수: 6 · 지역: 수도권</title>
   </circle>
   <circle cx="539.130435" cy="143.75" r="10.277778" class="series-1 scatter-point">
     <title>면적: 120 · 매출: 31 · 직원수: 9 · 지역: 수도권</title>
   </circle>
+  <circle cx="186.086957" cy="403.75" r="4.722222" class="series-1 scatter-point">
+    <title>면적: 50 · 매출: 15 · 직원수: 4 · 지역: 수도권</title>
+  </circle>
+  <circle cx="413.043478" cy="208.75" r="8.055556" class="series-1 scatter-point">
+    <title>면적: 95 · 매출: 27 · 직원수: 7 · 지역: 수도권</title>
+  </circle>
+  <circle cx="160.869565" cy="420" r="3.611111" class="series-2 scatter-point">
+    <title>면적: 45 · 매출: 14 · 직원수: 3 · 지역: 지방</title>
+  </circle>
+  <circle cx="362.608696" cy="225" r="6.944444" class="series-2 scatter-point">
+    <title>면적: 85 · 매출: 26 · 직원수: 6 · 지역: 지방</title>
+  </circle>
   <circle cx="60" cy="550" r="2.5" class="series-2 scatter-point">
     <title>면적: 25 · 매출: 6 · 직원수: 2 · 지역: 지방</title>
   </circle>
-  <circle cx="186.086957" cy="403.75" r="4.722222" class="series-2 scatter-point">
-    <title>면적: 50 · 매출: 15 · 직원수: 4 · 지역: 지방</title>
-  </circle>
   <circle cx="286.956522" cy="306.25" r="5.833333" class="series-2 scatter-point">
     <title>면적: 70 · 매출: 21 · 직원수: 5 · 지역: 지방</title>
-  </circle>
-  <circle cx="413.043478" cy="208.75" r="8.055556" class="series-2 scatter-point">
-    <title>면적: 95 · 매출: 27 · 직원수: 7 · 지역: 지방</title>
   </circle>
   <circle cx="640" cy="30" r="12.5" class="series-2 scatter-point">
     <title>면적: 140 · 매출: 38 · 직원수: 11 · 지역: 지방</title>
@@ -471,29 +471,29 @@ STORES = {
   <circle cx="85.217391" cy="517.5" r="5" class="series-1 scatter-point">
     <title>점포: 강남 · 면적(㎡): 30 · 매출(억): 8.0</title>
   </circle>
-  <circle cx="160.869565" cy="420" r="5" class="series-1 scatter-point">
-    <title>점포: 분당 · 면적(㎡): 45 · 매출(억): 14.0</title>
-  </circle>
   <circle cx="236.521739" cy="371.25" r="5" class="series-1 scatter-point">
-    <title>점포: 일산 · 면적(㎡): 60 · 매출(억): 17.0</title>
-  </circle>
-  <circle cx="362.608696" cy="225" r="5" class="series-1 scatter-point">
-    <title>점포: 송도 · 면적(㎡): 85 · 매출(억): 26.0</title>
+    <title>점포: 분당 · 면적(㎡): 60 · 매출(억): 17.0</title>
   </circle>
   <circle cx="539.130435" cy="143.75" r="5" class="series-1 scatter-point">
-    <title>점포: 판교 · 면적(㎡): 120 · 매출(억): 31.0</title>
+    <title>점포: 일산 · 면적(㎡): 120 · 매출(억): 31.0</title>
+  </circle>
+  <circle cx="186.086957" cy="403.75" r="5" class="series-1 scatter-point">
+    <title>점포: 송도 · 면적(㎡): 50 · 매출(억): 15.0</title>
+  </circle>
+  <circle cx="413.043478" cy="208.75" r="5" class="series-1 scatter-point">
+    <title>점포: 판교 · 면적(㎡): 95 · 매출(억): 27.0</title>
+  </circle>
+  <circle cx="160.869565" cy="420" r="5" class="series-2 scatter-point">
+    <title>점포: 대전 · 면적(㎡): 45 · 매출(억): 14.0</title>
+  </circle>
+  <circle cx="362.608696" cy="225" r="5" class="series-2 scatter-point">
+    <title>점포: 대구 · 면적(㎡): 85 · 매출(억): 26.0</title>
   </circle>
   <circle cx="60" cy="550" r="5" class="series-2 scatter-point">
-    <title>점포: 대전 · 면적(㎡): 25 · 매출(억): 6.0</title>
-  </circle>
-  <circle cx="186.086957" cy="403.75" r="5" class="series-2 scatter-point">
-    <title>점포: 대구 · 면적(㎡): 50 · 매출(억): 15.0</title>
+    <title>점포: 광주 · 면적(㎡): 25 · 매출(억): 6.0</title>
   </circle>
   <circle cx="286.956522" cy="306.25" r="5" class="series-2 scatter-point">
-    <title>점포: 광주 · 면적(㎡): 70 · 매출(억): 21.0</title>
-  </circle>
-  <circle cx="413.043478" cy="208.75" r="5" class="series-2 scatter-point">
-    <title>점포: 부산 · 면적(㎡): 95 · 매출(억): 27.0</title>
+    <title>점포: 부산 · 면적(㎡): 70 · 매출(억): 21.0</title>
   </circle>
   <circle cx="640" cy="30" r="5" class="series-2 scatter-point">
     <title>점포: 울산 · 면적(㎡): 140 · 매출(억): 38.0</title>
@@ -513,7 +513,7 @@ STORES = {
   <title>info= 선언 하나가 각주 표와 툴팁을 함께 채운다</title>
   <desc>Scatter plot, 2 series (수도권, 지방) over 10 points, x 25 to 140, y 6 to 38.</desc>
 </svg>
-      <table id="svgplot-scatterplot-5-table"><thead><tr><th>점포</th><th>면적(㎡)</th><th>매출(억)</th></tr></thead><tbody><tr><td>강남</td><td>30</td><td>8.0</td></tr><tr><td>분당</td><td>45</td><td>14.0</td></tr><tr><td>일산</td><td>60</td><td>17.0</td></tr><tr><td>송도</td><td>85</td><td>26.0</td></tr><tr><td>판교</td><td>120</td><td>31.0</td></tr><tr><td>대전</td><td>25</td><td>6.0</td></tr><tr><td>대구</td><td>50</td><td>15.0</td></tr><tr><td>광주</td><td>70</td><td>21.0</td></tr><tr><td>부산</td><td>95</td><td>27.0</td></tr><tr><td>울산</td><td>140</td><td>38.0</td></tr></tbody></table>
+      <table id="svgplot-scatterplot-5-table"><thead><tr><th>점포</th><th>면적(㎡)</th><th>매출(억)</th></tr></thead><tbody><tr><td>강남</td><td>30</td><td>8.0</td></tr><tr><td>대전</td><td>45</td><td>14.0</td></tr><tr><td>분당</td><td>60</td><td>17.0</td></tr><tr><td>대구</td><td>85</td><td>26.0</td></tr><tr><td>일산</td><td>120</td><td>31.0</td></tr><tr><td>광주</td><td>25</td><td>6.0</td></tr><tr><td>송도</td><td>50</td><td>15.0</td></tr><tr><td>부산</td><td>70</td><td>21.0</td></tr><tr><td>판교</td><td>95</td><td>27.0</td></tr><tr><td>울산</td><td>140</td><td>38.0</td></tr></tbody></table>
     </figure>
     <pre><code>sp.scatterplot(
     STORES,
@@ -580,7 +580,7 @@ sp.scatterplot(LATENCY, x=&quot;요청수&quot;, y=&quot;지연ms&quot;, xscale=
       <li>tooltip=True 는 점마다 &lt;title&gt; 을 붙인다. 브라우저가 그걸 마우스오버 툴팁으로 띄우고, 같은 것이 그 점의 접근 가능한 이름이 된다 — 점 무더기 하나가 아니라 이름이 있는 마크 여러 개가 된다. &lt;img&gt; 로 넣은 SVG 에서는 동작하지 않는다: 그건 별개 문서라 브라우저가 상호작용 없이 그린다.</li>
       <li>tooltip=False 가 기본이다. 마크마다 &lt;title&gt; 은 마크마다 요소이므로 점 1000개짜리 차트는 요소 1000개가 늘고, 기존 사용자의 출력 바이트가 요청하지 않은 기능 때문에 전부 바뀐다. 꺼두면 파일은 예전 그대로다.</li>
       <li>다섯 번째 그림에서 info= 는 한 번만 적혔는데 각주 표와 툴팁을 둘 다 채운다. 점에 마우스를 올리면 표의 그 행이 그대로, 적어둔 열 이름 그대로 떠오른다.</li>
-      <li>짝은 마크 순번이 아니라 원본 행 번호로 맞춘다. hue= 가 있으면 점은 시리즈 순서로 나오고 표는 입력 순서를 지키므로 둘의 순서가 다르다 — 순번으로 세면 모든 점이 남의 행을 말하게 되는데, 그건 남의 진짜 데이터라 틀린 티가 나지 않는다.</li>
+      <li>짝은 마크 순번이 아니라 원본 행 번호로 맞춘다. 이 페이지의 데이터는 지역이 번갈아 들어 있어서 그 차이가 실제로 보인다 — 표는 강남·대전·분당… 입력 순서 그대로인데 툴팁은 수도권 다섯 개가 먼저 나오고 지방 다섯 개가 뒤따른다. 순번으로 세면 모든 점이 남의 행을 말하게 되는데, 그건 남의 진짜 데이터라 틀린 티가 나지 않는다.</li>
       <li>info= 만 주면 표만 생기고 툴팁은 생기지 않는다. tooltip=True 가 없으면 마크에는 &lt;title&gt; 이 하나도 붙지 않는다.</li>
       <li>hue= 와 size= 를 함께 주면 범례가 둘 쌓인다. 캔버스가 그 높이를 감당하지 못하면 잘라 그리는 대신 거부한다.</li>
       <li>size= 의 반지름은 theme.marker_size 의 0.5배에서 2.5배 사이로 매핑된다. 값이 하나뿐이면 전부 기본 크기가 된다.</li>

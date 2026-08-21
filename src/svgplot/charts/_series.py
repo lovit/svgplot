@@ -28,8 +28,10 @@ def series_items(data: object, columns: dict[str, list], hue: str | None) -> Ser
     """The ``(label, columns)`` pairs a chart should draw, one per series.
 
     ``columns`` is the chart's already-ingested long-form data, used as the single series when
-    there is no ``hue=``. ``data`` is the caller's original, because ``extract_channels`` does
-    its own ingestion and grouping.
+    there is no ``hue=``. ``data`` is the caller's original, because the grouping in
+    :func:`series_rows` does its own ingestion -- ``columns`` holds only the channels the
+    chart plots, and a series has to carry every column so ``info=`` can still read one the
+    chart never drew.
 
     Ordered by ``str(label)`` rather than by the values themselves. The labels of one column
     can be a mix of types that do not compare -- ``sorted`` would raise ``TypeError`` on
