@@ -53,10 +53,11 @@ TOGGLE = "toggle"
 HOVER = "hover"
 """Emphasise the mark under the pointer. No markup at all -- rules only, nothing to operate.
 
-One rule per series, the same as a toggle; what it does not have is an ``<input>``. It needs no
-name, so unlike :data:`TOGGLE` it works on a chart with no legend -- ``boxplot`` without
-``hue=`` draws three series and emits no legend for them, and this is the kind that can still
-be pointed at.
+One rule per series -- a toggle emits two, one to dim the marks and one to strike through the
+label, and this has no label to strike. It needs no name either, so unlike :data:`TOGGLE` it
+works on a chart with no legend: ``boxplot`` without ``hue=`` draws one series per category
+(four categories, four series) and emits no legend for any of them, and that is a chart whose
+marks can still be pointed at.
 
 What it does *not* do is say anything: it is an affordance telling the reader "this one", and
 the value it points at has to come from the mark's own ``<title>``.
