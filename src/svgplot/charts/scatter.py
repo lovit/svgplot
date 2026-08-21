@@ -22,7 +22,6 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
-    format_value_label,
     new_canvas,
     resolve_axis_scale,
     resolve_size,
@@ -32,7 +31,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend, require_room, size_legend_ink_height
 from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
-from svgplot.charts._tooltip import add_tooltip
+from svgplot.charts._tooltip import add_tooltip, format_label, format_number, has_visible_text
 from svgplot.data._missing import numeric_or_none
 from svgplot.data.ingest import ingest_longform
 from svgplot.labels._source import collect_label_data
@@ -147,20 +146,40 @@ def _size_clause(size: str | None) -> str | None:
     return f'marker size from "{size}"' if fits(size) else "marker size from another column"
 
 
+def _clause(name: str, value: str) -> str:
+    """``"name: value"``, or the value alone when the name is not worth repeating.
+
+    Column names are caller strings, and here one of them is repeated **once per point** --
+    an unreadably long name would be the largest thing in the file. Dropped rather than
+    truncated, for ``_size_clause``'s reason: half a column name is a different column name.
+    ``has_visible_text`` for the same job in the other direction -- a name of one tab is
+    short enough to fit and still reads as ``"\t: 45"``.
+    """
+    return f"{name}: {value}" if fits(name) and has_visible_text(name) else value
+
+
 def _point_tooltip(*, x: str, y: str, size: str | None, hue: str | None, row: tuple, label: object) -> str:
     """What one point's ``<title>`` says: its own values, named by the columns they came from.
 
-    Column names go through :func:`fits` for the reason ``_size_clause`` does -- they are
-    caller strings, and here one of them is repeated once per point, so an unreadably long
-    name would be the largest thing in the file. A name that does not fit is dropped rather
-    than truncated: half a column name is a different column name.
+    **Everything here is bounded, and that is the whole design constraint.** Each clause is
+    written once per point, so anything unbounded is multiplied by the number of marks: before
+    the label went through :func:`format_label`, a 100,000-character hue value took a
+    1,000-point chart from 185 KB to 50 MB. The numbers are bounded by
+    :func:`format_number`, because a ``<title>`` is the mark's *accessible name* and ``1e308``
+    spelled as a decimal literal is 309 digits read out one at a time.
+
+    The clauses are joined with ``" · "``, which a label containing that sequence can imitate
+    -- ``"a · b"`` as a group name reads as two clauses. Escaping it would make the common case
+    unreadable to buy an unambiguous parse nobody performs; the tooltip is prose for a person,
+    not a record.
     """
-    parts = [f"{x}: {format_value_label(row[0])}" if fits(x) else format_value_label(row[0])]
-    parts.append(f"{y}: {format_value_label(row[1])}" if fits(y) else format_value_label(row[1]))
-    if size is not None and row[2] is not None:
-        parts.append(f"{size}: {format_value_label(row[2])}" if fits(size) else format_value_label(row[2]))
-    if hue is not None and label is not None:
-        parts.append(f"{hue}: {label}" if fits(hue) else str(label))
+    parts = [_clause(x, format_number(row[0])), _clause(y, format_number(row[1]))]
+    if size is not None:
+        # ``row[2]`` cannot be None here: the row loop drops any row with a missing size when
+        # ``size=`` was given, so surviving rows always carry one.
+        parts.append(_clause(size, format_number(row[2])))
+    if hue is not None and (shown := format_label(label)) is not None:
+        parts.append(_clause(hue, shown))
     return " · ".join(parts)
 
 
