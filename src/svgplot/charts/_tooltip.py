@@ -113,9 +113,10 @@ def format_number(value: float) -> str:
     So when the literal is longer than Python's own shortest round-trip ``repr``, the ``repr``
     wins -- which is only ever the case when the literal is expanding scientific notation back
     into digits. **Neither branch rounds.** An earlier version capped the length and fell back
-    to ``%g``, which is six significant figures: measured over 10,000 uniform samples, 91% of
-    ordinary values came out rewritten -- ``13.436424411240122`` became ``13.4364``. A tooltip
-    that quietly rewrites the value it names is worse than a long one.
+    to ``%g``, which is six significant figures. Measured over
+    ``[random.Random(1).uniform(0, 100) for _ in range(10_000)]``, **9,095 of them (91%)** came
+    out rewritten -- ``13.436424411240122`` became ``13.4364``. A tooltip that quietly rewrites
+    the value it names is worse than a long one.
     """
     literal = format_value_label(value)
     exact = repr(float(value))
