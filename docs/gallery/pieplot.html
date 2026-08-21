@@ -266,8 +266,63 @@ BUDGET = {
       <table id="svgplot-pieplot-4-table"><thead><tr><th>항목</th><th>금액</th></tr></thead><tbody><tr><td>인건비</td><td>4,200</td></tr><tr><td>임대료</td><td>1,800</td></tr><tr><td>마케팅</td><td>1,500</td></tr><tr><td>장비</td><td>900</td></tr><tr><td>기타</td><td>600</td></tr></tbody></table>
     </figure>
     <pre><code>sp.pieplot(BUDGET, values=&quot;금액&quot;, labels=&quot;항목&quot;, info=[(&quot;항목&quot;, &quot;@항목&quot;), (&quot;금액&quot;, &quot;@금액{0,0}&quot;)])</code></pre>
+    <h3>tooltip=True — 조각마다 자기 비율과 *거기까지의 누적 비율*을 말한다</h3>
+    <figure>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-pieplot-5" role="img" aria-label="tooltip=True — 조각마다 자기 비율과 *거기까지의 누적 비율*을 말한다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <path d="M 325,300 L 325,30 A 270,270 0 0 1 381.136157,564.099852 Z" class="series-1">
+    <title>인건비 · 금액: 4200 · 46.7% · 46.7% cumulative</title>
+  </path>
+  <text x="499.538593" y="281.655255" text-anchor="middle" class="pie-value legend-text">4200</text>
+  <path d="M 325,300 L 381.136157,564.099852 A 270,270 0 0 1 91.173141,435 Z" class="series-2">
+    <title>임대료 · 금액: 1800 · 20.0% · 66.7% cumulative</title>
+  </path>
+  <text x="253.617719" y="460.327228" text-anchor="middle" class="pie-value legend-text">1800</text>
+  <path d="M 325,300 L 91.173141,435 A 270,270 0 0 1 91.173141,165 Z" class="series-3">
+    <title>마케팅 · 금액: 1500 · 16.7% · 83.3% cumulative</title>
+  </path>
+  <text x="149.5" y="300" text-anchor="middle" class="pie-value legend-text">1500</text>
+  <path d="M 325,300 L 91.173141,165 A 270,270 0 0 1 215.181106,53.342726 Z" class="series-4">
+    <title>장비 · 금액: 900 · 10.0% · 93.3% cumulative</title>
+  </path>
+  <text x="207.567579" y="169.578083" text-anchor="middle" class="pie-value legend-text">900</text>
+  <path d="M 325,300 L 215.181106,53.342726 A 270,270 0 0 1 325,30 Z" class="series-5">
+    <title>기타 · 금액: 600 · 6.7% · 100.0% cumulative</title>
+  </path>
+  <text x="288.511498" y="128.335096" text-anchor="middle" class="pie-value legend-text">600</text>
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">인건비</text>
+  <rect x="640" y="45" width="16" height="10" class="series-2" />
+  <text x="662" y="54" class="legend-text">임대료</text>
+  <rect x="640" y="65" width="16" height="10" class="series-3" />
+  <text x="662" y="74" class="legend-text">마케팅</text>
+  <rect x="640" y="85" width="16" height="10" class="series-4" />
+  <text x="662" y="94" class="legend-text">장비</text>
+  <rect x="640" y="105" width="16" height="10" class="series-5" />
+  <text x="662" y="114" class="legend-text">기타</text>
+  <style>:where(.svgplot-pieplot-5) .plot-background { fill: #ffffff; }
+:where(.svgplot-pieplot-5) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-pieplot-5) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-pieplot-5) .tick-line { stroke: #333333; }
+:where(.svgplot-pieplot-5) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-pieplot-5) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-pieplot-5) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-5) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-5) .series-3 { fill: #009E73; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-5) .series-4 { fill: #F0E442; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-5) .series-5 { fill: #0072B2; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-5) .pie-value { pointer-events: none; }</style>
+  <title>tooltip=True — 조각마다 자기 비율과 *거기까지의 누적 비율*을 말한다</title>
+  <desc>Pie chart, 5 slices (인건비, 임대료, 마케팅, 장비, 기타), values 600 to 4200, total 9000.</desc>
+</svg>
+    </figure>
+    <pre><code>sp.pieplot(BUDGET, values=&quot;금액&quot;, labels=&quot;항목&quot;, tooltip=True)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
+      <li>다섯 번째 그림에는 체크박스가 없다. 조각 하나가 행 하나라서 토글은 범례가 아니라 데이터 편집이 된다.</li>
+      <li>누적 비율이 그림 안에 있으면서 어디에도 안 적혀 있는 것이다. 파이는 12시에서 시계방향으로 읽으므로 조각이 *끝나는 자리*가 이미 전체에 대한 진술이다 — &quot;이 넷을 합치면 대부분&quot; 은 파이에 가장 자주 묻는 질문인데, 눈으로 답하려면 조각을 다시 더해야 한다. 차트는 조각마다 값을 가운데 적고 범례는 이름을 붙이지만, 둘 다 독자가 어디까지 돌았는지는 말하지 않는다.</li>
+      <li>누적은 반올림한 비율이 아니라 값에서 누적한다. 1/1/1 은 비율이 33.3% 셋이라 더하면 99.9% 지만 마지막 조각의 누적은 100.0% 다 — 그 수가 뜻하는 것은 &quot;쐐기가 첫 조각이 시작한 자리에서 끝난다&quot; 이기 때문이다.</li>
+      <li>tooltip=True 일 때만 값 라벨이 pointer-events: none 을 받는다. 라벨은 자기 조각 *위*에 있어서 독자가 겨냥하는 바로 그 자리에서 포인터를 가져간다. tooltip=False 에서는 조각에 놓을 것이 없어서 조건부다.</li>
       <li>음수와 비유한 값을 라벨명을 대고 거부하고, 합이 0 이면 거부한다. 각도로 나눌 전체가 없기 때문이다.</li>
       <li>inner_radius 는 [0, 1) 안의 값이다 — 바깥 반지름에 대한 비율이고, 1 이면 조각이 사라진다.</li>
       <li>항상 범례를 그린다. 조각 안에 이름을 넣지 않는 이유는 좁은 조각에 글자가 들어가지 않기 때문이다.</li>
