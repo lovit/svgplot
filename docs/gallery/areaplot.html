@@ -87,6 +87,29 @@
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+      /* Controls sit inside the figure element, before the chart, as its direct children:
+         the sibling combinator in the generated rules depends on that, and a wrapper would
+         quietly break every one of them. Left as native checkboxes -- a real control is
+         reachable with Tab and operated with Space without anything here arranging it. */
+      figure > .series-toggle { margin: 0 0.3rem 0.75rem 0; vertical-align: -0.1em; }
+      figure > .series-toggle + label { margin-right: 1.1rem; font-size: 0.9rem; color: var(--muted); }
+      .interaction-note { margin: 0 0 1.75rem; color: var(--muted); font-size: 0.9rem; }
+      /* svgplot-areaplot-2 · toggle */
+      #svgplot-areaplot-2-toggle-1:not(:checked) ~ svg :is(.series-1) { opacity: 0.15; pointer-events: none; }
+      #svgplot-areaplot-2-toggle-1:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      #svgplot-areaplot-2-toggle-2:not(:checked) ~ svg :is(.series-2) { opacity: 0.15; pointer-events: none; }
+      #svgplot-areaplot-2-toggle-2:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      /* svgplot-areaplot-2 · hover */
+      #svgplot-areaplot-2-toggle-1:checked ~ svg :is(.series-1:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
+      #svgplot-areaplot-2-toggle-2:checked ~ svg :is(.series-2:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
+      /* svgplot-areaplot-3 · toggle */
+      #svgplot-areaplot-3-toggle-1:not(:checked) ~ svg :is(.series-1) { opacity: 0.15; pointer-events: none; }
+      #svgplot-areaplot-3-toggle-1:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      #svgplot-areaplot-3-toggle-2:not(:checked) ~ svg :is(.series-2) { opacity: 0.15; pointer-events: none; }
+      #svgplot-areaplot-3-toggle-2:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      /* svgplot-areaplot-3 · hover */
+      #svgplot-areaplot-3-toggle-1:checked ~ svg :is(.series-1:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
+      #svgplot-areaplot-3-toggle-2:checked ~ svg :is(.series-2:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
     </style>
   </head>
   <body>
@@ -106,6 +129,7 @@ TRAFFIC = {
     &quot;유입&quot;: [&quot;검색&quot;] * 6 + [&quot;추천&quot;] * 6,
 }</code></pre>
     <h2>예시</h2>
+    <p class="interaction-note">체크를 끄면 시리즈가 사라지지 않고 흐려진다. 축·눈금·카테고리 밴드는 그릴 때 한 번 정해지고 다시 계산되지 않으므로, 감추면 남은 그림이 자기보다 넓은 축 위에 서게 된다. 흐리게 하는 것은 &quot;이건 지금 보지 말라&quot;는 말이고, 감추는 것은 &quot;이 값은 없다&quot;는 말이다 — 뒤쪽은 사실이 아니다.</p>
     <h3>기본</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-areaplot-1" role="img" aria-label="기본">
@@ -167,6 +191,10 @@ TRAFFIC = {
 sp.areaplot(ONE_SERIES, x=&quot;주차&quot;, y=&quot;방문&quot;)</code></pre>
     <h3>hue= 는 시리즈를 겹쳐 그린다</h3>
     <figure>
+      <input type="checkbox" class="series-toggle" id="svgplot-areaplot-2-toggle-1" checked="checked" />
+      <label for="svgplot-areaplot-2-toggle-1">검색</label>
+      <input type="checkbox" class="series-toggle" id="svgplot-areaplot-2-toggle-2" checked="checked" />
+      <label for="svgplot-areaplot-2-toggle-2">추천</label>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-areaplot-2" role="img" aria-label="hue= 는 시리즈를 겹쳐 그린다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
@@ -231,6 +259,10 @@ sp.areaplot(ONE_SERIES, x=&quot;주차&quot;, y=&quot;방문&quot;)</code></pre>
     <pre><code>sp.areaplot(TRAFFIC, x=&quot;주차&quot;, y=&quot;방문&quot;, hue=&quot;유입&quot;)</code></pre>
     <h3>stacked=True 는 쌓아서 합계를 보이게 한다</h3>
     <figure>
+      <input type="checkbox" class="series-toggle" id="svgplot-areaplot-3-toggle-1" checked="checked" />
+      <label for="svgplot-areaplot-3-toggle-1">검색</label>
+      <input type="checkbox" class="series-toggle" id="svgplot-areaplot-3-toggle-2" checked="checked" />
+      <label for="svgplot-areaplot-3-toggle-2">추천</label>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-areaplot-3" role="img" aria-label="stacked=True 는 쌓아서 합계를 보이게 한다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
@@ -342,6 +374,10 @@ sp.areaplot(ONE_SERIES, x=&quot;주차&quot;, y=&quot;방문&quot;)</code></pre>
 sp.areaplot(SIZES, x=&quot;바이트&quot;, y=&quot;누적&quot;, xscale=&quot;log&quot;)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
+      <li>두 번째와 세 번째 그림에 체크박스와 마우스오버 강조가 붙어 있다. 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.</li>
+      <li>세 번째(누적)에서 한 층을 꺼도 나머지가 자리를 안 옮긴다. 옮길 수가 없다 — path 의 좌표는 그릴 때 한 번 박히고, 위층의 아래쪽 경계선이 곧 아래층의 위쪽 경계선이다. 그래서 감추면 위층이 내려앉는 게 아니라 그 자리에 그대로 뜬 채로 밑에 빈 띠가 생기고, 남은 그림은 자기보다 넓은 축 위에 서게 된다. 면적 차트에서 그게 특히 잘 보이는 이유는 값이 높이가 아니라 넓이여서, 축이 남긴 빈 자리가 곧 값처럼 읽히기 때문이다.</li>
+      <li>체크를 끈 시리즈는 포인터의 길에서 아예 빠진다. 두 가지가 함께 필요했다 — 강조 규칙을 :checked 에 걸어 두 규칙이 서로 배타적이게 하고(안 그러면 꺼둔 시리즈에 커서를 올렸을 때 흐린 채로 테두리만 진해진다), 흐리게 하는 규칙에 pointer-events: none 을 넣는 것이다. opacity 는 요소를 히트 테스트에서 빼주지 않는다. 두 번째(겹쳐 그리기) 그림이 그 차이를 만든다 — series-2 의 면적이 series-1 안에 통째로 들어 있어서, series-2 를 꺼도 그게 포인터를 계속 삼키면 켜져 있는 series-1 이 그 아래 어디서도 반응하지 못한다.</li>
+      <li>두 번째(겹쳐 그리기)에서 겹친 자리에 커서를 올리면 항상 위에 있는 것 하나만 강조된다. 문서 순서상 나중에 그려진 쪽이고, opacity 로 비쳐 보이는 아래쪽에는 포인터가 닿지 않는다 — 겹쳐 그린 그림이 원래 그렇다.</li>
       <li>yscale= 이 없다. 채워진 면적이 곧 값이고 그것은 0에서 재는데, 로그 축에는 잴 0이 없어 채움이 임의의 자리에서 시작하고 면적이 무엇에도 비례하지 않게 된다.</li>
       <li>x 에 date/datetime 을 받지 않는다. 시간축이 필요하면 lineplot 을 쓴다.</li>
       <li>같은 x 를 가진 행이 여럿이면 기본적으로 합산된다. estimator= 로 mean·median 등 다른 접기를 고를 수 있다.</li>
