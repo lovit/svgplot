@@ -23,9 +23,20 @@ sp.barplot(ONE_ROW, x="분기", y="매출")""",
     ("hue= 는 밴드를 그룹 수만큼 나눠 나란히 놓는다", 'sp.barplot(QUARTERS, x="분기", y="매출", hue="채널")'),
     ("stacked=True 는 같은 자리에 쌓는다", 'sp.barplot(QUARTERS, x="분기", y="매출", hue="채널", stacked=True)'),
     ('orient="h" 는 카테고리를 왼쪽 축으로 보낸다', 'sp.barplot(QUARTERS, x="분기", y="매출", hue="채널", orient="h")'),
+    (
+        "tooltip=True — 막대마다 자기 카테고리와 값을 말한다",
+        'sp.barplot(QUARTERS, x="분기", y="매출", hue="채널", stacked=True, tooltip=True)',
+    ),
 ]
 
+INTERACTIONS = {2: "toggle", 3: "toggle"}
+
 NOTES = [
+    "두 번째와 세 번째 그림에 체크박스가 붙어 있다. 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.",
+    "세 번째(누적)가 이 갤러리에서 흐리게 하는 쪽을 고른 이유를 가장 잘 보여준다. 한 층을 꺼도 막대의 전체 높이가 그대로 있다 — "
+    "감췄다면 남은 층이 아래로 내려앉아 일어나지 않은 재배치를 주장했을 것이다.",
+    "tooltip=True 는 막대마다 <title> 을 붙인다. 값은 그 막대 자신의 것이다 — 누적이면 그 층의 값이지 누계가 아니고, "
+    "estimator= 가 여러 행을 접었으면 접힌 값이다. 막대의 마크는 집계이므로 뒤에 있는 행들을 말하면 그려지지 않은 것을 말하는 셈이 된다.",
     "음수 값을 거부한다.",
     "같은 카테고리에 행이 여럿이고 estimator= 를 주지 않으면 마지막 행이 이기고, 몇 행을 버렸는지 AggregationWarning 이 알린다. "
     'estimator="mean"/"median"/"sum" 또는 그룹의 값을 행 순서대로 받는 callable 로 접는 방법을 고를 수 있다.',
