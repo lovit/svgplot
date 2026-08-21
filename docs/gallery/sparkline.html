@@ -54,14 +54,15 @@
       pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
       pre code { font-size: 0.84rem; line-height: 1.55; }
       code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
-         CSS does not reach inside it. That isolation is the point: two charts on one page
-         both define .series-1 with opposite rules, and inlining them would let the later
-         one restyle the earlier. */
+      /* Each chart is inlined into this page. An SVG's <style> is not scoped to the SVG --
+         it applies to the whole document -- so two charts here would both define .series-1
+         with opposite rules and the later one would repaint the earlier. Every chart is
+         emitted under its own scope class (Chart.set_scope) and every rule sits under it,
+         which is what makes inlining safe. The trade-offs of each embedding route are in
+         ../tutorial/. */
       figure { margin: 0 0 1rem; }
-      figure img {
+      figure > svg {
         display: block;
-        width: 100%;
         max-width: 100%;
         height: auto;
         background: var(--figure-bg);
@@ -72,7 +73,7 @@
       ul.notes li { margin-bottom: 0.3rem; }
       ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
       ul.index a { display: block; text-decoration: none; color: inherit; }
-      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index svg { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
@@ -94,17 +95,56 @@ DIPPING = {&quot;오류&quot;: [4.0, 6.0, 5.0, 9.0, 14.0, 11.0, 7.0, 5.0, 3.0, 2
     <h2>예시</h2>
     <h3>기본 — 120x24</h3>
     <figure>
-      <img src="svg/sparkline-1.svg" alt="기본 — 120x24" />
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="24" viewBox="0 0 120 24" class="svgplot-sparkline-1" role="img" aria-label="기본 — 120x24">
+  <rect x="0" y="0" width="120" height="24" class="plot-background" />
+  <path d="M 2,22 L 14.888889,19.12 L 27.777778,20.24 L 40.666667,14.8 L 53.555556,17.36 L 66.444444,12.08 L 79.333333,8.56 L 92.222222,10.64 L 105.111111,5.04 L 118,2" class="series-1" />
+  <style>:where(.svgplot-sparkline-1) .plot-background { fill: #ffffff; }
+:where(.svgplot-sparkline-1) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-sparkline-1) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-sparkline-1) .tick-line { stroke: #333333; }
+:where(.svgplot-sparkline-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-sparkline-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-sparkline-1) .series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-sparkline-1) .series-1-marker { fill: #E69F00; stroke: none; }</style>
+  <title>기본 — 120x24</title>
+  <desc>Sparkline, 10 points, values 120 to 245.</desc>
+</svg>
     </figure>
     <pre><code>sp.sparkline(WEEKLY, y=&quot;방문&quot;)</code></pre>
     <h3>같은 크기에 다른 모양</h3>
     <figure>
-      <img src="svg/sparkline-2.svg" alt="같은 크기에 다른 모양" />
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="24" viewBox="0 0 120 24" class="svgplot-sparkline-2" role="img" aria-label="같은 크기에 다른 모양">
+  <rect x="0" y="0" width="120" height="24" class="plot-background" />
+  <path d="M 2,18.666667 L 14.888889,15.333333 L 27.777778,17 L 40.666667,10.333333 L 53.555556,2 L 66.444444,7 L 79.333333,13.666667 L 92.222222,17 L 105.111111,20.333333 L 118,22" class="series-1" />
+  <style>:where(.svgplot-sparkline-2) .plot-background { fill: #ffffff; }
+:where(.svgplot-sparkline-2) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-sparkline-2) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-sparkline-2) .tick-line { stroke: #333333; }
+:where(.svgplot-sparkline-2) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-sparkline-2) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-sparkline-2) .series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-sparkline-2) .series-1-marker { fill: #E69F00; stroke: none; }</style>
+  <title>같은 크기에 다른 모양</title>
+  <desc>Sparkline, 10 points, values 2 to 14.</desc>
+</svg>
     </figure>
     <pre><code>sp.sparkline(DIPPING, y=&quot;오류&quot;)</code></pre>
     <h3>width=/height= 로 크기를 바꾼다 — 여기서는 표의 셀에 맞춘 폭</h3>
     <figure>
-      <img src="svg/sparkline-3.svg" alt="width=/height= 로 크기를 바꾼다 — 여기서는 표의 셀에 맞춘 폭" />
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="32" viewBox="0 0 200 32" class="svgplot-sparkline-3" role="img" aria-label="width=/height= 로 크기를 바꾼다 — 여기서는 표의 셀에 맞춘 폭">
+  <rect x="0" y="0" width="200" height="32" class="plot-background" />
+  <path d="M 2,30 L 23.777778,25.968 L 45.555556,27.536 L 67.333333,19.92 L 89.111111,23.504 L 110.888889,16.112 L 132.666667,11.184 L 154.444444,14.096 L 176.222222,6.256 L 198,2" class="series-1" />
+  <style>:where(.svgplot-sparkline-3) .plot-background { fill: #ffffff; }
+:where(.svgplot-sparkline-3) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-sparkline-3) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-sparkline-3) .tick-line { stroke: #333333; }
+:where(.svgplot-sparkline-3) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-sparkline-3) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-sparkline-3) .series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-sparkline-3) .series-1-marker { fill: #E69F00; stroke: none; }</style>
+  <title>width=/height= 로 크기를 바꾼다 — 여기서는 표의 셀에 맞춘 폭</title>
+  <desc>Sparkline, 10 points, values 120 to 245.</desc>
+</svg>
     </figure>
     <pre><code>sp.sparkline(WEEKLY, y=&quot;방문&quot;, width=200.0, height=32.0)</code></pre>
     <h2>메모</h2>

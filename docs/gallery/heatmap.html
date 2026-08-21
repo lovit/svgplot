@@ -54,14 +54,15 @@
       pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
       pre code { font-size: 0.84rem; line-height: 1.55; }
       code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
-         CSS does not reach inside it. That isolation is the point: two charts on one page
-         both define .series-1 with opposite rules, and inlining them would let the later
-         one restyle the earlier. */
+      /* Each chart is inlined into this page. An SVG's <style> is not scoped to the SVG --
+         it applies to the whole document -- so two charts here would both define .series-1
+         with opposite rules and the later one would repaint the earlier. Every chart is
+         emitted under its own scope class (Chart.set_scope) and every rule sits under it,
+         which is what makes inlining safe. The trade-offs of each embedding route are in
+         ../tutorial/. */
       figure { margin: 0 0 1rem; }
-      figure img {
+      figure > svg {
         display: block;
-        width: 100%;
         max-width: 100%;
         height: auto;
         background: var(--figure-bg);
@@ -72,7 +73,7 @@
       ul.notes li { margin-bottom: 0.3rem; }
       ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
       ul.index a { display: block; text-decoration: none; color: inherit; }
-      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index svg { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
@@ -104,17 +105,301 @@ TRAFFIC = {
     <h2>예시</h2>
     <h3>기본 — sequential 컬러맵</h3>
     <figure>
-      <img src="svg/heatmap-1.svg" alt="기본 — sequential 컬러맵" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-1" role="img" aria-label="기본 — sequential 컬러맵">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="640" y2="550" class="spine" />
+  <line x1="118" y1="30" x2="118" y2="550" class="grid-line" />
+  <line x1="118" y1="550" x2="118" y2="554" class="tick-line" />
+  <text x="118" y="572" text-anchor="middle" class="tick-label">09시</text>
+  <line x1="234" y1="30" x2="234" y2="550" class="grid-line" />
+  <line x1="234" y1="550" x2="234" y2="554" class="tick-line" />
+  <text x="234" y="572" text-anchor="middle" class="tick-label">12시</text>
+  <line x1="350" y1="30" x2="350" y2="550" class="grid-line" />
+  <line x1="350" y1="550" x2="350" y2="554" class="tick-line" />
+  <text x="350" y="572" text-anchor="middle" class="tick-label">15시</text>
+  <line x1="466" y1="30" x2="466" y2="550" class="grid-line" />
+  <line x1="466" y1="550" x2="466" y2="554" class="tick-line" />
+  <text x="466" y="572" text-anchor="middle" class="tick-label">18시</text>
+  <line x1="582" y1="30" x2="582" y2="550" class="grid-line" />
+  <line x1="582" y1="550" x2="582" y2="554" class="tick-line" />
+  <text x="582" y="572" text-anchor="middle" class="tick-label">21시</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="116.666667" x2="640" y2="116.666667" class="grid-line" />
+  <line x1="56" y1="116.666667" x2="60" y2="116.666667" class="tick-line" />
+  <text x="54" y="120.666667" text-anchor="end" class="tick-label">월</text>
+  <line x1="60" y1="290" x2="640" y2="290" class="grid-line" />
+  <line x1="56" y1="290" x2="60" y2="290" class="tick-line" />
+  <text x="54" y="294" text-anchor="end" class="tick-label">수</text>
+  <line x1="60" y1="463.333333" x2="640" y2="463.333333" class="grid-line" />
+  <line x1="56" y1="463.333333" x2="60" y2="463.333333" class="tick-line" />
+  <text x="54" y="467.333333" text-anchor="end" class="tick-label">금</text>
+  <rect x="60" y="30" width="116" height="173.333333" class="level-1 heatmap-cell" />
+  <rect x="60" y="203.333333" width="116" height="173.333333" class="level-1 heatmap-cell" />
+  <rect x="60" y="376.666667" width="116" height="173.333333" class="level-2 heatmap-cell" />
+  <rect x="176" y="30" width="116" height="173.333333" class="level-5 heatmap-cell" />
+  <rect x="176" y="203.333333" width="116" height="173.333333" class="level-6 heatmap-cell" />
+  <rect x="176" y="376.666667" width="116" height="173.333333" class="level-7 heatmap-cell" />
+  <rect x="292" y="30" width="116" height="173.333333" class="level-3 heatmap-cell" />
+  <rect x="292" y="203.333333" width="116" height="173.333333" class="level-4 heatmap-cell" />
+  <rect x="292" y="376.666667" width="116" height="173.333333" class="level-5 heatmap-cell" />
+  <rect x="408" y="30" width="116" height="173.333333" class="level-7 heatmap-cell" />
+  <rect x="408" y="203.333333" width="116" height="173.333333" class="level-6 heatmap-cell" />
+  <rect x="408" y="376.666667" width="116" height="173.333333" class="level-9 heatmap-cell" />
+  <rect x="524" y="30" width="116" height="173.333333" class="level-5 heatmap-cell" />
+  <rect x="524" y="203.333333" width="116" height="173.333333" class="level-4 heatmap-cell" />
+  <rect x="524" y="376.666667" width="116" height="173.333333" class="level-8 heatmap-cell" />
+  <rect x="660" y="25" width="16" height="10" class="level-1" />
+  <text x="682" y="34" class="legend-text">12</text>
+  <rect x="660" y="45" width="16" height="10" class="level-2" />
+  <text x="682" y="54" class="legend-text">19.777778</text>
+  <rect x="660" y="65" width="16" height="10" class="level-3" />
+  <text x="682" y="74" class="legend-text">27.555556</text>
+  <rect x="660" y="85" width="16" height="10" class="level-4" />
+  <text x="682" y="94" class="legend-text">35.333333</text>
+  <rect x="660" y="105" width="16" height="10" class="level-5" />
+  <text x="682" y="114" class="legend-text">43.111111</text>
+  <rect x="660" y="125" width="16" height="10" class="level-6" />
+  <text x="682" y="134" class="legend-text">50.888889</text>
+  <rect x="660" y="145" width="16" height="10" class="level-7" />
+  <text x="682" y="154" class="legend-text">58.666667</text>
+  <rect x="660" y="165" width="16" height="10" class="level-8" />
+  <text x="682" y="174" class="legend-text">66.444444</text>
+  <rect x="660" y="185" width="16" height="10" class="level-9" />
+  <text x="682" y="194" class="legend-text">74.222222</text>
+  <style>:where(.svgplot-heatmap-1) .plot-background { fill: #ffffff; }
+:where(.svgplot-heatmap-1) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-heatmap-1) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-heatmap-1) .tick-line { stroke: #333333; }
+:where(.svgplot-heatmap-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-heatmap-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-heatmap-1) .level-1 { fill: #e7f2fe; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-1) .level-2 { fill: #c1defc; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-1) .level-3 { fill: #9bcafa; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-1) .level-4 { fill: #74b5f8; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-1) .level-5 { fill: #4ea1f6; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-1) .level-6 { fill: #288df4; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-1) .level-7 { fill: #0c79e8; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-1) .level-8 { fill: #0a65c2; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-1) .level-9 { fill: #08519c; stroke: none; opacity: 1; }</style>
+  <title>기본 — sequential 컬러맵</title>
+  <desc>Heatmap, 5 columns (09시, 12시, 15시, 18시, 21시), 3 rows (월, 수, 금), 15 of 15 cells filled, values 12 to 82, quantised into 9 levels.</desc>
+</svg>
     </figure>
     <pre><code>sp.heatmap(TRAFFIC, x=&quot;시간&quot;, y=&quot;요일&quot;, values=&quot;요청&quot;)</code></pre>
     <h3>annot=True 는 셀 안에 값을 쓴다</h3>
     <figure>
-      <img src="svg/heatmap-2.svg" alt="annot=True 는 셀 안에 값을 쓴다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-2" role="img" aria-label="annot=True 는 셀 안에 값을 쓴다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="640" y2="550" class="spine" />
+  <line x1="118" y1="30" x2="118" y2="550" class="grid-line" />
+  <line x1="118" y1="550" x2="118" y2="554" class="tick-line" />
+  <text x="118" y="572" text-anchor="middle" class="tick-label">09시</text>
+  <line x1="234" y1="30" x2="234" y2="550" class="grid-line" />
+  <line x1="234" y1="550" x2="234" y2="554" class="tick-line" />
+  <text x="234" y="572" text-anchor="middle" class="tick-label">12시</text>
+  <line x1="350" y1="30" x2="350" y2="550" class="grid-line" />
+  <line x1="350" y1="550" x2="350" y2="554" class="tick-line" />
+  <text x="350" y="572" text-anchor="middle" class="tick-label">15시</text>
+  <line x1="466" y1="30" x2="466" y2="550" class="grid-line" />
+  <line x1="466" y1="550" x2="466" y2="554" class="tick-line" />
+  <text x="466" y="572" text-anchor="middle" class="tick-label">18시</text>
+  <line x1="582" y1="30" x2="582" y2="550" class="grid-line" />
+  <line x1="582" y1="550" x2="582" y2="554" class="tick-line" />
+  <text x="582" y="572" text-anchor="middle" class="tick-label">21시</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="116.666667" x2="640" y2="116.666667" class="grid-line" />
+  <line x1="56" y1="116.666667" x2="60" y2="116.666667" class="tick-line" />
+  <text x="54" y="120.666667" text-anchor="end" class="tick-label">월</text>
+  <line x1="60" y1="290" x2="640" y2="290" class="grid-line" />
+  <line x1="56" y1="290" x2="60" y2="290" class="tick-line" />
+  <text x="54" y="294" text-anchor="end" class="tick-label">수</text>
+  <line x1="60" y1="463.333333" x2="640" y2="463.333333" class="grid-line" />
+  <line x1="56" y1="463.333333" x2="60" y2="463.333333" class="tick-line" />
+  <text x="54" y="467.333333" text-anchor="end" class="tick-label">금</text>
+  <rect x="60" y="30" width="116" height="173.333333" class="level-1 heatmap-cell" />
+  <text x="118" y="116.666667" text-anchor="middle" dominant-baseline="middle" class="level-1-annotation tick-label heatmap-annotation">12</text>
+  <rect x="60" y="203.333333" width="116" height="173.333333" class="level-1 heatmap-cell" />
+  <text x="118" y="290" text-anchor="middle" dominant-baseline="middle" class="level-1-annotation tick-label heatmap-annotation">18</text>
+  <rect x="60" y="376.666667" width="116" height="173.333333" class="level-2 heatmap-cell" />
+  <text x="118" y="463.333333" text-anchor="middle" dominant-baseline="middle" class="level-2-annotation tick-label heatmap-annotation">22</text>
+  <rect x="176" y="30" width="116" height="173.333333" class="level-5 heatmap-cell" />
+  <text x="234" y="116.666667" text-anchor="middle" dominant-baseline="middle" class="level-5-annotation tick-label heatmap-annotation">48</text>
+  <rect x="176" y="203.333333" width="116" height="173.333333" class="level-6 heatmap-cell" />
+  <text x="234" y="290" text-anchor="middle" dominant-baseline="middle" class="level-6-annotation tick-label heatmap-annotation">52</text>
+  <rect x="176" y="376.666667" width="116" height="173.333333" class="level-7 heatmap-cell" />
+  <text x="234" y="463.333333" text-anchor="middle" dominant-baseline="middle" class="level-7-annotation tick-label heatmap-annotation">66</text>
+  <rect x="292" y="30" width="116" height="173.333333" class="level-3 heatmap-cell" />
+  <text x="350" y="116.666667" text-anchor="middle" dominant-baseline="middle" class="level-3-annotation tick-label heatmap-annotation">35</text>
+  <rect x="292" y="203.333333" width="116" height="173.333333" class="level-4 heatmap-cell" />
+  <text x="350" y="290" text-anchor="middle" dominant-baseline="middle" class="level-4-annotation tick-label heatmap-annotation">41</text>
+  <rect x="292" y="376.666667" width="116" height="173.333333" class="level-5 heatmap-cell" />
+  <text x="350" y="463.333333" text-anchor="middle" dominant-baseline="middle" class="level-5-annotation tick-label heatmap-annotation">47</text>
+  <rect x="408" y="30" width="116" height="173.333333" class="level-7 heatmap-cell" />
+  <text x="466" y="116.666667" text-anchor="middle" dominant-baseline="middle" class="level-7-annotation tick-label heatmap-annotation">61</text>
+  <rect x="408" y="203.333333" width="116" height="173.333333" class="level-6 heatmap-cell" />
+  <text x="466" y="290" text-anchor="middle" dominant-baseline="middle" class="level-6-annotation tick-label heatmap-annotation">58</text>
+  <rect x="408" y="376.666667" width="116" height="173.333333" class="level-9 heatmap-cell" />
+  <text x="466" y="463.333333" text-anchor="middle" dominant-baseline="middle" class="level-9-annotation tick-label heatmap-annotation">82</text>
+  <rect x="524" y="30" width="116" height="173.333333" class="level-5 heatmap-cell" />
+  <text x="582" y="116.666667" text-anchor="middle" dominant-baseline="middle" class="level-5-annotation tick-label heatmap-annotation">44</text>
+  <rect x="524" y="203.333333" width="116" height="173.333333" class="level-4 heatmap-cell" />
+  <text x="582" y="290" text-anchor="middle" dominant-baseline="middle" class="level-4-annotation tick-label heatmap-annotation">39</text>
+  <rect x="524" y="376.666667" width="116" height="173.333333" class="level-8 heatmap-cell" />
+  <text x="582" y="463.333333" text-anchor="middle" dominant-baseline="middle" class="level-8-annotation tick-label heatmap-annotation">71</text>
+  <rect x="660" y="25" width="16" height="10" class="level-1" />
+  <text x="682" y="34" class="legend-text">12</text>
+  <rect x="660" y="45" width="16" height="10" class="level-2" />
+  <text x="682" y="54" class="legend-text">19.777778</text>
+  <rect x="660" y="65" width="16" height="10" class="level-3" />
+  <text x="682" y="74" class="legend-text">27.555556</text>
+  <rect x="660" y="85" width="16" height="10" class="level-4" />
+  <text x="682" y="94" class="legend-text">35.333333</text>
+  <rect x="660" y="105" width="16" height="10" class="level-5" />
+  <text x="682" y="114" class="legend-text">43.111111</text>
+  <rect x="660" y="125" width="16" height="10" class="level-6" />
+  <text x="682" y="134" class="legend-text">50.888889</text>
+  <rect x="660" y="145" width="16" height="10" class="level-7" />
+  <text x="682" y="154" class="legend-text">58.666667</text>
+  <rect x="660" y="165" width="16" height="10" class="level-8" />
+  <text x="682" y="174" class="legend-text">66.444444</text>
+  <rect x="660" y="185" width="16" height="10" class="level-9" />
+  <text x="682" y="194" class="legend-text">74.222222</text>
+  <style>:where(.svgplot-heatmap-2) .plot-background { fill: #ffffff; }
+:where(.svgplot-heatmap-2) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-heatmap-2) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-heatmap-2) .tick-line { stroke: #333333; }
+:where(.svgplot-heatmap-2) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-heatmap-2) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-heatmap-2) .level-1 { fill: #e7f2fe; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-2) .level-2 { fill: #c1defc; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-2) .level-3 { fill: #9bcafa; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-2) .level-4 { fill: #74b5f8; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-2) .level-5 { fill: #4ea1f6; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-2) .level-6 { fill: #288df4; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-2) .level-7 { fill: #0c79e8; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-2) .level-8 { fill: #0a65c2; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-2) .level-9 { fill: #08519c; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-2) .level-1-annotation { fill: #000000; }
+:where(.svgplot-heatmap-2) .level-2-annotation { fill: #000000; }
+:where(.svgplot-heatmap-2) .level-3-annotation { fill: #000000; }
+:where(.svgplot-heatmap-2) .level-4-annotation { fill: #000000; }
+:where(.svgplot-heatmap-2) .level-5-annotation { fill: #000000; }
+:where(.svgplot-heatmap-2) .level-6-annotation { fill: #000000; }
+:where(.svgplot-heatmap-2) .level-7-annotation { fill: #000000; }
+:where(.svgplot-heatmap-2) .level-8-annotation { fill: #ffffff; }
+:where(.svgplot-heatmap-2) .level-9-annotation { fill: #ffffff; }</style>
+  <title>annot=True 는 셀 안에 값을 쓴다</title>
+  <desc>Heatmap, 5 columns (09시, 12시, 15시, 18시, 21시), 3 rows (월, 수, 금), 15 of 15 cells filled, values 12 to 82, quantised into 9 levels.</desc>
+</svg>
     </figure>
     <pre><code>sp.heatmap(TRAFFIC, x=&quot;시간&quot;, y=&quot;요일&quot;, values=&quot;요청&quot;, annot=True)</code></pre>
     <h3>center= 는 발산 컬러맵과 함께 준다 — 가운데 단계가 그 값을 뜻하게 된다</h3>
     <figure>
-      <img src="svg/heatmap-3.svg" alt="center= 는 발산 컬러맵과 함께 준다 — 가운데 단계가 그 값을 뜻하게 된다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-3" role="img" aria-label="center= 는 발산 컬러맵과 함께 준다 — 가운데 단계가 그 값을 뜻하게 된다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="640" y2="550" class="spine" />
+  <line x1="118" y1="30" x2="118" y2="550" class="grid-line" />
+  <line x1="118" y1="550" x2="118" y2="554" class="tick-line" />
+  <text x="118" y="572" text-anchor="middle" class="tick-label">09시</text>
+  <line x1="234" y1="30" x2="234" y2="550" class="grid-line" />
+  <line x1="234" y1="550" x2="234" y2="554" class="tick-line" />
+  <text x="234" y="572" text-anchor="middle" class="tick-label">12시</text>
+  <line x1="350" y1="30" x2="350" y2="550" class="grid-line" />
+  <line x1="350" y1="550" x2="350" y2="554" class="tick-line" />
+  <text x="350" y="572" text-anchor="middle" class="tick-label">15시</text>
+  <line x1="466" y1="30" x2="466" y2="550" class="grid-line" />
+  <line x1="466" y1="550" x2="466" y2="554" class="tick-line" />
+  <text x="466" y="572" text-anchor="middle" class="tick-label">18시</text>
+  <line x1="582" y1="30" x2="582" y2="550" class="grid-line" />
+  <line x1="582" y1="550" x2="582" y2="554" class="tick-line" />
+  <text x="582" y="572" text-anchor="middle" class="tick-label">21시</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="116.666667" x2="640" y2="116.666667" class="grid-line" />
+  <line x1="56" y1="116.666667" x2="60" y2="116.666667" class="tick-line" />
+  <text x="54" y="120.666667" text-anchor="end" class="tick-label">월</text>
+  <line x1="60" y1="290" x2="640" y2="290" class="grid-line" />
+  <line x1="56" y1="290" x2="60" y2="290" class="tick-line" />
+  <text x="54" y="294" text-anchor="end" class="tick-label">수</text>
+  <line x1="60" y1="463.333333" x2="640" y2="463.333333" class="grid-line" />
+  <line x1="56" y1="463.333333" x2="60" y2="463.333333" class="tick-line" />
+  <text x="54" y="467.333333" text-anchor="end" class="tick-label">금</text>
+  <rect x="60" y="30" width="116" height="173.333333" class="level-1 heatmap-cell" />
+  <text x="118" y="116.666667" text-anchor="middle" dominant-baseline="middle" class="level-1-annotation tick-label heatmap-annotation">-33</text>
+  <rect x="60" y="203.333333" width="116" height="173.333333" class="level-1 heatmap-cell" />
+  <text x="118" y="290" text-anchor="middle" dominant-baseline="middle" class="level-1-annotation tick-label heatmap-annotation">-27</text>
+  <rect x="60" y="376.666667" width="116" height="173.333333" class="level-2 heatmap-cell" />
+  <text x="118" y="463.333333" text-anchor="middle" dominant-baseline="middle" class="level-2-annotation tick-label heatmap-annotation">-23</text>
+  <rect x="176" y="30" width="116" height="173.333333" class="level-5 heatmap-cell" />
+  <text x="234" y="116.666667" text-anchor="middle" dominant-baseline="middle" class="level-5-annotation tick-label heatmap-annotation">3</text>
+  <rect x="176" y="203.333333" width="116" height="173.333333" class="level-6 heatmap-cell" />
+  <text x="234" y="290" text-anchor="middle" dominant-baseline="middle" class="level-6-annotation tick-label heatmap-annotation">7</text>
+  <rect x="176" y="376.666667" width="116" height="173.333333" class="level-8 heatmap-cell" />
+  <text x="234" y="463.333333" text-anchor="middle" dominant-baseline="middle" class="level-8-annotation tick-label heatmap-annotation">21</text>
+  <rect x="292" y="30" width="116" height="173.333333" class="level-4 heatmap-cell" />
+  <text x="350" y="116.666667" text-anchor="middle" dominant-baseline="middle" class="level-4-annotation tick-label heatmap-annotation">-10</text>
+  <rect x="292" y="203.333333" width="116" height="173.333333" class="level-4 heatmap-cell" />
+  <text x="350" y="290" text-anchor="middle" dominant-baseline="middle" class="level-4-annotation tick-label heatmap-annotation">-4</text>
+  <rect x="292" y="376.666667" width="116" height="173.333333" class="level-5 heatmap-cell" />
+  <text x="350" y="463.333333" text-anchor="middle" dominant-baseline="middle" class="level-5-annotation tick-label heatmap-annotation">2</text>
+  <rect x="408" y="30" width="116" height="173.333333" class="level-7 heatmap-cell" />
+  <text x="466" y="116.666667" text-anchor="middle" dominant-baseline="middle" class="level-7-annotation tick-label heatmap-annotation">16</text>
+  <rect x="408" y="203.333333" width="116" height="173.333333" class="level-7 heatmap-cell" />
+  <text x="466" y="290" text-anchor="middle" dominant-baseline="middle" class="level-7-annotation tick-label heatmap-annotation">13</text>
+  <rect x="408" y="376.666667" width="116" height="173.333333" class="level-9 heatmap-cell" />
+  <text x="466" y="463.333333" text-anchor="middle" dominant-baseline="middle" class="level-9-annotation tick-label heatmap-annotation">37</text>
+  <rect x="524" y="30" width="116" height="173.333333" class="level-5 heatmap-cell" />
+  <text x="582" y="116.666667" text-anchor="middle" dominant-baseline="middle" class="level-5-annotation tick-label heatmap-annotation">-1</text>
+  <rect x="524" y="203.333333" width="116" height="173.333333" class="level-4 heatmap-cell" />
+  <text x="582" y="290" text-anchor="middle" dominant-baseline="middle" class="level-4-annotation tick-label heatmap-annotation">-6</text>
+  <rect x="524" y="376.666667" width="116" height="173.333333" class="level-8 heatmap-cell" />
+  <text x="582" y="463.333333" text-anchor="middle" dominant-baseline="middle" class="level-8-annotation tick-label heatmap-annotation">26</text>
+  <rect x="660" y="25" width="16" height="10" class="level-1" />
+  <text x="682" y="34" class="legend-text">-33</text>
+  <rect x="660" y="45" width="16" height="10" class="level-2" />
+  <text x="682" y="54" class="legend-text">-25.666667<title>-25.666667</title>
+  </text>
+  <rect x="660" y="65" width="16" height="10" class="level-3" />
+  <text x="682" y="74" class="legend-text">-18.333333<title>-18.333333</title>
+  </text>
+  <rect x="660" y="85" width="16" height="10" class="level-4" />
+  <text x="682" y="94" class="legend-text">-11</text>
+  <rect x="660" y="105" width="16" height="10" class="level-5" />
+  <text x="682" y="114" class="legend-text">-3.666667</text>
+  <rect x="660" y="125" width="16" height="10" class="level-6" />
+  <text x="682" y="134" class="legend-text">4.111111</text>
+  <rect x="660" y="145" width="16" height="10" class="level-7" />
+  <text x="682" y="154" class="legend-text">12.333333</text>
+  <rect x="660" y="165" width="16" height="10" class="level-8" />
+  <text x="682" y="174" class="legend-text">20.555556</text>
+  <rect x="660" y="185" width="16" height="10" class="level-9" />
+  <text x="682" y="194" class="legend-text">28.777778</text>
+  <style>:where(.svgplot-heatmap-3) .plot-background { fill: #ffffff; }
+:where(.svgplot-heatmap-3) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-heatmap-3) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-heatmap-3) .tick-line { stroke: #333333; }
+:where(.svgplot-heatmap-3) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-heatmap-3) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-heatmap-3) .level-1 { fill: #0072b2; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-3) .level-2 { fill: #3e93c3; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-3) .level-3 { fill: #7cb4d4; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-3) .level-4 { fill: #b9d6e6; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-3) .level-5 { fill: #f7f7f7; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-3) .level-6 { fill: #eed1b9; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-3) .level-7 { fill: #e6ab7c; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-3) .level-8 { fill: #de843e; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-3) .level-9 { fill: #d55e00; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-3) .level-1-annotation { fill: #ffffff; }
+:where(.svgplot-heatmap-3) .level-2-annotation { fill: #000000; }
+:where(.svgplot-heatmap-3) .level-3-annotation { fill: #000000; }
+:where(.svgplot-heatmap-3) .level-4-annotation { fill: #000000; }
+:where(.svgplot-heatmap-3) .level-5-annotation { fill: #000000; }
+:where(.svgplot-heatmap-3) .level-6-annotation { fill: #000000; }
+:where(.svgplot-heatmap-3) .level-7-annotation { fill: #000000; }
+:where(.svgplot-heatmap-3) .level-8-annotation { fill: #000000; }
+:where(.svgplot-heatmap-3) .level-9-annotation { fill: #000000; }</style>
+  <title>center= 는 발산 컬러맵과 함께 준다 — 가운데 단계가 그 값을 뜻하게 된다</title>
+  <desc>Heatmap, 5 columns (09시, 12시, 15시, 18시, 21시), 3 rows (월, 수, 금), 15 of 15 cells filled, values -33 to 37, quantised into 9 levels.</desc>
+</svg>
     </figure>
     <pre><code>DIFF = {
     &quot;시간&quot;: TRAFFIC[&quot;시간&quot;],

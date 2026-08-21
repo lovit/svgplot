@@ -64,14 +64,15 @@ STYLE = """\
       pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
       pre code { font-size: 0.84rem; line-height: 1.55; }
       code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
-         CSS does not reach inside it. That isolation is the point: two charts on one page
-         both define .series-1 with opposite rules, and inlining them would let the later
-         one restyle the earlier. */
+      /* Each chart is inlined into this page. An SVG's <style> is not scoped to the SVG --
+         it applies to the whole document -- so two charts here would both define .series-1
+         with opposite rules and the later one would repaint the earlier. Every chart is
+         emitted under its own scope class (Chart.set_scope) and every rule sits under it,
+         which is what makes inlining safe. The trade-offs of each embedding route are in
+         ../tutorial/. */
       figure { margin: 0 0 1rem; }
-      figure img {
+      figure > svg {
         display: block;
-        width: 100%;
         max-width: 100%;
         height: auto;
         background: var(--figure-bg);
@@ -82,7 +83,7 @@ STYLE = """\
       ul.notes li { margin-bottom: 0.3rem; }
       ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
       ul.index a { display: block; text-decoration: none; color: inherit; }
-      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index svg { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
@@ -122,11 +123,15 @@ def chart_page(page: Page) -> str:
         f"    <pre><code>{escape(page.setup)}</code></pre>\n",
         "    <h2>예시</h2>\n",
     ]
-    for index, example in enumerate(page.examples, start=1):
+    for example in page.examples:
         parts += [
             f"    <h3>{escape(example.caption)}</h3>\n",
             "    <figure>\n",
-            f'      <img src="svg/{page.name}-{index}.svg" alt="{escape(example.caption)}" />\n',
+            # The SVG goes in as the serializer produced it. Re-indenting to match the
+            # surrounding HTML would put spaces inside the <style> element's text, which is
+            # real content -- prettier markup at the cost of changing what the file says.
+            example.svg,
+            *([f"      {example.table}\n"] if example.table else []),
             "    </figure>\n",
             f"    <pre><code>{escape(example.code)}</code></pre>\n",
         ]
@@ -155,7 +160,12 @@ def index_page(pages: list[Page]) -> str:
         parts += [
             "      <li>\n",
             f'        <a href="{page.name}.html">\n',
-            f'          <img src="svg/{page.name}-1.svg" alt="{escape(page.title)}" />\n',
+            # aria-hidden because the thumbnail is decoration here: the chart carries its
+            # caption as an accessible name, and without this the link would be announced as
+            # that whole sentence followed by the title it is actually named by.
+            '          <span class="thumb" aria-hidden="true">\n',
+            page.examples[0].svg,
+            "          </span>\n",
             f"          <strong>{escape(page.title)}</strong>\n",
             f"          <span>{escape(page.summary)}</span>\n",
             "        </a>\n      </li>\n",

@@ -54,14 +54,15 @@
       pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
       pre code { font-size: 0.84rem; line-height: 1.55; }
       code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
-         CSS does not reach inside it. That isolation is the point: two charts on one page
-         both define .series-1 with opposite rules, and inlining them would let the later
-         one restyle the earlier. */
+      /* Each chart is inlined into this page. An SVG's <style> is not scoped to the SVG --
+         it applies to the whole document -- so two charts here would both define .series-1
+         with opposite rules and the later one would repaint the earlier. Every chart is
+         emitted under its own scope class (Chart.set_scope) and every rule sits under it,
+         which is what makes inlining safe. The trade-offs of each embedding route are in
+         ../tutorial/. */
       figure { margin: 0 0 1rem; }
-      figure img {
+      figure > svg {
         display: block;
-        width: 100%;
         max-width: 100%;
         height: auto;
         background: var(--figure-bg);
@@ -72,7 +73,7 @@
       ul.notes li { margin-bottom: 0.3rem; }
       ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
       ul.index a { display: block; text-decoration: none; color: inherit; }
-      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index svg { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
@@ -96,22 +97,163 @@ BUDGET = {
     <h2>예시</h2>
     <h3>기본 — labels= 를 주지 않으면 조각 번호가 이름이 된다</h3>
     <figure>
-      <img src="svg/pieplot-1.svg" alt="기본 — labels= 를 주지 않으면 조각 번호가 이름이 된다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-pieplot-1" role="img" aria-label="기본 — labels= 를 주지 않으면 조각 번호가 이름이 된다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <path d="M 325,300 L 325,30 A 270,270 0 0 1 381.136157,564.099852 Z" class="series-1" />
+  <text x="499.538593" y="281.655255" text-anchor="middle" class="legend-text">4200</text>
+  <path d="M 325,300 L 381.136157,564.099852 A 270,270 0 0 1 91.173141,435 Z" class="series-2" />
+  <text x="253.617719" y="460.327228" text-anchor="middle" class="legend-text">1800</text>
+  <path d="M 325,300 L 91.173141,435 A 270,270 0 0 1 91.173141,165 Z" class="series-3" />
+  <text x="149.5" y="300" text-anchor="middle" class="legend-text">1500</text>
+  <path d="M 325,300 L 91.173141,165 A 270,270 0 0 1 215.181106,53.342726 Z" class="series-4" />
+  <text x="207.567579" y="169.578083" text-anchor="middle" class="legend-text">900</text>
+  <path d="M 325,300 L 215.181106,53.342726 A 270,270 0 0 1 325,30 Z" class="series-5" />
+  <text x="288.511498" y="128.335096" text-anchor="middle" class="legend-text">600</text>
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">1</text>
+  <rect x="640" y="45" width="16" height="10" class="series-2" />
+  <text x="662" y="54" class="legend-text">2</text>
+  <rect x="640" y="65" width="16" height="10" class="series-3" />
+  <text x="662" y="74" class="legend-text">3</text>
+  <rect x="640" y="85" width="16" height="10" class="series-4" />
+  <text x="662" y="94" class="legend-text">4</text>
+  <rect x="640" y="105" width="16" height="10" class="series-5" />
+  <text x="662" y="114" class="legend-text">5</text>
+  <style>:where(.svgplot-pieplot-1) .plot-background { fill: #ffffff; }
+:where(.svgplot-pieplot-1) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-pieplot-1) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-pieplot-1) .tick-line { stroke: #333333; }
+:where(.svgplot-pieplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-pieplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-pieplot-1) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-1) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-1) .series-3 { fill: #009E73; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-1) .series-4 { fill: #F0E442; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-1) .series-5 { fill: #0072B2; stroke: none; opacity: 0.75; }</style>
+  <title>기본 — labels= 를 주지 않으면 조각 번호가 이름이 된다</title>
+  <desc>Pie chart, 5 slices (1, 2, 3, 4, 5), values 600 to 4200, total 9000.</desc>
+</svg>
     </figure>
     <pre><code>sp.pieplot(BUDGET, values=&quot;금액&quot;)</code></pre>
     <h3>labels= 로 조각에 이름을 붙인다</h3>
     <figure>
-      <img src="svg/pieplot-2.svg" alt="labels= 로 조각에 이름을 붙인다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-pieplot-2" role="img" aria-label="labels= 로 조각에 이름을 붙인다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <path d="M 325,300 L 325,30 A 270,270 0 0 1 381.136157,564.099852 Z" class="series-1" />
+  <text x="499.538593" y="281.655255" text-anchor="middle" class="legend-text">4200</text>
+  <path d="M 325,300 L 381.136157,564.099852 A 270,270 0 0 1 91.173141,435 Z" class="series-2" />
+  <text x="253.617719" y="460.327228" text-anchor="middle" class="legend-text">1800</text>
+  <path d="M 325,300 L 91.173141,435 A 270,270 0 0 1 91.173141,165 Z" class="series-3" />
+  <text x="149.5" y="300" text-anchor="middle" class="legend-text">1500</text>
+  <path d="M 325,300 L 91.173141,165 A 270,270 0 0 1 215.181106,53.342726 Z" class="series-4" />
+  <text x="207.567579" y="169.578083" text-anchor="middle" class="legend-text">900</text>
+  <path d="M 325,300 L 215.181106,53.342726 A 270,270 0 0 1 325,30 Z" class="series-5" />
+  <text x="288.511498" y="128.335096" text-anchor="middle" class="legend-text">600</text>
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">인건비</text>
+  <rect x="640" y="45" width="16" height="10" class="series-2" />
+  <text x="662" y="54" class="legend-text">임대료</text>
+  <rect x="640" y="65" width="16" height="10" class="series-3" />
+  <text x="662" y="74" class="legend-text">마케팅</text>
+  <rect x="640" y="85" width="16" height="10" class="series-4" />
+  <text x="662" y="94" class="legend-text">장비</text>
+  <rect x="640" y="105" width="16" height="10" class="series-5" />
+  <text x="662" y="114" class="legend-text">기타</text>
+  <style>:where(.svgplot-pieplot-2) .plot-background { fill: #ffffff; }
+:where(.svgplot-pieplot-2) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-pieplot-2) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-pieplot-2) .tick-line { stroke: #333333; }
+:where(.svgplot-pieplot-2) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-pieplot-2) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-pieplot-2) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-2) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-2) .series-3 { fill: #009E73; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-2) .series-4 { fill: #F0E442; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-2) .series-5 { fill: #0072B2; stroke: none; opacity: 0.75; }</style>
+  <title>labels= 로 조각에 이름을 붙인다</title>
+  <desc>Pie chart, 5 slices (인건비, 임대료, 마케팅, 장비, 기타), values 600 to 4200, total 9000.</desc>
+</svg>
     </figure>
     <pre><code>sp.pieplot(BUDGET, values=&quot;금액&quot;, labels=&quot;항목&quot;)</code></pre>
     <h3>inner_radius= 는 가운데를 비운다(도넛)</h3>
     <figure>
-      <img src="svg/pieplot-3.svg" alt="inner_radius= 는 가운데를 비운다(도넛)" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-pieplot-3" role="img" aria-label="inner_radius= 는 가운데를 비운다(도넛)">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <path d="M 325,30 A 270,270 0 0 1 381.136157,564.099852 L 350.26127,418.844933 A 121.5,121.5 0 0 0 325,178.5 Z" fill-rule="evenodd" class="series-1" />
+  <text x="541.830636" y="277.210182" text-anchor="middle" class="legend-text">4200</text>
+  <path d="M 381.136157,564.099852 A 270,270 0 0 1 91.173141,435 L 219.777913,360.75 A 121.5,121.5 0 0 0 350.26127,418.844933 Z" fill-rule="evenodd" class="series-2" />
+  <text x="236.321243" y="499.175748" text-anchor="middle" class="legend-text">1800</text>
+  <path d="M 91.173141,435 A 270,270 0 0 1 91.173141,165 L 219.777913,239.25 A 121.5,121.5 0 0 0 219.777913,360.75 Z" fill-rule="evenodd" class="series-3" />
+  <text x="106.975" y="300" text-anchor="middle" class="legend-text">1500</text>
+  <path d="M 91.173141,165 A 270,270 0 0 1 215.181106,53.342726 L 275.581498,189.004227 A 121.5,121.5 0 0 0 219.777913,239.25 Z" fill-rule="evenodd" class="series-4" />
+  <text x="179.1128" y="137.975849" text-anchor="middle" class="legend-text">900</text>
+  <path d="M 215.181106,53.342726 A 270,270 0 0 1 325,30 L 325,178.5 A 121.5,121.5 0 0 0 275.581498,189.004227 Z" fill-rule="evenodd" class="series-5" />
+  <text x="279.670054" y="86.739369" text-anchor="middle" class="legend-text">600</text>
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">인건비</text>
+  <rect x="640" y="45" width="16" height="10" class="series-2" />
+  <text x="662" y="54" class="legend-text">임대료</text>
+  <rect x="640" y="65" width="16" height="10" class="series-3" />
+  <text x="662" y="74" class="legend-text">마케팅</text>
+  <rect x="640" y="85" width="16" height="10" class="series-4" />
+  <text x="662" y="94" class="legend-text">장비</text>
+  <rect x="640" y="105" width="16" height="10" class="series-5" />
+  <text x="662" y="114" class="legend-text">기타</text>
+  <style>:where(.svgplot-pieplot-3) .plot-background { fill: #ffffff; }
+:where(.svgplot-pieplot-3) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-pieplot-3) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-pieplot-3) .tick-line { stroke: #333333; }
+:where(.svgplot-pieplot-3) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-pieplot-3) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-pieplot-3) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-3) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-3) .series-3 { fill: #009E73; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-3) .series-4 { fill: #F0E442; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-3) .series-5 { fill: #0072B2; stroke: none; opacity: 0.75; }</style>
+  <title>inner_radius= 는 가운데를 비운다(도넛)</title>
+  <desc>Donut chart, 5 slices (인건비, 임대료, 마케팅, 장비, 기타), values 600 to 4200, total 9000.</desc>
+</svg>
     </figure>
     <pre><code>sp.pieplot(BUDGET, values=&quot;금액&quot;, labels=&quot;항목&quot;, inner_radius=0.45)</code></pre>
-    <h3>info= 는 그림 옆에 각주 표를 붙인다 — .md 로 저장할 때 함께 실린다</h3>
+    <h3>info= 는 그림이 그린 행만 담은 표를 함께 낸다 — 아래 표가 to_html_table() 의 출력이고, 차트의 aria-describedby 가 그것을 가리킨다</h3>
     <figure>
-      <img src="svg/pieplot-4.svg" alt="info= 는 그림 옆에 각주 표를 붙인다 — .md 로 저장할 때 함께 실린다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-pieplot-4" role="img" aria-label="info= 는 그림이 그린 행만 담은 표를 함께 낸다 — 아래 표가 to_html_table() 의 출력이고, 차트의 aria-describedby 가 그것을 가리킨다" aria-describedby="svgplot-pieplot-4-table">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <path d="M 325,300 L 325,30 A 270,270 0 0 1 381.136157,564.099852 Z" class="series-1" />
+  <text x="499.538593" y="281.655255" text-anchor="middle" class="legend-text">4200</text>
+  <path d="M 325,300 L 381.136157,564.099852 A 270,270 0 0 1 91.173141,435 Z" class="series-2" />
+  <text x="253.617719" y="460.327228" text-anchor="middle" class="legend-text">1800</text>
+  <path d="M 325,300 L 91.173141,435 A 270,270 0 0 1 91.173141,165 Z" class="series-3" />
+  <text x="149.5" y="300" text-anchor="middle" class="legend-text">1500</text>
+  <path d="M 325,300 L 91.173141,165 A 270,270 0 0 1 215.181106,53.342726 Z" class="series-4" />
+  <text x="207.567579" y="169.578083" text-anchor="middle" class="legend-text">900</text>
+  <path d="M 325,300 L 215.181106,53.342726 A 270,270 0 0 1 325,30 Z" class="series-5" />
+  <text x="288.511498" y="128.335096" text-anchor="middle" class="legend-text">600</text>
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">인건비</text>
+  <rect x="640" y="45" width="16" height="10" class="series-2" />
+  <text x="662" y="54" class="legend-text">임대료</text>
+  <rect x="640" y="65" width="16" height="10" class="series-3" />
+  <text x="662" y="74" class="legend-text">마케팅</text>
+  <rect x="640" y="85" width="16" height="10" class="series-4" />
+  <text x="662" y="94" class="legend-text">장비</text>
+  <rect x="640" y="105" width="16" height="10" class="series-5" />
+  <text x="662" y="114" class="legend-text">기타</text>
+  <style>:where(.svgplot-pieplot-4) .plot-background { fill: #ffffff; }
+:where(.svgplot-pieplot-4) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-pieplot-4) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-pieplot-4) .tick-line { stroke: #333333; }
+:where(.svgplot-pieplot-4) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-pieplot-4) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-pieplot-4) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-4) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-4) .series-3 { fill: #009E73; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-4) .series-4 { fill: #F0E442; stroke: none; opacity: 0.75; }
+:where(.svgplot-pieplot-4) .series-5 { fill: #0072B2; stroke: none; opacity: 0.75; }</style>
+  <title>info= 는 그림이 그린 행만 담은 표를 함께 낸다 — 아래 표가 to_html_table() 의 출력이고, 차트의 aria-describedby 가 그것을 가리킨다</title>
+  <desc>Pie chart, 5 slices (인건비, 임대료, 마케팅, 장비, 기타), values 600 to 4200, total 9000.</desc>
+</svg>
+      <table id="svgplot-pieplot-4-table"><thead><tr><th>항목</th><th>금액</th></tr></thead><tbody><tr><td>인건비</td><td>4,200</td></tr><tr><td>임대료</td><td>1,800</td></tr><tr><td>마케팅</td><td>1,500</td></tr><tr><td>장비</td><td>900</td></tr><tr><td>기타</td><td>600</td></tr></tbody></table>
     </figure>
     <pre><code>sp.pieplot(BUDGET, values=&quot;금액&quot;, labels=&quot;항목&quot;, info=[(&quot;항목&quot;, &quot;@항목&quot;), (&quot;금액&quot;, &quot;@금액{0,0}&quot;)])</code></pre>
     <h2>메모</h2>

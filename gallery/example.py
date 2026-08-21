@@ -21,6 +21,7 @@ class Example:
     caption: str
     code: str
     svg: str
+    table: str | None
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,14 @@ def load(module: ModuleType, name: str) -> Page:
     the code that made the picture above it. Verifying documentation by re-implementing its
     examples has already hidden two that referenced names the document never defined.
 
+    That guarantee now has three named exceptions, listed rather than glossed. The builder
+    calls ``set_title`` (the caption becomes the chart's accessible name), ``set_scope`` (a
+    page-unique CSS scope, so two charts inlined together stop repainting each other) and
+    ``set_table_id`` where there is an ``info=`` table (so two tables on one page keep their
+    own ids). All three are about the *document the picture sits in* rather than the picture,
+    all three are things the embedding tutorial tells a reader to do themselves, and none
+    moves a pixel: the drawing is what the printed code drew.
+
     ``SETUP`` runs once and is shown once at the top of the page, which is what makes each
     page self-contained: setup plus any one example is a complete script.
 
@@ -75,11 +84,22 @@ def load(module: ModuleType, name: str) -> Page:
     exec(compile(module.SETUP, f"<{name} setup>", "exec"), namespace)
 
     examples = []
-    for caption, code in module.EXAMPLES:
+    for index, (caption, code) in enumerate(module.EXAMPLES, start=1):
         chart = _run(code, dict(namespace))
         if not hasattr(chart, "to_string"):
             raise ValueError(f"{name}: example {caption!r} evaluated to {type(chart).__name__}, not a chart")
-        examples.append(Example(caption=caption, code=code.strip(), svg=chart.to_string()))
+        figure = f"svgplot-{name}-{index}"
+        chart.set_title(caption).set_scope(figure)
+        if getattr(chart, "table_id", None) is not None:
+            chart.set_table_id(f"{figure}-table")
+        examples.append(
+            Example(
+                caption=caption,
+                code=code.strip(),
+                svg=chart.to_string(declaration=False),
+                table=chart.to_html_table() if chart.table_id else None,
+            )
+        )
 
     return Page(
         name=name,
