@@ -83,8 +83,9 @@ FOCUS = "focus"
 """Pick **one** series to keep lit; the rest dim. A radio group, plus a way back.
 
 The answer for a chart whose marks are strokes. ``lineplot`` draws ``fill: none``, so the whole
-hit region of a series is its 2px stroke -- :data:`HOVER` can be written there and will not be
-caught, and a tooltip has one element per series to hang on and the same problem reaching it. A
+hit region of a series is its stroke -- two pixels of it under the presets the gallery uses, 2.5
+under ``print`` and 3.2 under the ``poster`` context, none of which is a target. :data:`HOVER`
+can be written there and will not be caught, and a tooltip has one element per series to hang on and the same problem reaching it. A
 control the reader *operates* sidesteps the geometry entirely.
 
 Radios rather than checkboxes because "focus one" is a single choice, and a radio group gives
@@ -294,7 +295,8 @@ def _has_visible_text(label: str) -> bool:
 def resolve(figure: str, kind: str, svg: str) -> Controls:
     """Work out the controls ``figure`` should carry, from the chart it holds.
 
-    A ``hover`` figure needs no names, so only a ``toggle`` is checked against the legend.
+    The kinds that emit a named control -- ``toggle`` and ``focus`` -- are checked against the
+    legend. ``hover`` and ``cell`` need no names, only rules.
 
     What a toggle refuses is a figure with no names to put on its controls -- a chart with no
     legend at all (a single series, or ``boxplot``'s per-category palette, which is not a
@@ -339,6 +341,13 @@ def resolve(figure: str, kind: str, svg: str) -> Controls:
     # gives the checkbox an empty accessible name, which is worse than an unlabelled one:
     # assistive technology stops looking for a fallback. An empty hue value is an ordinary
     # thing to find in real data.
+    if kind == FOCUS and len(classes) < 2:
+        # Two radios that do the same thing: picking the one line dims nothing, and the page
+        # still gets the note about dimming. An earlier version emitted that and called it the
+        # page's business -- but the page guard refuses it (a labelled control with no rule),
+        # so the module was documenting as allowed what the suite rejects. One of the two had
+        # to move, and refusing is the half that cannot be wrong by accident.
+        raise ValueError(f"{figure}: a focus group needs two series to choose between, and the chart drew {len(classes)}")
     if kind in (TOGGLE, FOCUS):
         named = {index for index, label in labels.items() if _has_visible_text(label)}
         missing = sorted(set(classes) - named)
@@ -357,7 +366,15 @@ def markup(controls: Controls) -> str:
     """The ``<input>``/``<label>`` pairs, as direct children of the figure and before its SVG.
 
     Real form controls rather than anything styled to look like one: a checkbox is reachable
-    with Tab and operated with Space for free, and an element pretending to be one is not.
+    with Tab and operated with Space for free, a radio group adds arrow-key movement within it,
+    and an element pretending to be either is not.
+
+    **The group has no accessible name of its own.** A ``<fieldset>``/``<legend>`` or a
+    ``role="radiogroup"`` wrapper would give one, and a wrapper is exactly what the sibling
+    combinator in every generated rule cannot survive -- so a screen reader announces
+    "전체, radio button, 1 of 3" without saying what is being chosen. Named here rather than
+    left to be found: the per-control names are checked hard (see :func:`resolve`), and this is
+    the one accessible name in the module that nothing checks because nothing can.
 
     Empty for a ``hover`` or ``cell`` figure: there is nothing to operate, only a rule.
 
@@ -435,17 +452,16 @@ def css(controls: Controls, *, toggled_by: Mapping[int, str] | None = None) -> s
         # matches, so nothing dims.
         for series in controls.series:
             others = [name for other in controls.series if other is not series for name in other.classes]
-            if not others:
-                # A single-series chart: picking the one line dims nothing, and the group is
-                # two radios that do the same thing. Left rather than refused -- the page
-                # decides whether a chart is worth focusing, and a rule that matches nothing is
-                # not the same mistake as one that matches the wrong thing.
-                continue
             targets = ", ".join(f".{name}" for name in others)
-            rules.append(
+            rules += [
                 f"      #{controls.input_id(series)}:checked ~ svg :is({targets})"
-                f" {{ opacity: {DIM_OPACITY}; pointer-events: none; }}\n"
-            )
+                f" {{ opacity: {DIM_OPACITY}; pointer-events: none; }}\n",
+                # ``+``, not ``~``: a radio's own label is the element directly after it, while
+                # ``~`` would reach every later label in the group. The toggle strikes through
+                # the label of the series it switched off; this marks the one that is on,
+                # because that is the smaller set and the one the reader is looking for.
+                f"      #{controls.input_id(series)}:checked + label {{ font-weight: 600; color: var(--fg); }}\n",
+            ]
         return "".join(rules)
     for series in controls.series:
         selector = f"#{controls.input_id(series)}:not(:checked)"
@@ -471,6 +487,13 @@ CHROME = """\
          with Tab and operated with Space or the arrow keys without anything here arranging it. */
       .interaction-note { margin: 0 0 1.75rem; color: var(--muted); font-size: 0.9rem; }
 """
+"""The part of the control CSS that is the same for every kind: the note's own rule.
+
+Kept out of ``page.STYLE`` deliberately. ``STYLE`` is shared by all seventeen files, so a rule
+added there rewrites every one of them -- which would put sixteen independent chart PRs into a
+queue behind each other for no reason.
+"""
+
 
 _CONTROL_CHROME = {
     TOGGLE: """\
@@ -489,12 +512,6 @@ rules on every page that has a checkbox -- eight files rewritten so that seven o
 style an element they do not contain. The same argument that keeps :data:`CHROME` out of
 ``page.STYLE``, one level down.
 """
-"""The part of the control CSS that does not vary, emitted only on pages that have controls.
-
-Kept out of ``page.STYLE`` deliberately. ``STYLE`` is shared by all seventeen files, so a rule
-added there rewrites every one of them -- which would put sixteen independent chart PRs into a
-queue behind each other for no reason.
-"""
 
 
 def stylesheet(controls: list[Controls]) -> str:
@@ -509,8 +526,7 @@ def stylesheet(controls: list[Controls]) -> str:
     """
     if not controls:
         return ""
-    # The chrome styles ``<input>``/``<label>`` pairs, which only a toggle emits. A page whose
-    # figures are all hover would otherwise carry rules for elements it does not have.
+
     kinds = {control.kind for control in controls}
     # The note explains dimming, which is what a toggle and a focus radio both do; a page whose
     # figures are all ``hover`` or ``cell`` has nothing to dim and gets neither.
