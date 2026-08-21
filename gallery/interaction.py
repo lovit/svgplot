@@ -71,10 +71,24 @@ than either: invisible, still hit-testable, still read aloud.
 _BLANK_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Zs", "Zl", "Zp"})
 """Unicode categories a character can be in and still draw nothing.
 
-``Cc`` control, ``Cf`` format (U+200B, U+2060, the direction marks), ``Cs`` surrogate,
-``Zs``/``Zl``/``Zp`` the spaces. Deliberately not ``Co`` (private use, where an icon font puts
-real glyphs and legacy Korean encodings put real syllables) or ``Cn`` (unassigned, which a font
-may still map). Both draw.
+``Cc`` control, ``Cf`` format (U+200B, U+2060, the direction marks), ``Zs``/``Zl``/``Zp`` the
+spaces. Deliberately **not** ``Co`` (private use, where an icon font puts real glyphs and legacy
+Korean encodings put real syllables) or ``Cn`` (unassigned, which a font may still map) -- both
+draw, and a ``C*`` prefix would have swallowed them.
+
+Three of the six cannot arrive through any caller and are here so the set is the whole idea
+rather than the reachable part of it. ``Cs``: ``_svg.py`` refuses a lone surrogate at node
+construction ("characters not allowed in XML 1.0"). ``Zl``/``Zp``: ``_fold_newlines`` collapses
+U+2028 and U+2029 to a plain space before serialization, so they are read back as ``Zs``. No
+test pins those three and none can -- said here rather than left as unexercised entries that
+somebody later mistakes for measured ones.
+
+**And one direction is not covered at all.** ``Cf`` holds characters Unicode says *must* be
+rendered -- the Arabic prepended concatenation marks (U+0600-0605, U+06DD, U+070F), the
+interlinear annotation anchors (U+FFF9-FFFB), the Egyptian format controls (U+13430-1343F) --
+and this refuses a label made only of them. ``Cf`` is not ``Default_Ignorable``; it is the
+closest category to it that the standard library exposes, which is the whole reason this list
+exists rather than that property.
 """
 
 _CLASS_ATTRIBUTE = re.compile(r'\bclass="([^"]*)"')
@@ -172,8 +186,8 @@ def _has_visible_text(label: str) -> bool:
     shorter and is wrong: it also covers ``Co``, the private use area, where an icon font puts
     real glyphs -- measured, U+E000 was refused by the prefix form.
 
-    **It does not catch every invisible label, and cannot.** Two kinds get through, both
-    recorded here rather than left to be rediscovered:
+    **It does not catch every invisible label, and cannot.** Three kinds get through, recorded
+    here rather than left to be rediscovered:
 
     * U+3164 HANGUL FILLER and the jamo fillers U+115F/U+1160, which Unicode classifies ``Lo``
       -- letters, alongside every Korean and CJK character.

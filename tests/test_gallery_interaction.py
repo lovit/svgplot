@@ -346,6 +346,13 @@ def test_a_series_whose_legend_name_is_blank_is_refused() -> None:
         pytest.param("\u200b", id="zero-width-space"),
         pytest.param("\u2060", id="word-joiner"),
         pytest.param("\u200f", id="right-to-left-mark"),
+        # These two arrive as a plain space: ``_svg.py``'s ``_fold_newlines`` collapses U+2028
+        # and U+2029 before serialization, so what is read back is ``Zs``, not ``Zl``/``Zp``.
+        # Kept for the round trip, and named for what they actually exercise -- dropping
+        # ``Zl``/``Zp`` from the set changes nothing here, and an id claiming otherwise would
+        # be one more test asserting something it does not reach.
+        pytest.param("\u2028", id="line-separator-folded-to-a-space"),
+        pytest.param("\u2029", id="paragraph-separator-folded-to-a-space"),
         pytest.param("\u200b \u2060", id="a-mix-of-them"),
     ],
 )
@@ -369,16 +376,23 @@ def test_a_name_made_only_of_invisible_characters_is_refused(label: str) -> None
     [
         pytest.param("\u3164", id="hangul-filler"),
         pytest.param("\ufe0f", id="variation-selector-16"),
+        pytest.param("\u2800", id="braille-pattern-blank"),
     ],
 )
 def test_an_invisible_character_that_is_not_blank_by_category_gets_through(label: str) -> None:
     """The recorded limit, asserted so it is a known gap rather than a surprise.
 
     U+3164 is ``Lo`` -- a letter, alongside every Korean and CJK character. U+FE0F is ``Mn``,
-    the same category as a combining accent, which does draw. Both are
-    ``Default_Ignorable_Code_Point``, the property that would separate them cleanly, and the
-    standard library does not expose it; a hand-kept list would be wrong the first time
-    somebody found a character not on it.
+    the category of a combining accent, which does draw. U+2800 is ``So``, a symbol. Telling
+    any of them from what shares their category needs the ``Default_Ignorable_Code_Point``
+    property, which the standard library does not expose, and a hand-kept list would be wrong
+    the first time somebody found a character not on it.
+
+    One case is missing in the other direction and is not asserted because it is not new: the
+    rule *over*-refuses U+1680 OGHAM SPACE MARK (``Zs``, but it draws a stemline) and the
+    Arabic prepended-concatenation marks (``Cf``, but they draw). The prefix form did the same,
+    so nothing regressed -- but the recorded limits should not read as if only one direction
+    had any.
 
     Written as a passing case rather than a comment because a comment would not notice the day
     Python grows the property and this stops being true.
@@ -491,14 +505,22 @@ def test_a_page_rule_outranks_the_chart_rule_it_has_to_override() -> None:
     from the SVG's own ``<style>`` -- so a change to either side is compared against the other
     rather than against a number written down once.
 
-    **What it does not catch, measured rather than assumed.** ``scope.py`` swapping
-    ``:where()`` for ``:is()`` takes the chart's rule from ``(0,1,0)`` to ``(0,2,0)`` -- and
-    the toggles keep working, because ``(1,2,1)`` still wins. The page rule's id is a big
-    enough margin that no realistic change to the *chart* side reaches it, so what this
-    actually guards is the *page* side: dropping the id, or writing the dimming rule with
-    ``:where()`` the way the scope idiom does, both make it red. Said plainly because the
-    earlier version of this docstring claimed the ``:is()`` swap as its motivating case, and
-    that claim does not survive being run.
+    **The comparison alone is a weak tripwire, so the margin is asserted too.** Measured, one
+    mutation at a time: the page rule losing its id still wins (0,3,1); written as an element
+    selector, still wins (0,2,2); wrapped in ``:where()``, still wins (0,1,1); with
+    ``:where()`` on the targets instead of ``:is()``, still wins (1,1,1); ``scope.py`` swapping
+    ``:where()`` for ``:is()`` takes the chart side to (0,2,0) and still loses. Only weakening
+    *both* ends at once -- ``:where()`` on the selector **and** on the targets, (0,0,1) --
+    turns the comparison red.
+
+    So the comparison is kept for what it is (the invariant, re-derived from real output rather
+    than from a number written down once) and the second assertion carries the weight: the win
+    comes from an **id**, which is the margin nothing on the chart side can reach. That one is
+    falsifiable on its own, and each of the five mutations above makes it red.
+
+    Written this way at the third attempt. The first version of this docstring named the
+    ``:is()`` swap as the case it caught, and the second named dropping the id and using
+    ``:where()``; all three claims are false, and each was written without running it.
     """
     example = _stub([("bars", _BAR)], {1: "toggle"}).examples[0]
     rules = interaction.css(example.controls)
@@ -514,4 +536,5 @@ def test_a_page_rule_outranks_the_chart_rule_it_has_to_override() -> None:
     page_rule, chart_rule = page_match.group(1), chart_match.group(1)
 
     assert _specificity(page_rule) > _specificity(chart_rule), f"{page_rule!r} does not outrank {chart_rule!r}"
+    assert _specificity(page_rule)[0] >= 1, f"the margin no longer comes from an id: {page_rule!r}"
     assert "!important" not in rules
