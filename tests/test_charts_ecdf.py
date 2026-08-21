@@ -218,9 +218,19 @@ def test_ecdfplot_renders_a_single_observation() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _uneven() -> dict[str, list]:
-    """Two groups of very different size, which is what makes the two stats disagree."""
-    return {"v": [float(i) for i in range(200)] + [float(i) for i in range(60)], "g": ["big"] * 200 + ["small"] * 60}
+def _uneven(*, big_first: bool = True) -> dict[str, list]:
+    """Two groups of very different size, which is what makes the two stats disagree.
+
+    ``big_first`` exists because the obvious fixture hides a bug: with the 200-row group first,
+    "scale to the largest group" and "scale to the first group" are the same number, and a
+    mutation swapping one for the other passed all 3,503 tests. Ordering is by ``str(label)``
+    (``charts/_series.py``), so the names decide which comes first, not the dict.
+    """
+    big, small = ([float(i) for i in range(200)], [float(i) for i in range(60)])
+    names = ("a-big", "b-small") if big_first else ("a-small", "b-big")
+    if big_first:
+        return {"v": big + small, "g": [names[0]] * 200 + [names[1]] * 60}
+    return {"v": small + big, "g": [names[0]] * 60 + [names[1]] * 200}
 
 
 @pytest.mark.parametrize("complementary", [False, True], ids=["rising", "complementary"])
@@ -247,8 +257,9 @@ def test_a_proportion_curve_reaches_full_height_whatever_its_group_size(compleme
     assert totals == pytest.approx([AREA_WITH_LEGEND.top] * 2)
 
 
+@pytest.mark.parametrize("big_first", [True, False], ids=["big-first", "small-first"])
 @pytest.mark.parametrize("complementary", [False, True], ids=["rising", "complementary"])
-def test_a_count_curve_ends_where_its_own_group_ran_out(complementary: bool) -> None:
+def test_a_count_curve_ends_where_its_own_group_ran_out(complementary: bool, big_first: bool) -> None:
     """``stat="count"`` puts both groups on one axis scaled to the larger, so the smaller one
     ends partway. Hiding the larger would leave that curve alone under an axis reaching more
     than three times higher than anything drawn -- the failure ``proportion`` is immune to.
@@ -256,8 +267,12 @@ def test_a_count_curve_ends_where_its_own_group_ran_out(complementary: bool) -> 
     Pinned to the ratio rather than to "well short of the top": 60 of 200 is a specific
     fraction of the plot area, and a bound loose enough to pass at any height is a bound that
     would also pass if the denominator were wrong.
+
+    Run with the big group first and last, because "the largest group" and "the first group"
+    are the same number in only one of those orders -- and with only that order, swapping the
+    implementation from one to the other passed every test in the suite.
     """
-    svg = ecdfplot(_uneven(), x="v", hue="g", stat="count", complementary=complementary).to_string()
+    svg = ecdfplot(_uneven(big_first=big_first), x="v", hue="g", stat="count", complementary=complementary).to_string()
     height = AREA_WITH_LEGEND.bottom - AREA_WITH_LEGEND.top
     small = AREA_WITH_LEGEND.bottom - 60 / 200 * height
     totals = sorted(curve[0][1] if complementary else curve[-1][1] for curve in _series_vertices(svg))
