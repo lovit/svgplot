@@ -11,6 +11,8 @@ import ast
 from dataclasses import dataclass
 from types import ModuleType
 
+from gallery.interaction import Controls, resolve
+
 REQUIRED = ("TITLE", "SUMMARY", "REQUIRES", "SETUP", "EXAMPLES")
 
 
@@ -22,6 +24,7 @@ class Example:
     code: str
     svg: str
     table: str | None
+    controls: Controls | None = None
 
 
 @dataclass(frozen=True)
@@ -70,9 +73,18 @@ def load(module: ModuleType, name: str) -> Page:
     ``SETUP`` runs once and is shown once at the top of the page, which is what makes each
     page self-contained: setup plus any one example is a complete script.
 
+    An optional ``INTERACTIONS`` maps an example's 1-based number to the kind of control that
+    figure should carry (``gallery.interaction.KINDS``). It is read with ``getattr`` rather
+    than added to ``REQUIRED``, the same way ``NOTES`` is: sixteen pages will end up declaring
+    it and several will deliberately not. What each control *is* -- which series exist, what
+    they are called, which classes they carry -- is read back out of the rendered SVG rather
+    than declared here, so it cannot disagree with the picture.
+
     Raises:
         ValueError: if a required name is missing, if an example does not end in an
-            expression, or if an example evaluates to something with no ``to_string``.
+            expression, if an example evaluates to something with no ``to_string``, if
+            ``INTERACTIONS`` names an example number that does not exist, or if a named
+            figure cannot carry the control it asks for.
     """
     missing = [field for field in REQUIRED if not hasattr(module, field)]
     if missing:
@@ -83,6 +95,11 @@ def load(module: ModuleType, name: str) -> Page:
     namespace: dict = {"sp": sp}
     exec(compile(module.SETUP, f"<{name} setup>", "exec"), namespace)
 
+    interactions = dict(getattr(module, "INTERACTIONS", {}))
+    unknown = sorted(set(interactions) - set(range(1, len(module.EXAMPLES) + 1)))
+    if unknown:
+        raise ValueError(f"{name}: INTERACTIONS names example(s) {unknown}, but there are {len(module.EXAMPLES)}")
+
     examples = []
     for index, (caption, code) in enumerate(module.EXAMPLES, start=1):
         chart = _run(code, dict(namespace))
@@ -92,12 +109,14 @@ def load(module: ModuleType, name: str) -> Page:
         chart.set_title(caption).set_scope(figure)
         if getattr(chart, "table_id", None) is not None:
             chart.set_table_id(f"{figure}-table")
+        svg = chart.to_string(declaration=False)
         examples.append(
             Example(
                 caption=caption,
                 code=code.strip(),
-                svg=chart.to_string(declaration=False),
+                svg=svg,
                 table=chart.to_html_table() if chart.table_id else None,
+                controls=resolve(figure, interactions[index], svg) if index in interactions else None,
             )
         )
 

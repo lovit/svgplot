@@ -14,6 +14,7 @@ from __future__ import annotations
 from html import escape
 
 from gallery.example import Page
+from gallery.interaction import NOTE, markup, stylesheet
 
 STYLE = """\
       :root {
@@ -116,8 +117,15 @@ _DOCUMENT = """\
 """
 
 
-def _document(*, title: str, description: str, body: str) -> str:
-    return _DOCUMENT.format(title=escape(title), description=escape(description), style=STYLE, body=body)
+def _document(*, title: str, description: str, body: str, style_extra: str = "") -> str:
+    """One page. ``style_extra`` is this page's own CSS, appended to the shared stylesheet.
+
+    A channel rather than more of ``STYLE`` because ``STYLE`` is shared by all seventeen
+    files: a rule added there for one chart's toggles rewrites the other sixteen pages too.
+    ``STYLE`` ends in a newline, so a page with nothing of its own is byte-for-byte what it
+    was before this parameter existed.
+    """
+    return _DOCUMENT.format(title=escape(title), description=escape(description), style=STYLE + style_extra, body=body)
 
 
 def chart_page(page: Page) -> str:
@@ -133,10 +141,20 @@ def chart_page(page: Page) -> str:
         f"    <pre><code>{escape(page.setup)}</code></pre>\n",
         "    <h2>예시</h2>\n",
     ]
+    controls = [example.controls for example in page.examples if example.controls]
+    if controls:
+        # Once per page and above *every* figure on it, not beside the one that has controls:
+        # it is a statement about the mechanism, and a reader who meets it before the first
+        # chart is not surprised by the third. The text lives in interaction.py so sixteen
+        # pages cannot end up describing it sixteen slightly different ways.
+        parts.append(f'    <p class="interaction-note">{escape(NOTE)}</p>\n')
     for example in page.examples:
         parts += [
             f"    <h3>{escape(example.caption)}</h3>\n",
             "    <figure>\n",
+            # The controls come before the SVG and are its direct siblings: the rules in
+            # interaction.py reach the chart with ``~``, which only sees following siblings.
+            *([markup(example.controls)] if example.controls else []),
             # The SVG goes in as the serializer produced it. Re-indenting to match the
             # surrounding HTML would put spaces inside the <style> element's text, which is
             # real content -- prettier markup at the cost of changing what the file says.
@@ -155,7 +173,12 @@ def chart_page(page: Page) -> str:
         f'<a href="https://github.com/lovit/svgplot/blob/main/gallery/examples/{page.name}.py">이 페이지의 예시 소스</a>\n'
         "    </footer>\n"
     )
-    return _document(title=f"{page.title} — svgplot", description=page.summary, body="".join(parts))
+    return _document(
+        title=f"{page.title} — svgplot",
+        description=page.summary,
+        body="".join(parts),
+        style_extra=stylesheet(controls),
+    )
 
 
 def index_page(pages: list[Page]) -> str:
