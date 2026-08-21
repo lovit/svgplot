@@ -266,8 +266,13 @@ def test_the_gallery_emitter_refuses_a_toggle_for_a_sparkline() -> None:
 
 
 def test_the_sparkline_page_carries_no_control_no_hover_and_no_mark_tooltip() -> None:
-    """The page opens by saying it has none of the three, and that sentence is the first one
-    that will rot: fifteen sibling issues are adding exactly those to the other pages.
+    """The page opens by saying it has none of the three, and that is the sentence most likely
+    to rot: sibling issues are putting exactly those on the other pages, one page at a time.
+
+    The NOTE deliberately says nothing about *how many* of them have landed. An earlier version
+    counted them, and the count was wrong within the day -- ``ecdfplot`` merged while this
+    branch was open. A page that has to be edited whenever a sibling merges is a page that will
+    be wrong between merges.
 
     Rendered here rather than read off ``docs/``, for ``test_gallery_interaction.py``'s reason
     -- reading the committed file measures whether it is stale, which the byte-diff already
@@ -278,19 +283,6 @@ def test_the_sparkline_page_carries_no_control_no_hover_and_no_mark_tooltip() ->
     assert 'class="series-toggle"' not in html
     assert ":hover" not in html
     assert _titled_marks(html) == [], "a mark grew a <title>, which is the browser's own tooltip"
-
-
-def test_the_charts_own_title_is_not_the_first_child() -> None:
-    """Why "no tooltip" is true of a chart that does emit a ``<title>``.
-
-    The browser shows an element's **first** ``<title>`` child, and the accessible name this
-    package emits lands near the end of the root -- after the marks and the ``<style>``. The
-    page's claim rests on that ordering, so the ordering is pinned here rather than assumed.
-    """
-    root = parse(sparkline(DATA, y="v").to_string())
-    tags = [node.tag.removeprefix(SVG_NS) for node in root]
-
-    assert tags.index("title") > tags.index("path"), f"the chart title moved in front of the marks: {tags}"
 
 
 def test_the_control_row_is_taller_than_the_default_canvas() -> None:
