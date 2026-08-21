@@ -1,6 +1,6 @@
 """The gallery's no-JavaScript controls: what they are wired to, and what they must not do.
 
-Every check here was watched failing before it was kept -- 25 mutations, one at a time. Four
+Every check here was watched failing before it was kept -- 29 mutations, one at a time. Four
 are shaped specifically against ways this file could pass while asserting nothing:
 
 * The page-level checks run over pages **rendered here**, never over the committed files. A
@@ -345,6 +345,7 @@ def test_a_series_whose_legend_name_is_blank_is_refused() -> None:
         pytest.param("\u00a0", id="no-break-space"),
         pytest.param("\u200b", id="zero-width-space"),
         pytest.param("\u2060", id="word-joiner"),
+        pytest.param("\u200f", id="right-to-left-mark"),
         pytest.param("\u200b \u2060", id="a-mix-of-them"),
     ],
 )
@@ -354,10 +355,8 @@ def test_a_name_made_only_of_invisible_characters_is_refused(label: str) -> None
     principle under which one of those is a name and the other is not, and the outcome for a
     reader is the same empty accessible name either way.
 
-    U+3164 HANGUL FILLER is deliberately not in this list. It renders as nothing too, but
-    Unicode calls it a letter, and telling the letters that draw nothing from the letters that
-    draw something needs a property the standard library does not expose. Named here so the
-    gap is a recorded limit rather than something rediscovered.
+    Two things that render as nothing are deliberately *not* in this list, and
+    :func:`test_an_invisible_character_that_is_not_blank_by_category_gets_through` names them.
     """
     setup = f'import svgplot as sp\nD = {{"x": ["a", "b"], "y": [1.0, 2.0], "g": [{label!r}, "zzz"]}}\n'
 
@@ -365,15 +364,51 @@ def test_a_name_made_only_of_invisible_characters_is_refused(label: str) -> None
         _one_example(setup, 'sp.barplot(D, x="x", y="y", hue="g")')
 
 
-def test_a_name_that_is_only_punctuation_is_still_a_name() -> None:
-    """The other side of the rule, which a wider one would have broken: ``.`` and ``-`` are
-    ordinary category values and draw ink. A check that asked for a *letter* would refuse
-    them."""
-    setup = 'import svgplot as sp\nD = {"x": ["a", "b"], "y": [1.0, 2.0], "g": [".", "zzz"]}\n'
+@pytest.mark.parametrize(
+    "label",
+    [
+        pytest.param("\u3164", id="hangul-filler"),
+        pytest.param("\ufe0f", id="variation-selector-16"),
+    ],
+)
+def test_an_invisible_character_that_is_not_blank_by_category_gets_through(label: str) -> None:
+    """The recorded limit, asserted so it is a known gap rather than a surprise.
 
-    assert {
-        series.label for series in _one_example(setup, 'sp.barplot(D, x="x", y="y", hue="g")').examples[0].controls.series
-    } == {".", "zzz"}
+    U+3164 is ``Lo`` -- a letter, alongside every Korean and CJK character. U+FE0F is ``Mn``,
+    the same category as a combining accent, which does draw. Both are
+    ``Default_Ignorable_Code_Point``, the property that would separate them cleanly, and the
+    standard library does not expose it; a hand-kept list would be wrong the first time
+    somebody found a character not on it.
+
+    Written as a passing case rather than a comment because a comment would not notice the day
+    Python grows the property and this stops being true.
+    """
+    setup = f'import svgplot as sp\nD = {{"x": ["a", "b"], "y": [1.0, 2.0], "g": [{label!r}, "zzz"]}}\n'
+
+    page = _one_example(setup, 'sp.barplot(D, x="x", y="y", hue="g")')
+
+    assert {series.label for series in page.examples[0].controls.series} == {label, "zzz"}
+
+
+@pytest.mark.parametrize(
+    "label",
+    [
+        pytest.param(".", id="punctuation"),
+        pytest.param("\ue000", id="private-use-area"),
+    ],
+)
+def test_a_name_that_draws_ink_without_being_a_letter_is_still_a_name(label: str) -> None:
+    """The other side of the rule. ``.`` is an ordinary category value; a private use codepoint
+    is what an icon font draws its glyphs at.
+
+    The private use case is why the categories are named one by one instead of taken by
+    ``C*`` prefix -- ``Co`` is under that prefix, and the prefix form refused U+E000.
+    """
+    setup = f'import svgplot as sp\nD = {{"x": ["a", "b"], "y": [1.0, 2.0], "g": [{label!r}, "zzz"]}}\n'
+
+    page = _one_example(setup, 'sp.barplot(D, x="x", y="y", hue="g")')
+
+    assert {series.label for series in page.examples[0].controls.series} == {label, "zzz"}
 
 
 def test_a_series_with_no_legend_row_of_its_own_is_refused() -> None:
@@ -454,9 +489,16 @@ def test_a_page_rule_outranks_the_chart_rule_it_has_to_override() -> None:
 
     Both selectors are read out of real output -- the page rule from ``css()``, the chart rule
     from the SVG's own ``<style>`` -- so a change to either side is compared against the other
-    rather than against a number written down once. ``scope.py`` swapping ``:where()`` for
-    ``:is()`` would silently take the chart's rule from ``(0,1,0)`` to ``(0,2,0)`` and leave
-    the toggles doing nothing; nothing else in the suite would notice.
+    rather than against a number written down once.
+
+    **What it does not catch, measured rather than assumed.** ``scope.py`` swapping
+    ``:where()`` for ``:is()`` takes the chart's rule from ``(0,1,0)`` to ``(0,2,0)`` -- and
+    the toggles keep working, because ``(1,2,1)`` still wins. The page rule's id is a big
+    enough margin that no realistic change to the *chart* side reaches it, so what this
+    actually guards is the *page* side: dropping the id, or writing the dimming rule with
+    ``:where()`` the way the scope idiom does, both make it red. Said plainly because the
+    earlier version of this docstring claimed the ``:is()`` swap as its motivating case, and
+    that claim does not survive being run.
     """
     example = _stub([("bars", _BAR)], {1: "toggle"}).examples[0]
     rules = interaction.css(example.controls)
