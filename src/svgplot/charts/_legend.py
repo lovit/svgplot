@@ -16,6 +16,7 @@ from __future__ import annotations
 from svgplot._svg import SvgDocument
 from svgplot.charts._layout import format_coord
 from svgplot.charts._textwidth import needs_full_text, truncate_to_width
+from svgplot.charts._tooltip import add_tooltip
 
 _SWATCH_WIDTH = 16.0
 _LABEL_GAP = 6.0
@@ -210,5 +211,5 @@ def render_legend(
             # because the tail is outside the viewBox and nowhere in the file. Anything
             # close to the budget keeps its full text; short labels, which are most of
             # them, still get no <title> and the markup stays hand-editable.
-            document.add_text(text_node, label, tag="title")
+            add_tooltip(document, text_node, label)
     return y + len(entries) * _ROW_HEIGHT
