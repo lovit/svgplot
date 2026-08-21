@@ -17,9 +17,11 @@ Private/internal -- not re-exported from ``svgplot.charts``.
 
 from __future__ import annotations
 
-from svgplot.data.semantic import extract_channels
+from svgplot.data._columns import column_length, extract_columns
+from svgplot.data.semantic import channel_row_indices
 
 SeriesItems = list[tuple[object | None, dict[str, list]]]
+SeriesRows = list[tuple[object | None, dict[str, list], list[int]]]
 
 
 def series_items(data: object, columns: dict[str, list], hue: str | None) -> SeriesItems:
@@ -39,9 +41,33 @@ def series_items(data: object, columns: dict[str, list], hue: str | None) -> Ser
         ValueError: if ``hue`` names a column whose every row is missing. Drawing nothing is
             the alternative, and a blank chart does not say which column emptied it.
     """
+    return [(label, group) for label, group, _rows in series_rows(data, columns, hue)]
+
+
+def series_rows(data: object, columns: dict[str, list], hue: str | None) -> SeriesRows:
+    """:func:`series_items` plus, per series, the **original row indices** it was built from.
+
+    ``series_items`` is defined in terms of this rather than beside it, so the two cannot
+    disagree about order or about which rows a series holds. That matters more than the
+    duplication it saves: the order is what pairs a series with its palette colour, and a
+    second sort would be a second place for that to change.
+
+    A chart needs the indices to trace a mark back to the row it came from -- to fill a tooltip
+    from the same ``info=`` spec the footnote table uses. Without ``hue=`` the indices are just
+    ``range``, because ``ingest_longform`` drops no rows; with it they come from
+    :func:`~svgplot.data.semantic.channel_row_indices`, which is the same filter
+    ``extract_channels`` is built from.
+
+    Raises:
+        ValueError: if ``hue`` names a column whose every row is missing.
+    """
     if hue is None:
-        return [(None, columns)]
-    groups = extract_channels(data, hue=hue)
-    if not groups:
+        return [(None, columns, list(range(column_length(columns))))]
+    indices = channel_row_indices(data, hue=hue)
+    if not indices:
         raise ValueError(f"no rows with a non-missing {hue!r} value")
-    return sorted(groups.items(), key=lambda item: str(item[0]))
+    original = extract_columns(data)
+    return [
+        (label, {name: [values[index] for index in rows] for name, values in original.items()}, rows)
+        for label, rows in sorted(indices.items(), key=lambda item: str(item[0]))
+    ]

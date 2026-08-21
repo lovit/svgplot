@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from svgplot.charts._series import series_items
+from svgplot.charts._series import series_items, series_rows
 
 _ROWS = {"x": [1, 2, 3, 4], "y": [1.0, 2.0, 3.0, 4.0], "g": ["b", "a", "b", "a"]}
 
@@ -65,3 +65,44 @@ def test_every_column_survives_the_split_not_just_the_plotted_ones() -> None:
     first = series_items(wide, wide, "g")[0][1]
 
     assert set(first) == set(wide)
+
+
+# ---------------------------------------------------------------------------
+# series_rows — the same split, carrying the rows it was built from
+# ---------------------------------------------------------------------------
+
+
+def test_series_items_is_series_rows_with_the_indices_dropped() -> None:
+    """Four of the policies above are asserted through ``series_items``; this is what keeps
+    those assertions true of ``series_rows`` as well.
+
+    They are one function and a projection of it, not two functions that happen to agree. The
+    ordering in particular is what pairs a series with its palette colour, and a second sort
+    would be a second place for it to change -- with the symptom appearing not in the series
+    but in a tooltip that names another point's row.
+    """
+    for hue in (None, "g"):
+        assert series_items(_ROWS, _ROWS, hue) == [(label, columns) for label, columns, _ in series_rows(_ROWS, _ROWS, hue)]
+
+
+def test_each_series_knows_which_input_rows_it_holds() -> None:
+    labelled = {label: rows for label, _, rows in series_rows(_ROWS, _ROWS, "g")}
+
+    assert labelled == {"a": [1, 3], "b": [0, 2]}
+
+
+def test_without_hue_the_rows_are_the_whole_input_in_order() -> None:
+    """``ingest_longform`` drops nothing, so there is nothing for the indices to skip -- and
+    saying that here means the no-hue caller gets a real answer rather than an empty list that
+    would silently disable every tooltip on a chart without a ``hue=``."""
+    [(label, columns, rows)] = series_rows(_ROWS, _ROWS, None)
+
+    assert (label, rows) == (None, [0, 1, 2, 3])
+    assert columns is _ROWS
+
+
+def test_a_series_holding_no_rows_cannot_appear() -> None:
+    """Only rows with a non-missing hue value are grouped, so every series has at least one."""
+    holed = {"x": [1, 2, 3], "y": [1.0, 2.0, 3.0], "g": ["a", None, "a"]}
+
+    assert [(label, rows) for label, _, rows in series_rows(holed, holed, "g")] == [("a", [0, 2])]

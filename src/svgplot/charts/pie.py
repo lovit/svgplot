@@ -26,10 +26,10 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._polar import FULL_CIRCLE_TOLERANCE, full_ring_path, polar_point, ring_path
 from svgplot.charts._theme_resolve import resolve_theme
-from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
+from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number, info_clauses
 from svgplot.data._columns import column_length, extract_columns
 from svgplot.data._missing import is_missing
-from svgplot.labels._source import collect_label_data
+from svgplot.labels._source import LabelData, collect_label_data
 from svgplot.labels.spec import LabelSpec
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
@@ -37,7 +37,16 @@ from svgplot.theme.css import render_theme_style
 _LABEL_RADIUS_FRACTION = 0.65  # value-label distance from center, as a fraction between inner/outer radius
 
 
-def _slice_tooltip(*, values: str, label: str, value: float, cumulative: float, total: float) -> str:
+def _slice_tooltip(
+    *,
+    values: str,
+    label: str,
+    value: float,
+    cumulative: float,
+    total: float,
+    labels: LabelData | None = None,
+    index: int = 0,
+) -> str:
     """What one slice's ``<title>`` says: its name, its value, its share, and the share of
     everything up to and including it.
 
@@ -50,11 +59,21 @@ def _slice_tooltip(*, values: str, label: str, value: float, cumulative: float, 
     Rounded to one decimal like ``treemap``'s share: a proportion of a total the reader can also
     see is not a measurement, and seventeen digits of one would be the longest clause here.
     The *value* beside it is spelled exactly, because that one came out of somebody's file.
+
+    ``info=`` replaces the name and the value -- those came out of the row, and the table
+    already prints them in the caller's own words -- and leaves the two shares, which the chart
+    computed and no column holds. That is the rule stated in
+    :func:`~svgplot.charts._tooltip.info_clauses`, applied to the one chart here that has
+    something of its own to keep.
     """
     parts = []
-    if (shown := format_label(label)) is not None:
-        parts.append(shown)
-    parts.append(clause(values, format_number(value)))
+    spelled = info_clauses(labels, index) if labels is not None else None
+    if spelled is not None:
+        parts.append(spelled)
+    else:
+        if (shown := format_label(label)) is not None:
+            parts.append(shown)
+        parts.append(clause(values, format_number(value)))
     parts.append(f"{value / total * 100:.1f}%")
     parts.append(f"{cumulative / total * 100:.1f}% cumulative")
     return " · ".join(parts)
@@ -89,6 +108,10 @@ def pieplot(
     conditional.
 
     ``tooltip=False`` is the default; off, the file is what it was.
+
+    With ``info=`` as well, a slice's tooltip reads that row under the caller's own headings in
+    place of its name and value, and keeps the two shares -- those are the part the chart
+    worked out, and no column holds them.
 
     ``inner_radius`` is a fraction of the outer radius in ``[0, 1)`` (not an
     absolute pixel length) -- ``0.0`` (the default) draws a full pie, any value
@@ -137,14 +160,17 @@ def pieplot(
 
     raw_values = columns[values]
     raw_labels = columns[labels] if labels is not None else [str(index + 1) for index in range(length)]
+    # The original row index rides along so a slice can ask ``info=`` about the row it was cut
+    # from. Counting the surviving slices instead would work today and stop working the first
+    # time either side learns to drop a row the other keeps.
     pairs = [
-        (str(label), float(value))
-        for label, value in zip(raw_labels, raw_values, strict=True)
+        (str(label), float(value), index)
+        for index, (label, value) in enumerate(zip(raw_labels, raw_values, strict=True))
         if not is_missing(label) and not is_missing(value)
     ]
     if not pairs:
         raise ValueError("no rows with both a non-missing label and value present after dropping missing values")
-    for label, value in pairs:
+    for label, value, _index in pairs:
         # Checked here rather than left to format_coord: an inf/-inf survives the
         # negative check, becomes nan inside the trig, and only then fails -- with a
         # message about a coordinate, naming neither the offending value nor its row.
@@ -152,7 +178,7 @@ def pieplot(
             raise ValueError(f"pie values must be finite, got {value!r} for label {label!r}")
         if value < 0:
             raise ValueError(f"pie values must be non-negative, got {value!r} for label {label!r}")
-    total = sum(value for _, value in pairs)
+    total = sum(value for _, value, _index in pairs)
     if total == 0:
         raise ValueError("pie values must not all be zero (sum is 0)")
 
@@ -174,7 +200,7 @@ def pieplot(
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
     cumulative = 0.0
-    for label, value in pairs:
+    for label, value, index in pairs:
         series_class = document.semantic_class("series")
         series_classes.append(series_class)
         legend_entries.append((label, series_class))
@@ -197,7 +223,15 @@ def pieplot(
             add_tooltip(
                 document,
                 wedge,
-                _slice_tooltip(values=values, label=label, value=value, cumulative=cumulative, total=total),
+                _slice_tooltip(
+                    values=values,
+                    label=label,
+                    value=value,
+                    cumulative=cumulative,
+                    total=total,
+                    labels=label_data,
+                    index=index,
+                ),
             )
 
         mid_angle = (start_angle + end_angle) / 2
@@ -238,10 +272,10 @@ def pieplot(
         transparent_to_pointer=("pie-value",) if tooltip else (),
     )
 
-    magnitudes = [value for _, value in pairs]
+    magnitudes = [value for _, value, _index in pairs]
     description = describe(
         "Donut chart" if inner_radius > 0 else "Pie chart",
-        group([label for label, _ in pairs], "slice"),
+        group([label for label, _, _index in pairs], "slice"),
         span("values", min(magnitudes), max(magnitudes)),
         f"total {number(total)}",
     )

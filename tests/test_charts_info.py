@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -335,3 +336,139 @@ def test_a_composition_carries_no_table_even_when_its_children_have_one() -> Non
     composition = facet(sp.lineplot, data, col="region", x="x", y="y", info=[("X", "@x{0.0}")])
 
     assert _table_rows(composition.to_markdown()) == []
+
+
+# ---------------------------------------------------------------------------
+# one declaration fills both the table and the tooltips
+# ---------------------------------------------------------------------------
+
+# Built so that no positional pairing can be right. Row 2 is dropped -- by the chart and by the
+# table alike -- so the surviving rows are not ``range(4)``; and ``hue=`` sorts the series so the
+# points come out r3, r4, r0, r1 while the table stays in input order r0, r1, r3, r4. An
+# implementation that walks the table alongside the marks answers every point with another
+# point's row and still produces four plausible tooltips.
+MISALIGNING = {
+    "x": [1.0, 2.0, None, 4.0, 5.0],
+    "y": [10.0, 20.0, 30.0, 40.0, 50.0],
+    "team": ["b", "b", "b", "a", "a"],
+    "who": ["r0", "r1", "r3-was-index-3", "r3", "r4"],
+}
+PAIRING = [("Who", "@who"), ("Y", "@y")]
+
+
+def _tooltips(chart: sp.Chart) -> list[str]:
+    """Every mark's ``<title>``, in document order, without the chart's own trailing one."""
+    return re.findall(r"<title>([^<]*)</title>", chart.to_string())[:-1]
+
+
+def test_a_point_is_named_by_the_row_it_was_drawn_from_not_the_one_beside_it() -> None:
+    """The pairing is by original row index, so it survives both ways the two orders differ.
+
+    This is the whole risk in letting ``info=`` speak for a mark. The table's rows and the
+    chart's marks come out of one declaration but two traversals, and the traversals disagree
+    about order under ``hue=`` and about numbering wherever a row was dropped. Nothing about a
+    wrongly paired tooltip looks wrong -- it is a real row of the caller's data, on the wrong
+    mark.
+    """
+    chart = sp.scatterplot(MISALIGNING, x="x", y="y", hue="team", info=PAIRING, tooltip=True)
+
+    assert _tooltips(chart) == [
+        "Who: r3 · Y: 40",
+        "Who: r4 · Y: 50",
+        "Who: r0 · Y: 10",
+        "Who: r1 · Y: 20",
+    ]
+
+
+def test_the_table_and_the_tooltips_describe_the_same_rows() -> None:
+    """Stated once more without leaning on either order, since that is the claim being made.
+
+    The test above pins the exact sentences, which also pins the draw order; if the palette
+    order ever changes it fails for a reason that has nothing to do with pairing. This one
+    would survive that and still catch a tooltip pointing at a row the table doesn't hold.
+    """
+    chart = sp.scatterplot(MISALIGNING, x="x", y="y", hue="team", info=PAIRING, tooltip=True)
+
+    from_marks = {tuple(title.split(" · ")) for title in _tooltips(chart)}
+    from_table = {
+        tuple(f"{name}: {cell}" for name, cell in zip(("Who", "Y"), row.strip("| ").split(" | "), strict=True))
+        for row in _body_rows(chart.to_markdown())
+    }
+
+    assert from_marks == from_table
+
+
+def test_every_drawn_point_has_a_row_in_the_table() -> None:
+    """The two filters agree today, and this is what notices if one of them stops agreeing.
+
+    ``collect_label_data`` keeps a row when no required channel ``is_missing``; the point loop
+    keeps it when ``numeric_or_none`` returns a number for x, y and size -- which is exactly
+    when ``is_missing`` is false. The tooltip falls back to its channel clauses for a point the
+    table dropped, so a drift would not crash; it would quietly stop honouring ``info=`` for
+    some of the marks. Counting is enough to see it.
+    """
+    chart = sp.scatterplot(MISALIGNING, x="x", y="y", size="y", hue="team", info=PAIRING, tooltip=True)
+
+    assert len(_tooltips(chart)) == len(_body_rows(chart.to_markdown()))
+    assert all(title.startswith("Who: ") for title in _tooltips(chart)), "a point fell back to its channels"
+
+
+def test_info_replaces_the_channel_clauses_it_would_otherwise_repeat() -> None:
+    """``info=`` almost always names the columns the chart is drawn from; saying both is a bug."""
+    chart = sp.scatterplot(NUMERIC, x="day", y="sales", info=SPEC, tooltip=True)
+
+    assert _tooltips(chart) == ["Day: 1.0 · Sales: 1,200", "Day: 2.0 · Sales: 3,400", "Day: 3.0 · Sales: 2,500"]
+    assert "day: 1" not in chart.to_string(), "the point kept its channel clause as well"
+
+
+def test_a_slice_keeps_the_shares_info_cannot_hold() -> None:
+    """A pie computes two things no column holds, so ``info=`` replaces the row and not those.
+
+    The middle row is dropped for a missing label, which is what makes this a pairing test as
+    well: the second slice is the third row, so a slice that asked ``info=`` by its position
+    among the slices would answer it with the dropped row's neighbour.
+    """
+    data = {
+        "region": ["동부", None, "서부"],
+        "sales": [40.0, 5.0, 60.0],
+        "who": ["A팀", "빠진팀", "B팀"],
+    }
+
+    chart = sp.pieplot(data, values="sales", labels="region", info=[("팀", "@who")], tooltip=True)
+
+    assert _tooltips(chart) == ["팀: A팀 · 40.0% · 40.0% cumulative", "팀: B팀 · 60.0% · 100.0% cumulative"]
+
+
+def test_a_hole_is_spelled_the_same_in_the_tooltip_and_in_the_table() -> None:
+    """``info=`` may name a column the chart never required, so it may have holes the marks don't."""
+    data = {"day": [1.0, 2.0], "sales": [10.0, 20.0], "note": ["첫날", None]}
+
+    chart = sp.scatterplot(data, x="day", y="sales", info=[("메모", "@note")], tooltip=True)
+
+    assert _tooltips(chart) == ["메모: 첫날", "메모: —"]
+    assert _body_rows(chart.to_markdown()) == ["| 첫날 |", "| — |"]
+
+
+def test_an_info_spec_too_long_to_repeat_leaves_the_channel_clauses_alone() -> None:
+    """The cap is per mark, and ``info=`` is caller text: an unbounded spec times a thousand
+    points is the same failure the label cap was written for, arriving through another door."""
+    data = {"day": [1.0], "sales": [10.0], "essay": ["가" * 200]}
+
+    chart = sp.scatterplot(data, x="day", y="sales", info=[("긴", "@essay")], tooltip=True)
+
+    assert _tooltips(chart) == ["day: 1 · sales: 10"]
+    assert "가" * 200 in chart.to_markdown(), "the table is not capped -- only the per-mark copy is"
+
+
+def test_info_does_not_turn_tooltips_on_by_itself() -> None:
+    """Declaring a table is not asking for a title on every mark.
+
+    ``info=`` does move the picture on its own -- it adds the ``aria-describedby`` that points
+    at the table, and that was true before a tooltip could read the spec. What must not change
+    is the number of elements: ``tooltip=False`` is the default, and one ``<title>`` per mark
+    is the cost the default exists to avoid.
+    """
+    svg = sp.scatterplot(NUMERIC, x="day", y="sales", info=SPEC).to_string()
+
+    assert svg.count("<title>") == 1, "only the chart's own title belongs in a default render"
+    assert 'aria-describedby="svgplot-data-table"' in svg, "the table reference is info='s own doing"

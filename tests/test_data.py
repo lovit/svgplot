@@ -7,6 +7,7 @@ import math
 import pytest
 
 from svgplot.data import LongFormData, attach_metadata, extract_channels, ingest_longform
+from svgplot.data.semantic import channel_row_indices
 
 
 class _FakeDataFrame:
@@ -239,3 +240,45 @@ def test_attach_metadata_raises_for_length_mismatch() -> None:
 def test_attach_metadata_empty_values_returns_empty_list() -> None:
     assert attach_metadata([], None) == []
     assert attach_metadata([], []) == []
+
+
+# ---------------------------------------------------------------------------
+# channel_row_indices — the same split, said as row numbers
+# ---------------------------------------------------------------------------
+
+
+def test_channel_row_indices_and_extract_channels_are_one_filter() -> None:
+    """The two are the same question asked twice, so nothing may separate the answers.
+
+    ``extract_channels`` gives a chart the values it draws; ``channel_row_indices`` gives it
+    the rows those values came from, which is how a mark is traced back to a footnote table.
+    Two filters over one dataset can disagree by one dropped row and produce a chart that
+    labels every mark with its neighbour's data -- plausible, wrong, and invisible.
+    """
+    data = {
+        "value": [1.0, 2.0, 3.0, 4.0, 5.0],
+        "group": ["b", None, "a", "b", "a"],
+    }
+
+    indices = channel_row_indices(data, hue="group")
+    grouped = extract_channels(data, hue="group")
+
+    assert indices == {"b": [0, 3], "a": [2, 4]}
+    assert grouped.keys() == indices.keys()
+    assert all(grouped[key][column] == [data[column][row] for row in rows] for key, rows in indices.items() for column in data)
+
+
+def test_channel_row_indices_numbers_rows_of_the_input_not_of_the_group() -> None:
+    """The index is only useful if it means what the caller's data means by it."""
+    data = {"value": [1.0, 2.0, 3.0], "group": ["a", "b", "a"]}
+
+    assert channel_row_indices(data, hue="group") == {"a": [0, 2], "b": [1]}
+
+
+def test_channel_row_indices_refuses_the_same_things_extract_channels_does() -> None:
+    data = {"value": [1.0], "group": ["a"]}
+
+    with pytest.raises(ValueError, match="at least one of hue/col/row"):
+        channel_row_indices(data)
+    with pytest.raises(KeyError, match="hue column not found"):
+        channel_row_indices(data, hue="nope")

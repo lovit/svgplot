@@ -60,9 +60,35 @@ class LabelData:
 
     spec: LabelSpec
     columns: dict[str, list]
+    row_indices: tuple[int, ...] = ()
+    """Which original rows survived, in the order ``columns`` holds them.
+
+    The table does not need this -- it reads its rows in order. A *tooltip* does: a mark knows
+    the row it was drawn from, and the only way to ask this snapshot about that row is by
+    index. Every other way of pairing them is a second filter, and two filters over the same
+    data is exactly the thing that can silently disagree.
+
+    Defaults to empty so the dataclass can be built without it in a test; every path through
+    :func:`collect_label_data` fills it.
+    """
 
     def __len__(self) -> int:
         return column_length(self.columns)
+
+    def row(self, index: int) -> dict[str, object] | None:
+        """The snapshot's row for original row ``index``, or ``None`` if it did not survive.
+
+        ``None`` rather than a raise: a chart's own filter and this one are close but not
+        identical -- ``scatterplot`` drops a row whose ``x`` is a non-numeric string, which
+        ``is_missing`` keeps -- so a mark asking about a row this snapshot dropped is a real
+        state, not a bug. It means the tooltip falls back to naming its channels.
+        """
+        position = self._positions.get(index)
+        return None if position is None else {name: values[position] for name, values in self.columns.items()}
+
+    @property
+    def _positions(self) -> dict[int, int]:
+        return {row_index: position for position, row_index in enumerate(self.row_indices)}
 
 
 def collect_label_data(
@@ -114,4 +140,5 @@ def collect_label_data(
     return LabelData(
         spec=spec,
         columns={field.field: [columns[field.field][row_index] for row_index in kept] for field in spec},
+        row_indices=tuple(kept),
     )
