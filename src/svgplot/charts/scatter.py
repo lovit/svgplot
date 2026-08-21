@@ -132,7 +132,7 @@ def _render_size_legend(
         row_y += radius + _SIZE_LEGEND_ROW_PADDING
 
 
-def _sizeclause(size: str | None) -> str | None:
+def _size_clause(size: str | None) -> str | None:
     """The ``size=`` clause, with the column name capped like every other caller string.
 
     This is the one clause in the package that names something the caller typed rather
@@ -376,6 +376,6 @@ def scatterplot(
         over([str(label) for label, _ in series_items] if hue is not None else None, points),
         span("x", *x_domain),
         span("y", *y_domain),
-        _sizeclause(size),
+        _size_clause(size),
     )
     return Chart(document, label_data, description=description, domains=Domains(x=x_domain, y=y_domain))
