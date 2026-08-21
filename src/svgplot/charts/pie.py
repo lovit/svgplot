@@ -64,6 +64,14 @@ def pieplot(
     refused rather than clamped, and a chart may refuse a larger one if its own legend does
     not fit.
 
+    ``info=`` publishes a footnote table beside the chart -- ``[("label", "@column")]``, or a
+    :class:`~svgplot.labels.spec.LabelSpec`. Available here because one input row is one slice.
+    The table lists the rows this chart actually drew, which for a pie means the rows with both
+    ``values`` and ``labels`` present -- a row missing some *other* column is still drawn and
+    still listed. ``chart.to_html_table()`` renders it, ``chart.save("x.md")`` writes it beneath
+    the figure, and the SVG points at it with ``aria-describedby`` -- so two ``info=`` charts on
+    one page need :meth:`~svgplot.chart.base.Chart.set_table_id` to tell their tables apart.
+
     Raises:
         KeyError: if ``values``/``labels`` isn't a column in ``data``, or if
             ``theme`` is a string that isn't a registered preset name.

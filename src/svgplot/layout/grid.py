@@ -235,7 +235,17 @@ def grid(
 
 
 def row(charts: list[Chart | None], spacing: int = 12, *, titles: list[str | None] | None = None) -> Composition:
-    """Arrange charts in a single horizontal row. ``None`` entries render as empty cells."""
+    """Arrange charts in a single horizontal row. ``None`` entries render as empty cells.
+
+    ``spacing`` is the gutter in pixels between neighbouring cells, and ``titles`` supplies one
+    heading per cell, rendered above it — the static "Tabs 대체" idiom from
+    docs-research/16-layout-vocabulary.md. Both are handed straight to :func:`grid`, which is
+    where their rules live.
+
+    Raises:
+        ValueError: if ``charts`` is empty, or (via :func:`grid`) if ``spacing`` is negative or
+            ``titles`` has a different length than ``charts``.
+    """
     if not charts:
         raise ValueError("row requires at least one cell")
     return grid([list(charts)], spacing=spacing, titles=titles)
@@ -245,7 +255,13 @@ def column(charts: list[Chart | None], spacing: int = 12, *, titles: list[str | 
     """Arrange charts in a single vertical column. ``None`` entries render as empty cells.
 
     ``titles`` renders a heading above each chart — the default "Tabs 대체" idiom
-    from docs-research/16-layout-vocabulary.md.
+    from docs-research/16-layout-vocabulary.md. ``spacing`` is the gutter in pixels between
+    neighbouring cells. Both are handed straight to :func:`grid`, which is where their rules
+    live.
+
+    Raises:
+        ValueError: if ``charts`` is empty, or (via :func:`grid`) if ``spacing`` is negative or
+            ``titles`` has a different length than ``charts``.
     """
     if not charts:
         raise ValueError("column requires at least one cell")
