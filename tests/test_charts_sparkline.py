@@ -1,9 +1,22 @@
 from __future__ import annotations
 
+import importlib
+import re
+import sys
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import pytest
 
+# ``gallery`` is repo-root source, not part of the installed package.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from gallery import interaction, page
+from gallery.example import load
+from gallery.interaction import resolve
+from gallery.page import chart_page
+
+from _svg_probe import style_rule
 from svgplot.charts._layout import SPARKLINE_HEIGHT, SPARKLINE_WIDTH
 from svgplot.charts.line import lineplot
 from svgplot.charts.sparkline import sparkline
@@ -195,3 +208,128 @@ def test_sparkline_rejects_an_unknown_column() -> None:
 def test_sparkline_rejects_an_unknown_theme_preset() -> None:
     with pytest.raises(KeyError, match="unknown theme preset"):
         sparkline(DATA, "v", theme="not-a-preset")
+
+
+# ---------------------------------------------------------------------------
+# why this is the one gallery page that gets no interaction
+# ---------------------------------------------------------------------------
+#
+# The page says so in prose, so the prose is run here. Each of these is a reason the page
+# gives, and a reason nobody can check is a reason that quietly stops being true.
+
+
+def _titled_marks(html: str) -> list[str]:
+    """The tags of every element in ``html`` that has a ``<title>`` child and is not the root.
+
+    Parsed rather than pattern-matched. The first version of this looked for ``"</title></"``,
+    which never matches anything this package emits -- the serializer pretty-prints, so a
+    titled mark is ``</title>\n  </text>``. Checked against ``docs/gallery/heatmap.html``,
+    which really does carry one: the string form found 0, this finds it.
+    """
+    found = []
+    for figure in re.findall(r"<svg\b.*?</svg>", html, re.S):
+        root = ET.fromstring(figure)
+        for parent in root.iter():
+            if parent is root:
+                continue
+            if any(child.tag == f"{SVG_NS}title" for child in parent):
+                found.append(parent.tag.removeprefix(SVG_NS))
+    return found
+
+
+def test_the_mark_tooltip_detector_sees_one_when_there_is_one() -> None:
+    """The detector above is the whole of ``no mark tooltip``, so it gets its own case.
+
+    A check that answers "none" whatever it is given is not evidence of none.
+    """
+    from svgplot.charts._tooltip import add_tooltip
+
+    chart = sparkline(DATA, y="v")
+    # Reaching past the public API on purpose: the point is to build the case the detector has
+    # to see, and no chart offers a mark tooltip yet.
+    document = chart._svg_document
+    add_tooltip(document, next(node for node in document.root if node.tag.endswith("path")), "a value")
+
+    assert _titled_marks(chart.to_string()) == ["path"]
+
+
+def test_the_gallery_emitter_refuses_a_toggle_for_a_sparkline() -> None:
+    """Not a judgement the page makes -- the machinery will not build one.
+
+    A control needs a name and names come from the legend, and this chart draws none: one
+    series, and its name is already in the sentence the picture sits in.
+    """
+    svg = sparkline(DATA, y="v").set_scope("svgplot-sparkline-1").to_string()
+
+    with pytest.raises(ValueError, match="no legend entry"):
+        resolve("svgplot-sparkline-1", "toggle", svg)
+
+
+def test_the_sparkline_page_carries_no_control_no_hover_and_no_mark_tooltip() -> None:
+    """The page opens by saying it has none of the three, and that is the sentence most likely
+    to rot: sibling issues are putting exactly those on the other pages, one page at a time.
+
+    The NOTE deliberately says nothing about *how many* of them have landed. An earlier version
+    counted them, and the count was wrong within the day -- ``ecdfplot`` merged while this
+    branch was open. A page that has to be edited whenever a sibling merges is a page that will
+    be wrong between merges.
+
+    Rendered here rather than read off ``docs/``, for ``test_gallery_interaction.py``'s reason
+    -- reading the committed file measures whether it is stale, which the byte-diff already
+    does, instead of measuring the generator.
+    """
+    html = chart_page(load(importlib.import_module("gallery.examples.sparkline"), "sparkline"))
+
+    assert 'class="series-toggle"' not in html
+    assert ":hover" not in html
+    assert _titled_marks(html) == [], "a mark grew a <title>, which is the browser's own tooltip"
+
+
+def test_the_control_row_is_taller_than_the_default_canvas() -> None:
+    """The page argues from two CSS values, so both are read out of the CSS rather than typed
+    into the assertion.
+
+    The label's own rule, not ``CHROME`` as a whole: ``.interaction-note`` carries the same
+    ``font-size: 0.9rem``, so a substring check over the whole block passes with the label's
+    size deleted -- measured, and the same failure this file's ``stroke-width`` case was
+    written to close.
+
+    Only the line box is compared. An earlier version added the checkbox's ``0.75rem`` bottom
+    margin on top, which is not how inline layout works: the checkbox is inline-level, so its
+    margin box sits *inside* the line box rather than stacking below it. The line box alone is
+    24.48px at a 16px root, which already clears the 24px canvas -- and no browser was run to
+    get either number, so the claim is kept to the part that is arithmetic on the stylesheet.
+    """
+    label_rule = next(line for line in interaction.CHROME.splitlines() if "+ label {" in line)
+    body_rule = page.STYLE[page.STYLE.index("body {") : page.STYLE.index("a {")]
+    label_size = float(re.search(r"font-size: ([\d.]+)rem;", label_rule).group(1))
+    line_height = float(re.search(r"line-height: ([\d.]+);", body_rule).group(1))
+
+    assert label_size * line_height * 16 > SPARKLINE_HEIGHT
+
+
+def test_the_line_is_two_pixels_of_a_twenty_four_pixel_picture() -> None:
+    """Why there is no ``:hover`` either. The stroke is the whole hit target for the series --
+    an unfilled path has no interior to catch a pointer -- and here it is 2px against a default
+    canvas 24px tall.
+
+    Compared as a whole rule, not by substring. ``"stroke-width: 2" in rule`` also passes on
+    ``stroke-width: 25``, and this is not hypothetical: ``theme="print"`` really does emit
+    ``2.5``, so the page names that preset rather than claiming one number for all of them.
+    """
+    assert style_rule(sparkline(DATA, y="v").to_string(), ".series-1") == (
+        ".series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }"
+    )
+    assert style_rule(sparkline(DATA, y="v", theme="print").to_string(), ".series-1") == (
+        ".series-1 { stroke: #E69F00; fill: none; stroke-width: 2.5; opacity: 1; }"
+    )
+    assert SPARKLINE_HEIGHT == 24.0
+
+
+def test_one_path_per_series_is_why_a_tooltip_would_name_the_line_not_a_point() -> None:
+    """A ``<title>`` belongs to an element, and this chart draws one element for the whole
+    series -- so it could carry the series' name and never a single reading. Giving it point
+    markers would change that, and would be changing the picture to suit the tooltip."""
+    root = parse(sparkline({"v": [1.0, 5.0, 2.0, 8.0, 3.0, 9.0]}, y="v").to_string())
+
+    assert len([node for node in root.iter() if node.tag == f"{SVG_NS}path"]) == 1
