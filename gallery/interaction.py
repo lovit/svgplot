@@ -26,11 +26,15 @@ the ``<figure>``. Sibling rather than :has() on a wrapper, and that is not a sty
 ``~`` has no browser floor, while ``:has()`` does. Wrapping the controls in a ``<div>`` or a
 ``<fieldset>`` would break the sibling relation and force :has() back.
 
-Specificity, counted rather than assumed: the rule above is ``(1, 2, 1)`` -- one id, ``:not()``
-contributing its argument's one class plus ``:is()`` contributing its widest argument's one
-class, and one element name. The chart's own rule for the same elements is ``:where(.scope)
-.series-1``, which is ``(0, 1, 0)`` because ``:where()`` contributes nothing. The page wins
-without ``!important``.
+Specificity: the rule above is ``(1, 2, 1)`` -- one id, ``:not()`` contributing its argument's
+one class plus ``:is()`` contributing its widest argument's one class, and one element name.
+The chart's own rule for the same elements is ``:where(.scope) .series-1``, which is
+``(0, 1, 0)`` because ``:where()`` contributes nothing. The page wins without ``!important``.
+
+Both numbers were read off ``cssselect2`` rather than counted by hand, but **nothing in this
+repository re-derives them yet**: the check that does needs ``cssselect2`` installed in CI,
+which means a dependency change, which is a gate file. It is #214, and until it lands this
+paragraph is a measurement someone took once rather than a property under test.
 """
 
 from __future__ import annotations
