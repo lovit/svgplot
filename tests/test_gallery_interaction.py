@@ -71,6 +71,37 @@ def _selected_classes(rules: str) -> set[str]:
     return {match.group(1) for line in rules.splitlines() for match in _CLASS_IN_SELECTOR.finditer(line.split("{")[0])}
 
 
+_BLOCK_HEADER = re.compile("/\\* (svgplot-[\\w-]+) \u00b7 (\\w+) \\*/")
+_ONE_RULE = re.compile(r"([^{}]+)\{[^{}]*\}")
+
+
+def _page_rules(html: str) -> list[tuple[str, str, str]]:
+    """``(figure, kind, selector)`` for every series rule in the page's own stylesheet.
+
+    Matched over the whole stylesheet rather than line by line, so the same CSS wrapped
+    differently still parses -- the line-based version went to zero rules on every page, and
+    silently, because the guard using it skips when it finds none.
+
+    The page's ``<style>`` sits in ``<head>``; each chart's own is inside its ``<svg>`` and
+    scopes itself with ``:where()``, and those rules are not what this is about. The chrome
+    comes before the first ``/* figure \u00b7 kind */`` comment, so it is skipped by having no
+    figure to belong to yet.
+    """
+    # Split on the block headers first rather than alternating comment-or-rule in one pattern:
+    # a selector pattern permissive enough to match ``#id:not(:checked) ~ svg :is(.series-1)``
+    # also matches the comment above it, and swallows it.
+    parts = _BLOCK_HEADER.split(html.split("<figure>", 1)[0])
+    rules = []
+    for index in range(1, len(parts), 3):
+        figure, kind, body = parts[index], parts[index + 1], parts[index + 2]
+        rules += [
+            (figure, kind, " ".join(match.group(1).split()))
+            for match in _ONE_RULE.finditer(body)
+            if _CLASS_IN_SELECTOR.search(match.group(1))
+        ]
+    return rules
+
+
 def _stub(examples: list[tuple[str, str]], interactions: dict[int, str] | None = None, name: str = "stub") -> Page:
     """A gallery page built here rather than committed.
 
@@ -232,23 +263,41 @@ def test_a_switched_off_series_does_not_answer_the_pointer() -> None:
     Keyed on ``:checked``, the two selectors cannot both match, which is a stronger statement
     than winning the cascade: there is no state in which a rule for a hidden series applies.
     """
-    page = _stub([("bars", _BAR)], {1: ("toggle", "hover")})
-    rules = interaction.stylesheet(list(page.examples[0].controls))
-    hover = [line for line in rules.splitlines() if ":hover" in line]
+    page = chart_page(_stub([("bars", _BAR)], {1: ("toggle", "hover")}))
+    hover = [selector for _figure, kind, selector in _page_rules(page) if kind == "hover"]
 
     assert hover, "the fixture stopped emitting hover rules"
-    for line in hover:
-        assert ":checked ~ svg" in line and ":not(:checked)" not in line, line
+    for selector in hover:
+        assert ":hover" in selector, selector
+        assert ":checked ~ svg" in selector and ":not(:checked)" not in selector, selector
+
+
+def test_a_switched_off_series_is_out_of_the_pointer_s_way_entirely() -> None:
+    """``opacity`` does not take an element out of hit testing. Without ``pointer-events: none``
+    a dimmed series keeps swallowing the pointer for everything drawn under it, and on an
+    overlaid ``areaplot`` figure that is not hypothetical: series-2's fill lies entirely inside
+    series-1's, so switching series-2 off left series-1 -- still switched *on* -- unable to
+    respond to the pointer anywhere below series-2's top edge, and its own ``<title>`` tooltip
+    unreachable there.
+
+    Read off the committed page rather than a stub, because the geometry is the reason.
+    """
+    areaplot = next(html for name, html in _PAGES if name == "areaplot")
+    rules = [line for line in areaplot.split("<figure>", 1)[0].splitlines() if f"opacity: {interaction.DIM_OPACITY}" in line]
+
+    assert rules, "the fixture stopped emitting dim rules"
+    for line in rules:
+        assert "pointer-events: none" in line, line
 
 
 def test_hover_alone_is_not_keyed_on_a_checkbox_that_does_not_exist() -> None:
     """The other half: a hover-only figure has no ``<input>``, so a ``#id:checked`` prefix would
     be a selector that never matches and a figure that never responds."""
-    page = _stub([("bars", _BAR)], {1: "hover"})
-    rules = interaction.stylesheet(list(page.examples[0].controls))
+    page = chart_page(_stub([("bars", _BAR)], {1: "hover"}))
+    hover = [selector for _figure, kind, selector in _page_rules(page) if kind == "hover"]
 
-    assert ":checked" not in rules
-    assert ":hover" in rules
+    assert hover, "the fixture stopped emitting hover rules"
+    assert all(":checked" not in selector and ":hover" in selector for selector in hover), hover
 
 
 def test_a_single_kind_is_still_a_kind() -> None:
@@ -483,54 +532,103 @@ def test_every_rule_reaches_the_figure_it_was_written_for(html: str) -> None:
     cases -- the browser applies nothing and the page looks like a page whose author did not
     ask for controls.
 
-    Watched failing with three separate mutations of the emitter, each of which the id check
-    above and the whole rest of this file passed: scoping a hover rule to ``.{figure}-nope``,
-    changing the toggle's ``~ svg`` to ``~ nosuchtag``, and renaming every target class to one
-    no figure draws.
+    **The figure a rule was written for is taken from its own block comment, not from its
+    anchor.** An earlier version read the anchor and then checked the rule against the figure
+    the anchor happened to name, which is circular: keying figure 3's hover rules on figure 2's
+    checkbox produced a page where figure 3 has no hover at all, and that version passed. The
+    comment is the emitter's statement of intent, so it is the thing the anchor is checked
+    *against*.
+
+    Watched failing with six mutations of the emitter, each of which the id check above and the
+    whole rest of this file passed: scoping a hover rule to ``.{figure}-nope``, changing the
+    toggle's ``~ svg`` to ``~ nosuchtag``, renaming every target class to one no figure draws,
+    keying a figure's hover rules on another figure's checkbox, keying every series' hover rule
+    on series-1's checkbox, and re-emitting the same CSS wrapped over three lines.
     """
-    figures = [ET.fromstring(markup) for markup in re.findall(r"<figure>.*?</figure>", blank_style_bodies(html), re.S)]
-    # The page's own stylesheet, which sits in <head>; each chart's <style> is inside its own
-    # <svg> and scopes itself with :where(), and those rules are not what this is about.
-    page_css = html.split("<figure>", 1)[0]
-    rules = [line for line in page_css.splitlines() if _CLASS_IN_SELECTOR.search(line.split("{")[0]) and "}" in line]
+    rules = _page_rules(html)
     if not rules:
+        assert 'type="checkbox"' not in html, "the page has controls but no rule was extracted"
+        assert ":hover" not in html.split("<figure>", 1)[0], "the page has hover rules but none was extracted"
         pytest.skip("this page declares no controls")
 
-    for rule in rules:
-        selector, _ = rule.split("{", 1)
+    figures = {
+        element.get("class"): figure
+        for figure in (ET.fromstring(markup) for markup in re.findall(r"<figure>.*?</figure>", blank_style_bodies(html), re.S))
+        for element in figure.iter()
+        if element.tag.endswith("}svg")
+    }
+
+    for figure_name, _kind, selector in rules:
+        assert figure_name in figures, f"the block claims {figure_name}, which is not a figure on this page: {selector}"
+        figure = figures[figure_name]
         wanted = {match.group(1) for match in _CLASS_IN_SELECTOR.finditer(selector)}
-        anchor = re.search(r"#([\w-]+):(?:not\(:checked\)|checked)", selector) or re.search(r"\.(svgplot-[\w-]+)", selector)
-        assert anchor, f"a rule is anchored on nothing: {rule}"
-        # The figure this rule claims: the one holding that <input> id, or the one whose <svg>
-        # carries that scope class.
-        owners = [
-            figure
-            for figure in figures
-            if any(
-                element.get("id") == anchor.group(1) or anchor.group(1) in (element.get("class") or "").split()
-                for element in figure.iter()
-            )
-        ]
-        assert len(owners) == 1, f"{anchor.group(1)} is on {len(owners)} figures: {rule}"
         drawn = {
-            name for element in owners[0].iter() for name in (element.get("class") or "").split() if name.startswith("series-")
+            name for element in figure.iter() for name in (element.get("class") or "").split() if name.startswith("series-")
         }
-        assert wanted <= drawn, f"the rule names {sorted(wanted - drawn)}, which that figure does not draw: {rule}"
-        if walked := re.search(r"~\s+([\w-]+)", selector):
-            tags = [child.tag.split("}")[-1] for child in owners[0]]
-            targets = [index for index, tag in enumerate(tags) if tag == walked.group(1)]
-            inputs = [index for index, tag in enumerate(tags) if tag == "input"]
-            assert targets, f"the rule walks to <{walked.group(1)}>, which is not a child of that figure: {rule}"
-            assert inputs, "the sibling combinator has no <input> to start from"
-            assert min(inputs) < min(targets), f"the <input> must precede <{walked.group(1)}> for ~ to reach it"
+        assert wanted <= drawn, f"the rule names {sorted(wanted - drawn)}, which {figure_name} does not draw: {selector}"
+
+        keyed = re.search(r"#([\w-]+):(?:not\(:checked\)|checked)", selector)
+        scoped = re.search(r"\.(svgplot-[\w-]+)(?![\w-])", selector)
+        assert keyed or scoped, f"a rule is anchored on nothing: {selector}"
+        if scoped and not keyed:
+            assert scoped.group(1) == figure_name, f"the rule is scoped to {scoped.group(1)}, not to {figure_name}"
+            continue
+
+        assert keyed
+        expected = {f"{figure_name}-toggle-{name.split('-')[1]}" for name in wanted}
+        assert keyed.group(1) in expected, f"{figure_name}'s rule for {sorted(wanted)} is keyed on {keyed.group(1)}"
+        _assert_the_combinator_walks(html, figure_name, keyed.group(1), selector)
 
 
-def test_some_page_actually_has_a_rule_to_check() -> None:
-    """The check above skips a page with no controls, which is most of them. Without this, the
-    day the emitter stops emitting is the day that test reports sixteen skips and no failures."""
-    with_rules = [name for name, html in _PAGES if _CLASS_IN_SELECTOR.search(html.split("<figure>", 1)[0].replace("\n", " "))]
+def _assert_the_combinator_walks(html: str, figure_name: str, input_id: str, selector: str) -> None:
+    """The ``~`` in ``#id:checked ~ svg`` only reaches a *later sibling of that input*.
 
-    assert len(with_rules) >= 3, f"only {with_rules} carry page-level series rules"
+    Located by the anchor's own id rather than by "the first ``<input>`` in the figure": with a
+    decoy input before the ``<svg>``, comparing the earliest input satisfies every rule on the
+    page including one whose own checkbox comes after the chart.
+    """
+    walked = re.search(r"~\s+([\w-]+)", selector)
+    if walked is None:
+        return
+    markup = next(m for m in re.findall(r"<figure>.*?</figure>", blank_style_bodies(html), re.S) if figure_name in m)
+    children = list(ET.fromstring(markup))
+    tags = [child.tag.split("}")[-1] for child in children]
+    anchors = [index for index, child in enumerate(children) if child.get("id") == input_id]
+    targets = [index for index, tag in enumerate(tags) if tag == walked.group(1)]
+
+    assert anchors, f"<input id={input_id}> is not a direct child of {figure_name}: {selector}"
+    assert targets, f"the rule walks to <{walked.group(1)}>, which is not a child of {figure_name}: {selector}"
+    assert min(anchors) < min(targets), f"<input id={input_id}> must precede <{walked.group(1)}> for ~ to reach it"
+
+
+def test_the_rule_extraction_sees_a_rule_on_every_committed_page_that_has_controls() -> None:
+    """The guard above skips when it finds no rules, so the day its extraction breaks is the day
+    it reports sixteen skips and no failures. Re-emitting the same CSS wrapped over three lines
+    -- a formatting change nobody would think twice about -- did exactly that to the
+    line-by-line version it replaced.
+
+    Counted over the **committed** pages only. An earlier bar of "three pages carry rules" was
+    met by the three stubs this file builds itself, so deleting ``INTERACTIONS`` from every real
+    example module left it green.
+    """
+    committed = {name: html for name, html in _PAGES if not name.startswith("built-")}
+    with_controls = {name for name, html in committed.items() if 'type="checkbox"' in html}
+    with_rules = {name for name, html in committed.items() if _page_rules(html)}
+
+    assert len(with_controls) >= 3, f"only {sorted(with_controls)} of the committed pages carry a control"
+    assert with_controls <= with_rules, f"{sorted(with_controls - with_rules)} have controls and no extracted rule"
+
+
+def test_a_control_starts_checked_so_the_page_opens_showing_everything() -> None:
+    """``checked="checked"`` is load-bearing twice over. Without it every series loads dimmed --
+    a page that opens looking like the reader already switched it off -- and, since the hover
+    rules are keyed on ``:checked``, with no hover anywhere either. Dropping the attribute left
+    the whole suite green before this."""
+    html = chart_page(_stub([("bars", _BAR)], {1: ("toggle", "hover")}))
+    inputs = re.findall(r"<input\b[^>]*>", html)
+
+    assert inputs, "the fixture stopped emitting controls"
+    assert all('checked="checked"' in tag for tag in inputs), inputs
 
 
 def test_the_index_carries_no_controls() -> None:
