@@ -414,3 +414,110 @@ def test_points_are_drawn_in_input_order() -> None:
     centres = [float(match) for match in re.findall(r'<circle[^>]*cx="(-?[\d.]+)"', svg)]
 
     assert centres != sorted(centres)
+
+
+# --------------------------------------------------------------------------------- tooltips
+
+
+def _titled(svg: str, css_class: str) -> list[str]:
+    """The ``<title>`` text of every element carrying ``css_class``, in document order.
+
+    Through the parsed tree so an element that *lost* its title is visible as a missing entry
+    rather than as one fewer match. The chart's own ``<title>`` hangs off the root ``<svg>``,
+    which carries no mark class.
+    """
+    import xml.etree.ElementTree as ET
+
+    root = ET.fromstring(svg)
+    found = []
+    for element in root.iter():
+        if css_class in (element.get("class") or "").split():
+            title = element.find("{http://www.w3.org/2000/svg}title")
+            found.append(None if title is None else title.text)
+    return found
+
+
+def test_the_band_says_which_interval_it_is_and_how_it_was_estimated() -> None:
+    """The band is the one mark here that is neither a datum nor labelled: a translucent region
+    around a line reads as decoration until something names it, and the chart's ``<desc>`` names
+    it once for the whole picture, which a reader pointing at the band is not being read.
+
+    ``n_boot`` is part of the answer rather than an implementation detail -- a bootstrap
+    interval is an estimate whose own precision depends on it, and two charts of the same data
+    with different ``n_boot`` draw different bands."""
+    data = {"area": [10.0, 20.0, 30.0, 40.0, 50.0], "sales": [12.0, 19.0, 33.0, 38.0, 52.0]}
+    svg = regplot(data, x="area", y="sales", tooltip=True).to_string()
+
+    assert _titled(svg, "regression-band") == ["95% confidence band · 1000 bootstrap resamples"]
+
+
+def test_the_band_says_the_level_it_was_given() -> None:
+    """Read back from the file for three levels, one of which needs the decimal and one of
+    which must not have it -- ``0.95`` reads ``95%``, not ``95.0%``."""
+    data = {"area": [10.0, 20.0, 30.0, 40.0, 50.0], "sales": [12.0, 19.0, 33.0, 38.0, 52.0]}
+    said = [
+        _titled(regplot(data, x="area", y="sales", ci=level, n_boot=boot, tooltip=True).to_string(), "regression-band")[0]
+        for level, boot in ((0.95, 1000), (0.9973, 200), (1 / 3, 1))
+    ]
+
+    assert said == [
+        "95% confidence band · 1000 bootstrap resamples",
+        "99.7% confidence band · 200 bootstrap resamples",
+        "33.3% confidence band · 1 bootstrap resample",
+    ]
+
+
+def test_a_point_reads_its_own_row_back() -> None:
+    data = {"area": [10.0, 20.0, 30.0], "sales": [12.0, 19.0, 33.0]}
+    svg = regplot(data, x="area", y="sales", tooltip=True).to_string()
+
+    assert _titled(svg, "scatter-point") == ["area: 10 · sales: 12", "area: 20 · sales: 19", "area: 30 · sales: 33"]
+
+
+def test_a_mark_that_is_not_drawn_gets_no_accessible_name() -> None:
+    """``ci=None`` draws no band and ``scatter=False`` draws no points. There is nothing to hang
+    a name on either way, and inventing one would name a mark the caller switched off."""
+    data = {"area": [10.0, 20.0, 30.0], "sales": [12.0, 19.0, 33.0]}
+    no_band = regplot(data, x="area", y="sales", ci=None, tooltip=True).to_string()
+    no_points = regplot(data, x="area", y="sales", scatter=False, tooltip=True).to_string()
+
+    assert _titled(no_band, "regression-band") == []
+    assert len(_titled(no_band, "scatter-point")) == 3, "the points are still there"
+    assert _titled(no_points, "scatter-point") == []
+    assert len(_titled(no_points, "regression-band")) == 1, "the band is still there"
+
+
+def test_the_fit_line_is_left_unnamed_because_the_desc_already_names_it() -> None:
+    """A line through a cloud of points is the one mark whose meaning the picture already
+    carries. Giving it a ``<title>`` would add an element per chart to say what the reader can
+    see, and would take the pointer over the band where the two overlap."""
+    data = {"area": [10.0, 20.0, 30.0], "sales": [12.0, 19.0, 33.0]}
+    svg = regplot(data, x="area", y="sales", tooltip=True).to_string()
+
+    assert _titled(svg, "regression-line") == [None]
+
+
+def test_the_default_draws_no_tooltip_and_saying_so_changes_nothing() -> None:
+    """What this can check is that ``tooltip=False`` is the same call as not writing it, and
+    that no mark is titled. It is deliberately not named for byte-identity with the version
+    before ``tooltip=`` existed, which it cannot see -- both sides are this branch's code.
+    ``docs/gallery/*.html`` holds those bytes."""
+    data = {"area": [10.0, 20.0, 30.0], "sales": [12.0, 19.0, 33.0]}
+    omitted = regplot(data, x="area", y="sales").to_string()
+    explicit = regplot(data, x="area", y="sales", tooltip=False).to_string()
+
+    assert omitted == explicit
+    assert _titled(omitted, "scatter-point") == [None, None, None]
+    assert _titled(omitted, "regression-band") == [None]
+
+
+def test_a_column_name_too_long_to_read_is_dropped_from_a_point_tooltip() -> None:
+    """A column name is written once per point. Dropped rather than truncated -- half a column
+    name is a different column name -- and the value stays, because that is what the reader came
+    for."""
+    long_name = "면" * 5000
+    data = {long_name: [10.0, 20.0, 30.0], "sales": [12.0, 19.0, 33.0]}
+    svg = regplot(data, x=long_name, y="sales", tooltip=True).to_string()
+
+    assert _titled(svg, "scatter-point") == ["10 · sales: 12", "20 · sales: 19", "30 · sales: 33"]
+    assert long_name not in svg
