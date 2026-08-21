@@ -389,3 +389,71 @@ def test_a_rowless_category_gets_a_band_but_not_a_colour() -> None:
     assert "gap" in svg, "the rowless category still gets its tick"
     assert len(_bars(svg)) == 2, "and no mark of its own"
     assert _series_classes(svg) == {"series-1"}, "and takes no palette entry with it"
+
+
+# --------------------------------------------------------------------------------- tooltips
+
+
+def _titles(svg: str) -> list[str]:
+    """Mark tooltips only -- the chart's own ``<title>`` is the last one and is dropped."""
+    return re.findall(r"<title>([^<]*)</title>", svg)[:-1]
+
+
+def test_a_bar_tooltip_names_its_category_and_its_value() -> None:
+    svg = barplot(SINGLE_SERIES, x="category", y="value", tooltip=True).to_string()
+
+    assert _titles(svg) == ["category: a · value: 10", "category: b · value: 20", "category: c · value: 15"]
+
+
+def test_a_hued_bar_tooltip_names_its_group_too() -> None:
+    svg = barplot(HUE_SERIES, x="category", y="value", hue="group", tooltip=True).to_string()
+
+    assert "<title>category: a · value: 10 · group: x</title>" in svg
+    assert "<title>category: a · value: 5 · group: y</title>" in svg
+
+
+def test_a_stacked_segment_says_its_own_value_not_the_running_total() -> None:
+    """The rectangle is the segment, so that is what its accessible name has to be. Reading the
+    cumulative height would name a shape nobody drew -- and would make the top segment of every
+    category claim the column's total."""
+    # Values chosen so no cumulative total equals any segment: 10+1, 20+2, 30+3 are 11, 22, 33
+    # and none of those is a value in the data. With ``HUE_SERIES`` the total for "a" is 15,
+    # which is also "c"'s own value -- the wrong implementation and the right one would both
+    # put "15" somewhere in the file.
+    data = {
+        "category": ["a", "b", "c", "a", "b", "c"],
+        "value": [10.0, 20.0, 30.0, 1.0, 2.0, 3.0],
+        "group": ["x"] * 3 + ["y"] * 3,
+    }
+    svg = barplot(data, x="category", y="value", hue="group", stacked=True, tooltip=True).to_string()
+
+    assert sorted(_titles(svg)) == sorted(
+        f"category: {category} · value: {value} · group: {group}"
+        for category, value, group in zip(data["category"], (10, 20, 30, 1, 2, 3), data["group"], strict=True)
+    )
+    for total in (11, 22, 33):
+        assert f"value: {total}" not in svg, "a segment reported the column's running total"
+
+
+def test_a_folded_bar_says_the_folded_value() -> None:
+    """``estimator=`` makes the mark an aggregate of several rows. The tooltip names the
+    aggregate because that is what was drawn; naming the rows would describe something the
+    chart does not contain."""
+    data = {"category": ["a", "a", "b"], "value": [10.0, 20.0, 7.0]}
+    svg = barplot(data, x="category", y="value", estimator="mean", tooltip=True).to_string()
+
+    assert _titles(svg) == ["category: a · value: 15", "category: b · value: 7"]
+
+
+def test_tooltip_off_is_byte_for_byte_what_it_was() -> None:
+    omitted = barplot(HUE_SERIES, x="category", y="value", hue="group").to_string()
+    explicit = barplot(HUE_SERIES, x="category", y="value", hue="group", tooltip=False).to_string()
+
+    assert omitted == explicit
+    assert _titles(omitted) == []
+
+
+def test_tooltip_on_gives_every_bar_exactly_one() -> None:
+    svg = barplot(HUE_SERIES, x="category", y="value", hue="group", tooltip=True).to_string()
+
+    assert len(_titles(svg)) == len(_bars(svg)) == 6
