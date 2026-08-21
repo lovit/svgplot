@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import re
 import time
 from collections.abc import Callable
@@ -513,41 +512,64 @@ def test_a_tooltip_lookup_does_not_cost_more_the_more_marks_there_are() -> None:
     """
 
     def elapsed(count: int) -> float:
-        """The fastest of three runs. A loaded machine can stretch any single sample; the
-        broken version reads 40x even under heavy contention, so taking the minimum removes
-        the flake without weakening what the bound rejects."""
+        """One run. The minimum is taken over whole *ratios*, not over each side separately.
+
+        Measured under 3x CPU oversubscription: the 1,000-point sample ranged over 5.7x while
+        the 8,000-point one ranged over 1.3x, because a fixed-length scheduling stall wrecks
+        the small denominator and barely dents the large numerator. Taking the best of three
+        per side cannot cancel an asymmetry like that -- the best of three ratios can, and
+        does: worst observed 8.2x against 15.4x, where the bound is 24 and the broken version
+        reads 42.
+        """
         data = {
             "x": [float(i) for i in range(count)],
             "y": [float(i % 7) for i in range(count)],
             "m": [f"r{i}" for i in range(count)],
         }
-        best = math.inf
-        for _ in range(3):
-            start = time.perf_counter()
-            sp.scatterplot(data, x="x", y="y", info=[("M", "@m")], tooltip=True).to_string()
-            best = min(best, time.perf_counter() - start)
-        return best
+        start = time.perf_counter()
+        sp.scatterplot(data, x="x", y="y", info=[("M", "@m")], tooltip=True).to_string()
+        return time.perf_counter() - start
 
-    small, large = elapsed(1000), elapsed(8000)
+    ratio = min(elapsed(8000) / elapsed(1000) for _ in range(3))
 
-    assert large < small * 24, f"8x the marks cost {large / small:.1f}x the time — the lookup is not O(1)"
+    assert ratio < 24, f"8x the marks cost {ratio:.1f}x the time — the lookup is not O(1)"
 
 
-def test_an_int_too_large_for_a_float_is_spelled_not_refused() -> None:
-    """The one scheme that could still leak a non-``ValueError`` out of ``render_value``.
+def test_an_int_is_spelled_exactly_at_every_size() -> None:
+    """A plain ``@column`` must print the caller's integer, not a float that resembles it.
 
-    ``math.isfinite(10**400)`` raises ``OverflowError`` -- it converts to float first -- and
-    ``_format_plain`` was calling it bare. So a bare ``@column`` holding an ordinary large
-    Python int still stopped the chart from being built with ``tooltip=True`` after the
-    ``ValueError`` fallback went in: the fallback did not cover the type that escaped. A plain
-    field has a perfectly good spelling for that number, so it is spelled rather than refused,
-    and the numeric schemes keep refusing it because for them it really is a refusal.
+    Two failures met here. ``math.isfinite(10**400)`` raises ``OverflowError`` -- it converts
+    to float first -- which escaped the ``ValueError`` fallback and stopped the chart being
+    built at all with ``tooltip=True``. And every int above 2**53 was silently rewritten on
+    its way through ``float``: ``9007199254740993`` printed as ``…992``, a *different number*,
+    in a footnote table published as the caller's data.
+
+    Fixing only the first inverted the boundary -- the int too large for a float became the
+    accurate one. Ints do not go through a float at all now, which settles both: there is no
+    conversion left to overflow, and no precision left to lose. The values below are chosen
+    small enough to clear the per-mark cap, so the tooltip itself carries the claim rather
+    than leaving it all to the table.
+    """
+    data = {"day": [1.0, 2.0], "sales": [10.0, 20.0], "n": [2**53 + 1, 10**23]}
+
+    chart = sp.scatterplot(data, x="day", y="sales", info=[("N", "@n")], tooltip=True)
+
+    assert _tooltips(chart) == ["N: 9007199254740993", "N: 100000000000000000000000"]
+    assert _body_rows(chart.to_markdown()) == ["| 9007199254740993 |", "| 100000000000000000000000 |"]
+
+
+def test_an_int_too_large_for_a_float_does_not_stop_the_chart_being_built() -> None:
+    """The overflow half of the same fix, at a size no float can hold.
+
+    Over the per-mark cap at 401 digits, so the mark falls back to its channels while the
+    table -- which is not capped -- still spells it out. The numeric schemes keep refusing it,
+    because for them a value they cannot format really is a refusal.
     """
     data = {"day": [1.0, 2.0], "sales": [10.0, 20.0], "n": [10**400, 1]}
 
     chart = sp.scatterplot(data, x="day", y="sales", info=[("N", "@n")], tooltip=True)
 
-    assert _tooltips(chart) == ["day: 1 · sales: 10", "N: 1"], "the huge value is over the per-mark cap, not refused"
-    assert str(10**400) in chart.to_markdown(), "the table is not capped, and spells it exactly"
+    assert _tooltips(chart) == ["day: 1 · sales: 10", "N: 1"]
+    assert str(10**400) in chart.to_markdown()
     with pytest.raises(ValueError, match="finite"):
         sp.scatterplot(data, x="day", y="sales", info=[("N", "@n{0.0}")]).to_markdown()
