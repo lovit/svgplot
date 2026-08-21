@@ -504,6 +504,7 @@ png = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "packaging" },
     { name = "prek" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -519,6 +520,7 @@ provides-extras = ["png", "numpy-parity"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "packaging", specifier = ">=24" },
     { name = "prek", specifier = ">=0.4" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=5" },
