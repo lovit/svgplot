@@ -31,10 +31,10 @@ one class plus ``:is()`` contributing its widest argument's one class, and one e
 The chart's own rule for the same elements is ``:where(.scope) .series-1``, which is
 ``(0, 1, 0)`` because ``:where()`` contributes nothing. The page wins without ``!important``.
 
-Both numbers were read off ``cssselect2`` rather than counted by hand, but **nothing in this
-repository re-derives them yet**: the check that does needs ``cssselect2`` installed in CI,
-which means a dependency change, which is a gate file. It is #214, and until it lands this
-paragraph is a measurement someone took once rather than a property under test.
+Both numbers are read off ``cssselect2`` rather than counted by hand, and
+``tests/test_gallery_interaction.py`` re-derives them from real output on every run -- from
+``css()`` for the page side and from the SVG's own ``<style>`` for the chart side, so a change
+to either is compared against the other rather than against a number written down here.
 """
 
 from __future__ import annotations

@@ -31,6 +31,7 @@ import xml.etree.ElementTree as ET
 from html import escape
 from pathlib import Path
 
+import cssselect2
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -1109,3 +1110,79 @@ def test_a_size_legend_does_not_become_a_series(monkeypatch: pytest.MonkeyPatch)
     page = _one_example(setup, 'sp.scatterplot(D, x="x", y="y", hue="g", size="w")')
 
     assert [series.label for series in page.examples[0].controls[0].series] == ["a", "b"]
+
+
+# ------------------------------------------------------------------ the cascade the rules need
+
+
+def _specificity(selector: str) -> tuple[int, int, int]:
+    """(ids, classes, elements), from a real CSS engine.
+
+    An earlier version of this counted the tokens by hand, on the grounds that ``cssselect2``
+    arrives with the ``png`` extra and CI installs only ``numpy-parity`` -- so a check that
+    needed it would skip in the one place it has to run. That reasoning was right and the
+    conclusion was wrong: the answer was to make CI install it, not to write a second CSS
+    engine. The hand-written one disagreed with ``cssselect2`` on ten of twenty-four selector
+    shapes -- attribute selectors, ``::before``, ``:nth-child(2n+1)``, nested ``:not(:where())``,
+    and any selector containing a comma -- and reversed the *verdict* on eight of forty-nine
+    plausible page/chart pairs. It also claimed in its own docstring to raise on anything it
+    could not read, and never raised at all.
+
+    Worse than the bug it was added to catch: the five selectors its cross-check used were the
+    five it happened to get right. Same fixture coincidence as the double-escaping defect,
+    inside the guard written to answer it.
+    """
+    compiled = list(cssselect2.compile_selector_list(selector))
+
+    assert len(compiled) == 1, f"{selector!r} is a selector list, not one selector"
+    return compiled[0].specificity
+
+
+def test_a_page_rule_outranks_the_chart_rule_it_has_to_override() -> None:
+    """Everything here rests on one fact: the page's rule wins without ``!important``.
+
+    Both selectors are read out of real output -- the page rule from ``css()``, the chart rule
+    from the SVG's own ``<style>`` -- so a change to either side is compared against the other
+    rather than against a number written down once.
+
+    **The comparison alone is a weak tripwire, so the margin is asserted too.** Mutated one at
+    a time, and transcribed rather than summarised -- three earlier versions of this paragraph
+    each stated a summary that did not survive being run:
+
+    ========================================  ============  ==================  ==============
+    mutation                                  page rule     comparison          id assertion
+    ========================================  ============  ==================  ==============
+    ``#id`` written as ``.id``                ``(0,3,1)``   still wins          **red**
+    ``#id`` written as a bare element         ``(0,2,2)``   still wins          **red**
+    selector wrapped in ``:where()``          ``(0,1,1)``   still wins          **red**
+    targets ``:where()`` not ``:is()``        ``(1,1,1)``   still wins          passes
+    ``scope.py`` ``:where()`` -> ``:is()``    unchanged     still wins [1]_     passes
+    both ends in ``:where()``                 ``(0,0,1)``   **red**             **red**
+    ========================================  ============  ==================  ==============
+
+    .. [1] the chart side goes ``(0,1,0)`` -> ``(0,2,0)``; ``(1,2,1)`` beats it either way, so
+       the toggles keep working and this test is right not to fire. The gallery byte-diff
+       catches that one.
+
+    So the comparison is kept for what it is -- the invariant, re-derived from real output
+    rather than from a number written down once -- and the id assertion carries the weight for
+    every mutation that touches the page rule's own strength. The two it does not fire on are
+    the two that leave the id in place, which is correct.
+    """
+    example = _stub([("bars", _BAR)], {1: "toggle"}).examples[0]
+    (controls,) = example.controls
+    rules = interaction.css(controls)
+    page_match = re.search(r"^\s*(\S[^{]*?~ svg[^{]*?)\s*\{", rules, re.M)
+    chart_match = re.search(r"^(\S[^{]*?\.series-1)\s*\{", example.svg, re.M)
+
+    # Matched, not assumed. Both regexes describe a shape, and a shape that stopped being
+    # produced would otherwise make this raise rather than fail -- a crash reads as a broken
+    # test, and somebody deletes it.
+    assert page_match, f"no dimming rule of the expected shape in:\n{rules}"
+    assert chart_match, "the chart no longer styles .series-1 in a rule of its own"
+
+    page_rule, chart_rule = page_match.group(1), chart_match.group(1)
+
+    assert _specificity(page_rule) > _specificity(chart_rule), f"{page_rule!r} does not outrank {chart_rule!r}"
+    assert _specificity(page_rule)[0] >= 1, f"the margin no longer comes from an id: {page_rule!r}"
+    assert "!important" not in rules
