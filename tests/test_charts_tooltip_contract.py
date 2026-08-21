@@ -124,15 +124,13 @@ def test_a_group_label_too_long_to_read_is_dropped_rather_than_repeated() -> Non
     a different door -- and the worse door, because a legend says a label once while a tooltip
     says it once per mark.
 
-    Measured before the cap, on a fixture this test does not use because it takes a second to
-    render: 1,000 points, ``x`` and ``y`` ``0.0``..``999.0``, one hue group named with 100,000
-    Hangul characters. Output went from 185,050 characters to 100,235,830 -- 542 times -- and
+    Measured before the cap, on a fixture larger than this test needs: 1,000 points, ``x`` and
+    ``y`` ``0.0``..``999.0``, one hue group named with 100,000 Hangul characters. Output went from 185,050 characters to 100,235,830 -- 542 times -- and
     from 385,070 bytes to 300,437,850, which is 780, because UTF-8 spends three bytes on each
     of those characters. With the label on half the points instead of all of them it is half
     of that: the multiplier is the mark count, not the label.
 
-    clause is left out rather than truncated, and the
-    point still says its x and y.
+    The clause is left out rather than truncated, and the point still says its x and y.
     """
     long_label = "가" * 5000
     data = {"a": [1.0, 2.0], "b": [3.0, 4.0], "g": [long_label, "짧음"]}
