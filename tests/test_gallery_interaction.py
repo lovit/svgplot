@@ -457,7 +457,7 @@ def test_a_cell_page_gets_no_control_chrome_and_no_note() -> None:
     assert ":hover" in page, "and the rule itself is still there"
 
 
-_HOVER_PAGES = frozenset({"areaplot", "gaugeplot", "radarplot", "scatterplot"})
+_HOVER_PAGES = frozenset({"areaplot", "gaugeplot", "kdeplot", "radarplot", "scatterplot"})
 """The committed pages that declare ``hover``, by name rather than by count.
 
 A count decays. The bar was ``>= 3`` while ``areaplot`` and ``scatterplot`` were the only two,
@@ -466,9 +466,15 @@ without it, at which point deleting the hover this page exists to demonstrate le
 suite green. Named, a page cannot lose its hover behind a sibling gaining one.
 """
 
-_TWINS = [pytest.param("radarplot", 2, 3, id="radarplot")]
+_TWINS = [
+    pytest.param("kdeplot", 3, 5, id="kdeplot"),
+    pytest.param("radarplot", 2, 3, id="radarplot"),
+]
 """Pages that draw the *same* curves twice, differing only in ``fill=``: ``(page, filled,
-unfilled)``, 1-based. ``kdeplot`` joins this list when its own page lands."""
+unfilled)``, 1-based.
+
+``kdeplot``'s pair is not adjacent -- figure 4 sits between them, differing by ``bandwidth=``
+rather than by ``fill=`` -- which is why the numbers are written out rather than inferred."""
 
 
 def _series_fill(markup: str, number: int) -> str | None:
