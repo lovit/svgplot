@@ -21,6 +21,7 @@ from svgplot.charts._layout import (
     ticks_for,
 )
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.charts._tooltip import add_tooltip, clause, format_number
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import LinearScale
@@ -66,12 +67,58 @@ def _line_path_data(band: RegressionBand, x_scale: LinearScale, y_scale: LinearS
     return " ".join(commands)
 
 
+def _band_tooltip(*, ci: float, n_boot: int) -> str:
+    """What the band's ``<title>`` says: which interval it is, and how it was estimated.
+
+    **The band is a mark that is neither a datum nor labelled, and this chart is the first to
+    give one a name.** (``kdeplot``'s outline and ``violinplot``'s body are the same shape of
+    thing; neither took ``tooltip=`` when this was written.) The line
+    is obviously the fit and a point is obviously an observation, but a translucent region
+    around a line reads as decoration until something names it -- and the ``<desc>`` names it
+    once for the whole chart, which a reader pointing at the band is not being read.
+
+    ``n_boot`` is part of the answer rather than an implementation detail: this is a *bootstrap*
+    interval, so it is an estimate whose own precision depends on that number, and two charts
+    of the same data with different ``n_boot`` draw different bands.
+
+    Spelled as a percentage because ``ci=`` is a level rather than a measurement -- ``0.95``
+    reads ``95%``. Through :func:`~svgplot.charts._describe.number`, **the same function the
+    chart's own ``<desc>`` uses for this number**, because the two are halves of one claim: the
+    ``<desc>`` says it once for the picture and this says it to the reader pointing at the band.
+    Formatted two ways they disagreed -- ``ci=0.9501`` read ``95.01%`` in one and ``95%`` in the
+    other, and ``ci=0.95`` and ``ci=0.9501`` produced *identical* tooltips for two charts that
+    draw different bands.
+
+    **Rounding to one decimal was worse than long.** It saturated at both ends: ``ci=0.999999``
+    read ``100% confidence band`` while ``ci=1.0`` is refused outright by
+    :func:`~svgplot.stats.regression.confidence_band` (``level must be strictly between 0 and
+    1``), so the mark's *accessible name* asserted a certainty the package will not draw.
+    ``ci=1e-07`` read ``0%`` the same way.
+
+    ``seed=`` also changes the band and is deliberately not said. It changes *which* resamples
+    were drawn, not what the interval estimates or how precisely -- ``n_boot`` is the one that
+    sets the estimate's own precision, which is why it is here and the seed is not.
+
+    ``float(ci)`` because the chart itself is more permissive than its type hint:
+    ``confidence_band`` coerces, so ``ci="0.95"`` renders today, and this clause should not be
+    the thing that turns a chart that draws into a ``TypeError``.
+    """
+    return f"{number(float(ci) * 100)}% confidence band · {plural(n_boot, 'bootstrap resample')}"
+
+
+def _point_tooltip(*, x: str, y: str, xv: float, yv: float) -> str:
+    """A point is one observation, so it reads its own row back -- the same thing
+    ``scatterplot``'s tooltip says, from the same two channels."""
+    return f"{clause(x, format_number(xv))} · {clause(y, format_number(yv))}"
+
+
 def regplot(
     data: object,
     x: str,
     y: str,
     *,
     ci: float | None = 0.95,
+    tooltip: bool = False,
     n_boot: int = 1000,
     seed: int = 0,
     scatter: bool = True,
@@ -89,6 +136,28 @@ def regplot(
 
     ``seed`` is forwarded to :func:`svgplot.stats.regression.confidence_band`, which makes
     the whole chart reproducible: the same data and seed serialize to byte-identical SVG.
+
+    ``tooltip=True`` gives every point a ``<title>`` naming its x and y, and gives **the band
+    one of its own**. That second half is what this chart adds over the others: the line is
+    obviously the fit and a point is obviously an observation, but a translucent region around
+    a line reads as decoration until something names it -- and the chart's ``<desc>`` names it
+    once for the whole picture, which a reader pointing at the band is not being read. The band
+    says which interval it is and how many bootstrap resamples estimated it, because that is an
+    estimate whose own precision depends on ``n_boot``. It is also the easiest mark here to
+    point at: the band is an area where the line is two pixels wide.
+
+    ``ci=None`` draws no band and so gives it no ``<title>``; ``scatter=False`` draws no points
+    and gives them none. There is nothing to hang an accessible name on either way.
+
+    **The fit line stays unnamed and stops taking the pointer.** It is drawn last, so its 2px
+    stroke lies over the band along the middle of it, and a hit there would otherwise fall back
+    to the nearest titled ancestor -- the root ``<svg>``, i.e. the chart's own name. Giving the
+    line a ``<title>`` would not have helped: a title is not hit-testable and changes only what
+    text is shown. So with ``tooltip=True`` the line gets ``pointer-events: none`` and the band
+    underneath answers, which is the mark that has something to say; the line's meaning is what
+    the ``<desc>`` already carries.
+
+    ``tooltip=False`` is the default; off, the file is what it was.
 
     ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
     exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
@@ -177,19 +246,21 @@ def regplot(
 
     if ci is not None:
         # Drawn first so the fit line and the points sit on top of it.
-        document.add_node(
+        band_node = document.add_node(
             None,
             "path",
             attrib={"d": _band_path_data(band, pixel_x_scale, pixel_y_scale)},
             classes=[series_class, "regression-band"],
         )
+        if tooltip:
+            add_tooltip(document, band_node, _band_tooltip(ci=ci, n_boot=n_boot))
 
     if scatter:
         # ~12 lines duplicated from charts/scatter.py on purpose: with only two consumers a
         # shared charts/_marks.py is not yet earned, matching the precedent set by
         # charts/_layout.format_coord. Extract when a third consumer appears.
         for xv, yv in zip(xs, ys, strict=True):
-            document.add_node(
+            point = document.add_node(
                 None,
                 "circle",
                 attrib={
@@ -199,6 +270,8 @@ def regplot(
                 },
                 classes=[series_class, "scatter-point"],
             )
+            if tooltip:
+                add_tooltip(document, point, _point_tooltip(x=x, y=y, xv=xv, yv=yv))
 
     document.add_node(
         None,
@@ -209,7 +282,23 @@ def regplot(
 
     # "outlined" is what lets one series class carry all three marks: the band reads as a
     # translucent fill, the line and the points as the same colour at full strength.
-    render_theme_style(document, resolved_theme, [series_class], mark_style="outlined")
+    render_theme_style(
+        document,
+        resolved_theme,
+        [series_class],
+        mark_style="outlined",
+        # The fit line is drawn last, so it is painted over the band and the points and takes
+        # the pointer wherever its 2px stroke lies -- which is *inside the band's own area*,
+        # along the middle of it. Untitled and still hit-testable, it answers with the nearest
+        # ancestor that has a ``<title>``: the root ``<svg>``, i.e. the chart's own name. So the
+        # one line a reader is most likely to point at says the least.
+        #
+        # A ``<title>`` on the line would not have fixed that -- a title is not hit-testable and
+        # changes only *what text* is shown, never which element receives the pointer, which an
+        # earlier version of this comment had backwards. Taking the line out of the way is what
+        # lets the band underneath answer, and the band is the mark with something to say.
+        transparent_to_pointer=("regression-line",) if tooltip else (),
+    )
 
     description = describe(
         "Regression plot",
