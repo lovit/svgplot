@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import random
 import re
 
 import pytest
@@ -262,3 +263,20 @@ def test_an_xlim_clips_the_bins_to_the_window_the_caller_asked_for() -> None:
 
     assert edges.x == (0.0, 10.0)
     assert edges.x_step == pytest.approx(2.0)
+
+
+def test_a_narrowing_xlim_leaves_the_clipped_values_out_of_the_bars_too() -> None:
+    """The bars, not only what they say. ``xlim=`` narrower than the data is the documented use
+    of that argument, and until this was fixed the outermost bars absorbed everything past the
+    window -- 98 of these 200 values, which put 80 in a bar covering 24 of them.
+
+    Heights are proportional to counts, so the ratios pin the counts without needing the axis.
+    """
+    generator = random.Random(3)
+    values = [generator.gauss(10.0, 3.0) for _ in range(200)]
+    bars = _series_bars(histplot({"v": values}, x="v", xlim=(8.0, 12.0), bins=4).to_string(), "series-1")
+    real = [24, 37, 20, 21]
+
+    assert sum(1 for value in values if value < 8.0 or value > 12.0) == 98, "the fixture stopped clipping"
+    unit = max(bar["height"] for bar in bars) / max(real)
+    assert [round(bar["height"] / unit) for bar in bars] == real

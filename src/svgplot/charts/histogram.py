@@ -39,18 +39,32 @@ def _count_in_bins(values: list[float], edges: list[float]) -> list[int]:
     """Bin each value via ``edges`` (``edges[i] <= value < edges[i+1]``), except the
     final bin, which is inclusive on both ends — otherwise the maximum value in the
     dataset is silently dropped (the standard numpy/histogram convention).
+
+    **A value outside ``[edges[0], edges[-1]]`` is dropped, not folded into the nearest bin.**
+    That case is reachable and always was: ``xlim=`` narrower than the data is the documented
+    use of that argument (``chart/_domain.py``: "a caller who asks for ``(0, 100)`` on data
+    spanning 0..300 means to clip the view"), and ``xlim`` decides the bin range. An earlier
+    version of this function clamped instead, with a comment calling the case unreachable, and
+    the outermost bars absorbed everything past the window: measured on 200 samples of
+    ``Random(3).gauss(10, 3)`` with ``xlim=(8, 12)`` and ``bins=4``, the first bar counted **80**
+    where 24 values are in ``[8, 9)`` and the last **63** where 21 are in ``[11, 12]`` -- 98 of
+    the 200 values are outside the window.
+
+    Clipping is what a caller narrowing the view asks for, and a clamped edge bar is not a
+    smaller chart of the same data: it is a bar that means something else. It also makes the
+    interval a bar names untrue, which is visible now that ``tooltip=`` says it -- the real
+    membership rule of a clamped last bin is ``value >= edges[-2]``, unbounded above.
     """
     n_bins = len(edges) - 1
     counts = [0] * n_bins
     for value in values:
+        if value < edges[0] or value > edges[-1]:
+            continue
         # bisect_right(edges, value) - 1 gives the bin index i such that
-        # edges[i] <= value < edges[i+1]; the upper clamp handles value == edges[-1]
-        # (bisect_right returns len(edges) there) by folding it into the last bin.
-        # The lower clamp is defensive: a value below edges[0] would give -1, which
-        # indexes the *last* bin instead of the first. Unreachable today (edges always
-        # come from histogram_bins(all_values), so edges[0] == min(values)), but it
-        # would silently miscount for any future caller passing custom edges.
-        index = max(0, min(bisect.bisect_right(edges, value) - 1, n_bins - 1))
+        # edges[i] <= value < edges[i+1]; the min() handles value == edges[-1]
+        # (bisect_right returns len(edges) there) by folding it into the last bin, which is
+        # the inclusive-both-ends convention above rather than a clamp.
+        index = min(bisect.bisect_right(edges, value) - 1, n_bins - 1)
         counts[index] += 1
     return counts
 
@@ -202,7 +216,11 @@ def histplot(
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
 
-    observations = f'{plural(len(all_values), "observation")} in {plural(len(edges) - 1, "bin")}'
+    # The values *in the window*, not every value read. With a narrowing ``xlim`` those differ,
+    # and the sentence already names the window on its next clause -- "200 observations, x 8 to
+    # 12" describes a chart that was not drawn.
+    drawn_count = sum(count for _, counts in series_counts for count in counts)
+    observations = f'{plural(drawn_count, "observation")} in {plural(len(edges) - 1, "bin")}'
     description = describe(
         "Histogram",
         over([str(label) for label, _ in series_items] if hue is not None else None, observations),
