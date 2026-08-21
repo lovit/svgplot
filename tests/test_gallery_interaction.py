@@ -7,10 +7,10 @@ are shaped specifically against ways this file could pass while asserting nothin
   disk-reading version stayed green when the note was made unconditional, because the files on
   disk had not changed -- it was measuring staleness, which ``test_gallery.py`` already does.
 * Several of the pages here are built by :func:`_stub`. ``ecdfplot`` became the first real
-  page to declare ``INTERACTIONS`` (#207), so the "a page with controls must ..." checks are
-  no longer vacuous on their own -- but one page cannot cover the shapes that matter: a page
-  with *no* controls, a hover-only page, and a chart whose series carries a ``-marker`` class.
-  The stubs are those shapes.
+  page to declare ``INTERACTIONS`` (#207), so the "a page with controls must ..." checks are no
+  longer vacuous on their own -- but one page cannot cover the shapes that matter. The stubs
+  are the ones no committed page has: controls on the **first** figure, a series drawn as two
+  classes (``boxplot``'s ``-marker``), and a label with characters that have to be escaped.
 * ``test_a_rule_names_every_class_its_series_actually_has`` uses ``boxplot``, the one chart
   whose series is two classes. Against any other chart a rule that dropped ``-marker`` would
   look correct.
@@ -60,9 +60,9 @@ def _stub(examples: list[tuple[str, str]], interactions: dict[int, str] | None =
 
     Real pages declare ``INTERACTIONS`` now (``ecdfplot`` was the first, in #207), but only in
     the combinations those pages happen to want. Building one here is how a check reaches a
-    shape no committed page has -- a hover-only figure, a chart whose series is two classes, a
-    label with characters that have to be escaped -- without waiting for a chart PR that wants
-    exactly that.
+    shape no committed page has -- a chart whose series is two classes, a label with characters
+    that have to be escaped, a control on the first figure -- without waiting for a chart PR
+    that wants exactly that.
     """
     module = types.ModuleType(name)
     module.TITLE = name
