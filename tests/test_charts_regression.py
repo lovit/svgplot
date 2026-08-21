@@ -529,14 +529,25 @@ def test_a_mark_that_is_not_drawn_gets_no_accessible_name() -> None:
     assert _titled(no_points, "regression-band") == ["95% confidence band · 1000 bootstrap resamples"]
 
 
-def test_the_fit_line_is_left_unnamed_because_the_desc_already_names_it() -> None:
+@pytest.mark.parametrize("ci", [pytest.param(0.95, id="band"), pytest.param(None, id="no-band")])
+def test_the_fit_line_is_left_unnamed_and_out_of_the_pointer_s_way(ci: float | None) -> None:
     """A line through a cloud of points is the one mark whose meaning the ``<desc>`` already
-    carries -- giving it a ``<title>`` would add an element per chart to say what the reader can
-    already see."""
+    carries. But it is drawn last, so its 2px stroke lies over the band along the middle of it,
+    and an untitled hit-testable line answers with the nearest titled ancestor -- the root
+    ``<svg>``, i.e. the chart's own name.
+
+    A ``<title>`` on the line would not have fixed that: a title is not hit-testable and changes
+    only what text is shown, never which element receives the pointer. ``pointer-events: none``
+    is what lets the band underneath answer.
+
+    Parametrized over ``ci`` because the two paths are separate: titling the line only when
+    ``ci is None`` left every test in this file green."""
     data = {"area": [10.0, 20.0, 30.0], "sales": [12.0, 19.0, 33.0]}
-    svg = regplot(data, x="area", y="sales", tooltip=True).to_string()
+    svg = regplot(data, x="area", y="sales", ci=ci, tooltip=True).to_string()
 
     assert _titled(svg, "regression-line") == [None]
+    assert ".regression-line { pointer-events: none; }" in svg
+    assert "pointer-events" not in regplot(data, x="area", y="sales", ci=ci).to_string()
 
 
 def test_the_default_draws_no_tooltip_and_saying_so_changes_nothing() -> None:

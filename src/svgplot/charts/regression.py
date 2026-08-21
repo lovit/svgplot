@@ -149,6 +149,14 @@ def regplot(
     ``ci=None`` draws no band and so gives it no ``<title>``; ``scatter=False`` draws no points
     and gives them none. There is nothing to hang an accessible name on either way.
 
+    **The fit line stays unnamed and stops taking the pointer.** It is drawn last, so its 2px
+    stroke lies over the band along the middle of it, and a hit there would otherwise fall back
+    to the nearest titled ancestor -- the root ``<svg>``, i.e. the chart's own name. Giving the
+    line a ``<title>`` would not have helped: a title is not hit-testable and changes only what
+    text is shown. So with ``tooltip=True`` the line gets ``pointer-events: none`` and the band
+    underneath answers, which is the mark that has something to say; the line's meaning is what
+    the ``<desc>`` already carries.
+
     ``tooltip=False`` is the default; off, the file is what it was.
 
     ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
@@ -274,7 +282,23 @@ def regplot(
 
     # "outlined" is what lets one series class carry all three marks: the band reads as a
     # translucent fill, the line and the points as the same colour at full strength.
-    render_theme_style(document, resolved_theme, [series_class], mark_style="outlined")
+    render_theme_style(
+        document,
+        resolved_theme,
+        [series_class],
+        mark_style="outlined",
+        # The fit line is drawn last, so it is painted over the band and the points and takes
+        # the pointer wherever its 2px stroke lies -- which is *inside the band's own area*,
+        # along the middle of it. Untitled and still hit-testable, it answers with the nearest
+        # ancestor that has a ``<title>``: the root ``<svg>``, i.e. the chart's own name. So the
+        # one line a reader is most likely to point at says the least.
+        #
+        # A ``<title>`` on the line would not have fixed that -- a title is not hit-testable and
+        # changes only *what text* is shown, never which element receives the pointer, which an
+        # earlier version of this comment had backwards. Taking the line out of the way is what
+        # lets the band underneath answer, and the band is the mark with something to say.
+        transparent_to_pointer=("regression-line",) if tooltip else (),
+    )
 
     description = describe(
         "Regression plot",
