@@ -129,6 +129,13 @@ def test_a_tooltip_survives_serialization_as_text_not_markup() -> None:
     [
         pytest.param("\ue000", id="private-use-area"),
         pytest.param("\ufff0", id="unassigned"),
+        # The recorded limits: these draw nothing, and are kept anyway because separating them
+        # from what shares their category needs a property the standard library does not
+        # expose. Pinned so that "fixing" them by widening the set to ``Mn`` or ``So`` -- which
+        # would take every combining accent and every symbol with them -- is not silent.
+        pytest.param("\ufe0f", id="variation-selector-16"),
+        pytest.param("\u2800", id="braille-pattern-blank"),
+        pytest.param("\u3164", id="hangul-filler"),
     ],
 )
 def test_a_label_that_draws_ink_without_being_a_letter_keeps_its_full_text(character: str) -> None:
@@ -142,6 +149,11 @@ def test_a_label_that_draws_ink_without_being_a_letter_keeps_its_full_text(chara
     Measured against ``origin/main``: with the prefix form, a category named with eighty PUA
     characters was shortened on screen and its full text vanished from the file completely, so
     the one rule these five call sites exist for inverted on exactly that input.
+
+    The last three parameters are the opposite case -- characters that really do draw nothing
+    but are kept. They are here because a limit nothing asserts is a limit somebody closes by
+    accident: widening the set to ``Mn`` or ``So`` catches them and takes every combining accent
+    and every symbol with them, and before this nothing said so.
     """
     label = character * 80
     svg = barplot({"c": [label, "b"], "v": [1.0, 2.0]}, x="c", y="v").to_string()

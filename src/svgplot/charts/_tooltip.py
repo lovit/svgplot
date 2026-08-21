@@ -55,6 +55,17 @@ _BLANK_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Zs", "Zl", "Zp"})
 which would be shorter and wrong: ``Co`` is the private use area, where an icon font puts real
 glyphs and legacy Korean encodings put real syllables, and ``Cn`` is unassigned, which a font
 may still map. Both draw.
+
+Three of the six cannot arrive through any caller and are here so the set is the whole idea
+rather than the reachable part of it. ``Cs``: ``_svg.py`` refuses a lone surrogate at node
+construction. ``Zl``/``Zp``: ``_fold_newlines`` collapses U+2028 and U+2029 to a plain space
+before serialization, so they are read back as ``Zs``. No test pins those three and none can.
+
+**And ``Cf`` over-refuses.** It holds characters Unicode says *must* be rendered -- the Arabic
+prepended concatenation marks (U+0600-0605, U+06DD, U+070F), the interlinear annotation anchors
+(U+FFF9-FFFB), the Egyptian format controls (U+13430-1343F) -- and a label made only of those
+loses its full text here. ``Cf`` is not ``Default_Ignorable``; it is the nearest thing the
+standard library exposes, which is the whole reason this is a list rather than that property.
 """
 
 
@@ -66,11 +77,13 @@ def _has_visible_text(text: str) -> bool:
     JOINER, which draw exactly as much as a space does, which is nothing. There is no principle
     under which a no-break space is not text and a zero-width space is.
 
-    **It errs toward keeping the text.** Getting this wrong the other way loses information:
-    the callers only reach here because a label was too long to show, so a string wrongly
-    called invisible is one whose full text disappears from the file entirely. That is why
-    :data:`_BLANK_CATEGORIES` is a list rather than a ``C*``/``Z*`` prefix -- the prefix form
-    also swallows ``Co`` and ``Cn``, which draw.
+    **It leans toward keeping the text, and does not manage it everywhere.** Getting this wrong
+    loses information: the callers only reach here because a label was too long to show, so a
+    string wrongly called invisible is one whose full text disappears from the file entirely.
+    That is why :data:`_BLANK_CATEGORIES` is a list rather than a ``C*``/``Z*`` prefix -- the
+    prefix form also swallows ``Co`` and ``Cn``, which draw. It is *not* leak-free: some ``Cf``
+    characters draw too, and are refused where they should not be. :data:`_BLANK_CATEGORIES`
+    names them.
 
     It cannot catch every invisible string, and the ones it misses are named rather than left
     to be rediscovered: U+3164 HANGUL FILLER and the jamo fillers U+115F/U+1160 are ``Lo``,
