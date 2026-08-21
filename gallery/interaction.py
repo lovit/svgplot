@@ -68,12 +68,13 @@ tree, so the description and the tree would disagree structurally. ``opacity: 0`
 than either: invisible, still hit-testable, still read aloud.
 """
 
-_BLANK_CATEGORIES = frozenset({"Cc", "Cf", "Zs", "Zl", "Zp"})
+_BLANK_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Zs", "Zl", "Zp"})
 """Unicode categories a character can be in and still draw nothing.
 
-``Cc`` control, ``Cf`` format (U+200B, U+2060, the direction marks), ``Zs``/``Zl``/``Zp`` the
-spaces. Deliberately not ``Co`` (private use, where an icon font draws) or ``Cn`` (unassigned,
-which a font may still map).
+``Cc`` control, ``Cf`` format (U+200B, U+2060, the direction marks), ``Cs`` surrogate,
+``Zs``/``Zl``/``Zp`` the spaces. Deliberately not ``Co`` (private use, where an icon font puts
+real glyphs and legacy Korean encodings put real syllables) or ``Cn`` (unassigned, which a font
+may still map). Both draw.
 """
 
 _CLASS_ATTRIBUTE = re.compile(r'\bclass="([^"]*)"')
@@ -174,13 +175,14 @@ def _has_visible_text(label: str) -> bool:
     **It does not catch every invisible label, and cannot.** Two kinds get through, both
     recorded here rather than left to be rediscovered:
 
-    * U+3164 HANGUL FILLER, which Unicode classifies ``Lo`` -- a letter, alongside every Korean
-      and CJK character.
+    * U+3164 HANGUL FILLER and the jamo fillers U+115F/U+1160, which Unicode classifies ``Lo``
+      -- letters, alongside every Korean and CJK character.
     * The variation selectors, U+FE00-FE0F and U+E0100-E01EF, which are ``Mn`` -- the same
       category as a combining accent, which *does* draw.
+    * U+2800 BRAILLE PATTERN BLANK, which is ``So``, a symbol.
 
-    Both are ``Default_Ignorable_Code_Point``, which is the property that would separate them
-    cleanly, and the standard library does not expose it. A hand-kept list would be wrong the
+    Telling any of them from what shares their category needs the
+    ``Default_Ignorable_Code_Point`` property, which the standard library does not expose. A hand-kept list would be wrong the
     first time somebody found a character not on it. So what is refused here is a label made
     only of characters that are *by category* not part of a word; a label made of something
     that is a word by category and invisible in practice is somebody deliberately writing an
