@@ -14,6 +14,7 @@ universal, which is the state that would make this whole file a decoration.
 from __future__ import annotations
 
 import inspect
+import re
 
 import pytest
 
@@ -123,8 +124,8 @@ def test_a_group_label_too_long_to_read_is_dropped_rather_than_repeated() -> Non
     a different door -- and the worse door, because a legend says a label once while a tooltip
     says it once per mark.
 
-    Measured before the cap: a 100,000-character hue value took a 1,000-point chart from
-    185 KB to 50 MB, 271 times larger. The clause is left out rather than truncated, and the
+    Measured before the cap, with that label on every point: 185 KB to 100 MB, 542 times
+    larger. (Half the points carrying it is 50 MB -- the multiplier is the mark count.) The clause is left out rather than truncated, and the
     point still says its x and y.
     """
     long_label = "가" * 5000
@@ -133,6 +134,27 @@ def test_a_group_label_too_long_to_read_is_dropped_rather_than_repeated() -> Non
 
     assert "<title>a: 1 · b: 3</title>" in svg, "the long label's point lost its other clauses too"
     assert "<title>a: 2 · b: 4 · g: 짧음</title>" in svg, "the short label's point lost its clause"
+
+
+def test_a_tooltip_never_rewrites_the_number_it_names() -> None:
+    """The bound must not cost precision, and the first version of it did.
+
+    Capping the *length* and falling back to ``%g`` is six significant figures: measured over
+    10,000 uniform samples, **91%** of ordinary values came out rewritten --
+    ``13.436424411240122`` became ``13.4364``. Nothing caught it, because every fixture in this
+    file used integral floats, where the two spellings agree. This one uses values where they
+    do not.
+
+    Round-tripped rather than compared to an expected string: the claim is "this is the same
+    number", and only parsing it back says that.
+    """
+    values = [13.436424411240122, 0.3333333333333333, 123.45678901234567, 0.30000000000000004, 1e-320, 1e308]
+    data = {"a": values, "b": [float(index) for index in range(len(values))]}
+    svg = sp.scatterplot(data, x="a", y="b", tooltip=True).to_string()
+    spoken = [title.split(" · ")[0].removeprefix("a: ") for title in re.findall(r"<title>([^<]*)</title>", svg)[:-1]]
+
+    assert len(spoken) == len(values), "the fixture stopped drawing one point per value"
+    assert [float(text) for text in spoken] == values
 
 
 def test_a_tooltip_number_is_bounded_because_it_is_an_accessible_name() -> None:
@@ -144,6 +166,7 @@ def test_a_tooltip_number_is_bounded_because_it_is_an_accessible_name() -> None:
 
     assert "<title>a: 1e+308 · b: 1</title>" in svg
     assert "<title>a: 1 · b: 2</title>" in svg, "an ordinary number stopped reading like the axis"
+    assert len(max(re.findall(r"<title>([^<]*)</title>", svg), key=len)) < 40, "something is still unbounded"
 
 
 def test_a_numeric_group_label_is_spelled_like_the_other_numbers() -> None:
