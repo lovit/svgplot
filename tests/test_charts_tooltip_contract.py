@@ -118,6 +118,53 @@ def test_a_tooltip_leaves_out_the_channels_the_chart_was_not_given() -> None:
     assert "<title>면적: 30 · 매출: 8</title>" in svg
 
 
+def test_a_group_label_too_long_to_read_is_dropped_rather_than_repeated() -> None:
+    """The column name was capped and the *label* was not, which is the same string arriving by
+    a different door -- and the worse door, because a legend says a label once while a tooltip
+    says it once per mark.
+
+    Measured before the cap: a 100,000-character hue value took a 1,000-point chart from
+    185 KB to 50 MB, 271 times larger. The clause is left out rather than truncated, and the
+    point still says its x and y.
+    """
+    long_label = "가" * 5000
+    data = {"a": [1.0, 2.0], "b": [3.0, 4.0], "g": [long_label, "짧음"]}
+    svg = sp.scatterplot(data, x="a", y="b", hue="g", tooltip=True).to_string()
+
+    assert "<title>a: 1 · b: 3</title>" in svg, "the long label's point lost its other clauses too"
+    assert "<title>a: 2 · b: 4 · g: 짧음</title>" in svg, "the short label's point lost its clause"
+
+
+def test_a_tooltip_number_is_bounded_because_it_is_an_accessible_name() -> None:
+    """``1e308`` written as a decimal literal is 309 digits, and a mark's ``<title>`` is its
+    accessible name -- so those digits are read out one at a time, once per mark. The same
+    ``MAX_NUMBER_CHARS`` budget the ``<desc>`` uses, past which the number is said the short
+    way it already was."""
+    svg = sp.scatterplot({"a": [1e308, 1.0], "b": [1.0, 2.0]}, x="a", y="b", tooltip=True).to_string()
+
+    assert "<title>a: 1e+308 · b: 1</title>" in svg
+    assert "<title>a: 1 · b: 2</title>" in svg, "an ordinary number stopped reading like the axis"
+
+
+def test_a_numeric_group_label_is_spelled_like_the_other_numbers() -> None:
+    """One tooltip saying ``a: 1 · g: 1.0`` spells the same kind of value two ways in the same
+    breath. The label goes through the same formatter the channels do."""
+    data = {"a": [1.0, 2.0], "b": [3.0, 4.0], "g": [1.0, 2.0]}
+    svg = sp.scatterplot(data, x="a", y="b", hue="g", tooltip=True).to_string()
+
+    assert "<title>a: 1 · b: 3 · g: 1</title>" in svg
+
+
+def test_a_column_name_that_draws_nothing_is_dropped_like_one_too_long() -> None:
+    """A name of one tab is short enough to fit and reads as ``"\t: 45"`` -- a colon with
+    nothing in front of it. Same treatment as a name too long to read: drop the name, keep the
+    value."""
+    data = {"\t": [1.0, 2.0], "b": [3.0, 4.0]}
+    svg = sp.scatterplot(data, x="\t", y="b", tooltip=True).to_string()
+
+    assert "<title>1 · b: 3</title>" in svg
+
+
 def test_a_column_name_too_long_to_read_is_dropped_rather_than_repeated() -> None:
     """The same cap ``_size_clause`` applies to the ``<desc>``, for a sharper reason: this name
     is repeated once *per point*, so an unreadable one would be the largest thing in the file.
