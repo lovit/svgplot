@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Mapping
 from dataclasses import dataclass
 from html import escape
 from xml.sax.saxutils import unescape
@@ -294,12 +295,25 @@ def markup(controls: Controls) -> str:
     return "".join(lines)
 
 
-def css(controls: Controls) -> str:
-    """The rules those controls drive: one per series, plus the matching label state."""
-    rules = [f"      /* {controls.figure} */\n"]
+def css(controls: Controls, *, toggled_by: Mapping[int, str] | None = None) -> str:
+    """The rules those controls drive: one per series, plus the matching label state.
+
+    ``toggled_by`` maps a series number to the id of the checkbox that switches it, for the
+    figures that carry a toggle *and* hover. **Without it the two kinds contradict each
+    other**: the dim rule wins the ``opacity`` on its id, but nothing else sets a ``stroke`` at
+    that weight, so pointing at a series the reader has switched off still draws a dark outline
+    round it. Keying the hover rule on ``:checked`` makes the two mutually exclusive rather
+    than merely ordered -- a switched-off series does not answer the pointer at all.
+    """
+    rules = [f"      /* {controls.figure} · {controls.kind} */\n"]
     if controls.kind == HOVER:
         for series in controls.series:
             targets = ", ".join(f".{name}:hover" for name in series.classes)
+            if toggled_by and (input_id := toggled_by.get(series.index)):
+                rules.append(
+                    f"      #{input_id}:checked ~ svg :is({targets})" " { opacity: 1; stroke: #16181d; stroke-width: 1.5; }\n"
+                )
+                continue
             # Keyed on the chart's scope class, which ``apply_scope`` puts on the root <svg>,
             # so this reaches one figure and not the next one down the page.
             #
@@ -357,4 +371,11 @@ def stylesheet(controls: list[Controls]) -> str:
     # The chrome styles ``<input>``/``<label>`` pairs, which only a toggle emits. A page whose
     # figures are all hover would otherwise carry rules for elements it does not have.
     chrome = CHROME if any(control.kind == TOGGLE for control in controls) else ""
-    return chrome + "".join(css(control) for control in controls)
+    # A figure that carries both kinds needs its hover rules keyed on its own checkboxes, so
+    # they are collected here rather than inside ``css``, which sees one figure's one kind.
+    toggles = {
+        control.figure: {series.index: control.input_id(series) for series in control.series}
+        for control in controls
+        if control.kind == TOGGLE
+    }
+    return chrome + "".join(css(control, toggled_by=toggles.get(control.figure)) for control in controls)
