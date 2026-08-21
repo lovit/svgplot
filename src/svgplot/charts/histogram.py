@@ -22,6 +22,7 @@ from svgplot.charts._layout import (
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
 from svgplot.data.ingest import ingest_longform
 from svgplot.data.semantic import extract_channels
 from svgplot.scales import LinearScale
@@ -69,12 +70,39 @@ def _count_in_bins(values: list[float], edges: list[float]) -> list[int]:
     return counts
 
 
+def _bin_tooltip(*, x: str, hue: str | None, low: float, high: float, closed: bool, count: int, label: object) -> str:
+    """What one bar's ``<title>`` says: the bin it covers, and how many values landed in it.
+
+    **It cannot say which rows those were, and this is the first chart where that is visible.**
+    A scatter point is a row, so its tooltip reads the row back. A bar here is a *count*, and
+    the values that produced it were dropped at :func:`_count_in_bins` -- nothing downstream
+    holds them. Naming a row would mean naming one of many, which is a different claim from the
+    one the bar makes.
+
+    The interval is written with a bracket rather than a dash because the bins are half-open
+    and the last one is not: ``12`` belongs to ``[12, 18)`` and not to ``[6, 12)``, and the
+    maximum value in the data belongs to the final bin, which is why that one closes. A bar
+    reading ``12 - 18`` beside one reading ``18 - 24`` leaves the reader to guess where ``18``
+    went, and the two bars answer differently.
+
+    Bounded like every other tooltip: the column names go through :func:`clause`, which drops
+    one too long to read, and the numbers through :func:`format_number`. A clause is written
+    once per bar per series.
+    """
+    interval = f"[{format_number(low)}, {format_number(high)}{']' if closed else ')'}"
+    parts = [clause(x, interval), plural(count, "observation")]
+    if hue is not None and (shown := format_label(label)) is not None:
+        parts.append(clause(hue, shown))
+    return " · ".join(parts)
+
+
 def histplot(
     data: object,
     x: str,
     hue: str | None = None,
     *,
     bins: str | int = "auto",
+    tooltip: bool = False,
     width: float | None = None,
     height: float | None = None,
     theme: Theme | str | None = None,
@@ -88,6 +116,20 @@ def histplot(
     making the overlap visible) sharing one set of bin edges computed across all groups'
     combined values — so every group's bars land on directly comparable
     boundaries — with an auto-generated legend.
+
+    ``tooltip=True`` gives every bar a ``<title>`` naming the interval it covers and how many
+    values landed in it, plus the ``hue=`` group where one was given. A browser shows that as
+    the ordinary hover tooltip, and it is also the bar's accessible name. It works only where
+    the SVG is *inlined* into the page: inside an ``<img>`` the file is a separate document and
+    the browser draws it without interaction.
+
+    **The tooltip cannot name a row, because a bar here is not one.** It is a count, and the
+    values behind it are not carried past binning. That is the difference from
+    :func:`~svgplot.scatterplot`, where a mark *is* a row and the tooltip reads that row back.
+
+    ``tooltip=False`` is the default, and not as a matter of taste. A ``<title>`` per bar is an
+    element per bar, and every existing caller's output would change bytes for a feature they
+    did not ask for. Off, the file is what it was.
 
     ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
     exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
@@ -200,7 +242,22 @@ def histplot(
             }
             if corner_radius is not None:
                 attrib["rx"] = corner_radius
-            document.add_node(None, "rect", attrib=attrib, classes=[series_class])
+            bar = document.add_node(None, "rect", attrib=attrib, classes=[series_class])
+            if tooltip:
+                add_tooltip(
+                    document,
+                    bar,
+                    _bin_tooltip(
+                        x=x,
+                        hue=hue,
+                        low=edges[bin_index],
+                        high=edges[bin_index + 1],
+                        # Only the final bin includes its right edge -- see ``_count_in_bins``.
+                        closed=bin_index == len(counts) - 1,
+                        count=count,
+                        label=label,
+                    ),
+                )
         if label is not None:
             legend_entries.append((str(label), series_class))
 
