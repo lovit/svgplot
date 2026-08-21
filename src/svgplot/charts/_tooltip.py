@@ -152,13 +152,19 @@ def format_label(value: object) -> str | None:
 
 
 def clause(name: str, value: str) -> str:
-    """``"name: value"``, or the value alone when the name is not worth repeating.
+    r"""``"name: value"``, or the value alone when the name is not worth repeating.
 
     Column names are caller strings and a tooltip repeats one **once per mark**, so an
     unreadably long name would be the largest thing in the file. Dropped rather than truncated,
-    for ``_describe._size_clause``'s reason: half a column name is a different column name.
+    for ``scatter._size_clause``'s reason: half a column name is a different column name.
     :func:`has_visible_text` covers the other direction -- a name of one tab is short enough to
     fit and still reads as ``"\t: 45"``.
+
+    **Only the name is measured.** The value is the caller's to bound, and every caller does it
+    before getting here -- :func:`format_number` for a number, :func:`format_label` for a label
+    out of the data. That is not a division this function can enforce: a caller passing a raw
+    category through would put an unbounded string in the file once per mark, and the ``name``
+    half of the rule would still read as satisfied.
     """
     return f"{name}: {value}" if fits(name) and has_visible_text(name) else value
 
