@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
+from _svg_probe import style_rule
 from svgplot.charts._layout import SPARKLINE_HEIGHT, SPARKLINE_WIDTH
 from svgplot.charts.line import lineplot
 from svgplot.charts.sparkline import sparkline
@@ -195,3 +196,48 @@ def test_sparkline_rejects_an_unknown_column() -> None:
 def test_sparkline_rejects_an_unknown_theme_preset() -> None:
     with pytest.raises(KeyError, match="unknown theme preset"):
         sparkline(DATA, "v", theme="not-a-preset")
+
+
+# ---------------------------------------------------------------------------
+# why this is the one gallery page that gets no interaction
+# ---------------------------------------------------------------------------
+#
+# The page says so in prose, so the prose is run here. Each of these is a reason the page
+# gives, and a reason nobody can check is a reason that quietly stops being true.
+
+
+def test_the_gallery_emitter_refuses_a_toggle_for_a_sparkline() -> None:
+    """Not a judgement the page makes -- the machinery will not build one.
+
+    A control needs a name and names come from the legend, and this chart draws none: one
+    series, and its name is already in the sentence the picture sits in.
+    """
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from gallery.interaction import resolve
+
+    svg = sparkline(DATA, y="v").set_scope("svgplot-sparkline-1").to_string()
+
+    with pytest.raises(ValueError, match="no legend entry"):
+        resolve("svgplot-sparkline-1", "toggle", svg)
+
+
+def test_the_line_is_two_pixels_of_a_twenty_four_pixel_picture() -> None:
+    """Why there is no ``:hover`` either. The stroke is the whole hit target -- an unfilled
+    path has no interior to catch a pointer -- and here it is 2px of a 24px-tall chart."""
+    rule = style_rule(sparkline(DATA, y="v").to_string(), ".series-1")
+
+    assert "fill: none" in rule
+    assert "stroke-width: 2" in rule
+    assert SPARKLINE_HEIGHT == 24.0
+
+
+def test_one_path_per_series_is_why_a_tooltip_would_name_the_line_not_a_point() -> None:
+    """A ``<title>`` belongs to an element, and this chart draws one element for the whole
+    series -- so it could carry the series' name and never a single reading. Giving it point
+    markers would change that, and would be changing the picture to suit the tooltip."""
+    root = parse(sparkline({"v": [1.0, 5.0, 2.0, 8.0, 3.0, 9.0]}, y="v").to_string())
+
+    assert len([node for node in root.iter() if node.tag == f"{SVG_NS}path"]) == 1
