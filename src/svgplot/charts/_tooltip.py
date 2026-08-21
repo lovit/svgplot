@@ -135,7 +135,8 @@ def format_label(value: object) -> str | None:
 
     Measured before it existed, on 1,000 points whose ``x`` and ``y`` are ``0.0``..``999.0``
     and whose single hue group is named with 100,000 Hangul characters: ``len(to_string())``
-    went from **185,050 characters to 100,235,830**, 542 times larger. On disk it is worse --
+    went from **185,050 characters with no tooltips at all to 100,235,830 with them**, 542
+    times larger. On disk it is worse --
     UTF-8 spends three bytes on each of those characters, so the file goes from 385,070 bytes
     to 300,437,850, a factor of 780. Both the fixture and the unit are written out because a
     ratio without them is not a measurement: the same run reads 542 or 780 depending on which

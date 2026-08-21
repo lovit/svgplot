@@ -164,8 +164,9 @@ def _point_tooltip(*, x: str, y: str, size: str | None, hue: str | None, row: tu
     **Everything here is bounded, and that is the whole design constraint.** Each clause is
     written once per point, so anything unbounded is multiplied by the number of marks: before
     the label went through :func:`format_label`, a 1,000-point chart whose one hue group was
-    named with 100,000 characters went from 185,050 characters of output to 100,235,830 --
-    385,070 bytes to 300,437,850 once UTF-8 has spent three bytes on each Hangul character.
+    named with 100,000 characters went from 185,050 characters of output with no tooltips to
+    100,235,830 with them -- 385,070 bytes to 300,437,850 once UTF-8 has spent three bytes on
+    each Hangul character.
 
     The numbers are bounded by :func:`format_number`, because a ``<title>`` is the mark's
     *accessible name* and ``1e308`` spelled as a decimal literal is 309 digits read out one at

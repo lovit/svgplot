@@ -125,10 +125,11 @@ def test_a_group_label_too_long_to_read_is_dropped_rather_than_repeated() -> Non
     says it once per mark.
 
     Measured before the cap, on a fixture larger than this test needs: 1,000 points, ``x`` and
-    ``y`` ``0.0``..``999.0``, one hue group named with 100,000 Hangul characters. Output went from 185,050 characters to 100,235,830 -- 542 times -- and
-    from 385,070 bytes to 300,437,850, which is 780, because UTF-8 spends three bytes on each
-    of those characters. With the label on half the points instead of all of them it is half
-    of that: the multiplier is the mark count, not the label.
+    ``y`` ``0.0``..``999.0``, one hue group named with 100,000 Hangul characters. Output went
+    from 185,050 characters with no tooltips to 100,235,830 with them -- 542 times -- and from
+    385,070 bytes to 300,437,850, which is 780, because UTF-8 spends three bytes on each of
+    those characters. With the label on half the points instead of all of them it is half of
+    that: the multiplier is the mark count, not the label.
 
     The clause is left out rather than truncated, and the point still says its x and y.
     """
