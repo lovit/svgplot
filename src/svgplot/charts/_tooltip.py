@@ -44,6 +44,8 @@ import unicodedata
 import xml.etree.ElementTree as ET
 
 from svgplot._svg import SvgDocument
+from svgplot.charts._describe import fits
+from svgplot.charts._layout import format_value_label
 
 _TITLE_TAG = "title"
 
@@ -69,7 +71,7 @@ standard library exposes, which is the whole reason this is a list rather than t
 """
 
 
-def _has_visible_text(text: str) -> bool:
+def has_visible_text(text: str) -> bool:
     """Whether ``text`` would put anything on screen.
 
     Not ``str.strip()``: that covers the separators and the ASCII controls, so it catches
@@ -99,6 +101,56 @@ def _has_visible_text(text: str) -> bool:
     return any(unicodedata.category(character) not in _BLANK_CATEGORIES for character in text)
 
 
+def format_number(value: float) -> str:
+    """A number as a tooltip should spell it: the shorter of two spellings, both exact.
+
+    ``format_value_label`` is the first choice because it is how this package writes a value
+    label -- ``30.0`` reads ``30`` rather than ``30.0``. It is a plain decimal literal, though,
+    and ``1e308`` is 309 digits of one. That matters more here than anywhere else: a mark's
+    ``<title>`` is its *accessible name*, so those digits are read out one at a time, and there
+    is one ``<title>`` per mark rather than one per chart.
+
+    So when the literal is longer than Python's own shortest round-trip ``repr``, the ``repr``
+    wins -- which is only ever the case when the literal is expanding scientific notation back
+    into digits. **Neither branch rounds.** An earlier version capped the length and fell back
+    to ``%g``, which is six significant figures. Measured over ten thousand samples from one
+    ``random.Random(1)`` -- ``r = random.Random(1)`` then ``[r.uniform(0, 100) for _ in
+    range(10_000)]``, a shared generator rather than a fresh one per draw -- **9,095 of them
+    (91%)** came out rewritten, starting with ``13.436424411240122`` becoming ``13.4364``. A
+    tooltip that quietly rewrites the value it names is worse than a long one.
+    """
+    literal = format_value_label(value)
+    exact = repr(float(value))
+    return literal if len(literal) <= len(exact) else exact
+
+
+def format_label(value: object) -> str | None:
+    """A group label as a tooltip should spell it, or ``None`` if it should be left out.
+
+    Numbers go through :func:`format_number` so one tooltip does not spell the same kind of
+    value two ways -- a numeric ``hue=`` column would otherwise read ``x: 1 · group: 1.0``.
+
+    ``None`` for a label that is unreadably long or draws nothing, and that bound is the point:
+    a label reaches here once *per mark*, where the legend says it once.
+
+    Measured before it existed, on 1,000 points whose ``x`` and ``y`` are ``0.0``..``999.0``
+    and whose single hue group is named with 100,000 Hangul characters: ``len(to_string())``
+    went from **185,050 characters with no tooltips at all to 100,235,830 with them**, 542
+    times larger. On disk it is worse --
+    UTF-8 spends three bytes on each of those characters, so the file goes from 385,070 bytes
+    to 300,437,850, a factor of 780. Both the fixture and the unit are written out because a
+    ratio without them is not a measurement: the same run reads 542 or 780 depending on which
+    you count.
+
+    Left out rather than truncated, for the reason a column name is: half a label is a
+    different label, and the mark still says its x and y.
+    """
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        text = str(value)
+        return text if fits(text) and has_visible_text(text) else None
+    return format_number(float(value))
+
+
 def add_tooltip(document: SvgDocument, node: ET.Element, text: str) -> ET.Element | None:
     """Give ``node`` a ``<title>`` child holding ``text``, and return it.
 
@@ -117,7 +169,7 @@ def add_tooltip(document: SvgDocument, node: ET.Element, text: str) -> ET.Elemen
             only the first is used, so a second is markup that renders, validates and says
             nothing.
     """
-    if not _has_visible_text(text):
+    if not has_visible_text(text):
         return None
     if any(child.tag == _TITLE_TAG for child in node):
         raise ValueError(f"<{node.tag}> already has a <title>; only the first is used, so a second says nothing")

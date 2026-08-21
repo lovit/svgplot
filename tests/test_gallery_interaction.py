@@ -97,6 +97,10 @@ def _rendered() -> list[tuple[str, str]]:
 
     pages = [(page.name, chart_page(page)) for page in discover()]
     pages.append(("built-with-controls", chart_page(_stub([("bars", _BAR)], {1: "toggle"}))))
+    # A page whose only interaction is hover. Without it, nothing separates "this page has
+    # controls" from "this page has a toggle": every real page and every other stub has a
+    # toggle, so emitting the dim note unconditionally reads as correct.
+    pages.append(("built-with-hover-only", chart_page(_stub([("bars", _BAR)], {1: "hover"}))))
     pages.append(("built-with-two", chart_page(_stub([("bars", _BAR), ("boxes", _BOX)], {1: "toggle", 2: "toggle"}))))
     return pages
 
@@ -174,6 +178,76 @@ def test_a_chart_with_no_legend_is_refused() -> None:
 
     with pytest.raises(ValueError, match="no legend entry"):
         load(module, "nolegend")
+
+
+@pytest.mark.parametrize(
+    ("kind", "refused"),
+    [pytest.param("toggle", True, id="toggle"), pytest.param("hover", False, id="hover")],
+)
+def test_only_a_toggle_needs_the_chart_to_have_a_legend(kind: str, refused: bool) -> None:
+    """The headline difference between the two kinds, and until this existed nothing checked it.
+
+    A toggle needs a name per series and the legend is where names come from. Hover needs none
+    -- there is nothing to label -- so it works on a chart that draws series without naming
+    them. ``boxplot`` without ``hue=`` is exactly that: one series per category from the
+    per-category palette -- four here, because the fixture has four -- and no legend for any
+    of them.
+
+    Written as one parametrized pair rather than two tests, because the claim is the
+    *difference*: removing the ``kind == TOGGLE`` condition left the whole suite green, since
+    the existing refusal test only used ``toggle`` and the hover page used a chart that has a
+    legend anyway.
+    """
+    module = types.ModuleType(f"nolegend-{kind}")
+    module.TITLE, module.SUMMARY, module.REQUIRES = "nolegend", "s", "r"
+    module.SETUP = _SETUP
+    module.EXAMPLES = [("no hue", 'sp.boxplot(QUARTERS, x="분기", y="매출")')]
+    module.INTERACTIONS = {1: kind}
+
+    if refused:
+        with pytest.raises(ValueError, match="no legend entry"):
+            load(module, "nolegend")
+        return
+
+    controls = load(module, "nolegend").examples[0].controls
+
+    # Four categories in the fixture, so four series from the per-category palette -- and no
+    # legend for any of them, which is the state a toggle cannot use and hover can.
+    assert [series.index for series in controls.series] == [1, 2, 3, 4]
+    assert all(series.label == "" for series in controls.series), "hover names nothing, so it needs no name"
+
+
+def test_a_hover_rule_names_every_class_its_series_actually_has() -> None:
+    """The same reason the toggle rule does. ``boxplot`` draws a series as ``series-N`` plus
+    ``series-N-marker``, so a rule against the first class alone emphasises the whisker and
+    leaves the box flat -- which reads as a rendering bug rather than a selector that was told
+    half the truth."""
+    module = types.ModuleType("boxhover")
+    module.TITLE, module.SUMMARY, module.REQUIRES = "boxhover", "s", "r"
+    module.SETUP = _SETUP
+    module.EXAMPLES = [("boxes", _BOX)]
+    module.INTERACTIONS = {1: "hover"}
+    example = load(module, "boxhover").examples[0]
+    drawn = interaction.series_classes(example.svg)
+    rules = interaction.css(example.controls)
+
+    assert drawn[1] == ("series-1", "series-1-marker"), "the fixture stopped being the two-class case"
+    for classes in drawn.values():
+        for name in classes:
+            assert f".{name}:hover" in rules, f"{name} is drawn but nothing emphasises it"
+
+
+def test_a_page_with_only_hover_gets_no_control_chrome() -> None:
+    """The chrome styles ``<input>``/``<label>`` pairs, and a hover page has none. Its own half
+    of the same claim -- the note -- is checked by
+    :func:`test_a_page_with_controls_carries_the_note`; this is the half that emitting the
+    chrome unconditionally left green."""
+    hover_only = chart_page(_stub([("bars", _BAR)], {1: "hover"}))
+    with_toggle = chart_page(_stub([("bars", _BAR)], {1: "toggle"}))
+
+    assert "figure > .series-toggle" in with_toggle, "the fixture stopped emitting chrome at all"
+    assert "figure > .series-toggle" not in hover_only
+    assert ":hover" in hover_only, "and the hover rule itself is still there"
 
 
 def test_a_legend_over_rows_is_not_refused_and_that_is_a_judgement_not_a_check() -> None:

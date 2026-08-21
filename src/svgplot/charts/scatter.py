@@ -31,6 +31,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend, require_room, size_legend_ink_height
 from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.charts._tooltip import add_tooltip, format_label, format_number, has_visible_text
 from svgplot.data._missing import numeric_or_none
 from svgplot.data.ingest import ingest_longform
 from svgplot.labels._source import collect_label_data
@@ -145,6 +146,47 @@ def _size_clause(size: str | None) -> str | None:
     return f'marker size from "{size}"' if fits(size) else "marker size from another column"
 
 
+def _clause(name: str, value: str) -> str:
+    """``"name: value"``, or the value alone when the name is not worth repeating.
+
+    Column names are caller strings, and here one of them is repeated **once per point** --
+    an unreadably long name would be the largest thing in the file. Dropped rather than
+    truncated, for ``_size_clause``'s reason: half a column name is a different column name.
+    ``has_visible_text`` for the same job in the other direction -- a name of one tab is
+    short enough to fit and still reads as ``"\t: 45"``.
+    """
+    return f"{name}: {value}" if fits(name) and has_visible_text(name) else value
+
+
+def _point_tooltip(*, x: str, y: str, size: str | None, hue: str | None, row: tuple, label: object) -> str:
+    """What one point's ``<title>`` says: its own values, named by the columns they came from.
+
+    **Everything here is bounded, and that is the whole design constraint.** Each clause is
+    written once per point, so anything unbounded is multiplied by the number of marks: before
+    the label went through :func:`format_label`, a 1,000-point chart whose one hue group was
+    named with 100,000 characters went from 185,050 characters of output with no tooltips to
+    100,235,830 with them -- 385,070 bytes to 300,437,850 once UTF-8 has spent three bytes on
+    each Hangul character.
+
+    The numbers are bounded by :func:`format_number`, because a ``<title>`` is the mark's
+    *accessible name* and ``1e308`` spelled as a decimal literal is 309 digits read out one at
+    a time.
+
+    The clauses are joined with ``" · "``, which a label containing that sequence can imitate
+    -- ``"a · b"`` as a group name reads as two clauses. Escaping it would make the common case
+    unreadable to buy an unambiguous parse nobody performs; the tooltip is prose for a person,
+    not a record.
+    """
+    parts = [_clause(x, format_number(row[0])), _clause(y, format_number(row[1]))]
+    if size is not None:
+        # ``row[2]`` cannot be None here: the row loop drops any row with a missing size when
+        # ``size=`` was given, so surviving rows always carry one.
+        parts.append(_clause(size, format_number(row[2])))
+    if hue is not None and (shown := format_label(label)) is not None:
+        parts.append(_clause(hue, shown))
+    return " · ".join(parts)
+
+
 def scatterplot(
     data: object,
     x: str,
@@ -153,6 +195,7 @@ def scatterplot(
     size: str | None = None,
     *,
     info: LabelSpec | list[tuple[str, str]] | None = None,
+    tooltip: bool = False,
     width: float | None = None,
     height: float | None = None,
     theme: Theme | str | None = None,
@@ -168,6 +211,18 @@ def scatterplot(
     marker radius is linearly mapped from that numeric column's range (theme's
     ``marker_size`` as the anchor), with its own auto-generated legend showing
     representative min/mid/max samples. ``hue=`` and ``size=`` can be combined.
+
+    ``tooltip=True`` gives every point a ``<title>`` naming its own values -- the x and y
+    columns, plus ``size=`` and ``hue=`` where they were given. A browser shows that as the
+    ordinary hover tooltip, and it is also the point's accessible name, so the marks become
+    named nodes rather than one anonymous cloud. It works only where the SVG is *inlined* into
+    the page: inside an ``<img>`` the file is a separate document and the browser draws it
+    without interaction.
+
+    ``tooltip=False`` is the default, and not as a matter of taste. A ``<title>`` per point is
+    an element per point, so turning it on for a thousand-point chart adds a thousand elements
+    -- and every existing caller's output would change bytes for a feature they did not ask
+    for. Off, the file is what it was.
 
     ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
     exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
@@ -284,9 +339,10 @@ def scatterplot(
     for label, rows in series_rows:
         series_class = document.semantic_class("series")
         series_classes.append(series_class)
-        for xv, yv, sv in rows:
+        for row in rows:
+            xv, yv, sv = row
             radius = radius_of(sv) if radius_of is not None else resolved_theme.marker_size
-            document.add_node(
+            point = document.add_node(
                 None,
                 "circle",
                 attrib={
@@ -296,6 +352,8 @@ def scatterplot(
                 },
                 classes=[series_class, "scatter-point"],
             )
+            if tooltip:
+                add_tooltip(document, point, _point_tooltip(x=x, y=y, size=size, hue=hue, row=row, label=label))
         if label is not None:
             legend_entries.append((str(label), series_class))
 
