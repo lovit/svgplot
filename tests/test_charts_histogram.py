@@ -5,6 +5,7 @@ import re
 
 import pytest
 
+from _svg_probe import tags
 from svgplot.charts.histogram import histplot
 
 SINGLE_SERIES = {"value": [1.0, 2.0, 2.0, 3.0, 4.0, 5.0, 5.0, 5.0, 6.0, 7.0]}
@@ -13,9 +14,6 @@ HUE_SERIES = {
     "group": ["a", "a", "a", "a", "a", "b", "b", "b", "b", "b"],
 }
 
-_RECT_RE = re.compile(r"<rect\b([^>]*)/>")
-_ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
-
 
 def _series_bars(svg: str, series_class: str) -> list[dict[str, float]]:
     """Return the data bars drawn for ``series_class`` as ``{x, y, width, height}``, sorted by x.
@@ -23,11 +21,15 @@ def _series_bars(svg: str, series_class: str) -> list[dict[str, float]]:
     Legend swatches carry the same CSS class as the bars they label, so they're
     filtered out here: a data bar always grows up from the shared baseline, while
     a swatch sits well above it.
+
+    Through ``_svg_probe`` rather than a ``/>``-only pattern of its own, for the reason that
+    module was written: a bar with a ``<title>`` is no longer ``<rect …/>``, and the old
+    pattern stopped seeing it. Here that was loud rather than silent -- flipping ``tooltip=``
+    to ``True`` by default took all four tests that call this to failure and none of the other
+    twenty-four -- but the failure would have been "no bars were drawn", which is not what
+    happened.
     """
-    rects = [dict(_ATTR_RE.findall(attrs)) for attrs in _RECT_RE.findall(svg)]
-    matching = [
-        {key: float(rect[key]) for key in ("x", "y", "width", "height")} for rect in rects if rect.get("class") == series_class
-    ]
+    matching = [{key: float(rect[key]) for key in ("x", "y", "width", "height")} for rect in tags(svg, "rect", series_class)]
     if not matching:
         return []
     baseline = max(rect["y"] + rect["height"] for rect in matching)
