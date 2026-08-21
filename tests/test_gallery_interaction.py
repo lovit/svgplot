@@ -57,7 +57,12 @@ QUARTERS = {
 _BAR = 'sp.barplot(QUARTERS, x="분기", y="매출", hue="채널")'
 _BOX = 'sp.boxplot(QUARTERS, x="분기", y="매출", hue="채널")'
 
-_CLASS_IN_SELECTOR = re.compile(r"\.(series-\d+(?:-[\w-]+)?)\b")
+_TARGETABLE = "|".join([r"series-\d+(?:-[\w-]+)?", *(re.escape(name) for name in interaction.MARK_CLASSES)])
+_CLASS_IN_SELECTOR = re.compile(rf"\.({_TARGETABLE})\b")
+"""Every class the emitter is allowed to point at: a series, one of its marker twins, or a
+chart's own mark hook. Built from :data:`interaction.MARK_CLASSES` rather than listing them
+again -- a hook this pattern does not know about makes ``_page_rules`` return nothing for that
+page, which the guard below then reports as "no controls"."""
 
 
 def _selected_classes(rules: str) -> set[str]:
@@ -402,6 +407,42 @@ def test_a_hover_rule_names_every_class_its_series_actually_has() -> None:
     assert named <= {name for classes in drawn.values() for name in classes}, "a rule names a class no figure has"
 
 
+_HEATMAP = 'sp.heatmap({"c": ["a", "b"], "r": ["p", "p"], "v": [1.0, 2.0]}, x="c", y="r", values="v")'
+
+
+def test_a_cell_kind_points_at_the_chart_s_mark_hook() -> None:
+    """``heatmap`` draws one class per colour *level*, so it has no series to point at -- and a
+    per-level rule would be the wrong thing anyway: pointing at one cell would light every cell
+    of the same shade, in a chart whose whole problem is that nine shades are hard to tell
+    apart. One rule for the figure, keyed on the hook every cell carries."""
+    page = _stub([("cells", _HEATMAP)], {1: "cell"})
+    (controls,) = page.examples[0].controls
+    rules = [selector for _f, kind, selector in _page_rules(chart_page(page)) if kind == "cell"]
+
+    assert [series.classes for series in controls.series] == [("heatmap-cell",)]
+    assert len(rules) == 1, rules
+    assert ".heatmap-cell:hover" in rules[0]
+    assert not interaction.markup(controls), "a cell rule has nothing to operate"
+
+
+def test_a_cell_kind_on_a_chart_with_no_mark_hook_is_refused() -> None:
+    """A hook the emitter *believes* is there produces a rule that matches nothing, and a rule
+    that matches nothing looks exactly like a figure whose author asked for no interaction."""
+    with pytest.raises(ValueError, match="draws no mark hook"):
+        _stub([("bars", _BAR)], {1: "cell"})
+
+
+def test_a_cell_page_gets_no_control_chrome_and_no_note() -> None:
+    """Both belong to the toggle: the chrome styles ``<input>``/``<label>`` pairs a cell page
+    has none of, and the note explains why a switched-off series is dimmed rather than hidden,
+    which is not a thing this page does."""
+    page = chart_page(_stub([("cells", _HEATMAP)], {1: "cell"}))
+
+    assert "figure > .series-toggle" not in page
+    assert "interaction-note" not in page
+    assert ":hover" in page, "and the rule itself is still there"
+
+
 def test_a_page_with_only_hover_gets_no_control_chrome() -> None:
     """The chrome styles ``<input>``/``<label>`` pairs, and a hover page has none. Its own half
     of the same claim -- the note -- is checked by
@@ -563,7 +604,10 @@ def test_every_rule_reaches_the_figure_it_was_written_for(html: str) -> None:
         figure = figures[figure_name]
         wanted = {match.group(1) for match in _CLASS_IN_SELECTOR.finditer(selector)}
         drawn = {
-            name for element in figure.iter() for name in (element.get("class") or "").split() if name.startswith("series-")
+            name
+            for element in figure.iter()
+            for name in (element.get("class") or "").split()
+            if name.startswith("series-") or name in interaction.MARK_CLASSES
         }
         assert wanted <= drawn, f"the rule names {sorted(wanted - drawn)}, which {figure_name} does not draw: {selector}"
 
@@ -575,7 +619,7 @@ def test_every_rule_reaches_the_figure_it_was_written_for(html: str) -> None:
             continue
 
         assert keyed
-        expected = {f"{figure_name}-toggle-{name.split('-')[1]}" for name in wanted}
+        expected = {f"{figure_name}-toggle-{name.split('-')[1]}" for name in wanted if name.startswith("series-")}
         assert keyed.group(1) in expected, f"{figure_name}'s rule for {sorted(wanted)} is keyed on {keyed.group(1)}"
         _assert_the_combinator_walks(html, figure_name, keyed.group(1), selector)
 

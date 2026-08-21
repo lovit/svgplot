@@ -64,7 +64,32 @@ What it does *not* do is say anything: it is an affordance telling the reader "t
 the value it points at has to come from the mark's own ``<title>``.
 """
 
-KINDS = (TOGGLE, HOVER)
+CELL = "cell"
+"""Emphasise the mark under the pointer, on a chart whose marks are not series.
+
+Same rule shape as :data:`HOVER` and a separate kind because the classes it points at come
+from somewhere else. ``heatmap`` draws one class per *colour level*, so ``series_classes``
+finds nothing and :func:`resolve` would refuse the figure -- and a per-level rule would be
+wrong anyway: pointing at one cell would light every cell of the same shade, which is the
+opposite of "this one" in a chart whose whole problem is that nine shades are hard to tell
+apart.
+
+So this points at the chart's own mark hook -- one class every mark carries and nothing else
+does -- and emits **one** rule for the figure rather than one per series. :data:`MARK_CLASSES`
+is the list of hooks it knows.
+"""
+
+KINDS = (TOGGLE, HOVER, CELL)
+
+MARK_CLASSES = ("heatmap-cell",)
+"""The mark hooks :data:`CELL` can point at, in the order it prefers them.
+
+One entry today. It is a list rather than a hard-coded string because the question "which class
+is this chart's mark" has no general answer in the rendered file -- ``heatmap`` is simply the
+one chart that already labels its marks with a class of their own, put there so a reader can
+recolour cells by hand (``charts/heatmap.py``). A chart with no such hook cannot take this
+kind, and :func:`resolve` says so rather than emitting a rule that matches nothing.
+"""
 
 DIM_OPACITY = "0.15"
 """What a switched-off series fades to. Not ``display: none`` -- see :data:`NOTE`."""
@@ -253,6 +278,15 @@ def resolve(figure: str, kind: str, svg: str) -> Controls:
     if kind not in KINDS:
         raise ValueError(f"{figure}: unknown control kind {kind!r}, expected one of {KINDS}")
 
+    if kind == CELL:
+        # Read from the picture, like everything else here: a hook the emitter *believes* is
+        # there produces a rule that matches nothing, and a rule that matches nothing looks
+        # exactly like a figure whose author asked for no interaction.
+        drawn = [name for name in MARK_CLASSES if re.search(rf'class="(?:[^"]* )?{name}(?: [^"]*)?"', svg)]
+        if not drawn:
+            raise ValueError(f"{figure}: the chart draws no mark hook, so there is nothing to point at; tried {MARK_CLASSES}")
+        return Controls(figure=figure, kind=kind, series=(Series(index=0, label="", classes=(drawn[0],)),))
+
     classes = series_classes(svg)
     labels = legend_labels(svg)
     if not classes:
@@ -306,7 +340,7 @@ def css(controls: Controls, *, toggled_by: Mapping[int, str] | None = None) -> s
     than merely ordered -- a switched-off series does not answer the pointer at all.
     """
     rules = [f"      /* {controls.figure} · {controls.kind} */\n"]
-    if controls.kind == HOVER:
+    if controls.kind in (HOVER, CELL):
         for series in controls.series:
             targets = ", ".join(f".{name}:hover" for name in series.classes)
             if toggled_by and (input_id := toggled_by.get(series.index)):
