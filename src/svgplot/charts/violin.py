@@ -30,6 +30,7 @@ from svgplot.charts._layout import (
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
 from svgplot.charts.box import NO_HUE, group_by_category
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import CategoricalScale, LinearScale
@@ -132,6 +133,51 @@ def _violin_path(ys: list[float], densities: list[float], centre: float, half_wi
     return " ".join(commands)
 
 
+def _violin_tooltip(
+    *, x: str, y: str, hue: str | None, category: str, hue_value: str, values: list[float], quartiles: tuple[float, ...]
+) -> str:
+    """What one violin's ``<title>`` says: which group it is, and what the outline is made of.
+
+    **What it adds depends on ``inner=``, and only one of the two is "the numbers do not
+    exist".** Under the default ``inner="box"`` the quartiles *are* on screen -- the inner box
+    is drawn against the same labelled y axis the reader can measure against, which is why this
+    branch's own test decodes ``box["y"]`` back into Q3 -- so the tooltip adds precision, not
+    existence. Under ``inner=None`` there is nothing: the width is a density scaled against the
+    chart's shared peak, so it says how the values pile up and not where they sit. The numbers
+    are said in both cases because they describe the values the outline was computed from,
+    which are there whether or not the annotation is.
+
+    The same sentence goes on all three marks of a violin -- body, inner box, median tick.
+    ``boxplot`` repeats its own across six for the same reason: the pointer stops at the
+    topmost element under it, and here the box and the tick are added after the body, so leaving
+    either untitled puts a hole in the middle of a violin that otherwise responds. Giving them *different* sentences would be worse, since which one the
+    reader gets would depend on the pixel.
+
+    ``quartiles`` is computed by the caller and shared with the inner box, so the two cannot
+    describe the same shape differently -- and the values are sorted once rather than twice.
+
+    A quartile is *interpolated*, so it can carry representation noise no input value had: the
+    gallery's own data is ``round(gauss(...), 2)`` and one violin reads ``Q1
+    3.1224999999999996``. It is spelled exactly anyway, under the rule
+    :func:`~svgplot.charts._tooltip.format_number` states -- a tooltip that rewrites the number
+    it names is worse than a long one -- and because rounding it would move it off the box the
+    reader can measure. Every fixture in the test file uses integral floats where interpolation
+    lands clean (2.25 / 3.5 / 4.75), which is why nothing there sees this.
+    """
+    parts = []
+    if (shown := format_label(category)) is not None:
+        parts.append(clause(x, shown))
+    # ``hue is not None`` is redundant with ``NO_HUE`` being the empty string, which
+    # ``format_label`` already returns ``None`` for. Kept because it says which case this is;
+    # no mutation can make it fail, and that is worth knowing rather than hiding.
+    if hue is not None and (group_name := format_label(hue_value)) is not None:
+        parts.append(clause(hue, group_name))
+    q1, median, q3 = quartiles
+    parts.append(clause(y, f"Q1 {format_number(q1)} · median {format_number(median)} · Q3 {format_number(q3)}"))
+    parts.append(plural(len(values), "observation"))
+    return " · ".join(parts)
+
+
 def violinplot(
     data: object,
     x: str,
@@ -140,6 +186,7 @@ def violinplot(
     *,
     bandwidth: float | str = "scott",
     inner: str | None = "box",
+    tooltip: bool = False,
     width: float | None = None,
     height: float | None = None,
     theme: Theme | str | None = None,
@@ -155,6 +202,21 @@ def violinplot(
 
     ``inner="box"`` overlays the quartile range and the median, matching what ``boxplot``
     would draw for the same data.
+
+    ``tooltip=True`` gives every mark a ``<title>`` naming the category, the ``hue=`` group
+    where there is one, Q1/median/Q3, and how many values the outline was computed from. Under
+    the default ``inner="box"`` that is added *precision* -- the box is already drawn against a
+    labelled axis. Under ``inner=None`` it is the only reading available: the width is a density
+    scaled against the chart's shared peak, so the outline says how the values pile up and not
+    where they sit. A browser shows them as ordinary hover tooltips, and they are also the
+    marks' accessible names; it works only where the SVG is *inlined* into the page.
+
+    All three marks of a violin carry the same sentence. The pointer stops at the topmost
+    element under it and the inner box and median tick are drawn over the body, so leaving
+    either untitled puts a hole in the middle of a violin that otherwise responds.
+
+    ``tooltip=False`` is the default, and not as a matter of taste: every existing caller's
+    output would otherwise change bytes for a feature they did not ask for.
 
     ``categories=`` replaces the category list this chart would take from its own data, and
     ``ylim=`` its value domain. They exist so several charts can be made to agree -- see
@@ -272,46 +334,72 @@ def violinplot(
                 continue
             series_class = series_classes[slot if hue is not None else index]
             centre = x_scale(category) + (slot + 0.5) * slot_width
-            document.add_node(
-                None,
-                "path",
-                attrib={"d": _violin_path(curve.x, curve.y, centre, half_width, y_scale)},
-                classes=[series_class, "violin-body"],
+            values = groups[(category, hue_value)]
+            # One call, shared by the tooltip and the inner box below. Two calls agree today and
+            # the docstring said they could not disagree, which was a claim about a structure
+            # that was not there -- and it doubled the sort the comment at that call site exists
+            # to avoid. ``quantiles`` is asked for the three probabilities together for the same
+            # reason: it sorts once.
+            quartiles = quantiles(values, (0.25, 0.5, 0.75)) if tooltip or inner == "box" else None
+            said = (
+                _violin_tooltip(x=x, y=y, hue=hue, category=category, hue_value=hue_value, values=values, quartiles=quartiles)
+                if tooltip
+                else None
             )
+            # Collected rather than titled at each call site, so a mark added later cannot
+            # quietly become a hole in the glyph -- see ``_violin_tooltip``.
+            marks = [
+                document.add_node(
+                    None,
+                    "path",
+                    attrib={"d": _violin_path(curve.x, curve.y, centre, half_width, y_scale)},
+                    classes=[series_class, "violin-body"],
+                )
+            ]
 
             if inner == "box":
                 # Quartiles from stats.quantile, which is what stats.box's hinges resolve to in
                 # its default "1.5IQR" mode -- so this annotation lands exactly where a default
                 # boxplot would put the same box. (boxplot's mode="tukey" uses different
                 # hinges; violinplot has no mode= of its own.)
-                # quantiles(), not three quantile() calls: it sorts once, which is exactly what
-                # its docstring asks callers with several probabilities to do (stats.box too).
-                q1, median, q3 = quantiles(groups[(category, hue_value)], (0.25, 0.5, 0.75))
+                # Computed once above and shared with the tooltip, so the two cannot describe
+                # the same box differently. ``quantiles()`` rather than three ``quantile()``
+                # calls: it sorts once, which is what its docstring asks of a caller with
+                # several probabilities (stats.box too).
+                assert quartiles is not None
+                q1, median, q3 = quartiles
                 box_half = abs(band) * _INNER_BOX_FRACTION / 2
                 top, bottom = y_scale(q3), y_scale(q1)
-                document.add_node(
-                    None,
-                    "rect",
-                    attrib={
-                        "x": format_coord(centre - box_half),
-                        "y": format_coord(min(top, bottom)),
-                        "width": format_coord(box_half * 2),
-                        "height": format_coord(abs(bottom - top)),
-                    },
-                    classes=[series_class, "violin-box"],
+                marks.append(
+                    document.add_node(
+                        None,
+                        "rect",
+                        attrib={
+                            "x": format_coord(centre - box_half),
+                            "y": format_coord(min(top, bottom)),
+                            "width": format_coord(box_half * 2),
+                            "height": format_coord(abs(bottom - top)),
+                        },
+                        classes=[series_class, "violin-box"],
+                    )
                 )
                 tick_half = abs(band) * _MEDIAN_TICK_FRACTION / 2
-                document.add_node(
-                    None,
-                    "line",
-                    attrib={
-                        "x1": format_coord(centre - tick_half),
-                        "y1": format_coord(y_scale(median)),
-                        "x2": format_coord(centre + tick_half),
-                        "y2": format_coord(y_scale(median)),
-                    },
-                    classes=[series_class, "violin-median"],
+                marks.append(
+                    document.add_node(
+                        None,
+                        "line",
+                        attrib={
+                            "x1": format_coord(centre - tick_half),
+                            "y1": format_coord(y_scale(median)),
+                            "x2": format_coord(centre + tick_half),
+                            "y2": format_coord(y_scale(median)),
+                        },
+                        classes=[series_class, "violin-median"],
+                    )
                 )
+            if said is not None:
+                for mark in marks:
+                    add_tooltip(document, mark, said)
 
     # "outlined" so the body reads as a translucent fill that still has its own edge, and
     # the inner box and median inherit the same colour at full strength.
