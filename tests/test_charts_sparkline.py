@@ -300,7 +300,11 @@ def test_the_control_row_is_taller_than_the_default_canvas() -> None:
     24.48px at a 16px root, which already clears the 24px canvas -- and no browser was run to
     get either number, so the claim is kept to the part that is arithmetic on the stylesheet.
     """
-    label_rule = next(line for line in interaction.CHROME.splitlines() if "+ label {" in line)
+    # The toggle's own chrome. ``CHROME`` held it until ``focus`` arrived and the per-kind
+    # blocks were split out of it; reading the whole of ``CHROME`` now finds no label rule at
+    # all, which is a ``StopIteration`` rather than a wrong number -- loud, but it would have
+    # been silent had the note carried a ``+ label`` selector.
+    label_rule = next(line for line in interaction._CONTROL_CHROME[interaction.TOGGLE].splitlines() if "+ label {" in line)
     body_rule = page.STYLE[page.STYLE.index("body {") : page.STYLE.index("a {")]
     label_size = float(re.search(r"font-size: ([\d.]+)rem;", label_rule).group(1))
     line_height = float(re.search(r"line-height: ([\d.]+);", body_rule).group(1))

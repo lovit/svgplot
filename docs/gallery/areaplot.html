@@ -89,11 +89,11 @@
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
       /* Controls sit inside the figure element, before the chart, as its direct children:
          the sibling combinator in the generated rules depends on that, and a wrapper would
-         quietly break every one of them. Left as native checkboxes -- a real control is
-         reachable with Tab and operated with Space without anything here arranging it. */
+         quietly break every one of them. Left as native inputs -- a real control is reachable
+         with Tab and operated with Space or the arrow keys without anything here arranging it. */
+      .interaction-note { margin: 0 0 1.75rem; color: var(--muted); font-size: 0.9rem; }
       figure > .series-toggle { margin: 0 0.3rem 0.75rem 0; vertical-align: -0.1em; }
       figure > .series-toggle + label { margin-right: 1.1rem; font-size: 0.9rem; color: var(--muted); }
-      .interaction-note { margin: 0 0 1.75rem; color: var(--muted); font-size: 0.9rem; }
       /* svgplot-areaplot-2 · toggle */
       #svgplot-areaplot-2-toggle-1:not(:checked) ~ svg :is(.series-1) { opacity: 0.15; pointer-events: none; }
       #svgplot-areaplot-2-toggle-1:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
