@@ -48,6 +48,7 @@ def test_a_tooltip_is_the_marks_first_child() -> None:
         pytest.param("\u00a0", id="no-break-space"),
         pytest.param("\u200b", id="zero-width-space"),
         pytest.param("\u2060", id="word-joiner"),
+        pytest.param("\u200f", id="right-to-left-mark"),
     ],
 )
 def test_text_that_draws_nothing_gets_no_title_at_all(text: str) -> None:
@@ -59,7 +60,8 @@ def test_text_that_draws_nothing_gets_no_title_at_all(text: str) -> None:
 
     ``str.strip()`` was the first rule and stops one character short: it catches U+00A0, a
     *space*, and passes U+200B, which draws exactly as much. There is no principle separating
-    them.
+    them. The other direction is
+    :func:`test_a_label_that_draws_ink_without_being_a_letter_keeps_its_full_text`.
     """
     document, mark = _mark()
 
@@ -120,6 +122,32 @@ def test_a_tooltip_survives_serialization_as_text_not_markup() -> None:
     add_tooltip(document, mark, "R&D <b>")
 
     assert "<title>R&amp;D &lt;b&gt;</title>" in document.to_string()
+
+
+@pytest.mark.parametrize(
+    "character",
+    [
+        pytest.param("\ue000", id="private-use-area"),
+        pytest.param("\ufff0", id="unassigned"),
+    ],
+)
+def test_a_label_that_draws_ink_without_being_a_letter_keeps_its_full_text(character: str) -> None:
+    """The direction that costs information if the rule is too wide.
+
+    A ``C*`` prefix would have been shorter than naming the categories, and would have swallowed
+    ``Co`` -- the private use area, where an icon font puts its glyphs and legacy Korean
+    encodings put real syllables -- and ``Cn``, unassigned, which a font may still map. Both
+    draw.
+
+    Measured against ``origin/main``: with the prefix form, a category named with eighty PUA
+    characters was shortened on screen and its full text vanished from the file completely, so
+    the one rule these five call sites exist for inverted on exactly that input.
+    """
+    label = character * 80
+    svg = barplot({"c": [label, "b"], "v": [1.0, 2.0]}, x="c", y="v").to_string()
+
+    assert "…" in svg, "the fixture stopped being the shortened case"
+    assert f"<title>{label}</title>" in svg
 
 
 def test_a_mark_carrying_a_tooltip_is_still_found_by_the_probe() -> None:

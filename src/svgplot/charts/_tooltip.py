@@ -47,6 +47,16 @@ from svgplot._svg import SvgDocument
 
 _TITLE_TAG = "title"
 
+_BLANK_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Zs", "Zl", "Zp"})
+"""Unicode categories a character can be in and still draw nothing.
+
+``Cc`` control, ``Cf`` format (U+200B, U+2060, the direction marks), ``Cs`` surrogate,
+``Zs``/``Zl``/``Zp`` the spaces. Named one by one rather than taken by ``C*``/``Z*`` prefix,
+which would be shorter and wrong: ``Co`` is the private use area, where an icon font puts real
+glyphs and legacy Korean encodings put real syllables, and ``Cn`` is unassigned, which a font
+may still map. Both draw.
+"""
+
 
 def _has_visible_text(text: str) -> bool:
     """Whether ``text`` would put anything on screen.
@@ -54,18 +64,26 @@ def _has_visible_text(text: str) -> bool:
     Not ``str.strip()``: that covers the separators and the ASCII controls, so it catches
     ``""``, ``"\\t"`` and even U+00A0 -- but it passes U+200B ZERO WIDTH SPACE and U+2060 WORD
     JOINER, which draw exactly as much as a space does, which is nothing. There is no principle
-    under which a no-break space is not text and a zero-width space is. ``C*`` is control and
-    formatting characters, ``Z*`` is every kind of space.
+    under which a no-break space is not text and a zero-width space is.
 
-    It cannot catch every invisible string. U+3164 HANGUL FILLER draws nothing too, but Unicode
-    classifies it ``Lo`` -- a letter, alongside every Korean and CJK character -- and telling
-    the letters that draw nothing from the letters that draw something needs the
-    ``Default_Ignorable_Code_Point`` property, which the standard library does not expose.
+    **It errs toward keeping the text.** Getting this wrong the other way loses information:
+    the callers only reach here because a label was too long to show, so a string wrongly
+    called invisible is one whose full text disappears from the file entirely. That is why
+    :data:`_BLANK_CATEGORIES` is a list rather than a ``C*``/``Z*`` prefix -- the prefix form
+    also swallows ``Co`` and ``Cn``, which draw.
+
+    It cannot catch every invisible string, and the ones it misses are named rather than left
+    to be rediscovered: U+3164 HANGUL FILLER and the jamo fillers U+115F/U+1160 are ``Lo``,
+    letters alongside every Korean and CJK character; the variation selectors U+FE00-FE0F are
+    ``Mn``, the category of a combining accent, which does draw; U+2800 BRAILLE PATTERN BLANK
+    is ``So``, a symbol. Telling any of them from what shares their category needs the
+    ``Default_Ignorable_Code_Point`` property, which the standard library does not expose, and
+    a hand-kept list would be wrong the first time somebody found a character not on it.
 
     ``gallery/interaction.py`` asks the same question about a control's name and carries its own
     copy while these land as separate changes; whichever merges second should take this one.
     """
-    return any(not unicodedata.category(character).startswith(("C", "Z")) for character in text)
+    return any(unicodedata.category(character) not in _BLANK_CATEGORIES for character in text)
 
 
 def add_tooltip(document: SvgDocument, node: ET.Element, text: str) -> ET.Element | None:
