@@ -211,3 +211,45 @@ def test_ecdfplot_renders_a_single_observation() -> None:
     assert len(vertices) == 2
     assert vertices[0][1] == pytest.approx(AREA.bottom)
     assert vertices[1][1] == pytest.approx(AREA.top)
+
+
+# ---------------------------------------------------------------------------
+# what the gallery page claims about hiding a series
+# ---------------------------------------------------------------------------
+
+
+def _uneven() -> dict[str, list]:
+    """Two groups of very different size, which is what makes the two stats disagree."""
+    return {"v": [float(i) for i in range(200)] + [float(i) for i in range(60)], "g": ["big"] * 200 + ["small"] * 60}
+
+
+def test_a_proportion_curve_spans_the_whole_axis_whatever_its_group_size() -> None:
+    """Each curve is divided by its *own* group's count, so a 60-row group climbs to the top
+    exactly as a 200-row one does.
+
+    This is the one chart in the gallery where hiding a series would not make the axis lie --
+    and the page says so, which is why it is measured here rather than asserted there.
+    """
+    svg = ecdfplot(_uneven(), x="v", hue="g").to_string()
+    tops = [min(y for _, y in curve) for curve in _series_vertices(svg)]
+    bottoms = [max(y for _, y in curve) for curve in _series_vertices(svg)]
+
+    assert len(tops) == 2, "the fixture stopped drawing one curve per group"
+    assert tops == pytest.approx([AREA_WITH_LEGEND.top] * 2)
+    assert bottoms == pytest.approx([AREA_WITH_LEGEND.bottom] * 2)
+
+
+def test_a_count_curve_stops_where_its_own_group_ran_out() -> None:
+    """``stat="count"`` puts both groups on one axis scaled to the larger, so the smaller one
+    stops partway up. Hiding the larger would leave that curve alone under an axis reaching
+    three times higher than anything drawn -- the failure ``proportion`` is immune to.
+
+    The two together are why the gallery page dims both rather than hiding either: the
+    mechanism cannot be per-page without the reader checking which page they are on.
+    """
+    svg = ecdfplot(_uneven(), x="v", hue="g", stat="count").to_string()
+    tops = sorted(min(y for _, y in curve) for curve in _series_vertices(svg))
+
+    assert len(tops) == 2
+    assert tops[0] == pytest.approx(AREA_WITH_LEGEND.top), "the larger group should still reach the top"
+    assert tops[1] > AREA_WITH_LEGEND.top + 100, f"the smaller group should stop well short: {tops[1]}"
