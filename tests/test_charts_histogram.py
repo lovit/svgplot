@@ -452,3 +452,25 @@ def test_a_bin_edge_is_spelled_exactly_not_at_pixel_precision() -> None:
 
     assert max(len(title) for title in _titles(svg)) < 60, _titles(svg)
     assert "e+" in "".join(_titles(svg)), "the fixture stopped needing scientific notation"
+
+
+def test_an_xlim_that_leaves_nothing_in_range_is_refused() -> None:
+    """Reachable only since the clipping fix: before it, the edge bins caught everything and
+    ``max_count`` could not be zero. There is nothing to draw, and both things the chart would
+    carry away are broken -- ``Domains(y=(0.0, 0.0))`` is a value ``apply_limit`` refuses from a
+    caller, so the chart's own domain cannot be replayed onto another one, and the y axis puts
+    its single ``0`` tick halfway up an empty plot area.
+
+    Refused rather than widened to ``(0, 1)``: ``xlim`` is the caller's argument and this is the
+    one value of it that produces no chart at all."""
+    with pytest.raises(ValueError, match="leaves no values in range"):
+        histplot({"v": [1.0, 2.0, 3.0, 4.0]}, x="v", xlim=(10.0, 20.0), bins=4)
+
+
+def test_an_xlim_that_leaves_one_value_still_draws() -> None:
+    """The other side of the boundary -- the refusal has to be about *nothing* in range, not
+    about clipping at all."""
+    chart = histplot({"v": [1.0, 2.0, 3.0, 40.0]}, x="v", xlim=(35.0, 45.0), bins=2)
+
+    assert chart.domains.y == (0.0, 1.0)
+    assert "1 observation in 2 bins, x 35 to 45" in chart.to_string()

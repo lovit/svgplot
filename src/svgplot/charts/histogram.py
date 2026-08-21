@@ -79,11 +79,13 @@ def _bin_tooltip(*, x: str, hue: str | None, low: float, high: float, closed: bo
     holds them. Naming a row would mean naming one of many, which is a different claim from the
     one the bar makes.
 
-    The interval is written with a bracket rather than a dash because the bins are half-open
-    and the last one is not: ``12`` belongs to ``[12, 18)`` and not to ``[6, 12)``, and the
-    maximum value in the data belongs to the final bin, which is why that one closes. A bar
-    reading ``12 - 18`` beside one reading ``18 - 24`` leaves the reader to guess where ``18``
-    went, and the two bars answer differently.
+    The interval is written with a bracket rather than a dash because the bins are half-open and
+    the last one is not: ``12`` belongs to ``[12, 18)`` and not to ``[6, 12)``, and whatever sits
+    on the window's upper bound belongs to the final bin, which is why that one closes. (Without
+    ``xlim`` that bound is the data's maximum; with a narrowing one it is the window's, and
+    anything past it was dropped -- see :func:`_count_in_bins`.) A bar reading ``12 - 18`` beside
+    one reading ``18 - 24`` leaves the reader to guess where ``18`` went, and the two bars answer
+    differently.
 
     Bounded like every other tooltip: the column names go through :func:`clause`, which drops
     one too long to read, and the numbers through :func:`format_number`. A clause is written
@@ -130,6 +132,14 @@ def histplot(
     ``tooltip=False`` is the default, and not as a matter of taste. A ``<title>`` per bar is an
     element per bar, and every existing caller's output would change bytes for a feature they
     did not ask for. Off, the file is what it was.
+
+    A narrowing ``xlim=`` **clips**: values outside the window are dropped rather than folded
+    into the edge bars, and the ``<desc>``'s observation count is the number that survived. The
+    ``hue=`` group list in that sentence is not filtered the same way -- a group whose every
+    value is outside the window still appears there, still takes a palette entry and still gets
+    a legend swatch, with no bar. That is deliberate: the caller's data does have that group,
+    and dropping it from the legend would shift every later group's colour, which is the thing
+    ``categories=`` exists to prevent elsewhere.
 
     ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
     exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
@@ -184,6 +194,18 @@ def histplot(
     edges = histogram_bins(all_values, bins=bins, bin_range=bin_range)
     series_counts = [(label, _count_in_bins(values, edges)) for label, values in series_values]
     max_count = max((count for _, counts in series_counts for count in counts), default=0)
+    if max_count == 0:
+        # Reachable only since out-of-window values started being dropped rather than clamped
+        # (see ``_count_in_bins``): before that the edge bins always caught something. There is
+        # nothing to draw, and the two things a chart would carry away are both broken -- the
+        # value domain would be ``(0, 0)``, which ``apply_limit`` refuses from a caller and so
+        # cannot be replayed onto another chart, and the y axis would render its single ``0``
+        # tick halfway up an otherwise empty plot area.
+        #
+        # Refused rather than widened to ``(0, 1)``, because ``xlim`` is the caller's argument
+        # and this is the one value of it that can produce no chart at all. Naming it is what
+        # separates "your window is empty" from a picture that looks like a rendering bug.
+        raise ValueError(f"xlim={xlim!r} leaves no values in range, so there is nothing to bin")
 
     x_domain = apply_limit((edges[0], edges[-1]), xlim)
     y_domain = apply_limit((0.0, float(max_count)), ylim)
