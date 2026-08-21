@@ -24,6 +24,7 @@ import svgplot as sp
 
 ROOT = Path(__file__).resolve().parent.parent
 GALLERY = ROOT / "docs" / "gallery"
+_SVG_NS = "http://www.w3.org/2000/svg"
 
 # ``gallery`` is repo-root source, not part of the installed package.
 sys.path.insert(0, str(ROOT))
@@ -113,14 +114,21 @@ def test_every_page_shows_the_figures_it_should(page: Path) -> None:
 
 
 @pytest.mark.parametrize("page", _pages(), ids=lambda path: path.stem)
-def test_any_image_a_page_does_reference_exists(page: Path) -> None:
-    """Kept in reduced form. Nothing references a file today, but the tutorial page will --
-    demonstrating the ``<img>`` route is the whole reason it exists -- and this is the check
-    that route needs."""
-    sources = re.findall(r'<img[^>]*src="([^"]+)"', page.read_text(encoding="utf-8"))
+def test_every_inlined_chart_is_really_an_svg(page: Path) -> None:
+    """Counting ``<svg`` lexically says a string is there, not that a browser sees a chart.
 
-    missing = [src for src in sources if not (page.parent / src).is_file()]
-    assert not missing, f"{page.name} references figures that do not exist: {missing}"
+    Parsed, every one has to land in the SVG namespace -- an ``<svg>`` written without its
+    ``xmlns`` is markup a browser reads as an unknown HTML element and draws as nothing.
+
+    This replaces the check that every ``<img src>`` resolved. Kept in reduced form it would
+    have been worse than nothing: no page has an ``<img>`` any more, so it passed on an empty
+    file. The tutorial page will need that check and can carry its own.
+    """
+    markup = page.read_text(encoding="utf-8")
+    charts = [node for node in ET.fromstring(_parseable(markup)).iter() if node.tag == f"{{{_SVG_NS}}}svg"]
+
+    assert markup.count("<svg"), f"{page.name} inlines no chart"
+    assert len(charts) == markup.count("<svg"), f"{page.name}: some <svg> is not in the SVG namespace"
 
 
 def test_every_example_module_declares_what_the_builder_needs() -> None:
@@ -153,9 +161,14 @@ def test_the_index_links_every_page_it_should() -> None:
 # failing against the ``<img>`` gallery -- a guard nobody has watched fail is a guess.
 
 
-def _inlined(page: Path) -> ET.Element:
-    """The page as a tree, with ``<style>`` bodies kept -- these checks are about the CSS."""
-    return ET.fromstring(page.read_text(encoding="utf-8").split("?>", 1)[-1].split("<!doctype html>")[-1])
+def _parseable(markup: str) -> str:
+    """The page with its doctype dropped and its ``<style>`` bodies blanked.
+
+    CSS is not markup: a rule holding ``>`` or ``&`` is valid CSS and invalid XML, so the
+    bodies come out before parsing.
+    """
+    without_doctype = re.sub(r"^<!doctype html>\n", "", markup, flags=re.I)
+    return re.sub(r"(<style[^>]*>).*?(</style>)", r"\1\2", without_doctype, flags=re.S)
 
 
 def _chart_style_bodies(markup: str) -> list[str]:

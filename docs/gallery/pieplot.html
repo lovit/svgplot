@@ -69,6 +69,16 @@
         border: 1px solid var(--rule);
         border-radius: 6px;
       }
+      /* The info= footnote table, which a figure carries when its chart was built with one.
+         Without these it renders as an unstyled browser-default table inside an otherwise
+         styled page -- the one piece of the gallery that looked unfinished. */
+      figure table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.9rem; }
+      figure th, figure td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--rule); text-align: left; }
+      figure th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      figure td { font-variant-numeric: tabular-nums; }
+      /* The thumbnail wrapper. Named so it stops inheriting ul.index span, which is the rule
+         for the summary line beneath it. */
+      ul.index .thumb { display: block; }
       ul.notes { margin: 0; padding-left: 1.2rem; color: var(--muted); }
       ul.notes li { margin-bottom: 0.3rem; }
       ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
@@ -215,9 +225,9 @@ BUDGET = {
 </svg>
     </figure>
     <pre><code>sp.pieplot(BUDGET, values=&quot;금액&quot;, labels=&quot;항목&quot;, inner_radius=0.45)</code></pre>
-    <h3>info= 는 그림이 그린 행만 담은 표를 함께 낸다 — 아래 표가 to_html_table() 의 출력이고, 차트의 aria-describedby 가 그것을 가리킨다</h3>
+    <h3>info= 로 각주 표를 함께 낸 예산 도넛</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-pieplot-4" role="img" aria-label="info= 는 그림이 그린 행만 담은 표를 함께 낸다 — 아래 표가 to_html_table() 의 출력이고, 차트의 aria-describedby 가 그것을 가리킨다" aria-describedby="svgplot-pieplot-4-table">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-pieplot-4" role="img" aria-label="info= 로 각주 표를 함께 낸 예산 도넛" aria-describedby="svgplot-pieplot-4-table">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <path d="M 325,300 L 325,30 A 270,270 0 0 1 381.136157,564.099852 Z" class="series-1" />
   <text x="499.538593" y="281.655255" text-anchor="middle" class="legend-text">4200</text>
@@ -250,7 +260,7 @@ BUDGET = {
 :where(.svgplot-pieplot-4) .series-3 { fill: #009E73; stroke: none; opacity: 0.75; }
 :where(.svgplot-pieplot-4) .series-4 { fill: #F0E442; stroke: none; opacity: 0.75; }
 :where(.svgplot-pieplot-4) .series-5 { fill: #0072B2; stroke: none; opacity: 0.75; }</style>
-  <title>info= 는 그림이 그린 행만 담은 표를 함께 낸다 — 아래 표가 to_html_table() 의 출력이고, 차트의 aria-describedby 가 그것을 가리킨다</title>
+  <title>info= 로 각주 표를 함께 낸 예산 도넛</title>
   <desc>Pie chart, 5 slices (인건비, 임대료, 마케팅, 장비, 기타), values 600 to 4200, total 9000.</desc>
 </svg>
       <table id="svgplot-pieplot-4-table"><thead><tr><th>항목</th><th>금액</th></tr></thead><tbody><tr><td>인건비</td><td>4,200</td></tr><tr><td>임대료</td><td>1,800</td></tr><tr><td>마케팅</td><td>1,500</td></tr><tr><td>장비</td><td>900</td></tr><tr><td>기타</td><td>600</td></tr></tbody></table>
