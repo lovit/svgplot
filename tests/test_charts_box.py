@@ -214,3 +214,176 @@ def test_boxplot_corner_radius_produces_rx_attribute() -> None:
     chart = boxplot(NO_OUTLIER_DATA, x="group", y="value", theme=Theme(corner_radius=4.0))
     svg = chart.to_string()
     assert 'rx="4"' in svg
+
+
+# --------------------------------------------------------------------------------- tooltips
+
+
+def _marks(chart: Chart) -> list[tuple[str, str | None]]:
+    """Every drawn mark as ``(class, its <title> text or None)``, in document order.
+
+    Through the parsed tree rather than a regex, so a mark that lost its ``<title>`` shows up
+    as ``None`` rather than disappearing from the list -- the whole question here is which
+    marks *have* one. The chart's own ``<title>`` is a child of the root ``<svg>``, which
+    carries no ``series`` class, so it is excluded by the filter rather than by position.
+    """
+    root = ET.fromstring(chart.to_string(pretty=False))
+    marks = []
+    for element in root.iter():
+        classes = (element.get("class") or "").split()
+        if not any(name.startswith("series-") for name in classes):
+            continue
+        title = element.find("{http://www.w3.org/2000/svg}title")
+        marks.append((classes[0], None if title is None else title.text))
+    return marks
+
+
+# Two categories, different quartiles, and *different outlier counts* -- one and two. Every
+# assertion below compares the whole set of sentences, so a box that named the other box's
+# category or the other box's stats has nowhere to hide. On a one-category fixture six separate
+# wrong-attribution mutations were green in this file: naming ``drawn_categories[0]``, swapping
+# the two boxes' stats, and four more on the outliers. And with one outlier per box,
+# ``plural(len(outliers))`` and a hard-coded ``plural(1)`` agree.
+TWO_CATEGORIES_WITH_OUTLIERS = {
+    "group": ["a"] * 5 + ["b"] * 10,
+    "value": [1.0, 2.0, 3.0, 4.0, 100.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 200.0, 300.0],
+}
+
+
+def test_a_box_tooltip_names_its_quartiles_whiskers_and_outlier_count() -> None:
+    chart = boxplot(WITH_OUTLIER_DATA, x="group", y="value", tooltip=True)
+    said = {title for _, title in _marks(chart) if title and not title.endswith(" · outlier")}
+
+    assert said == {"group: a · value: Q1 2 · median 3 · Q3 4 · whiskers: [1, 4] · 1 outlier"}
+
+
+def test_each_box_says_its_own_category_and_its_own_numbers() -> None:
+    """The set of sentences, on a fixture where the two boxes differ in every clause. Asserting
+    "two distinct sentences" or "each starts with ``group:``" instead lets a box name the other
+    box's category, or the two swap their stats wholesale, with nothing in this file noticing --
+    only the committed gallery, whose failure message says to regenerate the file."""
+    chart = boxplot(TWO_CATEGORIES_WITH_OUTLIERS, x="group", y="value", tooltip=True)
+    summaries = {title for _, title in _marks(chart) if title and not title.endswith(" · outlier")}
+
+    assert summaries == {
+        "group: a · value: Q1 2 · median 3 · Q3 4 · whiskers: [1, 4] · 1 outlier",
+        "group: b · value: Q1 12.25 · median 14.5 · Q3 16.75 · whiskers: [10, 17] · 2 outliers",
+    }
+
+
+def test_each_outlier_says_its_own_category_group_and_value() -> None:
+    """Same shape for the circles, and the reason is the same: with one outlier in one category
+    a tooltip naming ``outliers[0]``'s value, or ``drawn_categories[0]``, or ``hue_values[0]``,
+    is indistinguishable from the right answer."""
+    chart = boxplot(TWO_CATEGORIES_WITH_OUTLIERS, x="group", y="value", tooltip=True)
+    circles = {title for _, title in _marks(chart) if title and title.endswith(" · outlier")}
+
+    assert circles == {
+        "group: a · value: 100 · outlier",
+        "group: b · value: 200 · outlier",
+        "group: b · value: 300 · outlier",
+    }
+
+
+def test_every_mark_of_a_box_says_the_same_thing_and_none_is_left_silent() -> None:
+    """The pointer stops at the topmost element under it, so a mark with no ``<title>`` is a
+    hole in the glyph -- an untitled median line reads as a dead stripe across a box that
+    otherwise responds. Six marks per box: body, median, two stems, two caps.
+
+    "Every mark has one, and each box's are all equal" is the part that survives a box growing
+    a seventh mark. The count below does not, and it is here on purpose: a seventh mark is a
+    change somebody should have to look at, and this is where they find out."""
+    marks = _marks(boxplot(NO_OUTLIER_DATA, x="group", y="value", tooltip=True))
+
+    assert marks, "the fixture stopped drawing anything"
+    assert all(title is not None for _, title in marks), "a mark was left without a tooltip"
+    assert len({title for _, title in marks}) == 2, "two boxes, two sentences, repeated across their marks"
+    assert len(marks) == 12, "and each box is six marks"
+
+
+def test_an_outlier_names_its_own_value_because_it_is_one_observation() -> None:
+    """The box is a summary of many rows and cannot name one of them. An outlier circle is a
+    single value, and it repeats the category rather than leaning on the box behind it: the
+    circle is drawn on top and usually outside the box entirely."""
+    marks = _marks(boxplot(WITH_OUTLIER_DATA, x="group", y="value", tooltip=True))
+    circles = [title for _, title in marks if title and title.endswith(" · outlier")]
+
+    assert circles == ["group: a · value: 100 · outlier"]
+
+
+def test_a_box_with_no_outliers_says_nothing_about_outliers() -> None:
+    """``plural(0, "outlier")`` would read "0 outliers", which is a sentence about something
+    that is not on screen. The clause is left out instead."""
+    marks = _marks(boxplot(NO_OUTLIER_DATA, x="group", y="value", tooltip=True))
+
+    assert all(title and "outlier" not in title for _, title in marks)
+
+
+def test_a_hued_box_names_its_group_as_well_as_its_category() -> None:
+    data = {
+        "group": ["a", "a", "a", "b", "b", "b"],
+        "value": [1.0, 2.0, 3.0, 10.0, 12.0, 14.0],
+        "side": ["left", "right", "left", "right", "left", "right"],
+    }
+    # ``if title`` drops the legend swatches, which carry a series class and no tooltip -- the
+    # legend already names the group in text beside them.
+    said = {title for _, title in _marks(boxplot(data, x="group", y="value", hue="side", tooltip=True)) if title}
+
+    assert said, "the fixture stopped drawing boxes"
+    assert all(title.startswith("group: ") and " · side: " in title for title in said)
+    assert {title.split(" · ")[1] for title in said} == {"side: left", "side: right"}
+
+
+def test_a_hued_outlier_names_its_own_group() -> None:
+    """The circle has to carry the hue clause itself. With one group having outliers, naming
+    ``hue_values[0]`` for every circle is indistinguishable from the right answer -- so both
+    groups get one, and they are different values."""
+    data = {
+        "group": ["a"] * 10,
+        "value": [1.0, 2.0, 3.0, 4.0, 50.0, 10.0, 11.0, 12.0, 13.0, 500.0],
+        "side": ["left"] * 5 + ["right"] * 5,
+    }
+    circles = {
+        title
+        for _, title in _marks(boxplot(data, x="group", y="value", hue="side", tooltip=True))
+        if title and title.endswith(" · outlier")
+    }
+
+    assert circles == {
+        "group: a · side: left · value: 50 · outlier",
+        "group: a · side: right · value: 500 · outlier",
+    }
+
+
+def test_the_default_draws_no_tooltip_and_saying_so_changes_nothing() -> None:
+    """What this can check is that ``tooltip=False`` is the same call as not writing it, and
+    that neither titles a mark. It is deliberately not named for byte-identity with the version
+    before ``tooltip=`` existed, which it cannot see -- both sides are this branch's code.
+    ``docs/gallery/*.html`` holds those bytes, and
+    ``test_gallery.py::test_the_committed_gallery_is_what_a_fresh_build_produces`` compares
+    them."""
+    omitted = boxplot(WITH_OUTLIER_DATA, x="group", y="value")
+    explicit = boxplot(WITH_OUTLIER_DATA, x="group", y="value", tooltip=False)
+
+    assert omitted.to_string() == explicit.to_string()
+    assert all(title is None for _, title in _marks(omitted))
+
+
+def test_a_category_too_long_or_too_blank_to_read_is_left_out_of_the_tooltip() -> None:
+    """The category is a string out of the data and it is written once per mark -- six times
+    per box, plus once per outlier, where ``barplot`` writes it once. Uncapped, the two boxes
+    below took the file from 18,345 bytes to 109,479, with seven ``<title>`` elements over
+    4,000 characters and the longest at 5,062. The axis tick showing the same category is
+    already shortened, and so are the column names.
+
+    A category of one tab goes for the other reason: ``"group:  · value: …"`` names the box
+    with a label that is not on screen."""
+    data = {"group": ["면" * 5000] * 3 + ["\t"] * 3, "value": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]}
+    chart = boxplot(data, x="group", y="value", tooltip=True)
+    said = {title for _, title in _marks(chart) if title}
+
+    assert len(chart.to_string().encode()) < 25_000, "the unreadable category was written into the file anyway"
+    assert said == {
+        "value: Q1 1.5 · median 2 · Q3 2.5 · whiskers: [1, 3]",
+        "value: Q1 4.5 · median 5 · Q3 5.5 · whiskers: [4, 6]",
+    }

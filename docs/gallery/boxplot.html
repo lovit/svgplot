@@ -87,6 +87,23 @@
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+      /* Controls sit inside the figure element, before the chart, as its direct children:
+         the sibling combinator in the generated rules depends on that, and a wrapper would
+         quietly break every one of them. Left as native checkboxes -- a real control is
+         reachable with Tab and operated with Space without anything here arranging it. */
+      figure > .series-toggle { margin: 0 0.3rem 0.75rem 0; vertical-align: -0.1em; }
+      figure > .series-toggle + label { margin-right: 1.1rem; font-size: 0.9rem; color: var(--muted); }
+      .interaction-note { margin: 0 0 1.75rem; color: var(--muted); font-size: 0.9rem; }
+      /* svgplot-boxplot-4 · toggle */
+      #svgplot-boxplot-4-toggle-1:not(:checked) ~ svg :is(.series-1, .series-1-marker) { opacity: 0.15; pointer-events: none; }
+      #svgplot-boxplot-4-toggle-1:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      #svgplot-boxplot-4-toggle-2:not(:checked) ~ svg :is(.series-2, .series-2-marker) { opacity: 0.15; pointer-events: none; }
+      #svgplot-boxplot-4-toggle-2:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      /* svgplot-boxplot-5 · toggle */
+      #svgplot-boxplot-5-toggle-1:not(:checked) ~ svg :is(.series-1, .series-1-marker) { opacity: 0.15; pointer-events: none; }
+      #svgplot-boxplot-5-toggle-1:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      #svgplot-boxplot-5-toggle-2:not(:checked) ~ svg :is(.series-2, .series-2-marker) { opacity: 0.15; pointer-events: none; }
+      #svgplot-boxplot-5-toggle-2:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
     </style>
   </head>
   <body>
@@ -110,6 +127,7 @@ DELIVERY = {
     &quot;지역&quot;: [(&quot;도심&quot; if _rng.random() &lt; 0.5 else &quot;외곽&quot;) for _ in range(200)],
 }</code></pre>
     <h2>예시</h2>
+    <p class="interaction-note">체크를 끄면 시리즈가 사라지지 않고 흐려진다. 축·눈금·카테고리 밴드는 그릴 때 한 번 정해지고 다시 계산되지 않으므로, 감추면 남은 그림이 자기보다 넓은 축 위에 서게 된다. 흐리게 하는 것은 &quot;이건 지금 보지 말라&quot;는 말이고, 감추는 것은 &quot;이 값은 없다&quot;는 말이다 — 뒤쪽은 사실이 아니다.</p>
     <h3>기본 — mode=&quot;1.5IQR&quot;</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-boxplot-1" role="img" aria-label="기본 — mode=&quot;1.5IQR&quot;">
@@ -375,6 +393,10 @@ DELIVERY = {
     <pre><code>sp.boxplot(DELIVERY, x=&quot;요일&quot;, y=&quot;분&quot;, mode=&quot;tukey&quot;)</code></pre>
     <h3>hue= 는 카테고리 밴드를 나눠 상자를 나란히 놓는다</h3>
     <figure>
+      <input type="checkbox" class="series-toggle" id="svgplot-boxplot-4-toggle-1" checked="checked" />
+      <label for="svgplot-boxplot-4-toggle-1">도심</label>
+      <input type="checkbox" class="series-toggle" id="svgplot-boxplot-4-toggle-2" checked="checked" />
+      <label for="svgplot-boxplot-4-toggle-2">외곽</label>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-boxplot-4" role="img" aria-label="hue= 는 카테고리 밴드를 나눠 상자를 나란히 놓는다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
@@ -498,8 +520,282 @@ DELIVERY = {
 </svg>
     </figure>
     <pre><code>sp.boxplot(DELIVERY, x=&quot;요일&quot;, y=&quot;분&quot;, hue=&quot;지역&quot;)</code></pre>
+    <h3>tooltip=True — 상자의 모든 마크가 같은 요약을, 이상치는 자기 값을 말한다</h3>
+    <figure>
+      <input type="checkbox" class="series-toggle" id="svgplot-boxplot-5-toggle-1" checked="checked" />
+      <label for="svgplot-boxplot-5-toggle-1">도심</label>
+      <input type="checkbox" class="series-toggle" id="svgplot-boxplot-5-toggle-2" checked="checked" />
+      <label for="svgplot-boxplot-5-toggle-2">외곽</label>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-boxplot-5" role="img" aria-label="tooltip=True — 상자의 모든 마크가 같은 요약을, 이상치는 자기 값을 말한다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="640" y2="550" class="spine" />
+  <line x1="118" y1="30" x2="118" y2="550" class="grid-line" />
+  <line x1="118" y1="550" x2="118" y2="554" class="tick-line" />
+  <text x="118" y="572" text-anchor="middle" class="tick-label">월</text>
+  <line x1="234" y1="30" x2="234" y2="550" class="grid-line" />
+  <line x1="234" y1="550" x2="234" y2="554" class="tick-line" />
+  <text x="234" y="572" text-anchor="middle" class="tick-label">화</text>
+  <line x1="350" y1="30" x2="350" y2="550" class="grid-line" />
+  <line x1="350" y1="550" x2="350" y2="554" class="tick-line" />
+  <text x="350" y="572" text-anchor="middle" class="tick-label">수</text>
+  <line x1="466" y1="30" x2="466" y2="550" class="grid-line" />
+  <line x1="466" y1="550" x2="466" y2="554" class="tick-line" />
+  <text x="466" y="572" text-anchor="middle" class="tick-label">목</text>
+  <line x1="582" y1="30" x2="582" y2="550" class="grid-line" />
+  <line x1="582" y1="550" x2="582" y2="554" class="tick-line" />
+  <text x="582" y="572" text-anchor="middle" class="tick-label">금</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="487.636684" x2="640" y2="487.636684" class="grid-line" />
+  <line x1="56" y1="487.636684" x2="60" y2="487.636684" class="tick-line" />
+  <text x="54" y="491.636684" text-anchor="end" class="tick-label">10</text>
+  <line x1="60" y1="395.925926" x2="640" y2="395.925926" class="grid-line" />
+  <line x1="56" y1="395.925926" x2="60" y2="395.925926" class="tick-line" />
+  <text x="54" y="399.925926" text-anchor="end" class="tick-label">20</text>
+  <line x1="60" y1="304.215168" x2="640" y2="304.215168" class="grid-line" />
+  <line x1="56" y1="304.215168" x2="60" y2="304.215168" class="tick-line" />
+  <text x="54" y="308.215168" text-anchor="end" class="tick-label">30</text>
+  <line x1="60" y1="212.504409" x2="640" y2="212.504409" class="grid-line" />
+  <line x1="56" y1="212.504409" x2="60" y2="212.504409" class="tick-line" />
+  <text x="54" y="216.504409" text-anchor="end" class="tick-label">40</text>
+  <line x1="60" y1="120.793651" x2="640" y2="120.793651" class="grid-line" />
+  <line x1="56" y1="120.793651" x2="60" y2="120.793651" class="tick-line" />
+  <text x="54" y="124.793651" text-anchor="end" class="tick-label">50</text>
+  <rect x="71.6" y="284.726631" width="34.8" height="51.816578" class="series-1-marker">
+    <title>요일: 월 · 지역: 도심 · 분: Q1 26.475 · median 28.9 · Q3 32.125 · whiskers: [20, 35.5]</title>
+  </rect>
+  <line x1="71.6" y1="314.303351" x2="106.4" y2="314.303351" class="series-1">
+    <title>요일: 월 · 지역: 도심 · 분: Q1 26.475 · median 28.9 · Q3 32.125 · whiskers: [20, 35.5]</title>
+  </line>
+  <line x1="89" y1="284.726631" x2="89" y2="253.77425" class="series-1">
+    <title>요일: 월 · 지역: 도심 · 분: Q1 26.475 · median 28.9 · Q3 32.125 · whiskers: [20, 35.5]</title>
+  </line>
+  <line x1="80.3" y1="253.77425" x2="97.7" y2="253.77425" class="series-1">
+    <title>요일: 월 · 지역: 도심 · 분: Q1 26.475 · median 28.9 · Q3 32.125 · whiskers: [20, 35.5]</title>
+  </line>
+  <line x1="89" y1="336.54321" x2="89" y2="395.925926" class="series-1">
+    <title>요일: 월 · 지역: 도심 · 분: Q1 26.475 · median 28.9 · Q3 32.125 · whiskers: [20, 35.5]</title>
+  </line>
+  <line x1="80.3" y1="395.925926" x2="97.7" y2="395.925926" class="series-1">
+    <title>요일: 월 · 지역: 도심 · 분: Q1 26.475 · median 28.9 · Q3 32.125 · whiskers: [20, 35.5]</title>
+  </line>
+  <rect x="187.6" y="253.08642" width="34.8" height="100.652557" class="series-1-marker">
+    <title>요일: 화 · 지역: 도심 · 분: Q1 24.6 · median 28.6 · Q3 35.575 · whiskers: [13.1, 43.3]</title>
+  </rect>
+  <line x1="187.6" y1="317.054674" x2="222.4" y2="317.054674" class="series-1">
+    <title>요일: 화 · 지역: 도심 · 분: Q1 24.6 · median 28.6 · Q3 35.575 · whiskers: [13.1, 43.3]</title>
+  </line>
+  <line x1="205" y1="253.08642" x2="205" y2="182.239859" class="series-1">
+    <title>요일: 화 · 지역: 도심 · 분: Q1 24.6 · median 28.6 · Q3 35.575 · whiskers: [13.1, 43.3]</title>
+  </line>
+  <line x1="196.3" y1="182.239859" x2="213.7" y2="182.239859" class="series-1">
+    <title>요일: 화 · 지역: 도심 · 분: Q1 24.6 · median 28.6 · Q3 35.575 · whiskers: [13.1, 43.3]</title>
+  </line>
+  <line x1="205" y1="353.738977" x2="205" y2="459.206349" class="series-1">
+    <title>요일: 화 · 지역: 도심 · 분: Q1 24.6 · median 28.6 · Q3 35.575 · whiskers: [13.1, 43.3]</title>
+  </line>
+  <line x1="196.3" y1="459.206349" x2="213.7" y2="459.206349" class="series-1">
+    <title>요일: 화 · 지역: 도심 · 분: Q1 24.6 · median 28.6 · Q3 35.575 · whiskers: [13.1, 43.3]</title>
+  </line>
+  <rect x="303.6" y="295.044092" width="34.8" height="27.513228" class="series-1-marker">
+    <title>요일: 수 · 지역: 도심 · 분: Q1 28 · median 29.9 · Q3 31 · whiskers: [25.3, 31] · 7 outliers</title>
+  </rect>
+  <line x1="303.6" y1="305.132275" x2="338.4" y2="305.132275" class="series-1">
+    <title>요일: 수 · 지역: 도심 · 분: Q1 28 · median 29.9 · Q3 31 · whiskers: [25.3, 31] · 7 outliers</title>
+  </line>
+  <line x1="321" y1="295.044092" x2="321" y2="295.044092" class="series-1">
+    <title>요일: 수 · 지역: 도심 · 분: Q1 28 · median 29.9 · Q3 31 · whiskers: [25.3, 31] · 7 outliers</title>
+  </line>
+  <line x1="312.3" y1="295.044092" x2="329.7" y2="295.044092" class="series-1">
+    <title>요일: 수 · 지역: 도심 · 분: Q1 28 · median 29.9 · Q3 31 · whiskers: [25.3, 31] · 7 outliers</title>
+  </line>
+  <line x1="321" y1="322.557319" x2="321" y2="347.319224" class="series-1">
+    <title>요일: 수 · 지역: 도심 · 분: Q1 28 · median 29.9 · Q3 31 · whiskers: [25.3, 31] · 7 outliers</title>
+  </line>
+  <line x1="312.3" y1="347.319224" x2="329.7" y2="347.319224" class="series-1">
+    <title>요일: 수 · 지역: 도심 · 분: Q1 28 · median 29.9 · Q3 31 · whiskers: [25.3, 31] · 7 outliers</title>
+  </line>
+  <circle cx="321" cy="550" r="5" class="series-1-marker">
+    <title>요일: 수 · 지역: 도심 · 분: 3.2 · outlier</title>
+  </circle>
+  <circle cx="321" cy="392.257496" r="5" class="series-1-marker">
+    <title>요일: 수 · 지역: 도심 · 분: 20.4 · outlier</title>
+  </circle>
+  <circle cx="321" cy="381.252205" r="5" class="series-1-marker">
+    <title>요일: 수 · 지역: 도심 · 분: 21.6 · outlier</title>
+  </circle>
+  <circle cx="321" cy="236.349206" r="5" class="series-1-marker">
+    <title>요일: 수 · 지역: 도심 · 분: 37.4 · outlier</title>
+  </circle>
+  <circle cx="321" cy="223.5097" r="5" class="series-1-marker">
+    <title>요일: 수 · 지역: 도심 · 분: 38.8 · outlier</title>
+  </circle>
+  <circle cx="321" cy="197.830688" r="5" class="series-1-marker">
+    <title>요일: 수 · 지역: 도심 · 분: 41.6 · outlier</title>
+  </circle>
+  <circle cx="321" cy="143.72134" r="5" class="series-1-marker">
+    <title>요일: 수 · 지역: 도심 · 분: 47.5 · outlier</title>
+  </circle>
+  <rect x="419.6" y="213.421517" width="34.8" height="102.945326" class="series-1-marker">
+    <title>요일: 목 · 지역: 도심 · 분: Q1 28.675 · median 34.349999999999994 · Q3 39.9 · whiskers: [25.8, 43.9]</title>
+  </rect>
+  <line x1="419.6" y1="264.320988" x2="454.4" y2="264.320988" class="series-1">
+    <title>요일: 목 · 지역: 도심 · 분: Q1 28.675 · median 34.349999999999994 · Q3 39.9 · whiskers: [25.8, 43.9]</title>
+  </line>
+  <line x1="437" y1="213.421517" x2="437" y2="176.737213" class="series-1">
+    <title>요일: 목 · 지역: 도심 · 분: Q1 28.675 · median 34.349999999999994 · Q3 39.9 · whiskers: [25.8, 43.9]</title>
+  </line>
+  <line x1="428.3" y1="176.737213" x2="445.7" y2="176.737213" class="series-1">
+    <title>요일: 목 · 지역: 도심 · 분: Q1 28.675 · median 34.349999999999994 · Q3 39.9 · whiskers: [25.8, 43.9]</title>
+  </line>
+  <line x1="437" y1="316.366843" x2="437" y2="342.733686" class="series-1">
+    <title>요일: 목 · 지역: 도심 · 분: Q1 28.675 · median 34.349999999999994 · Q3 39.9 · whiskers: [25.8, 43.9]</title>
+  </line>
+  <line x1="428.3" y1="342.733686" x2="445.7" y2="342.733686" class="series-1">
+    <title>요일: 목 · 지역: 도심 · 분: Q1 28.675 · median 34.349999999999994 · Q3 39.9 · whiskers: [25.8, 43.9]</title>
+  </line>
+  <rect x="535.6" y="192.328042" width="34.8" height="113.262787" class="series-1-marker">
+    <title>요일: 금 · 지역: 도심 · 분: Q1 29.85 · median 38.2 · Q3 42.2 · whiskers: [17, 59.9]</title>
+  </rect>
+  <line x1="535.6" y1="229.012346" x2="570.4" y2="229.012346" class="series-1">
+    <title>요일: 금 · 지역: 도심 · 분: Q1 29.85 · median 38.2 · Q3 42.2 · whiskers: [17, 59.9]</title>
+  </line>
+  <line x1="553" y1="192.328042" x2="553" y2="30" class="series-1">
+    <title>요일: 금 · 지역: 도심 · 분: Q1 29.85 · median 38.2 · Q3 42.2 · whiskers: [17, 59.9]</title>
+  </line>
+  <line x1="544.3" y1="30" x2="561.7" y2="30" class="series-1">
+    <title>요일: 금 · 지역: 도심 · 분: Q1 29.85 · median 38.2 · Q3 42.2 · whiskers: [17, 59.9]</title>
+  </line>
+  <line x1="553" y1="305.590829" x2="553" y2="423.439153" class="series-1">
+    <title>요일: 금 · 지역: 도심 · 분: Q1 29.85 · median 38.2 · Q3 42.2 · whiskers: [17, 59.9]</title>
+  </line>
+  <line x1="544.3" y1="423.439153" x2="561.7" y2="423.439153" class="series-1">
+    <title>요일: 금 · 지역: 도심 · 분: Q1 29.85 · median 38.2 · Q3 42.2 · whiskers: [17, 59.9]</title>
+  </line>
+  <rect x="129.6" y="316.366843" width="34.8" height="80.705467" class="series-2-marker">
+    <title>요일: 월 · 지역: 외곽 · 분: Q1 19.875 · median 25.950000000000003 · Q3 28.675 · whiskers: [14.8, 39.4]</title>
+  </rect>
+  <line x1="129.6" y1="341.358025" x2="164.4" y2="341.358025" class="series-2">
+    <title>요일: 월 · 지역: 외곽 · 분: Q1 19.875 · median 25.950000000000003 · Q3 28.675 · whiskers: [14.8, 39.4]</title>
+  </line>
+  <line x1="147" y1="316.366843" x2="147" y2="218.007055" class="series-2">
+    <title>요일: 월 · 지역: 외곽 · 분: Q1 19.875 · median 25.950000000000003 · Q3 28.675 · whiskers: [14.8, 39.4]</title>
+  </line>
+  <line x1="138.3" y1="218.007055" x2="155.7" y2="218.007055" class="series-2">
+    <title>요일: 월 · 지역: 외곽 · 분: Q1 19.875 · median 25.950000000000003 · Q3 28.675 · whiskers: [14.8, 39.4]</title>
+  </line>
+  <line x1="147" y1="397.07231" x2="147" y2="443.61552" class="series-2">
+    <title>요일: 월 · 지역: 외곽 · 분: Q1 19.875 · median 25.950000000000003 · Q3 28.675 · whiskers: [14.8, 39.4]</title>
+  </line>
+  <line x1="138.3" y1="443.61552" x2="155.7" y2="443.61552" class="series-2">
+    <title>요일: 월 · 지역: 외곽 · 분: Q1 19.875 · median 25.950000000000003 · Q3 28.675 · whiskers: [14.8, 39.4]</title>
+  </line>
+  <rect x="245.6" y="292.9806" width="34.8" height="74.973545" class="series-2-marker">
+    <title>요일: 화 · 지역: 외곽 · 분: Q1 23.05 · median 26.450000000000003 · Q3 31.225 · whiskers: [13.2, 41.6]</title>
+  </rect>
+  <line x1="245.6" y1="336.772487" x2="280.4" y2="336.772487" class="series-2">
+    <title>요일: 화 · 지역: 외곽 · 분: Q1 23.05 · median 26.450000000000003 · Q3 31.225 · whiskers: [13.2, 41.6]</title>
+  </line>
+  <line x1="263" y1="292.9806" x2="263" y2="197.830688" class="series-2">
+    <title>요일: 화 · 지역: 외곽 · 분: Q1 23.05 · median 26.450000000000003 · Q3 31.225 · whiskers: [13.2, 41.6]</title>
+  </line>
+  <line x1="254.3" y1="197.830688" x2="271.7" y2="197.830688" class="series-2">
+    <title>요일: 화 · 지역: 외곽 · 분: Q1 23.05 · median 26.450000000000003 · Q3 31.225 · whiskers: [13.2, 41.6]</title>
+  </line>
+  <line x1="263" y1="367.954145" x2="263" y2="458.289242" class="series-2">
+    <title>요일: 화 · 지역: 외곽 · 분: Q1 23.05 · median 26.450000000000003 · Q3 31.225 · whiskers: [13.2, 41.6]</title>
+  </line>
+  <line x1="254.3" y1="458.289242" x2="271.7" y2="458.289242" class="series-2">
+    <title>요일: 화 · 지역: 외곽 · 분: Q1 23.05 · median 26.450000000000003 · Q3 31.225 · whiskers: [13.2, 41.6]</title>
+  </line>
+  <rect x="361.6" y="232.680776" width="34.8" height="83.45679" class="series-2-marker">
+    <title>요일: 수 · 지역: 외곽 · 분: Q1 28.700000000000003 · median 33.4 · Q3 37.8 · whiskers: [16.7, 50.6]</title>
+  </rect>
+  <line x1="361.6" y1="273.03351" x2="396.4" y2="273.03351" class="series-2">
+    <title>요일: 수 · 지역: 외곽 · 분: Q1 28.700000000000003 · median 33.4 · Q3 37.8 · whiskers: [16.7, 50.6]</title>
+  </line>
+  <line x1="379" y1="232.680776" x2="379" y2="115.291005" class="series-2">
+    <title>요일: 수 · 지역: 외곽 · 분: Q1 28.700000000000003 · median 33.4 · Q3 37.8 · whiskers: [16.7, 50.6]</title>
+  </line>
+  <line x1="370.3" y1="115.291005" x2="387.7" y2="115.291005" class="series-2">
+    <title>요일: 수 · 지역: 외곽 · 분: Q1 28.700000000000003 · median 33.4 · Q3 37.8 · whiskers: [16.7, 50.6]</title>
+  </line>
+  <line x1="379" y1="316.137566" x2="379" y2="426.190476" class="series-2">
+    <title>요일: 수 · 지역: 외곽 · 분: Q1 28.700000000000003 · median 33.4 · Q3 37.8 · whiskers: [16.7, 50.6]</title>
+  </line>
+  <line x1="370.3" y1="426.190476" x2="387.7" y2="426.190476" class="series-2">
+    <title>요일: 수 · 지역: 외곽 · 분: Q1 28.700000000000003 · median 33.4 · Q3 37.8 · whiskers: [16.7, 50.6]</title>
+  </line>
+  <rect x="477.6" y="287.477954" width="34.8" height="45.626102" class="series-2-marker">
+    <title>요일: 목 · 지역: 외곽 · 분: Q1 26.85 · median 29.85 · Q3 31.825 · whiskers: [19.8, 37.7] · 3 outliers</title>
+  </rect>
+  <line x1="477.6" y1="305.590829" x2="512.4" y2="305.590829" class="series-2">
+    <title>요일: 목 · 지역: 외곽 · 분: Q1 26.85 · median 29.85 · Q3 31.825 · whiskers: [19.8, 37.7] · 3 outliers</title>
+  </line>
+  <line x1="495" y1="287.477954" x2="495" y2="233.597884" class="series-2">
+    <title>요일: 목 · 지역: 외곽 · 분: Q1 26.85 · median 29.85 · Q3 31.825 · whiskers: [19.8, 37.7] · 3 outliers</title>
+  </line>
+  <line x1="486.3" y1="233.597884" x2="503.7" y2="233.597884" class="series-2">
+    <title>요일: 목 · 지역: 외곽 · 분: Q1 26.85 · median 29.85 · Q3 31.825 · whiskers: [19.8, 37.7] · 3 outliers</title>
+  </line>
+  <line x1="495" y1="333.104056" x2="495" y2="397.760141" class="series-2">
+    <title>요일: 목 · 지역: 외곽 · 분: Q1 26.85 · median 29.85 · Q3 31.825 · whiskers: [19.8, 37.7] · 3 outliers</title>
+  </line>
+  <line x1="486.3" y1="397.760141" x2="503.7" y2="397.760141" class="series-2">
+    <title>요일: 목 · 지역: 외곽 · 분: Q1 26.85 · median 29.85 · Q3 31.825 · whiskers: [19.8, 37.7] · 3 outliers</title>
+  </line>
+  <circle cx="495" cy="457.372134" r="5" class="series-2-marker">
+    <title>요일: 목 · 지역: 외곽 · 분: 13.3 · outlier</title>
+  </circle>
+  <circle cx="495" cy="185.908289" r="5" class="series-2-marker">
+    <title>요일: 목 · 지역: 외곽 · 분: 42.9 · outlier</title>
+  </circle>
+  <circle cx="495" cy="164.814815" r="5" class="series-2-marker">
+    <title>요일: 목 · 지역: 외곽 · 분: 45.2 · outlier</title>
+  </circle>
+  <rect x="593.6" y="203.333333" width="34.8" height="140.31746" class="series-2-marker">
+    <title>요일: 금 · 지역: 외곽 · 분: Q1 25.7 · median 35.5 · Q3 41 · whiskers: [13.6, 45.8]</title>
+  </rect>
+  <line x1="593.6" y1="253.77425" x2="628.4" y2="253.77425" class="series-2">
+    <title>요일: 금 · 지역: 외곽 · 분: Q1 25.7 · median 35.5 · Q3 41 · whiskers: [13.6, 45.8]</title>
+  </line>
+  <line x1="611" y1="203.333333" x2="611" y2="159.312169" class="series-2">
+    <title>요일: 금 · 지역: 외곽 · 분: Q1 25.7 · median 35.5 · Q3 41 · whiskers: [13.6, 45.8]</title>
+  </line>
+  <line x1="602.3" y1="159.312169" x2="619.7" y2="159.312169" class="series-2">
+    <title>요일: 금 · 지역: 외곽 · 분: Q1 25.7 · median 35.5 · Q3 41 · whiskers: [13.6, 45.8]</title>
+  </line>
+  <line x1="611" y1="343.650794" x2="611" y2="454.620811" class="series-2">
+    <title>요일: 금 · 지역: 외곽 · 분: Q1 25.7 · median 35.5 · Q3 41 · whiskers: [13.6, 45.8]</title>
+  </line>
+  <line x1="602.3" y1="454.620811" x2="619.7" y2="454.620811" class="series-2">
+    <title>요일: 금 · 지역: 외곽 · 분: Q1 25.7 · median 35.5 · Q3 41 · whiskers: [13.6, 45.8]</title>
+  </line>
+  <style>:where(.svgplot-boxplot-5) .plot-background { fill: #ffffff; }
+:where(.svgplot-boxplot-5) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-boxplot-5) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-boxplot-5) .tick-line { stroke: #333333; }
+:where(.svgplot-boxplot-5) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-boxplot-5) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-boxplot-5) .series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-boxplot-5) .series-1-marker { fill: #E69F00; stroke: none; }
+:where(.svgplot-boxplot-5) .series-2 { stroke: #56B4E9; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-boxplot-5) .series-2-marker { fill: #56B4E9; stroke: none; }</style>
+  <line x1="660" y1="30" x2="676" y2="30" class="series-1" />
+  <text x="682" y="34" class="legend-text">도심</text>
+  <line x1="660" y1="50" x2="676" y2="50" class="series-2" />
+  <text x="682" y="54" class="legend-text">외곽</text>
+  <title>tooltip=True — 상자의 모든 마크가 같은 요약을, 이상치는 자기 값을 말한다</title>
+  <desc>Box plot, 5 categories (월, 화, 수, 목, 금) over 200 observations, 2 series (도심, 외곽), y 3.2 to 59.9, 1.5IQR whiskers.</desc>
+</svg>
+    </figure>
+    <pre><code>sp.boxplot(DELIVERY, x=&quot;요일&quot;, y=&quot;분&quot;, hue=&quot;지역&quot;, tooltip=True)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
+      <li>네 번째와 다섯 번째 그림에 체크박스가 붙어 있다. 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.</li>
+      <li>이 페이지의 규칙이 :is(.series-N, .series-N-marker) 인 것은 boxplot 이 시리즈 하나를 클래스 둘로 그리는 유일한 차트이기 때문이다. 수염과 중앙값 선은 series-N 이고 상자 본체와 이상치 원은 series-N-marker 다. 결함이 아니라 theme/css.py 의 mark_style 짝이다 — 선은 stroke 로, 채운 도형은 fill 로 색을 받아야 하므로 규칙이 둘로 갈린다. 클래스 하나만 적으면 체크를 껐을 때 수염만 흐려지고 상자는 그대로 남아, 선택자가 절반만 들은 것이 아니라 렌더링 버그처럼 보인다. 손으로 CSS 를 쓸 때도 같은 얘기다.</li>
+      <li>tooltip=True 는 상자의 여섯 마크(본체·중앙값 선·수염 줄기 둘·캡 둘)에 같은 문장을 붙인다. 반복이 의도다 — 포인터는 자기 밑의 맨 위 요소에서 멈추므로, &lt;title&gt; 이 없는 마크는 글리프에 뚫린 구멍이 된다. 제목 없는 중앙값 선은 반응하는 상자 한가운데를 가로지르는 죽은 띠로 읽힌다.</li>
+      <li>상자는 여러 행의 요약이라 어느 행인지 말할 수 없지만 이상치 원은 관측 하나라서 자기 값을 말한다. 이상치는 자기 카테고리도 다시 적는다 — 원은 위에 그려지고 대개 상자 바깥에 있어서, 거기서는 상자의 &lt;title&gt; 이 포인터에 닿는 것이 아니다.</li>
+      <li>수염은 닫힌 구간 [a, b] 로 적는다. 1.5IQR 에서는 양 끝이 실제로 관측된 값이다. histplot 의 구간과 다른 점이고, stdev·pstdev 모드에서는 평균 ± 1 표준편차라 관측값이 아닐 수도 있어서 min·max 가 아니라 whiskers 라고 적는다.</li>
       <li>mode= 는 extremes·1.5IQR·tukey·stdev·pstdev 다섯이다. 앞의 셋은 사분위에서, 뒤의 둘은 평균 ± 1 표준편차에서 수염 끝을 잡는다.</li>
       <li>stdev·pstdev 모드에서는 수염 끝이 사분위와 무관하므로 상자 안쪽에 놓여 거꾸로 그려질 수 있다. 통계의 정의가 그런 것이고, 상자에 맞춰 자르면 통계를 왜곡한다.</li>
       <li>hue= 없이는 카테고리마다 팔레트가 돌고, hue= 가 있으면 hue 값마다 돈다 — 같은 그룹이 모든 요일에서 같은 색이 된다.</li>
