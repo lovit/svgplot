@@ -116,9 +116,8 @@ def test_the_series_a_control_gets_are_the_series_the_chart_drew() -> None:
     figure gets controls; a hand-written list would be a second copy of what the chart already
     decided, and the copy is the one that goes stale."""
     page = _stub([("bars", _BAR)], {1: "toggle"})
-    controls = page.examples[0].controls
+    (controls,) = page.examples[0].controls
 
-    assert controls is not None
     assert [series.index for series in controls.series] == [1, 2]
     assert {series.label for series in controls.series} == {"온라인", "오프라인"}
 
@@ -136,7 +135,7 @@ def test_a_rule_names_every_class_its_series_actually_has() -> None:
     page = _stub([("boxes", _BOX)], {1: "toggle"})
     example = page.examples[0]
     drawn = interaction.series_classes(example.svg)
-    rules = interaction.css(example.controls)
+    rules = interaction.css(example.controls[0])
 
     assert drawn[1] == ("series-1", "series-1-marker"), "the fixture stopped being the two-class case"
     for classes in drawn.values():
@@ -157,7 +156,7 @@ def test_a_control_is_named_by_the_legend_even_when_the_legend_shortened_it() ->
     module.INTERACTIONS = {1: "toggle"}
     page = load(module, "long")
 
-    labels = {series.label for series in page.examples[0].controls.series}
+    labels = {series.label for series in page.examples[0].controls[0].series}
 
     assert "…" in page.examples[0].svg, "the fixture stopped being the truncated case"
     assert long_name in labels, f"the control was named by the shortened text: {labels}"
@@ -178,6 +177,39 @@ def test_a_chart_with_no_legend_is_refused() -> None:
 
     with pytest.raises(ValueError, match="no legend entry"):
         load(module, "nolegend")
+
+
+def test_one_figure_can_carry_a_toggle_and_hover_at_once() -> None:
+    """They are different mechanisms, not alternatives: an ``<input>`` the reader operates, and
+    a rule that answers the pointer. A figure wanting both should not have to pick.
+
+    The single-kind spelling stays legal because most figures want one thing --
+    :func:`test_a_single_kind_is_still_a_kind` holds that half.
+    """
+    page = _stub([("bars", _BAR)], {1: ("toggle", "hover")})
+    controls = page.examples[0].controls
+    rules = "".join(interaction.css(control) for control in controls)
+
+    assert [control.kind for control in controls] == ["toggle", "hover"]
+    assert ":not(:checked)" in rules and ":hover" in rules
+    assert interaction.markup(controls[0]) and not interaction.markup(controls[1])
+
+
+def test_a_single_kind_is_still_a_kind() -> None:
+    """A bare string is what fifteen of the sixteen pages will write, so it stays legal."""
+    page = _stub([("bars", _BAR)], {1: "toggle"})
+
+    assert [control.kind for control in page.examples[0].controls] == ["toggle"]
+
+
+@pytest.mark.parametrize(
+    "declared", [pytest.param(True, id="bool"), pytest.param(3, id="int"), pytest.param(["toggle", 1], id="mixed")]
+)
+def test_an_interactions_value_that_is_not_a_kind_is_refused(declared: object) -> None:
+    """``{2: True}`` is a plausible typo, and left alone it would emit nothing at all -- a
+    figure quietly losing its controls looks exactly like a figure that never asked."""
+    with pytest.raises(TypeError, match="a kind or a sequence of kinds"):
+        _stub([("bars", _BAR)], {1: declared})
 
 
 @pytest.mark.parametrize(
@@ -209,7 +241,7 @@ def test_only_a_toggle_needs_the_chart_to_have_a_legend(kind: str, refused: bool
             load(module, "nolegend")
         return
 
-    controls = load(module, "nolegend").examples[0].controls
+    (controls,) = load(module, "nolegend").examples[0].controls
 
     # Four categories in the fixture, so four series from the per-category palette -- and no
     # legend for any of them, which is the state a toggle cannot use and hover can.
@@ -229,7 +261,7 @@ def test_a_hover_rule_names_every_class_its_series_actually_has() -> None:
     module.INTERACTIONS = {1: "hover"}
     example = load(module, "boxhover").examples[0]
     drawn = interaction.series_classes(example.svg)
-    rules = interaction.css(example.controls)
+    rules = interaction.css(example.controls[0])
 
     assert drawn[1] == ("series-1", "series-1-marker"), "the fixture stopped being the two-class case"
     for classes in drawn.values():
@@ -265,7 +297,7 @@ def test_a_legend_over_rows_is_not_refused_and_that_is_a_judgement_not_a_check()
     module.EXAMPLES = [("slices", 'sp.pieplot(D, values="값", labels="이름")')]
     module.INTERACTIONS = {1: "toggle"}
 
-    controls = load(module, "pie").examples[0].controls
+    (controls,) = load(module, "pie").examples[0].controls
 
     assert [series.label for series in controls.series] == ["가", "나", "다"]
 
@@ -294,7 +326,9 @@ def test_no_rule_hides_anything() -> None:
     element from the accessibility tree while the ``<desc>`` still says "2 series". Dimming
     claims neither.
     """
-    stylesheet = interaction.stylesheet([example.controls for example in _stub([("b", _BAR)], {1: "toggle"}).examples])
+    stylesheet = interaction.stylesheet(
+        [control for example in _stub([("b", _BAR)], {1: "toggle"}).examples for control in example.controls]
+    )
 
     assert "opacity" in stylesheet
     for forbidden in ("display:", "visibility:"):
@@ -374,7 +408,7 @@ def test_the_index_carries_no_controls() -> None:
 
     pages = [*discover(), _stub([("bars", _BAR)], {1: "toggle"})]
 
-    assert pages[-1].examples[0].controls is not None, "the fixture stopped having controls to leak"
+    assert pages[-1].examples[0].controls, "the fixture stopped having controls to leak"
     assert 'class="series-toggle"' not in index_page(pages)
 
 
@@ -403,7 +437,7 @@ def test_a_label_holding_an_ampersand_is_not_escaped_twice() -> None:
     page = _one_example(setup, 'sp.barplot(D, x="x", y="y", hue="g")')
     html = chart_page(page)
 
-    assert {series.label for series in page.examples[0].controls.series} == {"R&D", "S<M"}
+    assert {series.label for series in page.examples[0].controls[0].series} == {"R&D", "S<M"}
     assert re.findall(r"<label for=\"[^\"]*\">([^<]*)</label>", html) == ["R&amp;D", "S&lt;M"]
     assert "&amp;amp;" not in html
 
@@ -482,7 +516,7 @@ def test_an_invisible_character_that_is_not_blank_by_category_gets_through(label
 
     page = _one_example(setup, 'sp.barplot(D, x="x", y="y", hue="g")')
 
-    assert {series.label for series in page.examples[0].controls.series} == {label, "zzz"}
+    assert {series.label for series in page.examples[0].controls[0].series} == {label, "zzz"}
 
 
 @pytest.mark.parametrize(
@@ -503,7 +537,7 @@ def test_a_name_that_draws_ink_without_being_a_letter_is_still_a_name(label: str
 
     page = _one_example(setup, 'sp.barplot(D, x="x", y="y", hue="g")')
 
-    assert {series.label for series in page.examples[0].controls.series} == {label, "zzz"}
+    assert {series.label for series in page.examples[0].controls[0].series} == {label, "zzz"}
 
 
 def test_a_series_with_no_legend_row_of_its_own_is_refused() -> None:
@@ -550,4 +584,4 @@ def test_a_size_legend_does_not_become_a_series(monkeypatch: pytest.MonkeyPatch)
     )
     page = _one_example(setup, 'sp.scatterplot(D, x="x", y="y", hue="g", size="w")')
 
-    assert [series.label for series in page.examples[0].controls.series] == ["a", "b"]
+    assert [series.label for series in page.examples[0].controls[0].series] == ["a", "b"]
