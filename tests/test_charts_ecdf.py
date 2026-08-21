@@ -5,6 +5,7 @@ from itertools import pairwise
 
 import pytest
 
+from _svg_probe import tags
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, MARGIN_WITHOUT_LEGEND, plot_area
 from svgplot.charts.ecdf import ecdfplot
 
@@ -14,7 +15,6 @@ HUE_SERIES = {
     "group": ["a", "a", "a", "a", "b", "b"],
 }
 
-_ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 _VERTEX_RE = re.compile(r"[ML] (-?[\d.]+),(-?[\d.]+)")
 
 AREA = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITHOUT_LEGEND)
@@ -23,12 +23,7 @@ AREA_WITH_LEGEND = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_L
 
 def _series_vertices(svg: str) -> list[list[tuple[float, float]]]:
     """The (x, y) pixel vertices of every ``ecdf-series`` path, in document order."""
-    paths = [dict(_ATTR_RE.findall(tag)) for tag in re.findall(r"<path\b[^>]*/>", svg)]
-    return [
-        [(float(vx), float(vy)) for vx, vy in _VERTEX_RE.findall(path["d"])]
-        for path in paths
-        if "ecdf-series" in path.get("class", "")
-    ]
+    return [[(float(vx), float(vy)) for vx, vy in _VERTEX_RE.findall(path["d"])] for path in tags(svg, "path", "ecdf-series")]
 
 
 # ---------------------------------------------------------------------------

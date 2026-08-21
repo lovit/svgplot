@@ -5,12 +5,14 @@ two matched a class by substring and one only saw self-closing tags. A helper wh
 you have to open the file to learn is worse than no helper: the tests using it look alike and
 are not, and the two that were fixed after a review left the other two behind.
 
-Six modules use it now: the original four plus ``regression`` and ``gauge``, both of which
-held the same idea under a different name. Three still do not, and they are listed rather
-than left to be rediscovered -- ``test_charts_ecdf.py``, ``test_charts_kde.py`` and
-``test_charts_scatter.py`` each match ``/>``-only and test the class by substring. Nothing
-over-matches in them today, which is exactly what was true of the four before a class with a
-longer name would have appeared. Issue #117 named four; these are the follow-up.
+Nine modules use it now. The last three -- ``test_charts_ecdf.py``, ``test_charts_kde.py``
+and ``test_charts_scatter.py`` -- came across in #191, when the reason stopped being
+hypothetical: a mark that gains a ``<title>`` child is no longer written ``<circle …/>``, and
+a ``/>``-only pattern simply stops seeing it. Measured before the move, with a tooltip added
+to one mark: ``test_charts_kde.py`` went to 15 failures and ``test_charts_ecdf.py`` to 12,
+while ``test_charts_scatter.py`` stayed green and quietly measured something else -- its
+matchers dropped every data point and its assertions happened to be about legend elements.
+The silent one is the worse outcome. Issue #117 named four; these were the follow-up.
 """
 
 from __future__ import annotations
