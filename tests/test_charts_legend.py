@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from _svg_probe import tags, texts
 from svgplot._svg import SvgDocument
 from svgplot.charts._legend import render_legend
 
@@ -166,7 +167,12 @@ def test_a_treemap_tile_label_is_cut_to_its_tile(label: str) -> None:
     covered by the legend fix at all -- measured on ``main``, ``"W" * 40`` rendered 415.3px
     across a 196.7px tile, overrunning it by 218.6px, while the legend beside it was cut."""
     svg = sp.treemap({"v": [1.0, 2.0], "g": [label, "짧음"]}, values="v", labels="g").to_string()
-    centred = re.findall(r'<text x="([\d.]+)"[^>]*text-anchor="middle"[^>]*class="legend-text"[^>]*>([^<]*)<', svg)
+    # By class *token*: these labels carry ``treemap-label legend-text`` since #192, and a
+    # pattern matching the attribute value whole stopped seeing any of them.
+    centred = [
+        (label["x"], text)
+        for label, text in zip(tags(svg, "text", "treemap-label"), texts(svg, "text", "treemap-label"), strict=True)
+    ]
 
     assert centred, "no tile labels found"
     for centre, text in centred:

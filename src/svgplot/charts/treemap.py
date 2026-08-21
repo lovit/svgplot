@@ -281,7 +281,11 @@ def treemap(
                     "y": format_coord(tile.y + tile.height / 2),
                     "text-anchor": "middle",
                 },
-                classes=["legend-text"],
+                # See ``pie-value`` in charts/pie.py for why this is an addition rather than a
+                # replacement. Here the problem is already visible: a tile label carries its own
+                # <title> when the name had to be shortened, so hovering the label shows "the
+                # full name" where the tile would have shown the value.
+                classes=["treemap-label", "legend-text"],
             )
             if shown != tile.label or needs_full_text(tile.label, resolved_theme.legend_font_size, tile.width):
                 add_tooltip(document, label_node, tile.label)
