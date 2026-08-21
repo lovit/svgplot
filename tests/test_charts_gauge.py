@@ -467,9 +467,10 @@ def test_every_drawn_class_is_styled_by_the_theme() -> None:
     assert unstyled <= {"gauge-track", "gauge-value", "gauge-number"}, f"unstyled classes: {sorted(unstyled)}"
     # The three semantic markers above are hooks for the reader's own CSS, and each is paired
     # with a class the theme does style, so none renders unstyled. The pairing is checked over
-    # every element rather than over ``_PATH_RE``: ``gauge-number`` is on a <text>, and a
-    # path-only loop would have let an unpaired text hook through while still looking like it
-    # covered all three.
+    # every element rather than over ``_PATH_RE``: ``gauge-number`` is on a <text>, so under a
+    # path-only loop ``paired`` would be empty for it and ``assert paired`` would fire whatever
+    # the pairing actually was. Not a hole -- a check that cannot pass, which is its own kind of
+    # useless, and which somebody closes by dropping the entry from the tuple.
     everything = [tag.get("class", "") for name in ("path", "text", "line", "rect") for tag in every_tag(svg, name)]
     for marker, styled in (("gauge-track", "spine"), ("gauge-value", "series"), ("gauge-number", "legend-text")):
         paired = [classes for classes in everything if marker in classes.split()]

@@ -314,7 +314,8 @@ def _render_value_text(document: SvgDocument, magnitudes: list[float], cx: float
                 "dominant-baseline": "middle",
             },
             # See ``pie-value`` in charts/pie.py. Named ``gauge-number`` and not
-            # ``gauge-value``: that one is already on the arcs (see ``_render_arcs`` above), so
+            # ``gauge-value``: that one is already on the arcs, which ``gaugeplot`` draws inline
+            # above rather than in a helper of their own -- so
             # reusing it would put the page's ``pointer-events: none`` on the marks as well --
             # the exact failure this hook exists to prevent, aimed at the arcs instead of the
             # legend.
