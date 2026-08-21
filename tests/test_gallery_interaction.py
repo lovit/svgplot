@@ -1,7 +1,7 @@
 """The gallery's no-JavaScript controls: what they are wired to, and what they must not do.
 
-Every check here was watched failing before it was kept. Three are shaped specifically against
-ways this file could pass while asserting nothing:
+Every check here was watched failing before it was kept -- 25 mutations, one at a time. Four
+are shaped specifically against ways this file could pass while asserting nothing:
 
 * The page-level checks run over pages **rendered here**, never over the committed files. A
   disk-reading version stayed green when the note was made unconditional, because the files on
@@ -13,6 +13,9 @@ ways this file could pass while asserting nothing:
 * ``test_a_rule_names_every_class_its_series_actually_has`` uses ``boxplot``, the one chart
   whose series is two classes. Against any other chart a rule that dropped ``-marker`` would
   look correct.
+* The fixtures at the bottom use labels with characters in them -- ``R&D``, ``S<M``, the empty
+  string. Everything above uses ``온라인``/``오프라인``, on which the correct implementation
+  and a double-escaping one produce the same page. A review found the bug; 187 checks did not.
 """
 
 from __future__ import annotations
@@ -34,6 +37,8 @@ sys.path.insert(0, str(ROOT))
 from gallery import interaction  # noqa: E402
 from gallery.example import Page, load  # noqa: E402
 from gallery.page import chart_page, index_page  # noqa: E402
+
+from _svg_probe import blank_style_bodies  # noqa: E402
 
 _SETUP = """
 import svgplot as sp
@@ -67,15 +72,6 @@ def _stub(examples: list[tuple[str, str]], interactions: dict[int, str] | None =
     if interactions is not None:
         module.INTERACTIONS = interactions
     return load(module, name)
-
-
-def _parseable(markup: str) -> str:
-    """``markup`` with its ``<style>`` bodies blanked, so an XML parser can read it.
-
-    CSS is not markup: a rule holding ``>`` is valid CSS and invalid XML. Same reason
-    ``test_gallery.py`` does this before parsing a page.
-    """
-    return re.sub(r"(<style[^>]*>).*?(</style>)", r"\1\2", markup, flags=re.S)
 
 
 def _rendered() -> list[tuple[str, str]]:
@@ -249,7 +245,7 @@ def test_the_controls_are_siblings_before_the_chart() -> None:
     html = chart_page(_stub([("bars", _BAR)], {1: "toggle"}))
     # Style bodies blanked *before* the figure is cut out: the page stylesheet is inside a
     # <style> and CSS may mention a tag name, so cutting first can cut from a comment.
-    figure = ET.fromstring(re.search(r"<figure>.*?</figure>", _parseable(html), re.S).group(0))
+    figure = ET.fromstring(re.search(r"<figure>.*?</figure>", blank_style_bodies(html), re.S).group(0))
     children = [child.tag.rsplit("}", 1)[-1] for child in figure]
 
     assert children == ["input", "label", "input", "label", "svg"], f"not flat siblings: {children}"
@@ -298,3 +294,170 @@ def test_the_index_carries_no_controls() -> None:
 
     assert pages[-1].examples[0].controls is not None, "the fixture stopped having controls to leak"
     assert 'class="series-toggle"' not in index_page(pages)
+
+
+# ------------------------------------------------------- what a review found the fixtures hid
+
+
+def _one_example(setup: str, code: str, name: str = "one") -> Page:
+    module = types.ModuleType(name)
+    module.TITLE, module.SUMMARY, module.REQUIRES = name, "s", "r"
+    module.SETUP = setup
+    module.EXAMPLES = [("only", code)]
+    module.INTERACTIONS = {1: "toggle"}
+    return load(module, name)
+
+
+def test_a_label_holding_an_ampersand_is_not_escaped_twice() -> None:
+    """``R&D`` is an ordinary hue value, and it is in the rendered SVG as ``R&amp;D`` because
+    that file is markup. Read raw and then escaped again on the way into the page, the reader
+    sees ``R&amp;D`` on the checkbox beside a swatch labelled ``R&D`` -- two names for one
+    thing, which is the exact failure ``legend_labels`` exists to prevent.
+
+    Every other fixture in this file uses labels with nothing to escape, so all 187 checks
+    passed while this was broken. The right and the wrong implementation agree on ``온라인``.
+    """
+    setup = 'import svgplot as sp\nD = {"x": ["a", "b"], "y": [1.0, 2.0], "g": ["R&D", "S<M"]}\n'
+    page = _one_example(setup, 'sp.barplot(D, x="x", y="y", hue="g")')
+    html = chart_page(page)
+
+    assert {series.label for series in page.examples[0].controls.series} == {"R&D", "S<M"}
+    assert re.findall(r"<label for=\"[^\"]*\">([^<]*)</label>", html) == ["R&amp;D", "S&lt;M"]
+    assert "&amp;amp;" not in html
+
+
+def test_a_series_whose_legend_name_is_blank_is_refused() -> None:
+    """An empty hue value is ordinary in real data, and it renders as a legend row with no
+    text. Left through, the page gets a checkbox with an empty accessible name -- worse than an
+    unlabelled one, because assistive technology stops looking for a fallback."""
+    setup = 'import svgplot as sp\nD = {"x": ["a", "b"], "y": [1.0, 2.0], "g": ["", "q"]}\n'
+
+    with pytest.raises(ValueError, match="no legend entry"):
+        _one_example(setup, 'sp.barplot(D, x="x", y="y", hue="g")')
+
+
+def test_a_series_with_no_legend_row_of_its_own_is_refused() -> None:
+    """The other half of the refusal, which no test reached: a chart with *some* legend rows
+    and a series that has none. Removing the ``missing`` term from ``resolve`` left all 47
+    checks green, because the only case exercised was "no legend at all".
+
+    Built as markup rather than by rendering a chart, because no chart produces this today --
+    it is what a change to the legend's shape would produce, and the point is to notice.
+    """
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg">'
+        '<rect class="series-1" /><rect class="series-2" />'
+        '<rect x="0" class="series-1" /><text class="legend-text">A</text>'
+        "</svg>"
+    )
+
+    with pytest.raises(ValueError, match=r"no legend entry for series \[2\]"):
+        interaction.resolve("svgplot-x-1", "toggle", svg)
+
+
+def test_a_figure_name_that_would_break_out_of_a_css_rule_is_refused() -> None:
+    """``css()`` interpolates the figure name into a selector and into a comment, and neither
+    is protected by ``html.escape`` -- ``x{} body{background:red}`` would add a rule to the
+    page, and ``*/`` would end the comment early.
+
+    Unreachable today, because ``example.load`` calls ``set_scope`` first and that refuses the
+    same names. But that is a guard standing one line away in another file: move it and this
+    one is gone with nothing saying so. The package's own validator is reused rather than a
+    second pattern, so there is one answer to "what is a safe class name".
+    """
+    with pytest.raises(ValueError, match="figure class name"):
+        interaction.resolve("x{} body{background:red}", "toggle", '<svg><rect class="series-1" /></svg>')
+
+
+def test_a_size_legend_does_not_become_a_series(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``scatterplot(hue=, size=)`` draws two legends. The size legend's rows are ``<circle>``
+    samples with a marker class, and counting them as series would give the page checkboxes
+    for "3.0" and "9.0" -- numbers, not groups."""
+    setup = (
+        "import svgplot as sp\n"
+        'D = {"x": [1.0, 2.0, 3.0, 4.0], "y": [1.0, 2.0, 3.0, 4.0],\n'
+        '     "g": ["a", "a", "b", "b"], "w": [3.0, 5.0, 7.0, 9.0]}\n'
+    )
+    page = _one_example(setup, 'sp.scatterplot(D, x="x", y="y", hue="g", size="w")')
+
+    assert [series.label for series in page.examples[0].controls.series] == ["a", "b"]
+
+
+# ------------------------------------------------------------------ the cascade the rules need
+
+
+def _specificity(selector: str) -> tuple[int, int, int]:
+    """(ids, classes, elements) for the selector shapes this gallery emits.
+
+    Hand-counted rather than taken from a CSS engine because the only one available here,
+    ``cssselect2``, arrives with the ``png`` extra and CI installs only ``numpy-parity`` -- a
+    test that needs it would skip in the one place it has to run. Cross-checked against
+    ``cssselect2`` 0.8 while writing this: it agrees on every selector below.
+
+    Deliberately narrow. It understands ``#id``, ``.class``, bare element names, ``:where()``
+    (zero, per Selectors 4), and ``:not()``/``:is()`` (their widest argument). Anything else
+    raises rather than being scored as zero, because a selector this cannot read is one whose
+    result must not be trusted.
+    """
+    ids = classes = elements = 0
+    rest = selector
+    for name, inner in re.findall(r":(where|not|is)\(([^()]*)\)", rest):
+        rest = rest.replace(f":{name}({inner})", " ", 1)
+        if name == "where":
+            continue
+        widest = max((_specificity(part) for part in inner.split(",")), default=(0, 0, 0))
+        ids, classes, elements = ids + widest[0], classes + widest[1], elements + widest[2]
+    for token in re.findall(r"[#.:]?[\w-]+|[*>+~]", rest):
+        if token in ("*", ">", "+", "~"):
+            continue
+        if token.startswith("#"):
+            ids += 1
+        elif token.startswith((".", ":")):
+            classes += 1
+        else:
+            elements += 1
+    return ids, classes, elements
+
+
+def test_the_specificity_counter_agrees_with_a_css_engine() -> None:
+    """The oracle needs its own oracle. ``cssselect2`` is not installed in CI, so this skips
+    there -- but it runs wherever the ``png`` extra is, and it is the reason the hand-written
+    counter above can be trusted at all."""
+    cssselect2 = pytest.importorskip("cssselect2")
+
+    for selector in (
+        "#a:not(:checked) ~ svg :is(.series-1, .series-1-marker)",
+        "#a:not(:checked) + label",
+        ":where(.svgplot-f1234abcd) .series-1",
+        ".series-1",
+        "figure > svg",
+    ):
+        compiled = list(cssselect2.compile_selector_list(selector))
+
+        assert [_specificity(selector)] == [rule.specificity for rule in compiled], selector
+
+
+def test_a_page_rule_outranks_the_chart_rule_it_has_to_override() -> None:
+    """Everything here rests on one fact: the page's rule wins without ``!important``.
+
+    Both selectors are read out of real output -- the page rule from ``css()``, the chart rule
+    from the SVG's own ``<style>`` -- so a change to either side is compared against the other
+    rather than against a number written down once. ``scope.py`` swapping ``:where()`` for
+    ``:is()`` would silently take the chart's rule from ``(0,1,0)`` to ``(0,2,0)`` and leave
+    the toggles doing nothing; nothing else in the suite would notice.
+    """
+    example = _stub([("bars", _BAR)], {1: "toggle"}).examples[0]
+    rules = interaction.css(example.controls)
+    page_match = re.search(r"^\s*(\S[^{]*?~ svg[^{]*?)\s*\{", rules, re.M)
+    chart_match = re.search(r"^(\S[^{]*?\.series-1)\s*\{", example.svg, re.M)
+
+    # Matched, not assumed. Both regexes describe a shape, and a shape that stopped being
+    # produced would otherwise make this raise rather than fail -- a crash reads as a broken
+    # test, and somebody deletes it.
+    assert page_match, f"no dimming rule of the expected shape in:\n{rules}"
+    assert chart_match, "the chart no longer styles .series-1 in a rule of its own"
+
+    page_rule, chart_rule = page_match.group(1), chart_match.group(1)
+
+    assert _specificity(page_rule) > _specificity(chart_rule), f"{page_rule!r} does not outrank {chart_rule!r}"
+    assert "!important" not in rules
