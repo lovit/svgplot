@@ -5,6 +5,7 @@ import re
 
 import pytest
 
+from _svg_probe import tags, texts
 from svgplot.charts.pie import pieplot
 
 DATA = {"label": ["a", "b", "c"], "value": [30.0, 50.0, 20.0]}
@@ -84,12 +85,27 @@ def test_pieplot_renders_one_path_per_slice() -> None:
 
 
 def test_pieplot_generates_a_legend_entry_per_label() -> None:
-    chart = pieplot(DATA, values="value", labels="label")
-    svg = chart.to_string()
-    assert svg.count('class="legend-text"') >= 3  # 3 legend labels + 3 value labels share this class
-    assert ">a<" in svg
-    assert ">b<" in svg
-    assert ">c<" in svg
+    """One legend row per label -- exactly, not "at least".
+
+    The old form counted ``class="legend-text"`` as a whole attribute value and asked for
+    ``>= 3``, with a comment saying the count included the three value labels too. Since #192
+    those carry ``pie-value legend-text``, so the count silently fell from six to three and the
+    check stayed green with its comment describing something it no longer measures. Counted by
+    class *token*, and split so each half says which elements it is about.
+    """
+    svg = pieplot(DATA, values="value", labels="label").to_string()
+
+    values = tags(svg, "text", "pie-value")
+    # The legend's own rows are the ``legend-text`` elements that are *not* value labels --
+    # which is the distinction the ``pie-value`` hook exists to make, used here to make it.
+    legend = [
+        text
+        for tag, text in zip(tags(svg, "text", "legend-text"), texts(svg, "text", "legend-text"), strict=True)
+        if "pie-value" not in tag["class"].split()
+    ]
+
+    assert legend == ["a", "b", "c"], "one legend row per label, in order"
+    assert len(values) == 3, "and one value label per slice"
 
 
 def test_pieplot_shows_the_value_on_each_slice() -> None:

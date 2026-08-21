@@ -387,9 +387,15 @@ def test_the_printed_values_are_centred_as_a_block_on_the_dial() -> None:
     # The literal form went blind the moment these labels gained a second class (#192) -- it
     # found nothing and compared two empty lists' lengths, which is a failure only because the
     # expectation is three. A test asserting "none of these exist" would have stayed green.
-    positions = [label["y"] for label in _tags(_svg(), "text", "gauge-value")]
+    numbers = _tags(_svg(), "text", "gauge-number")
+    positions = [label["y"] for label in numbers]
 
+    # x and the anchor too. The pattern this replaced pinned all three in one regex, and
+    # reading only ``y`` would let the stack drift sideways or stop being centred without
+    # anything noticing -- measured, both mutations left the y-only version green.
     assert [float(y) for y in positions] == pytest.approx([_CY - 18.0, _CY, _CY + 18.0])
+    assert [label["x"] for label in numbers] == [str(int(_CX))] * 3
+    assert {label["text-anchor"] for label in numbers} == {"middle"}
 
 
 @pytest.mark.parametrize(("value", "printed"), [(12.25, "12.25"), (0.123456789, "0.123456789"), (1e-7, "1e-07")])
@@ -458,12 +464,19 @@ def test_every_drawn_class_is_styled_by_the_theme() -> None:
     drawn |= {name for tag in every_tag(svg, "text") for name in tag.get("class", "").split()}
 
     unstyled = {name for name in drawn if f".{name} " not in style}
-    assert unstyled <= {"gauge-track", "gauge-value"}, f"unstyled classes: {sorted(unstyled)}"
-    # The two semantic markers above are hooks for the reader's own CSS, and each is
-    # paired with a class the theme does style, so neither renders unstyled.
-    for marker, styled in (("gauge-track", "spine"), ("gauge-value", "series")):
-        paired = [classes for _, classes in _PATH_RE.findall(svg) if marker in classes.split()]
-        assert paired and all(any(name.startswith(styled) for name in classes.split()) for classes in paired)
+    assert unstyled <= {"gauge-track", "gauge-value", "gauge-number"}, f"unstyled classes: {sorted(unstyled)}"
+    # The three semantic markers above are hooks for the reader's own CSS, and each is paired
+    # with a class the theme does style, so none renders unstyled. The pairing is checked over
+    # every element rather than over ``_PATH_RE``: ``gauge-number`` is on a <text>, and a
+    # path-only loop would have let an unpaired text hook through while still looking like it
+    # covered all three.
+    everything = [tag.get("class", "") for name in ("path", "text", "line", "rect") for tag in every_tag(svg, name)]
+    for marker, styled in (("gauge-track", "spine"), ("gauge-value", "series"), ("gauge-number", "legend-text")):
+        paired = [classes for classes in everything if marker in classes.split()]
+        assert paired, f"{marker} is allowed to be unstyled but nothing carries it"
+        assert all(
+            any(name.startswith(styled) for name in classes.split()) for classes in paired
+        ), f"{marker} is not paired with {styled} on every element that carries it"
 
 
 def test_the_arcs_are_outlined_so_a_ring_reads_against_its_track() -> None:

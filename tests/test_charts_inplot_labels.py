@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import pytest
 
-from _svg_probe import style_rules, tags, texts
+from _svg_probe import every_tag, style_rules, tags, texts
 from svgplot.charts.gauge import gaugeplot
 from svgplot.charts.pie import pieplot
 from svgplot.charts.treemap import treemap
@@ -33,7 +33,7 @@ _DIAL = {"이름": ["가", "나"], "값": [40.0, 70.0]}
 _CASES = [
     pytest.param(lambda: pieplot(_SLICES, values="값", labels="이름").to_string(), "pie-value", 3, id="pieplot"),
     pytest.param(lambda: treemap(_TILES, values="값", labels="이름").to_string(), "treemap-label", 3, id="treemap"),
-    pytest.param(lambda: gaugeplot(_DIAL, value="값", labels="이름").to_string(), "gauge-value", 2, id="gaugeplot"),
+    pytest.param(lambda: gaugeplot(_DIAL, value="값", labels="이름").to_string(), "gauge-number", 2, id="gaugeplot"),
 ]
 
 
@@ -52,9 +52,9 @@ def test_the_legend_does_not_carry_the_hook(render, hook: str, count: int) -> No
     the plot and stop there; if the legend's rows answered to it too, ``pointer-events: none``
     would silently take the legend out of the pointer's reach as well.
 
-    Counted against every ``legend-text`` element rather than against a number: the legend's
-    own rows are whatever is left, and stating it that way survives a chart drawing a different
-    number of them.
+    Two assertions with different jobs: the strict inequality says the legend has rows this
+    hook does *not* reach, whatever their number, and the equality pins how many labels the
+    chart draws inside the plot.
     """
     svg = render()
     all_labels = len(tags(svg, "text", "legend-text"))
@@ -65,10 +65,34 @@ def test_the_legend_does_not_carry_the_hook(render, hook: str, count: int) -> No
 
 
 @pytest.mark.parametrize(("render", "hook", "count"), _CASES)
+def test_the_hook_lands_on_a_text_and_nothing_else(render, hook: str, count: int) -> None:
+    """The half a review found missing, by finding it broken.
+
+    ``gauge-value`` looked like the obvious name for the dial's numbers and was already on the
+    dial's **arcs**. With both carrying it, a page writing ``pointer-events: none`` about the
+    hook would have taken the arcs out of the pointer's reach -- the exact failure this hook
+    exists to prevent, aimed at the marks instead of the legend. Nothing caught it: the only
+    check that noticed was the gallery byte-diff, which goes quiet as soon as you rebuild.
+
+    Enumerated over every element rather than asked about ``<text>``, because the question is
+    "what else carries this", and a check that only looks at texts cannot answer it.
+    """
+    svg = render()
+    carriers = {
+        element
+        for element in ("path", "text", "line", "rect", "circle", "g")
+        for tag in every_tag(svg, element)
+        if hook in tag.get("class", "").split()
+    }
+
+    assert carriers == {"text"}, f"{hook} is also on {sorted(carriers - {'text'})}"
+
+
+@pytest.mark.parametrize(("render", "hook", "count"), _CASES)
 def test_the_hook_is_added_beside_legend_text_and_not_instead_of_it(render, hook: str, count: int) -> None:
     """``legend-text`` is what gives these labels their size and colour. Replacing it would need
-    a new rule in ``theme/css.py``, which every chart emits -- so a change wanted by three
-    charts would rewrite the ``<style>`` of all sixteen."""
+    a new rule in ``theme/css.py``, and that rule list is the same for every chart -- so a
+    change wanted by three charts would put a rule in all sixteen charts' ``<style>``."""
     svg = render()
 
     for label in tags(svg, "text", hook):
