@@ -333,7 +333,14 @@ def css(controls: Controls, *, toggled_by: Mapping[int, str] | None = None) -> s
         selector = f"#{controls.input_id(series)}:not(:checked)"
         targets = ", ".join(f".{name}" for name in series.classes)
         rules += [
-            f"      {selector} ~ svg :is({targets}) {{ opacity: {DIM_OPACITY}; }}\n",
+            # ``pointer-events: none`` because ``opacity`` does not take an element out of hit
+            # testing. Without it a switched-off series keeps swallowing the pointer for
+            # everything drawn under it -- on the overlaid ``areaplot`` figure, series-2's fill
+            # lies entirely inside series-1's, so switching series-2 off left series-1
+            # unhighlightable everywhere below series-2's top edge, and its own ``<title>``
+            # tooltip unreachable. A series the reader has switched off should not be in the
+            # pointer's way at all.
+            f"      {selector} ~ svg :is({targets}) {{ opacity: {DIM_OPACITY}; pointer-events: none; }}\n",
             f"      {selector} + label {{ opacity: 0.5; text-decoration: line-through; }}\n",
         ]
     return "".join(rules)
