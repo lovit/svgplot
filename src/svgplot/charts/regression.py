@@ -21,6 +21,7 @@ from svgplot.charts._layout import (
     ticks_for,
 )
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.charts._tooltip import add_tooltip, clause, format_number
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import LinearScale
@@ -66,12 +67,38 @@ def _line_path_data(band: RegressionBand, x_scale: LinearScale, y_scale: LinearS
     return " ".join(commands)
 
 
+def _band_tooltip(*, ci: float, n_boot: int) -> str:
+    """What the band's ``<title>`` says: which interval it is, and how it was estimated.
+
+    **The band is the one mark in this package that is not a datum and has no label.** The line
+    is obviously the fit and a point is obviously an observation, but a translucent region
+    around a line reads as decoration until something names it -- and the ``<desc>`` names it
+    once for the whole chart, which a reader pointing at the band is not being read.
+
+    ``n_boot`` is part of the answer rather than an implementation detail: this is a *bootstrap*
+    interval, so it is an estimate whose own precision depends on that number, and two charts
+    of the same data with different ``n_boot`` draw different bands.
+
+    Spelled as a percentage because ``ci=`` is a level rather than a measurement -- ``0.95``
+    reads ``95%`` -- and rounded to one decimal for the same reason the share in ``treemap`` is:
+    ``ci=1/3`` would otherwise put sixteen digits on the largest mark in the chart.
+    """
+    return f"{format_number(round(ci * 100, 1))}% confidence band · {plural(n_boot, 'bootstrap resample')}"
+
+
+def _point_tooltip(*, x: str, y: str, xv: float, yv: float) -> str:
+    """A point is one observation, so it reads its own row back -- the same thing
+    ``scatterplot``'s tooltip says, from the same two channels."""
+    return f"{clause(x, format_number(xv))} · {clause(y, format_number(yv))}"
+
+
 def regplot(
     data: object,
     x: str,
     y: str,
     *,
     ci: float | None = 0.95,
+    tooltip: bool = False,
     n_boot: int = 1000,
     seed: int = 0,
     scatter: bool = True,
@@ -89,6 +116,20 @@ def regplot(
 
     ``seed`` is forwarded to :func:`svgplot.stats.regression.confidence_band`, which makes
     the whole chart reproducible: the same data and seed serialize to byte-identical SVG.
+
+    ``tooltip=True`` gives every point a ``<title>`` naming its x and y, and gives **the band
+    one of its own**. That second half is what this chart adds over the others: the line is
+    obviously the fit and a point is obviously an observation, but a translucent region around
+    a line reads as decoration until something names it -- and the chart's ``<desc>`` names it
+    once for the whole picture, which a reader pointing at the band is not being read. The band
+    says which interval it is and how many bootstrap resamples estimated it, because that is an
+    estimate whose own precision depends on ``n_boot``. It is also the easiest mark here to
+    point at: the band is an area where the line is two pixels wide.
+
+    ``ci=None`` draws no band and so gives it no ``<title>``; ``scatter=False`` draws no points
+    and gives them none. There is nothing to hang an accessible name on either way.
+
+    ``tooltip=False`` is the default; off, the file is what it was.
 
     ``xlim=``/``ylim=`` replace the domain this chart would compute from its own data. They
     exist so several charts can be made to agree -- see :func:`~svgplot.layout.facet.facet`,
@@ -177,19 +218,21 @@ def regplot(
 
     if ci is not None:
         # Drawn first so the fit line and the points sit on top of it.
-        document.add_node(
+        band_node = document.add_node(
             None,
             "path",
             attrib={"d": _band_path_data(band, pixel_x_scale, pixel_y_scale)},
             classes=[series_class, "regression-band"],
         )
+        if tooltip:
+            add_tooltip(document, band_node, _band_tooltip(ci=ci, n_boot=n_boot))
 
     if scatter:
         # ~12 lines duplicated from charts/scatter.py on purpose: with only two consumers a
         # shared charts/_marks.py is not yet earned, matching the precedent set by
         # charts/_layout.format_coord. Extract when a third consumer appears.
         for xv, yv in zip(xs, ys, strict=True):
-            document.add_node(
+            point = document.add_node(
                 None,
                 "circle",
                 attrib={
@@ -199,6 +242,8 @@ def regplot(
                 },
                 classes=[series_class, "scatter-point"],
             )
+            if tooltip:
+                add_tooltip(document, point, _point_tooltip(x=x, y=y, xv=xv, yv=yv))
 
     document.add_node(
         None,
