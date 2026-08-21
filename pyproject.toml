@@ -23,7 +23,11 @@ dependencies = []
 [project.optional-dependencies]
 # PNG export (svgplot.output.png). Pinned >=2.7.0: earlier versions are affected
 # by an SSRF issue (CVE-2023-27586) via external references in untrusted SVG input.
-png = ["cairosvg>=2.7.0"]
+# cssselect2 is pinned because cairosvg declares it without a bound and rasterizes through
+# it: every chart's CSS uses :where() since #182, and 0.4.1 rejects that outright
+# (SelectorError: Unknown pseudo-class). Without the floor, save("x.png") goes from
+# working to raising for anyone whose environment resolves an older cssselect2.
+png = ["cairosvg>=2.7.0", "cssselect2>=0.5"]
 
 # Only for the tests that check stats.binning still agrees with numpy edge for edge. Nothing
 # in svgplot imports numpy. `mise run install` installs this extra so CI actually runs that
@@ -37,6 +41,10 @@ Homepage = "https://github.com/lovit/svgplot"
 
 [dependency-groups]
 dev = [
+    # Imported directly by tests/test_packaging.py to read version specifiers as versions
+    # rather than as strings. It arrives transitively through pytest today; declaring it
+    # means the test does not break the day that stops being true.
+    "packaging>=24",
     "prek>=0.4",
     "pytest>=8",
     "pytest-cov>=5",
