@@ -79,7 +79,36 @@ does -- and emits **one** rule for the figure rather than one per series. :data:
 is the list of hooks it knows.
 """
 
-KINDS = (TOGGLE, HOVER, CELL)
+FOCUS = "focus"
+"""Pick **one** series to keep lit; the rest dim. A radio group, plus a way back.
+
+The answer for a chart whose marks are strokes. ``lineplot`` draws ``fill: none``, so the whole
+hit region of a series is its 2px stroke -- :data:`HOVER` can be written there and will not be
+caught, and a tooltip has one element per series to hang on and the same problem reaching it. A
+control the reader *operates* sidesteps the geometry entirely.
+
+Radios rather than checkboxes because "focus one" is a single choice, and a radio group gives
+that for free -- including the arrow-key behaviour, which a group of checkboxes does not have.
+The cost is that a radio cannot be un-picked by clicking it again, so the group carries an
+extra "all" option at index 0. Without it the reader can leave the default state and never get
+back to it, which is a worse trap than the one this solves.
+
+Dims rather than hides, for :data:`NOTE`'s reason -- and the same rules, so a page can say the
+one thing about both kinds.
+"""
+
+KINDS = (TOGGLE, HOVER, CELL, FOCUS)
+
+FOCUS_ALL = 0
+"""The index of the "show everything" radio. Series are numbered from 1, so 0 is free."""
+
+FOCUS_ALL_LABEL = "전체"
+"""What the "show everything" radio is called.
+
+The one control label this module writes rather than reads off the chart. Every other name
+comes from the legend, because a name written here would be a second copy of something the
+picture already decided; this one names a *state* the picture has no entry for.
+"""
 
 MARK_CLASSES = ("heatmap-cell",)
 """The mark hooks :data:`CELL` can point at, in the order it prefers them.
@@ -310,7 +339,7 @@ def resolve(figure: str, kind: str, svg: str) -> Controls:
     # gives the checkbox an empty accessible name, which is worse than an unlabelled one:
     # assistive technology stops looking for a fallback. An empty hue value is an ordinary
     # thing to find in real data.
-    if kind == TOGGLE:
+    if kind in (TOGGLE, FOCUS):
         named = {index for index, label in labels.items() if _has_visible_text(label)}
         missing = sorted(set(classes) - named)
         if missing:
@@ -330,8 +359,27 @@ def markup(controls: Controls) -> str:
     Real form controls rather than anything styled to look like one: a checkbox is reachable
     with Tab and operated with Space for free, and an element pretending to be one is not.
 
-    Empty for a ``hover`` figure: there is nothing to operate, only a rule.
+    Empty for a ``hover`` or ``cell`` figure: there is nothing to operate, only a rule.
+
+    A ``focus`` figure emits radios sharing one ``name``, which is what makes them exclusive,
+    plus the "all" radio that starts checked. ``name`` is the figure id rather than anything
+    shorter because two focus figures on one page would otherwise be one group, and picking a
+    line in the second would silently release the first.
     """
+    if controls.kind == FOCUS:
+        group = escape(f"{controls.figure}-focus", quote=True)
+        first = escape(controls.input_id(Series(index=FOCUS_ALL, label="", classes=())), quote=True)
+        lines = [
+            f'      <input type="radio" class="series-focus" name="{group}" id="{first}" checked="checked" />\n',
+            f'      <label for="{first}">{escape(FOCUS_ALL_LABEL)}</label>\n',
+        ]
+        for series in controls.series:
+            identifier = escape(controls.input_id(series), quote=True)
+            lines += [
+                f'      <input type="radio" class="series-focus" name="{group}" id="{identifier}" />\n',
+                f'      <label for="{identifier}">{escape(series.label)}</label>\n',
+            ]
+        return "".join(lines)
     if controls.kind != TOGGLE:
         return ""
     lines = []
@@ -378,6 +426,27 @@ def css(controls: Controls, *, toggled_by: Mapping[int, str] | None = None) -> s
             # own colour, and this rule does not try to guess one.
             rules.append(f"      .{controls.figure} :is({targets}) {{ opacity: 1; stroke: #16181d; stroke-width: 1.5; }}\n")
         return "".join(rules)
+    if controls.kind == FOCUS:
+        # One rule per radio, naming the *other* series -- so picking a line dims its
+        # neighbours rather than dimming everything and lighting one back up. Two rules at the
+        # same weight would work too and would read as an instruction to undo itself.
+        #
+        # The "all" radio gets no rule at all, which is what makes it the way back: nothing
+        # matches, so nothing dims.
+        for series in controls.series:
+            others = [name for other in controls.series if other is not series for name in other.classes]
+            if not others:
+                # A single-series chart: picking the one line dims nothing, and the group is
+                # two radios that do the same thing. Left rather than refused -- the page
+                # decides whether a chart is worth focusing, and a rule that matches nothing is
+                # not the same mistake as one that matches the wrong thing.
+                continue
+            targets = ", ".join(f".{name}" for name in others)
+            rules.append(
+                f"      #{controls.input_id(series)}:checked ~ svg :is({targets})"
+                f" {{ opacity: {DIM_OPACITY}; pointer-events: none; }}\n"
+            )
+        return "".join(rules)
     for series in controls.series:
         selector = f"#{controls.input_id(series)}:not(:checked)"
         targets = ", ".join(f".{name}" for name in series.classes)
@@ -398,11 +467,27 @@ def css(controls: Controls, *, toggled_by: Mapping[int, str] | None = None) -> s
 CHROME = """\
       /* Controls sit inside the figure element, before the chart, as its direct children:
          the sibling combinator in the generated rules depends on that, and a wrapper would
-         quietly break every one of them. Left as native checkboxes -- a real control is
-         reachable with Tab and operated with Space without anything here arranging it. */
+         quietly break every one of them. Left as native inputs -- a real control is reachable
+         with Tab and operated with Space or the arrow keys without anything here arranging it. */
+      .interaction-note { margin: 0 0 1.75rem; color: var(--muted); font-size: 0.9rem; }
+"""
+
+_CONTROL_CHROME = {
+    TOGGLE: """\
       figure > .series-toggle { margin: 0 0.3rem 0.75rem 0; vertical-align: -0.1em; }
       figure > .series-toggle + label { margin-right: 1.1rem; font-size: 0.9rem; color: var(--muted); }
-      .interaction-note { margin: 0 0 1.75rem; color: var(--muted); font-size: 0.9rem; }
+""",
+    FOCUS: """\
+      figure > .series-focus { margin: 0 0.3rem 0.75rem 0; vertical-align: -0.1em; }
+      figure > .series-focus + label { margin-right: 1.1rem; font-size: 0.9rem; color: var(--muted); }
+""",
+}
+"""The per-kind half of the chrome, emitted only for the kinds a page actually uses.
+
+Split off when ``focus`` arrived. Keeping it in :data:`CHROME` would have put two ``.series-focus``
+rules on every page that has a checkbox -- eight files rewritten so that seven of them could
+style an element they do not contain. The same argument that keeps :data:`CHROME` out of
+``page.STYLE``, one level down.
 """
 """The part of the control CSS that does not vary, emitted only on pages that have controls.
 
@@ -426,7 +511,11 @@ def stylesheet(controls: list[Controls]) -> str:
         return ""
     # The chrome styles ``<input>``/``<label>`` pairs, which only a toggle emits. A page whose
     # figures are all hover would otherwise carry rules for elements it does not have.
-    chrome = CHROME if any(control.kind == TOGGLE for control in controls) else ""
+    kinds = {control.kind for control in controls}
+    # The note explains dimming, which is what a toggle and a focus radio both do; a page whose
+    # figures are all ``hover`` or ``cell`` has nothing to dim and gets neither.
+    chrome = CHROME if kinds & {TOGGLE, FOCUS} else ""
+    chrome += "".join(css for kind, css in _CONTROL_CHROME.items() if kind in kinds)
     # A figure that carries both kinds needs its hover rules keyed on its own checkboxes, so
     # they are collected here rather than inside ``css``, which sees one figure's one kind.
     toggles = {
