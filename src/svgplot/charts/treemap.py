@@ -37,7 +37,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._textwidth import needs_full_text, truncate_to_width
 from svgplot.charts._theme_resolve import resolve_theme
-from svgplot.charts._tooltip import add_tooltip
+from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
 from svgplot.data._columns import column_length, extract_columns
 from svgplot.data._missing import is_missing
 from svgplot.theme.base import Theme
@@ -171,11 +171,34 @@ def _squarify(entries: list[tuple[str, float]], area: PlotArea) -> list[_Tile]:
     return tiles
 
 
+def _tile_tooltip(*, values: str, label: str, value: float, total: float) -> str:
+    """What one tile's ``<title>`` says: its name, its value, and its share of the whole.
+
+    **The name is the part the picture cannot always give.** A tile draws its label only when
+    it is at least ``_MIN_LABEL_WIDTH`` x ``_MIN_LABEL_HEIGHT``, and a long name is shortened
+    to fit even then -- so the smallest tiles, which are exactly the ones a reader has to look
+    up, are anonymous rectangles. The legend names them, but matching a legend row to a tile in
+    a squarified layout means hunting by colour.
+
+    The share is here because it is what a treemap encodes: area is proportional to value, so
+    "12.4%" is a reading of the picture rather than an extra fact about the data. Rounded to
+    one decimal -- a share is a proportion of a total the reader can also see, not a
+    measurement, and seventeen digits of one would be the longest thing in the tooltip.
+    """
+    parts = []
+    if (shown := format_label(label)) is not None:
+        parts.append(shown)
+    parts.append(clause(values, format_number(value)))
+    parts.append(f"{value / total * 100:.1f}%")
+    return " · ".join(parts)
+
+
 def treemap(
     data: object,
     values: str,
     labels: str | None = None,
     *,
+    tooltip: bool = False,
     width: float | None = None,
     height: float | None = None,
     theme: Theme | str | None = None,
@@ -189,6 +212,22 @@ def treemap(
 
     Only a single level of tiles is drawn; nested/hierarchical treemaps are out
     of scope (see this module's docstring).
+
+    ``tooltip=True`` gives every tile a ``<title>`` naming it, its value and its share of the
+    whole. **It is how a tile too small for a label says its name**: a label is drawn only at
+    40x16 px or larger, so the smallest tiles -- the ones a reader has to look up -- are
+    anonymous rectangles, and matching a legend row to one in a squarified layout means hunting
+    by colour. The share is a reading of the picture rather than an extra fact: this chart
+    encodes value as area, so "40.0%" is what the tile's size means.
+
+    Turning it on also gives the in-tile labels ``pointer-events: none``. A label sits *inside*
+    its tile and intercepts the pointer exactly where the reader is looking, so without that the
+    tile's own ``<title>`` is unreachable there and the label's truncation ``<title>`` comes up
+    instead. With ``tooltip=False`` that label ``<title>`` is the only thing under the pointer,
+    and taking the label out of the way would delete the one way to read the full name -- which
+    is why the rule is conditional.
+
+    ``tooltip=False`` is the default; off, the file is what it was.
 
     ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
     call that does not mention them is byte-identical to one written before they existed. The
@@ -248,6 +287,9 @@ def treemap(
     plot_pixels = area.width * area.height
     scaled = sorted(((label, value / total * plot_pixels) for label, value in pairs), key=lambda pair: -pair[1])
     tiles = _squarify(scaled, area)
+    # A tile knows its pixel area, not the value it came from, and dividing back out would
+    # reintroduce the rounding the scaling put in. ``pairs`` is what the caller gave.
+    by_label = dict(pairs)
 
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
@@ -255,7 +297,7 @@ def treemap(
         series_class = document.semantic_class("series")
         series_classes.append(series_class)
         legend_entries.append((tile.label, series_class))
-        document.add_node(
+        rect = document.add_node(
             None,
             "rect",
             attrib={
@@ -266,6 +308,10 @@ def treemap(
             },
             classes=[series_class],
         )
+        if tooltip:
+            add_tooltip(
+                document, rect, _tile_tooltip(values=values, label=tile.label, value=by_label[tile.label], total=total)
+            )
         if tile.width >= _MIN_LABEL_WIDTH and tile.height >= _MIN_LABEL_HEIGHT:
             # Centred in its tile, so a long label runs out both sides, over the neighbouring
             # tiles and their labels. Measured before this, ``"W" * 40`` on a 196.7px tile
@@ -300,7 +346,17 @@ def treemap(
     )
     # mark_style="outlined" (issue #62, landing concurrently) is the intended final
     # style here so tile seams stay visible; "fill" is the closest thing available today.
-    render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
+    render_theme_style(
+        document,
+        resolved_theme,
+        series_classes,
+        mark_style="fill",
+        # Only when the tiles have something to say. With ``tooltip=False`` the label's own
+        # ``<title>`` -- the full name, when the name had to be shortened -- is the only thing
+        # under the pointer there, and taking the label out of the pointer's way would delete
+        # the one way to read it.
+        transparent_to_pointer=("treemap-label",) if tooltip else (),
+    )
 
     magnitudes = [value for _, value in pairs]
     description = describe(
