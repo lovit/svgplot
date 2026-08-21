@@ -1,8 +1,20 @@
 from __future__ import annotations
 
+import importlib
+import re
+import sys
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import pytest
+
+# ``gallery`` is repo-root source, not part of the installed package.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from gallery import interaction
+from gallery.example import load
+from gallery.interaction import resolve
+from gallery.page import chart_page
 
 from _svg_probe import style_rule
 from svgplot.charts._layout import SPARKLINE_HEIGHT, SPARKLINE_WIDTH
@@ -212,25 +224,73 @@ def test_the_gallery_emitter_refuses_a_toggle_for_a_sparkline() -> None:
     A control needs a name and names come from the legend, and this chart draws none: one
     series, and its name is already in the sentence the picture sits in.
     """
-    import sys
-    from pathlib import Path
-
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from gallery.interaction import resolve
-
     svg = sparkline(DATA, y="v").set_scope("svgplot-sparkline-1").to_string()
 
     with pytest.raises(ValueError, match="no legend entry"):
         resolve("svgplot-sparkline-1", "toggle", svg)
 
 
-def test_the_line_is_two_pixels_of_a_twenty_four_pixel_picture() -> None:
-    """Why there is no ``:hover`` either. The stroke is the whole hit target -- an unfilled
-    path has no interior to catch a pointer -- and here it is 2px of a 24px-tall chart."""
-    rule = style_rule(sparkline(DATA, y="v").to_string(), ".series-1")
+def test_the_sparkline_page_carries_no_control_no_hover_and_no_mark_tooltip() -> None:
+    """The page opens by saying it has none of the three, and that sentence is the first one
+    that will rot: fifteen sibling issues are adding exactly those to the other pages.
 
-    assert "fill: none" in rule
-    assert "stroke-width: 2" in rule
+    Rendered here rather than read off ``docs/``, for ``test_gallery_interaction.py``'s reason
+    -- reading the committed file measures whether it is stale, which the byte-diff already
+    does, instead of measuring the generator.
+    """
+    page = load(importlib.import_module("gallery.examples.sparkline"), "sparkline")
+    html = chart_page(page)
+    marks_with_a_title = [figure for figure in re.findall(r"<svg\b.*?</svg>", html, re.S) if "</title></" in figure]
+
+    assert 'class="series-toggle"' not in html
+    assert ":hover" not in html
+    assert not marks_with_a_title, "a mark grew a <title>, which is the browser's own tooltip"
+
+
+def test_the_charts_own_title_is_not_the_first_child() -> None:
+    """Why "no tooltip" is true of a chart that does emit a ``<title>``.
+
+    The browser shows an element's **first** ``<title>`` child, and the accessible name this
+    package emits lands near the end of the root -- after the marks and the ``<style>``. The
+    page's claim rests on that ordering, so the ordering is pinned here rather than assumed.
+    """
+    root = parse(sparkline(DATA, y="v").to_string())
+    tags = [node.tag.removeprefix(SVG_NS) for node in root]
+
+    assert tags.index("title") > tags.index("path"), f"the chart title moved in front of the marks: {tags}"
+
+
+def test_the_control_row_is_taller_than_the_default_canvas() -> None:
+    """The page argues from two CSS values, so the two values are read out of the CSS.
+
+    The arithmetic it does with them -- ``0.9rem`` label in a ``line-height: 1.7`` page, plus
+    the checkbox's ``0.75rem`` bottom margin -- is only as good as its assumption that the root
+    is 16px, which the gallery's stylesheet does not set. Both numbers are asserted; the
+    conclusion holds for any root size, because both terms scale with it and the canvas does
+    not.
+    """
+    chrome = interaction.CHROME
+
+    assert "margin: 0 0.3rem 0.75rem 0;" in chrome, "the checkbox's bottom margin moved"
+    assert "font-size: 0.9rem;" in chrome, "the label's size moved"
+    assert SPARKLINE_HEIGHT < (0.9 * 1.7 + 0.75) * 16
+
+
+def test_the_line_is_two_pixels_of_a_twenty_four_pixel_picture() -> None:
+    """Why there is no ``:hover`` either. The stroke is the whole hit target for the series --
+    an unfilled path has no interior to catch a pointer -- and here it is 2px against a default
+    canvas 24px tall.
+
+    Compared as a whole rule, not by substring. ``"stroke-width: 2" in rule`` also passes on
+    ``stroke-width: 25``, and this is not hypothetical: ``theme="print"`` really does emit
+    ``2.5``, so the page names that preset rather than claiming one number for all of them.
+    """
+    assert style_rule(sparkline(DATA, y="v").to_string(), ".series-1") == (
+        ".series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }"
+    )
+    assert style_rule(sparkline(DATA, y="v", theme="print").to_string(), ".series-1") == (
+        ".series-1 { stroke: #E69F00; fill: none; stroke-width: 2.5; opacity: 1; }"
+    )
     assert SPARKLINE_HEIGHT == 24.0
 
 
