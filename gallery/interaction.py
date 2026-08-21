@@ -64,7 +64,36 @@ What it does *not* do is say anything: it is an affordance telling the reader "t
 the value it points at has to come from the mark's own ``<title>``.
 """
 
-KINDS = (TOGGLE, HOVER)
+CELL = "cell"
+"""Emphasise the mark under the pointer, on a chart whose marks are not series.
+
+Same rule shape as :data:`HOVER` and a separate kind because the classes it points at come
+from somewhere else. ``heatmap`` draws one class per *colour level*, so ``series_classes``
+finds nothing and :func:`resolve` would refuse the figure -- and a per-level rule would be
+wrong anyway: pointing at one cell would light every cell of the same shade, which is the
+opposite of "this one" in a chart whose whole problem is that nine shades are hard to tell
+apart.
+
+So this points at the chart's own mark hook -- one class every mark carries and nothing else
+does -- and emits **one** rule for the figure rather than one per series. :data:`MARK_CLASSES`
+is the list of hooks it knows.
+"""
+
+KINDS = (TOGGLE, HOVER, CELL)
+
+MARK_CLASSES = ("heatmap-cell",)
+"""The mark hooks :data:`CELL` can point at, in the order it prefers them.
+
+One entry today, and the reason is narrower than "heatmap is the only chart with a mark hook":
+``scatterplot`` marks its points ``scatter-point``, ``violinplot`` its bodies ``violin-body``,
+and several more do the same. ``heatmap`` is the one chart with a mark hook and **no series
+classes**, so it is the one that :data:`HOVER` cannot serve. The hook carries no colour either
+-- hand-recolouring a heatmap goes through the nine ``level-N`` rules, which is what that
+module's docstring is about.
+
+A chart with no hook this list knows cannot take this kind, and :func:`resolve` says so rather
+than emitting a rule that matches nothing.
+"""
 
 DIM_OPACITY = "0.15"
 """What a switched-off series fades to. Not ``display: none`` -- see :data:`NOTE`."""
@@ -109,7 +138,17 @@ closest category to it that the standard library exposes, which is the whole rea
 exists rather than that property.
 """
 
-_CLASS_ATTRIBUTE = re.compile(r'\bclass="([^"]*)"')
+_CLASS_ATTRIBUTE = re.compile(r'<[a-zA-Z][^>]*?\bclass="([^"]*)"')
+"""Every ``class`` attribute in the picture -- anchored on a tag so *text* cannot supply one.
+
+``xml.etree`` does not escape ``"`` in text content, so a category literally named
+``class="heatmap-cell"`` renders as those characters inside a ``<text>`` element. Without the
+``<tag`` anchor, :func:`resolve` accepted a ``cell`` control on a ``barplot`` carrying that
+label and emitted a rule matching nothing -- which is the outcome the whole "read it from the
+picture" rule exists to prevent. The anchor is not a parser: an attribute value containing
+``>`` would still cut the match short. It is the cheap half of the fix, and the expensive half
+(parsing) buys nothing here, because every generator of these files is this package.
+"""
 _SERIES_CLASS = re.compile(r"^series-(\d+)(?:-marker)?$")
 # A legend row is a swatch element immediately followed by its label, and ``_legend.py``
 # emits nothing between them. Anchoring on the label and looking *back* one element is what
@@ -253,6 +292,16 @@ def resolve(figure: str, kind: str, svg: str) -> Controls:
     if kind not in KINDS:
         raise ValueError(f"{figure}: unknown control kind {kind!r}, expected one of {KINDS}")
 
+    if kind == CELL:
+        # Read from the picture, like everything else here: a hook the emitter *believes* is
+        # there produces a rule that matches nothing, and a rule that matches nothing looks
+        # exactly like a figure whose author asked for no interaction.
+        painted = {name for attribute in _CLASS_ATTRIBUTE.findall(svg) for name in attribute.split()}
+        drawn = [name for name in MARK_CLASSES if name in painted]
+        if not drawn:
+            raise ValueError(f"{figure}: the chart draws no mark hook, so there is nothing to point at; tried {MARK_CLASSES}")
+        return Controls(figure=figure, kind=kind, series=(Series(index=0, label="", classes=(drawn[0],)),))
+
     classes = series_classes(svg)
     labels = legend_labels(svg)
     if not classes:
@@ -306,7 +355,7 @@ def css(controls: Controls, *, toggled_by: Mapping[int, str] | None = None) -> s
     than merely ordered -- a switched-off series does not answer the pointer at all.
     """
     rules = [f"      /* {controls.figure} · {controls.kind} */\n"]
-    if controls.kind == HOVER:
+    if controls.kind in (HOVER, CELL):
         for series in controls.series:
             targets = ", ".join(f".{name}:hover" for name in series.classes)
             if toggled_by and (input_id := toggled_by.get(series.index)):

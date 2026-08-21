@@ -87,6 +87,8 @@
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+      /* svgplot-heatmap-4 · cell */
+      .svgplot-heatmap-4 :is(.heatmap-cell:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
     </style>
   </head>
   <body>
@@ -417,8 +419,125 @@ TRAFFIC = {
     &quot;증감&quot;: [value - 45.0 for value in TRAFFIC[&quot;요청&quot;]],
 }
 sp.heatmap(DIFF, x=&quot;시간&quot;, y=&quot;요일&quot;, values=&quot;증감&quot;, cmap=&quot;coolwarm&quot;, center=0.0, annot=True)</code></pre>
+    <h3>tooltip=True — 셀마다 자기 열·행·값·단계를 말한다</h3>
+    <figure>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-4" role="img" aria-label="tooltip=True — 셀마다 자기 열·행·값·단계를 말한다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="640" y2="550" class="spine" />
+  <line x1="118" y1="30" x2="118" y2="550" class="grid-line" />
+  <line x1="118" y1="550" x2="118" y2="554" class="tick-line" />
+  <text x="118" y="572" text-anchor="middle" class="tick-label">09시</text>
+  <line x1="234" y1="30" x2="234" y2="550" class="grid-line" />
+  <line x1="234" y1="550" x2="234" y2="554" class="tick-line" />
+  <text x="234" y="572" text-anchor="middle" class="tick-label">12시</text>
+  <line x1="350" y1="30" x2="350" y2="550" class="grid-line" />
+  <line x1="350" y1="550" x2="350" y2="554" class="tick-line" />
+  <text x="350" y="572" text-anchor="middle" class="tick-label">15시</text>
+  <line x1="466" y1="30" x2="466" y2="550" class="grid-line" />
+  <line x1="466" y1="550" x2="466" y2="554" class="tick-line" />
+  <text x="466" y="572" text-anchor="middle" class="tick-label">18시</text>
+  <line x1="582" y1="30" x2="582" y2="550" class="grid-line" />
+  <line x1="582" y1="550" x2="582" y2="554" class="tick-line" />
+  <text x="582" y="572" text-anchor="middle" class="tick-label">21시</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="116.666667" x2="640" y2="116.666667" class="grid-line" />
+  <line x1="56" y1="116.666667" x2="60" y2="116.666667" class="tick-line" />
+  <text x="54" y="120.666667" text-anchor="end" class="tick-label">월</text>
+  <line x1="60" y1="290" x2="640" y2="290" class="grid-line" />
+  <line x1="56" y1="290" x2="60" y2="290" class="tick-line" />
+  <text x="54" y="294" text-anchor="end" class="tick-label">수</text>
+  <line x1="60" y1="463.333333" x2="640" y2="463.333333" class="grid-line" />
+  <line x1="56" y1="463.333333" x2="60" y2="463.333333" class="tick-line" />
+  <text x="54" y="467.333333" text-anchor="end" class="tick-label">금</text>
+  <rect x="60" y="30" width="116" height="173.333333" class="level-1 heatmap-cell">
+    <title>시간: 09시 · 요일: 월 · 요청: 12 · level 1 of 9</title>
+  </rect>
+  <rect x="60" y="203.333333" width="116" height="173.333333" class="level-1 heatmap-cell">
+    <title>시간: 09시 · 요일: 수 · 요청: 18 · level 1 of 9</title>
+  </rect>
+  <rect x="60" y="376.666667" width="116" height="173.333333" class="level-2 heatmap-cell">
+    <title>시간: 09시 · 요일: 금 · 요청: 22 · level 2 of 9</title>
+  </rect>
+  <rect x="176" y="30" width="116" height="173.333333" class="level-5 heatmap-cell">
+    <title>시간: 12시 · 요일: 월 · 요청: 48 · level 5 of 9</title>
+  </rect>
+  <rect x="176" y="203.333333" width="116" height="173.333333" class="level-6 heatmap-cell">
+    <title>시간: 12시 · 요일: 수 · 요청: 52 · level 6 of 9</title>
+  </rect>
+  <rect x="176" y="376.666667" width="116" height="173.333333" class="level-7 heatmap-cell">
+    <title>시간: 12시 · 요일: 금 · 요청: 66 · level 7 of 9</title>
+  </rect>
+  <rect x="292" y="30" width="116" height="173.333333" class="level-3 heatmap-cell">
+    <title>시간: 15시 · 요일: 월 · 요청: 35 · level 3 of 9</title>
+  </rect>
+  <rect x="292" y="203.333333" width="116" height="173.333333" class="level-4 heatmap-cell">
+    <title>시간: 15시 · 요일: 수 · 요청: 41 · level 4 of 9</title>
+  </rect>
+  <rect x="292" y="376.666667" width="116" height="173.333333" class="level-5 heatmap-cell">
+    <title>시간: 15시 · 요일: 금 · 요청: 47 · level 5 of 9</title>
+  </rect>
+  <rect x="408" y="30" width="116" height="173.333333" class="level-7 heatmap-cell">
+    <title>시간: 18시 · 요일: 월 · 요청: 61 · level 7 of 9</title>
+  </rect>
+  <rect x="408" y="203.333333" width="116" height="173.333333" class="level-6 heatmap-cell">
+    <title>시간: 18시 · 요일: 수 · 요청: 58 · level 6 of 9</title>
+  </rect>
+  <rect x="408" y="376.666667" width="116" height="173.333333" class="level-9 heatmap-cell">
+    <title>시간: 18시 · 요일: 금 · 요청: 82 · level 9 of 9</title>
+  </rect>
+  <rect x="524" y="30" width="116" height="173.333333" class="level-5 heatmap-cell">
+    <title>시간: 21시 · 요일: 월 · 요청: 44 · level 5 of 9</title>
+  </rect>
+  <rect x="524" y="203.333333" width="116" height="173.333333" class="level-4 heatmap-cell">
+    <title>시간: 21시 · 요일: 수 · 요청: 39 · level 4 of 9</title>
+  </rect>
+  <rect x="524" y="376.666667" width="116" height="173.333333" class="level-8 heatmap-cell">
+    <title>시간: 21시 · 요일: 금 · 요청: 71 · level 8 of 9</title>
+  </rect>
+  <rect x="660" y="25" width="16" height="10" class="level-1" />
+  <text x="682" y="34" class="legend-text">12</text>
+  <rect x="660" y="45" width="16" height="10" class="level-2" />
+  <text x="682" y="54" class="legend-text">19.777778</text>
+  <rect x="660" y="65" width="16" height="10" class="level-3" />
+  <text x="682" y="74" class="legend-text">27.555556</text>
+  <rect x="660" y="85" width="16" height="10" class="level-4" />
+  <text x="682" y="94" class="legend-text">35.333333</text>
+  <rect x="660" y="105" width="16" height="10" class="level-5" />
+  <text x="682" y="114" class="legend-text">43.111111</text>
+  <rect x="660" y="125" width="16" height="10" class="level-6" />
+  <text x="682" y="134" class="legend-text">50.888889</text>
+  <rect x="660" y="145" width="16" height="10" class="level-7" />
+  <text x="682" y="154" class="legend-text">58.666667</text>
+  <rect x="660" y="165" width="16" height="10" class="level-8" />
+  <text x="682" y="174" class="legend-text">66.444444</text>
+  <rect x="660" y="185" width="16" height="10" class="level-9" />
+  <text x="682" y="194" class="legend-text">74.222222</text>
+  <style>:where(.svgplot-heatmap-4) .plot-background { fill: #ffffff; }
+:where(.svgplot-heatmap-4) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-heatmap-4) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-heatmap-4) .tick-line { stroke: #333333; }
+:where(.svgplot-heatmap-4) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-heatmap-4) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-heatmap-4) .level-1 { fill: #e7f2fe; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-4) .level-2 { fill: #c1defc; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-4) .level-3 { fill: #9bcafa; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-4) .level-4 { fill: #74b5f8; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-4) .level-5 { fill: #4ea1f6; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-4) .level-6 { fill: #288df4; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-4) .level-7 { fill: #0c79e8; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-4) .level-8 { fill: #0a65c2; stroke: none; opacity: 1; }
+:where(.svgplot-heatmap-4) .level-9 { fill: #08519c; stroke: none; opacity: 1; }</style>
+  <title>tooltip=True — 셀마다 자기 열·행·값·단계를 말한다</title>
+  <desc>Heatmap, 5 columns (09시, 12시, 15시, 18시, 21시), 3 rows (월, 수, 금), 15 of 15 cells filled, values 12 to 82, quantised into 9 levels.</desc>
+</svg>
+    </figure>
+    <pre><code>sp.heatmap(TRAFFIC, x=&quot;시간&quot;, y=&quot;요일&quot;, values=&quot;요청&quot;, tooltip=True)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
+      <li>네 번째 그림에는 체크박스가 없다. 단계는 값의 구간이지 시리즈가 아니라서, 토글을 달면 &quot;3단계를 끄시오&quot; 가 되는데 그건 범례가 아니라 데이터 편집이다. 대신 커서가 얹힌 셀에 테두리가 생긴다 — 이 페이지의 CSS 이고 JavaScript 는 0줄이다.</li>
+      <li>tooltip=True 가 정확한 값에 닿는 유일한 길이다. 색은 9단계로 양자화된 구간이라 한 단계 차이나는 두 셀이 거의 같을 수도 있고 같은 색인 두 셀이 거의 한 단계만큼 다를 수도 있다. annot=True 가 숫자를 그리지만 셀이 글자를 담을 만큼 클 때뿐이고, 범례는 셀이 아니라 단계에 이름을 붙인다.</li>
+      <li>단계 번호는 값과 다른 것을 답한다 — 두 셀이 눈금에서 얼마나 떨어져 있느냐. 51 과 49 는 한 단계 차이일 수도 같은 단계일 수도 있고, 격자를 가로질러 색을 눈으로 견주는 것은 안 되지만 서수는 된다. 범례가 그 번호로 매겨져 있는 건 아니다 — 범례는 각 단계가 시작하는 값을 적는다.</li>
+      <li>셀 하나에 &lt;title&gt; 하나이므로 격자가 크면 파일이 그만큼 커진다. tooltip=False 가 기본인 이유다 — 200x200 빽빽한 격자는 3,352.6KB 에서 6,345.6KB 가 된다. 크기 경고도 이 값을 함께 센다: 그 항이 없으면 경고가 3,385KB 라고 말하는데 46.7% 낮다.</li>
       <li>long-form (x, y, value) 를 받는다. 행렬 모양의 wide-form 이 아니다.</li>
       <li>셀 하나에 행이 둘이면 거부한다. 어느 값을 쓸지 정하는 것은 이 차트의 몫이 아니다.</li>
       <li>빠진 셀은 0 이 아니라 구멍으로 남는다 — 값이 0 인 것과 값이 없는 것은 다르다.</li>

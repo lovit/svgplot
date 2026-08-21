@@ -12,6 +12,7 @@ from svgplot.charts.heatmap import (
     _BYTES_FIXED,
     _BYTES_PER_CELL,
     _BYTES_PER_TICK,
+    _BYTES_PER_TOOLTIP,
     _WARN_CELL_COUNT,
     LEVELS,
     _composited,
@@ -273,7 +274,7 @@ def _diagonal(side: int) -> dict[str, list]:
     }
 
 
-def _estimated_and_actual_kb(data: dict[str, list]) -> tuple[float, float]:
+def _estimated_and_actual_kb(data: dict[str, list], *, tooltip: bool = False) -> tuple[float, float]:
     """The formula's own answer and the real serialized size, both in KB.
 
     The formula is called directly rather than read out of the warning, because the 50x50
@@ -282,10 +283,11 @@ def _estimated_and_actual_kb(data: dict[str, list]) -> tuple[float, float]:
     """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", HeatmapSizeWarning)
-        chart = heatmap(data, x="col", y="row", values="v")
+        chart = heatmap(data, x="col", y="row", values="v", tooltip=tooltip)
     drawn = len(data["v"])
     ticks = len(set(data["col"])) + len(set(data["row"]))
-    estimated = (drawn * _BYTES_PER_CELL + ticks * _BYTES_PER_TICK + _BYTES_FIXED) // 1024
+    per_cell = _BYTES_PER_CELL + (_BYTES_PER_TOOLTIP if tooltip else 0)
+    estimated = (drawn * per_cell + ticks * _BYTES_PER_TICK + _BYTES_FIXED) // 1024
     return estimated, len(chart.to_string()) / 1024
 
 
@@ -785,3 +787,166 @@ def test_the_fixed_term_reproduces_the_chart_it_is_anchored_to() -> None:
     one_cell = heatmap({"col": ["a"], "row": ["p"], "v": [1.0]}, x="col", y="row", values="v")
 
     assert len(one_cell.to_string()) == 1 * _BYTES_PER_CELL + 2 * _BYTES_PER_TICK + _BYTES_FIXED
+
+
+# --------------------------------------------------------------------------------- tooltips
+
+
+def _cell_titles(svg: str) -> list[str]:
+    """The ``<title>`` that is a cell ``<rect>``'s first child, in document order.
+
+    Matched through the mark rather than by taking every ``<title>``: an axis tick whose label
+    had to be shortened carries one too, and it comes before the cells.
+    """
+    return re.findall(r'<rect\b[^>]*\bclass="[^"]*\bheatmap-cell\b[^"]*"[^>]*>\s*<title>([^<]*)</title>', svg)
+
+
+def test_a_cell_tooltip_names_its_place_its_value_and_its_shade() -> None:
+    """The colour is a bucket, so the exact value is not on screen anywhere else. The level is
+    said too because it is what the legend is keyed on."""
+    svg = heatmap(GRID, x="col", y="row", values="v", tooltip=True).to_string()
+
+    assert _cell_titles(svg) == [
+        "col: a · row: p · v: 1 · level 1 of 9",
+        "col: a · row: q · v: 2 · level 2 of 9",
+        "col: b · row: p · v: 3 · level 4 of 9",
+        "col: b · row: q · v: 4 · level 6 of 9",
+        "col: c · row: p · v: 5 · level 8 of 9",
+        "col: c · row: q · v: 6 · level 9 of 9",
+    ]
+
+
+def test_the_level_a_cell_says_is_the_level_it_is_painted() -> None:
+    """The number in the tooltip and the class on the rect come from one ``level``; computing
+    the sentence a second way would let a cell claim a shade it is not drawn in, and nothing on
+    screen would contradict it. Read back from the file rather than from the fixture."""
+    svg = heatmap(GRID, x="col", y="row", values="v", tooltip=True).to_string()
+    painted = re.findall(r'<rect\b[^>]*\bclass="(level-\d+) heatmap-cell"[^>]*>\s*<title>([^<]*)</title>', svg)
+    said = {name: int(title.split("level ")[1].split(" ")[0]) for name, title in painted}
+
+    assert len(said) == len(painted), "two cells of the same class disagreed about their level"
+    assert sorted(said.items()) == sorted((f"level-{number}", number) for number in said.values())
+
+
+def test_the_shade_is_not_a_function_of_how_close_two_values_are() -> None:
+    """Both halves of the claim the feature rests on, on one fixture: 0 and 5 land in the *same*
+    shade while 11 and 12 land in different ones, on a 0..100 scale. So neither "same colour" nor
+    "one shade apart" tells a reader how far apart two cells are, and the tooltip is the only
+    thing in the picture that does.
+
+    The earlier version of this test asserted only the second half and its name promised the
+    first."""
+    grid = {"col": list("abcde"), "row": ["p"] * 5, "v": [0.0, 5.0, 11.0, 12.0, 100.0]}
+    said = _cell_titles(heatmap(grid, x="col", y="row", values="v", tooltip=True).to_string())
+    levels = [title.split("level ")[1] for title in said]
+    values = [title.split("v: ")[1].split(" ")[0] for title in said]
+
+    assert values == ["0", "5", "11", "12", "100"], said
+    assert levels[0] == levels[1], "5 apart, same shade"
+    assert levels[2] != levels[3], "1 apart, different shades"
+
+
+def test_a_missing_cell_gets_no_rect_and_so_no_tooltip() -> None:
+    """A hole is not a zero. There is no mark to hang an accessible name on, and inventing one
+    would name a cell the chart deliberately did not draw."""
+    sparse = {"col": ["a", "b"], "row": ["p", "q"], "v": [1.0, 2.0]}
+    svg = heatmap(sparse, x="col", y="row", values="v", tooltip=True).to_string()
+
+    assert len(_cell_titles(svg)) == 2, "a 2x2 grid holding two cells"
+
+
+def test_the_default_draws_no_tooltip_and_saying_so_changes_nothing() -> None:
+    """What this can check is that ``tooltip=False`` is the same call as not writing it, and
+    that neither titles a cell. It is deliberately not named for byte-identity with the version
+    before ``tooltip=`` existed, which it cannot see -- both sides are this branch's code.
+    ``docs/gallery/*.html`` holds those bytes."""
+    omitted = heatmap(GRID, x="col", y="row", values="v").to_string()
+    explicit = heatmap(GRID, x="col", y="row", values="v", tooltip=False).to_string()
+
+    assert omitted == explicit
+    assert _cell_titles(omitted) == []
+
+
+@pytest.mark.parametrize(
+    ("name", "data"),
+    [
+        ("50x50 dense", _square(50)),
+        ("100x100 dense", _square(100)),
+        ("100x100 diagonal", _diagonal(100)),
+        ("200x200 diagonal", _diagonal(200)),
+    ],
+)
+def test_the_estimate_holds_with_tooltips_on_at_those_same_points(name: str, data: dict[str, list]) -> None:
+    """``tooltip=True`` roughly doubles the per-cell cost, and the estimate has to follow it or
+    the warning stops being usable exactly where it is needed most: a 200x200 dense grid is
+    6,345.6 KB and the two-term model puts it at 3,385, which is 46.7% low.
+
+    Held to the same four points and the same 5% as the model without tooltips, so the new term
+    cannot be fitted to a fixture of its own.
+    """
+    estimated, actual = _estimated_and_actual_kb(data, tooltip=True)
+
+    assert estimated == pytest.approx(actual, rel=0.05), f"{name}: {estimated} vs {actual:.1f} KB"
+
+
+def test_turning_tooltips_on_moves_the_number_the_warning_prints() -> None:
+    """The other half: the term has to reach the warning, not only the helper above. Deleting
+    it from ``_warn_if_large`` leaves the estimate identical either way, which reads as "the
+    tooltips are free"."""
+    grid = _square(100)
+
+    with pytest.warns(HeatmapSizeWarning) as record:
+        heatmap(grid, x="col", y="row", values="v")
+        heatmap(grid, x="col", y="row", values="v", tooltip=True)
+    quiet, loud = (int(re.search(r"~(\d+) KB", str(caught.message)).group(1)) for caught in record)
+
+    assert loud > quiet * 1.5, f"{quiet} KB -> {loud} KB"
+
+
+def test_a_cell_says_its_value_exactly_not_rounded_to_pixel_precision() -> None:
+    """``format_coord`` is next door and rounds to six decimals, because it writes *pixels*.
+    Borrowing it here would round the one number the tooltip exists to deliver: ``1e-07``
+    becomes ``0`` and ``1.23456789`` becomes ``1.234568``. A heatmap already quantises the
+    colour; quantising the tooltip too would leave nothing exact in the file."""
+    tiny = {"col": ["a", "b"], "row": ["p", "p"], "v": [1e-07, 1.23456789]}
+    said = [
+        title.split("v: ")[1].split(" · ")[0]
+        for title in _cell_titles(heatmap(tiny, x="col", y="row", values="v", tooltip=True).to_string())
+    ]
+
+    assert said == ["1e-07", "1.23456789"]
+
+
+def test_the_tooltip_term_is_scaled_by_the_drawn_cells_not_the_grid() -> None:
+    """The sparse case, with tooltips on, read out of the *warning* rather than recomputed by
+    the test helper -- ``_estimated_and_actual_kb`` re-implements the formula, so a change
+    inside ``_warn_if_large`` is invisible to it, and the two tests that do read the warning
+    both use a dense grid where ``drawn == cell_count``.
+
+    Scaling the new term by the grid instead of the drawn cells reports **~725 KB** for a file
+    that is 50.1 KB, and every test in the suite stays green without this one."""
+    side = 100
+    sparse = {
+        "col": [f"x{index}" for index in range(side)],
+        "row": [f"y{index}" for index in range(side)],
+        "v": [float(index) for index in range(side)],
+    }
+    with pytest.warns(HeatmapSizeWarning) as record:
+        chart = heatmap(sparse, x="col", y="row", values="v", tooltip=True)
+
+    estimated = int(re.search(r"~(\d+) KB", str(record[0].message)).group(1))
+    actual = len(chart.to_string()) / 1024
+
+    assert len(_cells(chart.to_string())) == side, "the fixture stopped being sparse"
+    assert estimated == pytest.approx(actual, rel=0.05), f"{estimated} KB against {actual:.1f}"
+
+
+def test_a_cell_value_is_not_spelled_the_way_the_axis_spells_it() -> None:
+    """``format_number`` picks the shorter of two *exact* spellings; ``format_value_label`` is a
+    plain decimal literal and expands scientific notation back into digits. On its own the
+    ``format_coord`` guard above does not separate the two -- both round nothing here -- so this
+    is the half that pins the choice ``format_number`` exists to make."""
+    huge = {"col": ["a", "b"], "row": ["p", "p"], "v": [1.0, 1e308]}
+    said = _cell_titles(heatmap(huge, x="col", y="row", values="v", tooltip=True).to_string())
+
+    assert said == ["col: a · row: p · v: 1 · level 1 of 9", "col: b · row: p · v: 1e+308 · level 9 of 9"]

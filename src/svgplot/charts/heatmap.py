@@ -44,6 +44,7 @@ from svgplot.charts._layout import (
 )
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
 from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.palette._color import hex_to_rgb01
@@ -108,6 +109,34 @@ Refitted whenever the drawn output changes, because it is a fit and not a deriva
 moved twice: once when label thinning stopped the tick count tracking the grid, and once when
 long labels started carrying a ``<title>`` of their own."""
 
+_BYTES_PER_TOOLTIP = 70
+"""What ``tooltip=True`` adds per *drawn* cell -- fitted the same way as :data:`_BYTES_PER_CELL`.
+
+A term rather than a footnote because this is the chart where the size warning is load-bearing.
+A 200x200 dense grid with tooltips serializes to **6,345.6 KB** (bytes, not characters -- the
+``\u00b7`` separators are two bytes each, which is 117 KB of the total). With this term the
+warning says 6,119, **-3.6%**; without it 3,385, **-46.7%**. A warning that understates a 6 MB
+file by half is worse than none, because the reader acts on it.
+
+Fitted over the same four points :data:`_BYTES_PER_TICK` cites, worst error **2.27%**: 50x50
+dense 396 vs 404.1 KB (-2.01%), 100x100 dense 1,547 vs 1,555.5 KB (-0.54%), 100x100 diagonal 49
+vs 50.1 KB (-2.27%), 200x200 diagonal 95 vs 94.0 KB (+1.05%). Those four label their axes
+``x0``..``x199`` and hold values up to ``9999.0``; the 200x200 *dense* grid quoted above is not
+one of them, which is why its error is larger than the fit's worst.
+
+**It is a fit against ordinary labels, not a ceiling.** A cell's ``<title>`` repeats two column
+names, two labels and a value, and each of those is capped independently at
+``_tooltip.MAX_TOOLTIP_CHARS`` -- so the real worst case is around four times that, not 120.
+Measured with 120-character names *and* 120-character labels on a 60x60 grid: a 512-character
+``<title>`` and **1,494.7 bytes per cell** (Hangul is three bytes in UTF-8), against the 70
+modelled here. Neither is ``annot=True`` modelled, and the two-term model
+does not absorb it either: 100x100 dense with ``annot=True`` is 2,265.0 KB against an 863 KB
+estimate, **-61.9%**. That one predates this argument.
+
+Scaled by the *drawn* count, not the grid count, for :func:`_warn_if_large`'s reason: an undrawn
+cell has no rect and so no ``<title>``.
+"""
+
 _INK_FLIP_LUMINANCE = math.sqrt(1.05 * 0.05) - 0.05
 """Relative luminance at which black and white give a cell exactly the same contrast.
 
@@ -164,7 +193,7 @@ def _ordered(columns: list, keep: set[str]) -> list[str]:
     return seen
 
 
-def _warn_if_large(cell_count: int, *, drawn: int, ticks: int) -> None:
+def _warn_if_large(cell_count: int, *, drawn: int, ticks: int, tooltip: bool) -> None:
     """Warn on the *grid* size but size the estimate by the cells actually drawn.
 
     The two differ on a sparse grid, and each is right for its own half of the argument:
@@ -173,7 +202,8 @@ def _warn_if_large(cell_count: int, *, drawn: int, ticks: int) -> None:
     """
     if cell_count <= _WARN_CELL_COUNT:
         return
-    estimate = (drawn * _BYTES_PER_CELL + ticks * _BYTES_PER_TICK + _BYTES_FIXED) // 1024
+    per_cell = _BYTES_PER_CELL + (_BYTES_PER_TOOLTIP if tooltip else 0)
+    estimate = (drawn * per_cell + ticks * _BYTES_PER_TICK + _BYTES_FIXED) // 1024
     warnings.warn(
         f"heatmap has {cell_count} cells (~{estimate} KB of SVG); "
         f"above {_WARN_CELL_COUNT} cells the output gets large and each cell too small to read. "
@@ -181,6 +211,34 @@ def _warn_if_large(cell_count: int, *, drawn: int, ticks: int) -> None:
         HeatmapSizeWarning,
         stacklevel=3,
     )
+
+
+def _cell_tooltip(*, x: str, y: str, values: str, column: object, row: object, magnitude: float, level: int) -> str:
+    """What one cell's ``<title>`` says: where it is, what it holds, and which shade that is.
+
+    **The exact value is the point.** A heatmap quantises into :data:`LEVELS` shades, so the
+    colour a reader sees is a *bucket*: two cells one shade apart can differ by almost nothing,
+    and two cells the same shade by almost a whole step. Nothing else in the picture recovers
+    the number -- ``annot=True`` draws it, but only where the cells are big enough to hold text,
+    and the legend labels the steps rather than the cells.
+
+    The level is said too, and it answers a different question from the value: *how far apart
+    are these two cells on the scale*. Two cells reading 51 and 49 may be one shade apart or
+    the same shade, and the colour cannot be compared by eye across a grid -- an ordinal can.
+
+    **It is not what the legend is keyed on**, and an earlier version of this paragraph said it
+    was. The legend labels each swatch with the *value that level starts at* (``_level_label``),
+    so a reader holding "level 5 of 9" still counts swatches to find it. 1-based anyway, because
+    "level 0 of 9" is not a thing a reader counts.
+    """
+    parts = []
+    if (shown := format_label(column)) is not None:
+        parts.append(clause(x, shown))
+    if (shown := format_label(row)) is not None:
+        parts.append(clause(y, shown))
+    parts.append(clause(values, format_number(magnitude)))
+    parts.append(f"level {level + 1} of {LEVELS}")
+    return " · ".join(parts)
 
 
 def heatmap(
@@ -192,6 +250,7 @@ def heatmap(
     cmap: str = "blues",
     center: float | None = None,
     annot: bool = False,
+    tooltip: bool = False,
     width: float | None = None,
     height: float | None = None,
     theme: Theme | str | None = None,
@@ -210,6 +269,21 @@ def heatmap(
     ``annot=True`` writes each value into its cell. Placement uses the cell's own geometry
     only -- this package has no font metrics, so a label is centred on the rect rather than
     fitted to it.
+
+    ``tooltip=True`` gives every cell a ``<title>`` naming its column, its row, its exact value
+    and which of the :data:`LEVELS` shades that is -- in that order, the order the arguments are
+    written in. **It is the only way to recover the value.**
+    The colour is a bucket, so two cells one shade apart can differ by almost nothing and two
+    cells the same shade by almost a whole step; ``annot=True`` draws the number but only where
+    the cells are big enough to hold text, and the legend labels the steps rather than the
+    cells. A browser shows the ``<title>`` on hover and it is also the cell's accessible name,
+    so the grid becomes named nodes rather than one anonymous block. It works only where the SVG
+    is *inlined* into the page: inside an ``<img>`` the file is a separate document and the
+    browser draws it without interaction.
+
+    ``tooltip=False`` is the default, and this is the chart where that matters most: a
+    ``<title>`` per cell is an element per cell, and cell counts here run to the thousands --
+    see the warning below, which exists for the same reason. Off, the file is what it was.
 
     Warns:
         HeatmapSizeWarning: above :data:`_WARN_CELL_COUNT` cells. The chart still renders;
@@ -246,7 +320,7 @@ def heatmap(
 
     columns = _ordered(longform.columns[x], {key[0] for key in cells})
     rows = _ordered(longform.columns[y], {key[1] for key in cells})
-    _warn_if_large(len(columns) * len(rows), drawn=len(cells), ticks=len(columns) + len(rows))
+    _warn_if_large(len(columns) * len(rows), drawn=len(cells), ticks=len(columns) + len(rows), tooltip=tooltip)
 
     magnitudes = list(cells.values())
     normalize = Normalize.from_values(magnitudes, center=center)
@@ -301,7 +375,7 @@ def heatmap(
                 continue  # a hole, not a zero
             level = min(int(normalize(magnitude) * LEVELS), LEVELS - 1)
             left, top = x_scale(column), y_scale(row)
-            document.add_node(
+            cell = document.add_node(
                 None,
                 "rect",
                 attrib={
@@ -312,6 +386,12 @@ def heatmap(
                 },
                 classes=[level_classes[level], "heatmap-cell"],
             )
+            if tooltip:
+                add_tooltip(
+                    document,
+                    cell,
+                    _cell_tooltip(x=x, y=y, values=values, column=column, row=row, magnitude=magnitude, level=level),
+                )
             if annot:
                 document.add_text(
                     None,
