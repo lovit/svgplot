@@ -97,6 +97,10 @@ def _rendered() -> list[tuple[str, str]]:
 
     pages = [(page.name, chart_page(page)) for page in discover()]
     pages.append(("built-with-controls", chart_page(_stub([("bars", _BAR)], {1: "toggle"}))))
+    # A page whose only interaction is hover. Without it, nothing separates "this page has
+    # controls" from "this page has a toggle": every real page and every other stub has a
+    # toggle, so emitting the dim note unconditionally reads as correct.
+    pages.append(("built-with-hover-only", chart_page(_stub([("bars", _BAR)], {1: "hover"}))))
     pages.append(("built-with-two", chart_page(_stub([("bars", _BAR), ("boxes", _BOX)], {1: "toggle", 2: "toggle"}))))
     return pages
 
