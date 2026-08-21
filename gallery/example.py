@@ -62,18 +62,33 @@ def _kinds(declared: object) -> tuple[str, ...]:
     because several want a toggle *and* hover -- those are different mechanisms (an ``<input>``
     the reader operates, versus a rule that responds to the pointer) rather than alternatives.
 
+    A figure absent from ``INTERACTIONS`` gets nothing; a figure *present* in it asked for
+    something, so an empty sequence and a repeated kind are both refused rather than read as
+    "nothing" and "twice". ``{2: ()}`` is the same typo class as ``{2: True}`` and would
+    otherwise produce exactly the silence the ``TypeError`` exists to prevent, and
+    ``{2: ("toggle", "toggle")}`` builds a page with two ``<input>`` elements sharing one id --
+    which no page-level check sees until such a page is committed, because
+    ``test_every_control_reference_resolves_on_its_own_page`` compares sets.
+
     Raises:
         TypeError: if the value is neither a string nor a sequence of them, which is how a
             typo like ``{2: True}`` says so at build time rather than by silently emitting
             nothing.
+        ValueError: if the sequence is empty or names a kind twice.
     """
     if declared is None:
         return ()
     if isinstance(declared, str):
-        return (declared,)
-    if isinstance(declared, list | tuple) and all(isinstance(kind, str) for kind in declared):
-        return tuple(declared)
-    raise TypeError(f"INTERACTIONS values must be a kind or a sequence of kinds, got {declared!r}")
+        kinds = (declared,)
+    elif isinstance(declared, list | tuple) and all(isinstance(kind, str) for kind in declared):
+        kinds = tuple(declared)
+    else:
+        raise TypeError(f"INTERACTIONS values must be a kind or a sequence of kinds, got {declared!r}")
+    if not kinds:
+        raise ValueError("an INTERACTIONS entry asks for a control; write no entry at all to ask for none")
+    if len(set(kinds)) != len(kinds):
+        raise ValueError(f"INTERACTIONS names a kind twice, which would repeat an element id: {declared!r}")
+    return kinds
 
 
 def load(module: ModuleType, name: str) -> Page:
