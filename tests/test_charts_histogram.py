@@ -265,6 +265,107 @@ def test_an_xlim_clips_the_bins_to_the_window_the_caller_asked_for() -> None:
     assert edges.x_step == pytest.approx(2.0)
 
 
+# --------------------------------------------------------------------------------- tooltips
+
+
+def _titles(svg: str) -> list[str]:
+    """Bar tooltips, in document order: the ``<title>`` that is a bar ``<rect>``'s first child.
+
+    Matched through the mark rather than by taking every ``<title>`` and dropping the last.
+    **Not** because an axis tick might carry one -- it cannot here: ``_shown_label`` keeps a
+    label whole for any non-``CategoricalScale``, and ``histplot``'s axes are both linear, so no
+    histogram emits a tick ``<title>``. ``[:-1]`` would in fact work on every chart this file
+    builds.
+
+    The reason is that a positional rule is a claim about the whole document while this one is a
+    claim about the mark. ``[:-1]`` stops working the moment anything else in the file grows a
+    ``<title>``, and it stops working *silently* -- a spare title cancels a missing one and the
+    count still matches.
+
+    ``(?<!/)`` so a self-closing rect followed by an unrelated ``<title>`` sibling is not read
+    as a titled bar. Unreachable in today's output, and it is the shape that would let
+    ``_titles(svg) == []`` pass while a bar quietly kept its tooltip.
+    """
+    return re.findall(r'<rect\b[^>]*\bclass="(?:[^"]* )?series-\d+(?: [^"]*)?"[^>]*(?<!/)>\s*<title>([^<]*)</title>', svg)
+
+
+def test_a_bar_tooltip_names_the_interval_it_covers_and_how_many_landed_in_it() -> None:
+    svg = histplot({"value": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]}, x="value", bins=4, tooltip=True).to_string()
+
+    assert _titles(svg) == [
+        "value: [1, 2.75) · 2 observations",
+        "value: [2.75, 4.5) · 2 observations",
+        "value: [4.5, 6.25) · 2 observations",
+        "value: [6.25, 8] · 2 observations",
+    ]
+
+
+def test_only_the_last_bin_says_it_includes_its_right_edge() -> None:
+    """``_count_in_bins`` closes the final bin and only that one, so the maximum value in the
+    data is not silently dropped. The tooltip is where a reader can see which side of a shared
+    boundary a bar claims -- ``2.75`` belongs to the second bar, not the first, and a pair of
+    tooltips reading ``1 - 2.75`` and ``2.75 - 4.5`` would not say so.
+
+    The count is the half that makes this a claim rather than a spelling: the value ``8`` is
+    the maximum and it is in the last bar, which reports two observations rather than one."""
+    titles = _titles(
+        histplot({"value": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]}, x="value", bins=4, tooltip=True).to_string()
+    )
+
+    assert [title.count("]") for title in titles] == [0, 0, 0, 1], "exactly one bar closes on the right"
+    assert titles[-1] == "value: [6.25, 8] · 2 observations", "and it is the one holding the maximum"
+
+
+def test_a_hued_bar_tooltip_names_its_group_too() -> None:
+    svg = histplot(HUE_SERIES, x="value", hue="group", bins=2, tooltip=True).to_string()
+
+    assert all("group: " in title for title in _titles(svg))
+    assert sorted({title.rsplit(" · ", 1)[1] for title in _titles(svg)}) == ["group: a", "group: b"]
+
+
+def test_a_bar_says_a_count_and_cannot_say_which_rows() -> None:
+    """The mark is an aggregate. ``_count_in_bins`` returns counts and the values behind them
+    are not carried past it, so there is nothing downstream that *could* name a row -- and a
+    tooltip naming one of the ten would be describing a mark nobody drew."""
+    svg = histplot({"value": [float(n) for n in range(1, 11)]}, x="value", bins=1, tooltip=True).to_string()
+
+    assert _titles(svg) == ["value: [1, 10] · 10 observations"]
+
+
+def test_the_default_draws_no_tooltip_and_saying_so_changes_nothing() -> None:
+    """What this can check is that ``tooltip=False`` is the same call as not writing it, and
+    that neither emits a mark ``<title>``. It is deliberately not named for byte-identity with
+    the version before ``tooltip=`` existed, which it cannot see -- both sides are this
+    branch's code. ``docs/gallery/*.html`` holds those bytes, and
+    ``test_gallery.py::test_the_committed_gallery_is_what_a_fresh_build_produces`` compares
+    them."""
+    omitted = histplot(HUE_SERIES, x="value", hue="group").to_string()
+    explicit = histplot(HUE_SERIES, x="value", hue="group", tooltip=False).to_string()
+
+    assert omitted == explicit
+    assert _titles(omitted) == []
+
+
+def test_tooltip_on_gives_every_drawn_bar_exactly_one() -> None:
+    """Counted against the bars rather than a number written here: ``histplot`` skips an empty
+    bin instead of drawing a zero-height rect, so how many marks exist is the binning's answer,
+    not the fixture's."""
+    svg = histplot(HUE_SERIES, x="value", hue="group", tooltip=True).to_string()
+    bars = len(_series_bars(svg, "series-1")) + len(_series_bars(svg, "series-2"))
+
+    assert len(_titles(svg)) == bars > 0
+
+
+def test_an_empty_bin_gets_no_bar_and_so_no_tooltip() -> None:
+    """A bin nothing landed in is not drawn, so it has no accessible name either. The gap in
+    the picture is the statement; a ``<title>`` reading "0 observations" would need a mark to
+    hang on, and inventing one is the thing this chart does not do."""
+    svg = histplot({"value": [0.0, 0.0, 10.0]}, x="value", bins=5, tooltip=True).to_string()
+
+    assert len(_titles(svg)) == 2, "five bins, three of them empty"
+    assert "0 observations" not in svg
+
+
 def test_a_narrowing_xlim_leaves_the_clipped_values_out_of_the_bars_too() -> None:
     """The bars, not only what they say. ``xlim=`` narrower than the data is the documented use
     of that argument, and until this was fixed the outermost bars absorbed everything past the
@@ -280,3 +381,74 @@ def test_a_narrowing_xlim_leaves_the_clipped_values_out_of_the_bars_too() -> Non
     assert sum(1 for value in values if value < 8.0 or value > 12.0) == 98, "the fixture stopped clipping"
     unit = max(bar["height"] for bar in bars) / max(real)
     assert [round(bar["height"] / unit) for bar in bars] == real
+
+
+def test_a_narrowing_xlim_drops_the_values_outside_it_rather_than_piling_them_on_the_edges() -> None:
+    """``xlim=`` narrower than the data is the documented use of that argument, and until this
+    was fixed the outermost bars absorbed everything past the window. The bars were already the
+    wrong height on ``main``; ``tooltip=`` is what made them say the wrong number out loud, and
+    the interval they named was untrue as well -- a clamped last bin's real membership rule is
+    ``value >= edges[-2]``, unbounded above.
+
+    Each bar is checked against the raw values rather than against a number written here, so the
+    fixture can change without the expectations going stale."""
+    generator = random.Random(3)
+    values = [generator.gauss(10.0, 3.0) for _ in range(200)]
+    svg = histplot({"v": values}, x="v", xlim=(8.0, 12.0), bins=4, tooltip=True).to_string()
+
+    assert sum(1 for value in values if value < 8.0 or value > 12.0) == 98, "the fixture stopped clipping"
+    for title in _titles(svg):
+        low, high = (float(number) for number in title.split("v: [")[1].split(")")[0].split("]")[0].split(", "))
+        closed = "]" in title
+        said = int(title.split(" · ")[1].split(" ")[0])
+        real = (
+            sum(1 for value in values if low <= value <= high) if closed else sum(1 for value in values if low <= value < high)
+        )
+        assert said == real, f"{title} against {real}"
+
+
+def test_the_description_counts_the_observations_it_drew() -> None:
+    """The same sentence names the window on its next clause, so "200 observations, x 8 to 12"
+    describes a chart nobody drew."""
+    generator = random.Random(3)
+    values = [generator.gauss(10.0, 3.0) for _ in range(200)]
+    chart = histplot({"v": values}, x="v", xlim=(8.0, 12.0), bins=4)
+
+    assert "102 observations in 4 bins, x 8 to 12" in chart.to_string()
+
+
+def test_a_column_name_too_long_to_read_is_dropped_from_the_tooltip() -> None:
+    """A clause naming something the caller typed is written once per bar, so an unreadable one
+    would be the largest thing in the file. Dropped rather than truncated -- half a column name
+    is a different column name -- and the interval stays, because that is what the reader came
+    for. Nothing pinned this: reverting ``clause`` to an f-string left all 3425 tests green."""
+    long_name = "면" * 5000
+    svg = histplot({long_name: [1.0, 2.0, 3.0, 4.0]}, x=long_name, bins=2, tooltip=True).to_string()
+
+    assert _titles(svg) == ["[1, 2.5) · 2 observations", "[2.5, 4] · 2 observations"]
+    assert long_name not in svg
+
+
+def test_a_hue_label_too_long_to_read_is_dropped_from_the_tooltip() -> None:
+    """Same rule, other clause: the legend says the group's name once, a tooltip would say it
+    once per bar per series.
+
+    Counted rather than asserted absent -- the legend legitimately keeps the full text in its
+    own ``<title>``, once, which is where a reader recovers it."""
+    long_label = "온" * 5000
+    data = {"v": [1.0, 2.0, 3.0, 4.0], "g": [long_label, long_label, "b", "b"]}
+    svg = histplot(data, x="v", hue="g", bins=2, tooltip=True).to_string()
+
+    assert _titles(svg) == ["v: [2.5, 4] · 2 observations · g: b", "v: [1, 2.5) · 2 observations"]
+    assert svg.count(long_label) == 1, "the group name is repeated outside the legend"
+
+
+def test_a_bin_edge_is_spelled_exactly_not_at_pixel_precision() -> None:
+    """``format_value_label`` is the axis's spelling and expands scientific notation back into
+    digits: with ``1e308`` in the data the three tooltips below become 332, 639 and 640
+    characters *each, per bar*. ``format_number`` picks the shorter of two exact spellings, so
+    neither rounds and the edge costs at most 24 characters."""
+    svg = histplot({"v": [1.0, 1e308]}, x="v", bins=3, tooltip=True).to_string()
+
+    assert max(len(title) for title in _titles(svg)) < 60, _titles(svg)
+    assert "e+" in "".join(_titles(svg)), "the fixture stopped needing scientific notation"
