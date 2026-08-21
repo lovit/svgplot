@@ -91,6 +91,12 @@ def barplot(
 
     ``orient="v"`` (default) draws vertical bars with categories along the bottom
     axis; ``orient="h"`` draws horizontal bars with categories along the left axis.
+
+    Colour follows ``hue=`` and nothing else. Without it every bar is one series and one
+    colour, however many categories there are -- the categories are already told apart by
+    their position and their axis label, and a palette rotating under them would say that the
+    colour means something. With ``hue=``, each hue value takes a palette entry, so a group is
+    the same colour in every category.
     With ``hue=`` given and ``stacked=False`` (the default), one bar per hue value
     is drawn side by side (dodge) within each category's band, with an
     auto-generated legend. With ``stacked=True``, one full-width bar per category
@@ -101,9 +107,15 @@ def barplot(
     ``categories=`` replaces the category list this chart would take from its own data, and
     ``xlim=``/``ylim=`` its value domain -- whichever names the axis the values run along,
     which ``orient=`` decides. They exist so several charts can be made to agree -- see
-    :func:`~svgplot.layout.facet.facet`. A category with no rows still gets its band and its
-    place in the palette, so the same category is the same colour in every chart sharing the
-    list; it simply has no mark drawn in it.
+    :func:`~svgplot.layout.facet.facet`. A category with no rows still gets its band, in the
+    position the list gives it, so the same category is at the same place on the axis in every
+    chart sharing the list; it simply has no mark drawn in it.
+
+    It does **not** get a place in the palette, because in this chart the palette does not
+    follow the categories at all -- see the note on colour under ``hue=`` above. That is a
+    difference from :func:`~svgplot.charts.box.boxplot` and
+    :func:`~svgplot.charts.violin.violinplot`, whose identically-worded paragraphs are about
+    charts that really do rotate the palette per category.
 
     ``estimator=`` decides what happens when several rows share a category within one
     series. The default, ``None``, keeps the historical rule — **the last row wins**, and
