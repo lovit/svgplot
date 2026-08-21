@@ -62,7 +62,10 @@ _CLASS_IN_SELECTOR = re.compile(rf"\.({_TARGETABLE})\b")
 """Every class the emitter is allowed to point at: a series, one of its marker twins, or a
 chart's own mark hook. Built from :data:`interaction.MARK_CLASSES` rather than listing them
 again -- a hook this pattern does not know about makes ``_page_rules`` return nothing for that
-page, which the guard below then reports as "no controls"."""
+page, and the guard below then *fails* rather than skipping, because it cross-checks the empty
+extraction against the page's own controls. Reverting this to the series-only pattern turns
+``test_every_rule_reaches_the_figure_it_was_written_for[heatmap]`` red with "the page has hover
+rules but none was extracted"."""
 
 
 def _selected_classes(rules: str) -> set[str]:
@@ -423,6 +426,17 @@ def test_a_cell_kind_points_at_the_chart_s_mark_hook() -> None:
     assert len(rules) == 1, rules
     assert ".heatmap-cell:hover" in rules[0]
     assert not interaction.markup(controls), "a cell rule has nothing to operate"
+
+
+def test_a_cell_hook_is_read_from_a_tag_not_from_the_text() -> None:
+    """``xml.etree`` does not escape ``"`` in text content, so a category literally named
+    ``class="heatmap-cell"`` renders as those characters inside a ``<text>``. Scanning the file
+    for the string accepted a ``cell`` control on that ``barplot`` and emitted a rule matching
+    nothing -- the outcome the "read it from the picture" rule exists to prevent."""
+    decoy = 'sp.barplot({"q": [\'class="heatmap-cell"\', "Q2"], "v": [1.0, 2.0]}, x="q", y="v")'
+
+    with pytest.raises(ValueError, match="draws no mark hook"):
+        _stub([("decoy", decoy)], {1: "cell"})
 
 
 def test_a_cell_kind_on_a_chart_with_no_mark_hook_is_refused() -> None:

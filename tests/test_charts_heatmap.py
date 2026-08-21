@@ -828,19 +828,22 @@ def test_the_level_a_cell_says_is_the_level_it_is_painted() -> None:
     assert sorted(said.items()) == sorted((f"level-{number}", number) for number in said.values())
 
 
-def test_two_cells_one_shade_apart_are_told_apart_only_by_the_tooltip() -> None:
-    """The claim the feature rests on, executed: values 0.9 apart land in different shades and
-    values 4.9 apart can land in the same one, so the picture is not a function of the value."""
-    close = {"col": ["a", "b"], "row": ["p", "p"], "v": [0.0, 100.0]}
-    svg = heatmap(
-        {"col": ["a", "b", "c"], "row": ["p", "p", "p"], "v": [0.0, 5.0, 100.0]}, x="col", y="row", values="v", tooltip=True
-    ).to_string()
-    del close
-    levels = [title.split("level ")[1] for title in _cell_titles(svg)]
-    values = [title.split("v: ")[1].split(" ")[0] for title in _cell_titles(svg)]
+def test_the_shade_is_not_a_function_of_how_close_two_values_are() -> None:
+    """Both halves of the claim the feature rests on, on one fixture: 0 and 5 land in the *same*
+    shade while 11 and 12 land in different ones, on a 0..100 scale. So neither "same colour" nor
+    "one shade apart" tells a reader how far apart two cells are, and the tooltip is the only
+    thing in the picture that does.
 
-    assert levels[0] == levels[1], "0 and 5 out of 100 should be the same shade"
-    assert values[0] != values[1], "and the tooltip is what tells them apart"
+    The earlier version of this test asserted only the second half and its name promised the
+    first."""
+    grid = {"col": list("abcde"), "row": ["p"] * 5, "v": [0.0, 5.0, 11.0, 12.0, 100.0]}
+    said = _cell_titles(heatmap(grid, x="col", y="row", values="v", tooltip=True).to_string())
+    levels = [title.split("level ")[1] for title in said]
+    values = [title.split("v: ")[1].split(" ")[0] for title in said]
+
+    assert values == ["0", "5", "11", "12", "100"], said
+    assert levels[0] == levels[1], "5 apart, same shade"
+    assert levels[2] != levels[3], "1 apart, different shades"
 
 
 def test_a_missing_cell_gets_no_rect_and_so_no_tooltip() -> None:
@@ -912,3 +915,38 @@ def test_a_cell_says_its_value_exactly_not_rounded_to_pixel_precision() -> None:
     ]
 
     assert said == ["1e-07", "1.23456789"]
+
+
+def test_the_tooltip_term_is_scaled_by_the_drawn_cells_not_the_grid() -> None:
+    """The sparse case, with tooltips on, read out of the *warning* rather than recomputed by
+    the test helper -- ``_estimated_and_actual_kb`` re-implements the formula, so a change
+    inside ``_warn_if_large`` is invisible to it, and the two tests that do read the warning
+    both use a dense grid where ``drawn == cell_count``.
+
+    Scaling the new term by the grid instead of the drawn cells reports **~725 KB** for a file
+    that is 50.1 KB, and every test in the suite stays green without this one."""
+    side = 100
+    sparse = {
+        "col": [f"x{index}" for index in range(side)],
+        "row": [f"y{index}" for index in range(side)],
+        "v": [float(index) for index in range(side)],
+    }
+    with pytest.warns(HeatmapSizeWarning) as record:
+        chart = heatmap(sparse, x="col", y="row", values="v", tooltip=True)
+
+    estimated = int(re.search(r"~(\d+) KB", str(record[0].message)).group(1))
+    actual = len(chart.to_string()) / 1024
+
+    assert len(_cells(chart.to_string())) == side, "the fixture stopped being sparse"
+    assert estimated == pytest.approx(actual, rel=0.05), f"{estimated} KB against {actual:.1f}"
+
+
+def test_a_cell_value_is_not_spelled_the_way_the_axis_spells_it() -> None:
+    """``format_number`` picks the shorter of two *exact* spellings; ``format_value_label`` is a
+    plain decimal literal and expands scientific notation back into digits. On its own the
+    ``format_coord`` guard above does not separate the two -- both round nothing here -- so this
+    is the half that pins the choice ``format_number`` exists to make."""
+    huge = {"col": ["a", "b"], "row": ["p", "p"], "v": [1.0, 1e308]}
+    said = _cell_titles(heatmap(huge, x="col", y="row", values="v", tooltip=True).to_string())
+
+    assert said == ["col: a · row: p · v: 1 · level 1 of 9", "col: b · row: p · v: 1e+308 · level 9 of 9"]
