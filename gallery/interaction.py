@@ -33,6 +33,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from html import escape
+from xml.sax.saxutils import unescape
+
+from svgplot.scope import validate_css_class_name
 
 TOGGLE = "toggle"
 """The only control kind so far: one checkbox per series, all on to begin with."""
@@ -69,8 +72,7 @@ _SERIES_CLASS = re.compile(r"^series-(\d+)(?:-marker)?$")
 # reads here as what the author wrote, not as what fitted.
 _LEGEND_ROW = re.compile(
     r'<(?:line|rect)\b[^>]*\bclass="([^"]*)"[^>]*/>\s*'
-    r'<text\b[^>]*\bclass="[^"]*\blegend-text\b[^"]*"[^>]*>([^<]*)(?:<title>([^<]*)</title>)?',
-    re.S,
+    r'<text\b[^>]*\bclass="[^"]*\blegend-text\b[^"]*"[^>]*>([^<]*)(?:<title>([^<]*)</title>)?'
 )
 
 
@@ -118,12 +120,27 @@ def legend_labels(svg: str) -> dict[int, str]:
     A control labelled differently from the swatch beside it would be two names for one thing
     with nothing keeping them in step, so there is only one name and this is where it comes
     from.
+
+    The text is **un-escaped on the way out**, because what is read here is markup: a series
+    called ``R&D`` is in the file as ``R&amp;D``. Returned raw it would be escaped a second
+    time when the label is written, and the page would show ``R&amp;D`` beside a swatch
+    labelled ``R&D`` -- the two names this function exists to prevent. ``saxutils.unescape``
+    rather than ``html.unescape``: it inverts exactly the three entities the serializer
+    produces, where the HTML one also decodes references the serializer never writes and would
+    turn a literal ``&notit;`` in someone's data into ``¬it;``.
+
+    Whitespace is **kept**, not trimmed. Trimming looks harmless and is not: a legend label of
+    ``"온라인 채널 "`` would come back a different string from the one the author wrote, and
+    silently rewriting somebody's text is not this function's job. The one case where trimming
+    would have helped -- an empty label, whose capture runs past ``</text>``'s pretty-printed
+    newline and picks up the next line's indentation -- is handled where it belongs, in
+    :func:`resolve`, which refuses a series whose name is blank.
     """
     labels = {}
     for classes, shown, full in _LEGEND_ROW.findall(svg):
         for name in classes.split():
             if match := _SERIES_CLASS.match(name):
-                labels[int(match.group(1))] = full or shown
+                labels[int(match.group(1))] = unescape(full or shown)
     return labels
 
 
@@ -139,20 +156,34 @@ def resolve(figure: str, kind: str, svg: str) -> Controls:
     judgement each page makes, not something this function can check -- and the reason it
     matters is that a toggle over rows reads as data editing rather than as a legend.
 
+    ``figure`` is validated here even though every caller today gets it from
+    ``Chart.set_scope``, which already refuses anything CSS-unsafe. That protection is real but
+    accidental: it holds because ``example.load`` happens to call ``set_scope`` before this,
+    and moving or dropping that line would silently leave ``css()`` interpolating an arbitrary
+    string into a selector and a comment -- ``x{} body{background:red}`` breaks out of both.
+    The package's own validator is reused rather than a second pattern written here, because a
+    second pattern is a second answer to the same question.
+
     Raises:
-        ValueError: if ``kind`` is not a known control kind, or if the chart has no legend
-            entry for a series it drew.
+        ValueError: if ``figure`` is not a usable CSS class name, if ``kind`` is not a known
+            control kind, or if the chart has no usable legend entry for a series it drew.
     """
+    validate_css_class_name(figure, kind="figure")
     if kind not in KINDS:
         raise ValueError(f"{figure}: unknown control kind {kind!r}, expected one of {KINDS}")
 
     classes = series_classes(svg)
     labels = legend_labels(svg)
-    missing = sorted(set(classes) - set(labels))
-    if not labels or missing:
+    # A blank label counts as missing, not as a name. An empty <label> gives the checkbox an
+    # empty accessible name, which is worse than an unlabelled one: assistive technology stops
+    # looking for a fallback. An empty hue value is an ordinary thing to find in real data.
+    if not classes:
+        raise ValueError(f"{figure}: the chart drew no series, so there is nothing to control")
+    named = {index for index, label in labels.items() if label.strip()}
+    missing = sorted(set(classes) - named)
+    if missing:
         raise ValueError(
-            f"{figure}: the chart has no legend entry for series {missing or sorted(classes)}, "
-            f"so a control for it would have no name"
+            f"{figure}: the chart has no legend entry for series {missing}, " f"so a control for it would have no name"
         )
     return Controls(
         figure=figure,
@@ -216,4 +247,4 @@ def stylesheet(controls: list[Controls]) -> str:
     """
     if not controls:
         return ""
-    return CHROME + "".join(css(each) for each in controls)
+    return CHROME + "".join(css(control) for control in controls)
