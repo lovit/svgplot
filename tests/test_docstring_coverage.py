@@ -27,7 +27,8 @@ is what keeps the copies from drifting.
 
 **Classes are in the gate too**, which is what makes this module's title true rather than
 nearly true. They were excluded by an ``isinstance(obj, type)`` filter, and behind it sat
-``Theme``'s 26 constructor parameters, ``Chart``'s four, and thirteen public methods and properties. Three
+``Theme``'s 26 constructor parameters, ``Chart``'s four, and nineteen public methods and
+properties. Three
 allowances make the check fit what a class actually is, each narrow enough to name:
 
 * a dataclass field may be documented by its **attribute docstring** rather than in the class
@@ -106,7 +107,13 @@ _METHODS = sorted(
 
 _THEME_PARAGRAPH = """``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
     (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
-    for the default theme."""
+    for the default theme. Fonts, line widths, opacities and the grid/spine/tick colours come
+    from it, along with every colour this chart's own arguments do not set. No render reads or
+    writes global style state, so two charts given the same ``Theme`` are styled alike no
+    matter what was drawn in between."""
+"""The paragraph in full, not its opening. The first version stopped after the preset names,
+which left the two sentences carrying the substantive claims outside the guard -- one copy
+could be rewritten to say the opposite and nothing failed."""
 
 
 def _names(prose: str, parameter: str) -> bool:
@@ -177,22 +184,64 @@ def _can_refuse(function: object) -> bool:
     if any(isinstance(node, ast.Raise) for node in ast.walk(tree)):
         return True
     module = inspect.getmodule(function)
+    owner = _OWNER_OF.get(getattr(function, "__qualname__", ""))
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+        if not isinstance(node, ast.Call):
             continue
-        callee = getattr(module, node.func.id, None)
-        # Any function this package owns, not just one from the same file: validators live in
-        # their own modules (``validate_scope`` in ``svgplot.scope``), and a same-module rule
-        # skipped ``Composition.set_scope``, which refuses a malformed class name.
-        if not inspect.isfunction(callee) or not (callee.__module__ or "").startswith("svgplot"):
+        callee = _callee(node.func, module, owner)
+        if callee is None:
             continue
-        try:
-            callee_source = textwrap.dedent(inspect.getsource(callee))
-        except (OSError, TypeError):  # pragma: no cover
-            continue
-        if any(isinstance(inner, ast.Raise) for inner in ast.walk(ast.parse(callee_source))):
+        if _has_raise(callee):
+            return True
+        # A *private* helper is part of the method, not a separate contract: a caller sent to
+        # read ``_accessible_document``'s docstring has been sent to the wrong place, so its
+        # refusals are the method's refusals. Public callees stop here -- they document
+        # themselves, and following them reaches something that raises from everywhere.
+        if callee.__name__.startswith("_") and _can_refuse(callee):
             return True
     return False
+
+
+def _callee(func: ast.expr, module: object, owner: type | None) -> object:
+    """Resolve a call target to a function of this package, or ``None``.
+
+    Three shapes, because a method refuses through all three. A bare name is a module-level
+    helper (``validate_scope``). ``self.something()`` and ``cls(...)`` are the two the first
+    version missed, and missing them was not academic: ``LabelSpec.parse`` refuses through
+    ``cls(spec)`` and the three serializers refuse through ``self._accessible_document()``,
+    so four methods that raise for a caller were exempted from having to say so.
+    """
+    if isinstance(func, ast.Name):
+        if func.id == "cls" and owner is not None:
+            return owner.__init__
+        return _owned(getattr(module, func.id, None))
+    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+        if func.value.id in ("self", "cls") and owner is not None:
+            return _owned(getattr(owner, func.attr, None))
+        return _owned(getattr(getattr(module, func.value.id, None), func.attr, None))
+    return None
+
+
+def _owned(callee: object) -> object:
+    """``callee`` if it is a function this package defines, else ``None``."""
+    if isinstance(callee, property):
+        callee = callee.fget
+    if not inspect.isfunction(callee) or not (callee.__module__ or "").startswith("svgplot"):
+        return None
+    return callee
+
+
+def _has_raise(callee: object) -> bool:
+    try:
+        source = textwrap.dedent(inspect.getsource(callee))  # type: ignore[arg-type]
+    except (OSError, TypeError):  # pragma: no cover
+        return False
+    return any(isinstance(node, ast.Raise) for node in ast.walk(ast.parse(source)))
+
+
+_OWNER_OF = {f"{class_name}.{method_name}": getattr(sp, class_name) for class_name, method_name in _METHODS} | {
+    f"{class_name}.__init__": getattr(sp, class_name) for class_name in _CLASSES
+}
 
 
 def test_the_registry_is_not_empty() -> None:
@@ -200,7 +249,7 @@ def test_the_registry_is_not_empty() -> None:
     parametrized case below into zero cases and the file into a green no-op."""
     assert len(_PUBLIC) >= 20, _PUBLIC
     assert len(_CLASSES) >= 4, _CLASSES
-    assert len(_METHODS) >= 13, _METHODS
+    assert len(_METHODS) == 19, _METHODS
 
 
 @pytest.mark.parametrize("name", _PUBLIC)
@@ -275,15 +324,16 @@ def test_the_shared_theme_paragraph_is_one_paragraph() -> None:
 
     Duplication was the deliberate choice -- it is how ``width``/``height`` are already handled,
     and a docstring assembled by a decorator is not the text in the file. The cost of that
-    choice is drift, and this is what pays it: sixteen chart functions take ``theme=`` and all
-    sixteen have to say the same thing about it.
+    choice is drift, and this is what pays it.
+
+    All sixteen, not the thirteen that were missing it. The other three named ``theme`` only in
+    an aside about hue colouring -- "colors cycling through the theme's palette" -- which
+    satisfies the coverage gate by the letter while telling a reader nothing about the
+    parameter, the exact failure this file's ``Raises:`` rule was narrowed to stop.
     """
     charts = pathlib.Path(sp.__file__).parent / "charts"
-    carrying = [path.name for path in sorted(charts.glob("*.py")) if _THEME_PARAGRAPH in path.read_text()]
+    carrying = [path.stem for path in sorted(charts.glob("*.py")) if _THEME_PARAGRAPH in path.read_text()]
+    take_theme = [name for name in _PUBLIC if "theme" in ((_signature(name) or {}) and _signature(name).parameters)]
 
-    assert len(carrying) == 13, carrying
-    assert all(
-        _names(_prose(getattr(sp, name).__doc__), "theme")
-        for name in _PUBLIC
-        if "theme" in (_signature(name).parameters if _signature(name) else {})
-    ), "a chart takes theme= without explaining it"
+    assert len(carrying) == 16, carrying
+    assert len(take_theme) == 17, take_theme  # the sixteen charts, plus apply_context

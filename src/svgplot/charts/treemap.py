@@ -252,9 +252,10 @@ def treemap(
 
     ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
     (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
-    for the default theme. It is the only styling input -- colours, fonts, widths and
-    opacities all come from it, and no render reads or writes global style state, so two
-    charts given the same ``Theme`` are styled alike no matter what was drawn in between.
+    for the default theme. Fonts, line widths, opacities and the grid/spine/tick colours come
+    from it, along with every colour this chart's own arguments do not set. No render reads or
+    writes global style state, so two charts given the same ``Theme`` are styled alike no
+    matter what was drawn in between.
 
     ``data`` is long-form -- one row per tile -- and is read by column name: only ``values``
     and, if given, ``labels`` are consulted, and the remaining columns are ignored rather

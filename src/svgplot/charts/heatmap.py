@@ -298,12 +298,15 @@ def heatmap(
 
     ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
     (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
-    for the default theme. It is the only styling input -- colours, fonts, widths and
-    opacities all come from it, and no render reads or writes global style state, so two
-    charts given the same ``Theme`` are styled alike no matter what was drawn in between.
+    for the default theme. Fonts, line widths, opacities and the grid/spine/tick colours come
+    from it, along with every colour this chart's own arguments do not set. No render reads or
+    writes global style state, so two charts given the same ``Theme`` are styled alike no
+    matter what was drawn in between.
 
     ``values`` names the numeric column a cell's colour comes from, with ``x`` and ``y``
-    naming the two category columns whose pairs address the cells.
+    naming the two columns whose pairs address the cells. Those two are read as categories --
+    a numeric column is accepted and its distinct values become labels, so the axis spaces
+    them evenly rather than by their magnitude.
 
     Raises:
         KeyError: if ``x``/``y``/``values`` isn't a column in ``data``, if ``theme`` is a

@@ -359,6 +359,12 @@ class Composition:
         ``declaration=False`` drops the ``<?xml …?>`` prolog, for inlining into an HTML
         document, and ``pretty=False`` drops the indentation. Same contract as
         :meth:`svgplot.chart.base.Chart.to_string`.
+
+        Raises:
+            ValueError: if the title set by ``set_title`` holds a character XML 1.0 forbids.
+                ``set_title`` itself accepts anything -- the title is read at serialization
+                time so a later ``set_title`` still takes effect -- which means the refusal
+                surfaces here rather than at the call that caused it.
         """
         return to_string(self._accessible_document(), pretty=pretty, declaration=declaration)
 
@@ -370,6 +376,12 @@ class Composition:
         table or N?). The format is supported here regardless, because this class promises
         the same serialization surface as :class:`~svgplot.chart.base.Chart` and supporting
         markdown on only one of them would break that documented invariant.
+
+        Raises:
+            ValueError: if the title set by ``set_title`` holds a character XML 1.0 forbids.
+                ``set_title`` itself accepts anything -- the title is read at serialization
+                time so a later ``set_title`` still takes effect -- which means the refusal
+                surfaces here rather than at the call that caused it.
         """
         return to_markdown(self._accessible_document())
 

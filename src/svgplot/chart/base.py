@@ -83,7 +83,15 @@ class Chart:
         return self._domains
 
     def set_title(self, title: str) -> Chart:
-        """Set the chart title. Returns self for chaining."""
+        """Set the chart title to ``title``. Returns self for chaining.
+
+        Accepts anything, including a string XML cannot carry. The title is read at
+        serialization time rather than baked in here -- that is what lets a ``set_title``
+        after an earlier render still take effect -- so a character XML 1.0 forbids is
+        refused by :meth:`to_string`/:meth:`save` instead, away from the call that caused it.
+        A whitespace-only title is not an error either: it falls back to
+        :attr:`DEFAULT_TITLE`, the same as an empty one.
+        """
         self._title = title
         return self
 
@@ -228,6 +236,12 @@ class Chart:
         sitting mid-document renders as text and refuses to parse. Passed through rather
         than stripped by the caller so serialization stays in one place --
         :meth:`svgplot._svg.SvgDocument.to_string` gives the reasoning.
+
+        Raises:
+            ValueError: if the title set by ``set_title`` holds a character XML 1.0 forbids.
+                ``set_title`` itself accepts anything -- the title is read at serialization
+                time so a later ``set_title`` still takes effect -- which means the refusal
+                surfaces here rather than at the call that caused it.
         """
         return to_string(self._accessible_document(), pretty=pretty, declaration=declaration)
 

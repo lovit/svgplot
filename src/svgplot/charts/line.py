@@ -237,6 +237,13 @@ def lineplot(
     ``x`` and ``y`` name the two columns the line is drawn through: ``x`` its position along
     the horizontal axis (numeric, date or datetime), ``y`` the numeric column it plots.
 
+    ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
+    (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
+    for the default theme. Fonts, line widths, opacities and the grid/spine/tick colours come
+    from it, along with every colour this chart's own arguments do not set. No render reads or
+    writes global style state, so two charts given the same ``Theme`` are styled alike no
+    matter what was drawn in between.
+
     Raises:
         ValueError: if ``x`` holds a type with no position on an axis (``datetime.time`` is
             a time of day with no day, so two values a week apart are the same point), if it

@@ -1,22 +1,23 @@
-"""Theme — the ~25-key style schema (docs-research/12-aesthetics.md §1).
+"""Theme — the 26-key style schema (docs-research/12-aesthetics.md §1).
 
 Immutable value object: rendering never mutates global state (unlike
 matplotlib rcParams or seaborn's ``set_theme``). Passed explicitly to every
 render call.
 
-Security note (forward-looking — no render path consumes ``Theme`` yet): every
-color/text field here is a plain, unvalidated ``str`` — this is a trusted value
-object (built by the developer, e.g. via ``PRESETS``/``parametric_theme``), not
-untrusted input. Whoever wires ``Theme`` into rendering must insert these
-values through ``_svg.py``'s validated API (``add_node``/``add_text``/
-``set_attribute``), never via raw string concatenation — see ``_svg.py``'s own
-"escape chokepoint" docstring. That covers XML-structural safety, but **not**
-CSS syntax: `_svg.py`'s validation rejects the `style=` attribute and inline
-event handlers, but if a future renderer emits a `<style>` block (CSS text,
-not an XML attribute) built by directly interpolating these color strings, XML
-escaping alone doesn't stop `}`/`;`/`@import`/`url(...)` from breaking out of a
-CSS rule — a value bound for a `<style>` block needs its own CSS-literal
-validation, not just this module's implicit trust.
+Security note: every color/text field here is a plain, unvalidated ``str`` **at this layer**.
+``Theme`` is a trusted value object — built by the developer, e.g. via ``PRESETS`` or
+``parametric_theme`` — not untrusted input, so the validation lives where the values reach
+the output rather than here.
+
+``theme/css.py`` is that place, and it is no longer hypothetical: it emits a ``<style>``
+block built by interpolating these strings, so XML escaping alone would not stop
+``}``/``;``/``@import``/``url(...)`` from breaking out of a CSS rule. It therefore validates
+each value as a CSS literal before use — ``_validate_css_color`` requires a strict
+``#rrggbb``, ``_validate_css_font_family`` allows only letters, digits, spaces, commas,
+hyphens and apostrophes, and ``_validate_css_class_name`` guards the selectors. Anything
+else that wires ``Theme`` into rendering has the same obligation, plus ``_svg.py``'s
+validated API (``add_node``/``add_text``/``set_attribute``) for XML-structural safety rather
+than raw string concatenation — see ``_svg.py``'s own "escape chokepoint" docstring.
 """
 
 from __future__ import annotations
@@ -74,9 +75,8 @@ class Theme:
     """Guide-line stroke width in pixels."""
 
     grid_style: str = "solid"
-    """Guide-line dash pattern. **Not consumed by any render path yet** -- the CSS emits no
-    ``stroke-dasharray``, so changing this changes no output byte on any of the sixteen
-    charts."""
+    """Guide-line dash pattern. **Changes no output byte today** -- the CSS emits no
+    ``stroke-dasharray``, so no chart can tell one value from another."""
 
     spine_color: str = "#333333"
     """Axis-line colour."""
@@ -92,15 +92,20 @@ class Theme:
     value moves the labels out with the ticks rather than letting them overlap."""
 
     tick_direction: str = "out"
-    """Which side of the axis the ticks sit on. **Not consumed by any render path yet** --
-    every axis draws its ticks outward."""
+    """Which side of the axis the ticks sit on. **Changes no output byte today** -- every axis
+    draws its ticks outward whatever this says."""
 
     line_width: float = 2.0
     """Stroke width for line-like marks in pixels."""
 
     marker_size: float = 5.0
-    """Marker radius in pixels. ``scatterplot(size=)`` maps its column into 0.5x to 2.5x of
-    this, so it stays the centre of that range rather than a floor or a ceiling."""
+    """Marker radius in pixels, and the radius every marker takes when ``size=`` is not given.
+
+    ``scatterplot(size=)`` maps its column linearly onto 0.5x to 2.5x of this, so this value
+    is the *smallest* end plus a quarter of the range rather than its middle -- the midpoint
+    of that interval is 1.5x. A chart that raised ``marker_size`` to make its points easier to
+    see grows the largest ones by the same factor as the smallest.
+    """
 
     opacity: float = 1.0
     """Whole-mark opacity, applied to stroked and filled marks alike. Must be in ``[0, 1]``."""
@@ -122,26 +127,42 @@ class Theme:
     """
 
     corner_radius: float = 0.0
-    """Corner rounding in pixels for rectangular marks: ``barplot`` bars, ``histplot`` bars and
-    ``boxplot`` bodies. Treemap tiles keep square corners -- a tile's neighbours are its own
-    edges, and rounding them opens gaps that read as gaps in the data."""
+    """Corner rounding in pixels, applied to ``barplot`` bars, ``histplot`` bars and
+    ``boxplot`` bodies.
+
+    Three other rectangles ignore it, and only the first is a decision: treemap tiles keep
+    square corners because a tile's neighbours are its own edges and rounding them opens gaps
+    that read as gaps in the data, and the same argument covers ``heatmap`` cells. The third,
+    ``violinplot(inner="box")``'s quartile box, is simply inconsistent -- it is drawn to land
+    exactly where a default ``boxplot`` would put the same box, and rounds where that one
+    would not.
+    """
 
     font_family: str = "sans-serif"
-    """One family for every text element. Also what the width estimator measures against, so
-    a change here moves the layout as well as the glyphs."""
+    """The family every text element a *chart* draws is set in, and what the width estimator
+    measures against -- so a change here moves the layout as well as the glyphs.
+
+    A composition's own text does not follow it: ``layout.add_caption``'s caption and
+    ``grid(titles=)``'s headings are written at a hardcoded ``sans-serif``, because they
+    belong to the figure rather than to any one chart in it and a figure has no theme.
+    """
 
     title_font_size: float = 18.0
-    """Size for a drawn chart title. **Nothing draws one yet** -- ``Chart.set_title`` writes
-    the title into the SVG's ``<title>``/``aria-label``, which is metadata a browser and a
-    screen reader present in their own type. :func:`~svgplot.theme.context.apply_context`
-    scales this field, so it is ready for the renderer that will use it."""
+    """Size for a drawn chart title. **Changes no output byte today.** ``Chart.set_title`` writes the
+    title into the SVG's ``<title>``/``aria-label``, which is metadata a browser and a screen
+    reader present in their own type; ``grid(titles=)`` does draw visible headings, but at a
+    hardcoded 13px belonging to the composition rather than to a chart's theme.
+    :func:`~svgplot.theme.context.apply_context` scales this field, so it is ready for the
+    renderer that will use it."""
 
     subtitle_font_size: float = 13.0
-    """Size for a drawn subtitle. **Nothing draws one yet**; see :attr:`title_font_size`."""
+    """Size for a drawn subtitle. **Changes no output byte today** -- no chart and no
+    composition emits a subtitle at all, so unlike :attr:`title_font_size` there is not even a
+    hardcoded size for this to disagree with."""
 
     axis_label_font_size: float = 12.0
-    """Size for an axis *name* ("Sales", "Year"). **Nothing draws one yet** -- no chart emits
-    an axis title; :attr:`tick_label_font_size` is the one that sizes the numbers."""
+    """Size for an axis *name* ("Sales", "Year"). **Changes no output byte today** -- no chart
+    emits an axis title; :attr:`tick_label_font_size` is the one that sizes the numbers."""
 
     tick_label_font_size: float = 10.0
     """Size for tick labels. The most load-bearing font field: the axis measures label widths
@@ -153,23 +174,25 @@ class Theme:
     the legend reserves."""
 
     annotation_font_size: float = 10.0
-    """Size for in-plot annotations. **Nothing draws one at this size yet** -- the labels
-    inside pie slices, treemap tiles and gauges take :attr:`legend_font_size`, which is what
-    styles them today."""
+    """Size for in-plot annotations. **Changes no output byte today.** The labels inside pie
+    slices, treemap tiles and gauges take :attr:`legend_font_size`, and ``heatmap(annot=True)``
+    -- the one thing this package's own argument calls an annotation -- writes its numbers with
+    the ``tick-label`` class, so they take :attr:`tick_label_font_size`."""
 
     tooltip_font_size: float = 10.0
-    """Size for tooltip text. **Unreachable, not merely unimplemented**: ``tooltip=True``
+    """Size for tooltip text. **Changes no output byte today, and cannot be made to**: ``tooltip=True``
     emits ``<title>`` elements, which browsers render as native chrome outside the document.
     No CSS this package writes can reach them, so this field would need a tooltip built out
     of SVG elements before it could mean anything."""
 
     caption_font_size: float = 9.0
-    """Size for a caption below the plot. **Nothing draws one yet**; see
-    :attr:`title_font_size`."""
+    """Size for a caption below the plot. **Changes no output byte today** -- ``layout.add_caption``
+    does draw a caption, at a hardcoded 14px, for the same reason ``grid``'s headings ignore
+    :attr:`title_font_size`: the text belongs to the figure and a figure has no theme."""
 
     legend_position: str = "right"
-    """Where the legend sits. **Not consumed by any render path yet** -- every chart that
-    draws a legend puts it to the right of the plot area."""
+    """Where the legend sits. **Changes no output byte today** -- every chart that draws a
+    legend puts it to the right of the plot area."""
 
     def __post_init__(self) -> None:
         palette = tuple(self.palette) if isinstance(self.palette, list) else self.palette

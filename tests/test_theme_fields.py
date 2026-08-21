@@ -91,6 +91,11 @@ _INERT = frozenset(
 
 _FIELDS = [field.name for field in dataclasses.fields(Theme)]
 
+_DENIAL = "Changes no output byte today"
+"""The one sentence an inert field's docstring must contain. A single fixed phrase rather than
+a list of near-synonyms: the list was three entries long and growing, and each new spelling was
+a way for a field to be documented as dead without this file noticing."""
+
 
 def _render_every_chart(theme: Theme | None) -> list[str]:
     """One SVG per chart type, so a field live in only one of them still counts as live.
@@ -155,11 +160,11 @@ def test_a_field_is_live_exactly_when_its_docstring_does_not_deny_it(field: str)
     """The measurement the module docstring describes, one field at a time."""
     changed = _render_every_chart(dataclasses.replace(Theme(), **{field: _UNLIKE_THE_DEFAULT[field]}))
     reaches_the_output = changed != _DEFAULT_RENDER
-    # ``is not None`` rather than the phrase itself: comparing a bool with a str-or-None makes
-    # ``!=`` true whatever both sides say, and an assertion that cannot fail is not one. That
-    # is not hypothetical here -- it was written that way first, and hardcoding a live field's
-    # colour in ``theme/css.py`` went unnoticed until a mutation asked this test to prove it.
-    denies_it = _denies_being_consumed(_ATTRIBUTE_DOCS.get(field, "")) is not None
+    # Both sides must be bools. Comparing a bool with anything else makes ``!=`` true whatever
+    # the two say, and an assertion that cannot fail is not one. That is not hypothetical here:
+    # it was written against a ``str | None`` first, and hardcoding a live field's colour in
+    # ``theme/css.py`` went unnoticed until a mutation asked this test to prove itself.
+    denies_it = _denies_being_consumed(_ATTRIBUTE_DOCS.get(field, ""))
 
     assert reaches_the_output != denies_it, (
         f"{field} changes the output" if reaches_the_output else f"{field} changes no output byte"
@@ -213,14 +218,18 @@ def _attribute_docs() -> dict[str, str]:
 _ATTRIBUTE_DOCS = _attribute_docs()
 
 
-def _denies_being_consumed(doc: str) -> str | None:
+def _denies_being_consumed(doc: str) -> bool:
     """Whether a docstring claims the field reaches no output.
 
-    Matched on a fixed phrase rather than on keywords like "not" or "yet", so that describing
+    One fixed sentence, and deliberately the *same proposition this file measures*: rendering
+    twice and comparing bytes can only ever confirm or refute "changes no output byte", so a
+    docstring that claimed something adjacent -- "nothing draws one" -- would be checked by a
+    test that cannot see it. Two of them were wrong that way: captions and grid headings *are*
+    drawn, at a hardcoded size, and the measurement had no opinion either way because the
+    field is inert regardless.
+
+    Matched on the fixed phrase rather than on keywords like "not" or "yet", so that describing
     what a live field does *not* do -- ``tick_color``'s "the tick label takes foreground, not
     this" -- cannot be read as a denial.
     """
-    for phrase in ("Not consumed by any render path yet", "Nothing draws one", "Unreachable, not merely unimplemented"):
-        if phrase in doc:
-            return phrase
-    return None
+    return _DENIAL in doc
