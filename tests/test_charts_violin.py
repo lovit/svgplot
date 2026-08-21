@@ -455,3 +455,136 @@ def test_every_category_is_named_on_the_axis() -> None:
     # have made the argument in the same diff that disproves it.
     assert drawn, "the probe cannot see a tag with content"
     assert {"가", "나"} <= set(drawn), f"a category went unnamed: {drawn}"
+
+
+# --------------------------------------------------------------------------------- tooltips
+
+
+def _marks(svg: str) -> list[tuple[str, str | None]]:
+    """Every drawn mark as ``(class, its <title> text or None)``, in document order.
+
+    Through the parsed tree, so a mark that lost its ``<title>`` shows up as ``None`` rather
+    than dropping out of the list -- which mark *has* one is the whole question here. The
+    chart's own ``<title>`` is a child of the root ``<svg>``, which carries no series class.
+    """
+    import xml.etree.ElementTree as ET
+
+    root = ET.fromstring(svg)
+    marks = []
+    for element in root.iter():
+        classes = (element.get("class") or "").split()
+        if not any(name.startswith("series-") for name in classes):
+            continue
+        title = element.find("{http://www.w3.org/2000/svg}title")
+        marks.append((classes[-1], None if title is None else title.text))
+    return marks
+
+
+def test_a_violin_tooltip_says_the_quartiles_the_outline_cannot_show() -> None:
+    """The y axis gives the range and the width gives a density scaled against the chart's
+    shared peak, so nothing drawn says where the middle half of the data sits."""
+    data = {"g": ["a"] * 6 + ["b"] * 6, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]}
+    said = {title for _, title in _marks(violinplot(data, x="g", y="v", tooltip=True).to_string())}
+
+    assert said == {
+        "g: a · v: Q1 2.25 · median 3.5 · Q3 4.75 · 6 observations",
+        "g: b · v: Q1 12.5 · median 15 · Q3 17.5 · 6 observations",
+    }
+
+
+def test_every_mark_of_a_violin_says_the_same_thing_and_none_is_left_silent() -> None:
+    """The pointer stops at the topmost element under it, so an untitled inner box is a hole in
+    the middle of a violin that otherwise responds. Three marks per violin under the default
+    ``inner="box"``: body, box, median tick.
+
+    Asserted as "every mark has one, and each violin's are equal" rather than against the
+    number three, so it stays true if a violin grows a fourth mark."""
+    data = {"g": ["a"] * 6 + ["b"] * 6, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]}
+    marks = _marks(violinplot(data, x="g", y="v", tooltip=True).to_string())
+
+    assert marks, "the fixture stopped drawing anything"
+    assert all(title is not None for _, title in marks), "a mark was left without a tooltip"
+    assert len(marks) == 6, "two violins, three marks each"
+    assert len({title for _, title in marks}) == 2, "and one sentence per violin, repeated"
+
+
+def test_the_quartiles_are_said_even_when_no_box_is_drawn() -> None:
+    """``inner=None`` switches off the annotation, not the data. The numbers describe the values
+    the outline was computed from, which are there either way -- and with the box gone the
+    tooltip is the *only* way to read them."""
+    data = {"g": ["a"] * 6, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]}
+    marks = _marks(violinplot(data, x="g", y="v", inner=None, tooltip=True).to_string())
+
+    assert [cls for cls, _ in marks] == ["violin-body"], "the fixture stopped being the no-box case"
+    assert marks[0][1] == "g: a · v: Q1 2.25 · median 3.5 · Q3 4.75 · 6 observations"
+
+
+def test_the_tooltip_cannot_disagree_with_the_box_or_the_median_tick() -> None:
+    """Both come from the same :func:`quantiles` call. Read back the drawn box's own pixels and
+    invert the scale: if the tooltip were computed a second way -- a different hinge definition,
+    or a mean where a median belongs -- the two would drift and nothing else would notice."""
+    data = {"g": ["a"] * 9, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 20.0, 21.0]}
+    chart = violinplot(data, x="g", y="v", tooltip=True)
+    svg = chart.to_string()
+    (box,) = _tags(svg, "rect", "violin-box")
+    said = next(title for cls, title in _marks(svg) if cls == "violin-box")
+    # The y domain is the shared KDE grid, not min/max of the data, so it is taken from the
+    # chart rather than recomputed here -- a second copy of that rule is a second thing to go
+    # stale.
+    scale = LinearScale(chart.domains.y, (AREA.bottom, AREA.top))
+
+    q1 = float(said.split("Q1 ")[1].split(" ")[0])
+    q3 = float(said.split("Q3 ")[1].split(" ")[0])
+    median = float(said.split("median ")[1].split(" ")[0])
+    (tick,) = _tags(svg, "line", "violin-median")
+
+    assert q1 != q3, "the fixture stopped having a box with height"
+    assert median != sum(data["v"]) / len(data["v"]), "the fixture's median and mean stopped differing"
+    assert abs(float(box["y"]) - scale(q3)) < 0.01, f"the box top is not where the tooltip's Q3 is: {said}"
+    assert abs(float(box["y"]) + float(box["height"]) - scale(q1)) < 0.01, "the box bottom is not the tooltip's Q1"
+    assert abs(float(tick["y1"]) - scale(median)) < 0.01, f"the median tick is not where the tooltip's median is: {said}"
+
+
+def test_a_hued_violin_names_its_group_as_well_as_its_category() -> None:
+    data = {
+        "g": ["a"] * 6 + ["b"] * 6,
+        "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0],
+        "s": ["l", "r"] * 6,
+    }
+    said = {title for _, title in _marks(violinplot(data, x="g", y="v", hue="s", tooltip=True).to_string()) if title}
+
+    assert said, "the fixture stopped drawing violins"
+    assert all(" · s: " in title for title in said)
+    assert {title.split(" · ")[1] for title in said} == {"s: l", "s: r"}
+
+
+def test_the_default_draws_no_tooltip_and_saying_so_changes_nothing() -> None:
+    """What this can check is that ``tooltip=False`` is the same call as not writing it, and
+    that neither titles a mark. It is deliberately not named for byte-identity with the version
+    before ``tooltip=`` existed, which it cannot see -- both sides are this branch's code.
+    ``docs/gallery/*.html`` holds those bytes, and
+    ``test_gallery.py::test_the_committed_gallery_is_what_a_fresh_build_produces`` compares
+    them."""
+    data = _three_groups()
+    omitted = violinplot(data, x="grp", y="v").to_string()
+    explicit = violinplot(data, x="grp", y="v", tooltip=False).to_string()
+
+    assert omitted == explicit
+    assert all(title is None for _, title in _marks(omitted))
+
+
+def test_a_category_too_long_or_too_blank_to_read_is_left_out_of_the_tooltip() -> None:
+    """The category is a string out of the data and it is written once per mark -- three times
+    per violin. Uncapped, the two violins below took the file from 36,544 bytes to 82,075, with
+    four ``<title>`` elements over 4,000 characters and the longest at 5,056; capped it is
+    37,030. The axis tick showing the same category is already shortened, and so are the column
+    names.
+
+    A category of one tab goes for the other reason: ``"g:  · v: …"`` names the violin with a
+    label that is not on screen."""
+    data = {"g": ["\uba74" * 5000] * 6 + ["\t"] * 6, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0] * 2}
+    chart = violinplot(data, x="g", y="v", tooltip=True)
+    said = {title for _, title in _marks(chart.to_string()) if title}
+
+    assert len(chart.to_string().encode()) < 40_000, "the unreadable category was written into the file anyway"
+    assert said == {"v: Q1 2.25 · median 3.5 · Q3 4.75 · 6 observations"}
