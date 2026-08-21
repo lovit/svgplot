@@ -20,6 +20,7 @@ from itertools import pairwise
 from svgplot._svg import SvgDocument
 from svgplot.charts._layout import Margin, PlotArea, format_coord, resolve_margin
 from svgplot.charts._textwidth import needs_full_text, text_width, truncate_to_width
+from svgplot.charts._tooltip import add_tooltip
 from svgplot.scales import CategoricalScale, LinearScale, Scale, make_ticks
 
 _DEFAULT_TICK_LENGTH = 6.0
@@ -426,7 +427,7 @@ def render_x_axis(
                 classes=["tick-label"],
             )
             if shown != label or needs_full_text(label, font_size, budget):
-                document.add_text(node, label, tag="title")
+                add_tooltip(document, node, label)
             continue
         room = max(getattr(scale, "bandwidth", 0.0) * stride - font_size / 2, 0.0)
         shown, keep_full = _shown_label(scale, tick, room, font_size, time_format)
@@ -444,7 +445,7 @@ def render_x_axis(
             classes=["tick-label"],
         )
         if keep_full:
-            document.add_text(node, _tick_label_text(scale, tick, time_format=time_format), tag="title")
+            add_tooltip(document, node, _tick_label_text(scale, tick, time_format=time_format))
 
 
 def render_y_axis(
@@ -527,7 +528,7 @@ def render_y_axis(
             classes=["tick-label"],
         )
         if keep_full:
-            document.add_text(node, _tick_label_text(scale, tick, time_format=time_format), tag="title")
+            add_tooltip(document, node, _tick_label_text(scale, tick, time_format=time_format))
 
 
 def fit_left_margin(

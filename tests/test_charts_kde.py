@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from _svg_probe import style_rule
+from _svg_probe import style_rule, tags, texts
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, MARGIN_WITHOUT_LEGEND, plot_area
 from svgplot.charts.kde import _shared_grid_range, kdeplot
 from svgplot.stats.kde import kde
@@ -14,7 +14,6 @@ AREA = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITHOUT_LEGEND)
 AREA_WITH_LEGEND = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=MARGIN_WITH_LEGEND)
 
 _VERTEX_RE = re.compile(r"[ML] (-?[\d.]+),(-?[\d.]+)")
-_ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 
 
 def _sample(n: int = 150, *, mean: float = 0.0, seed: int = 3) -> list[float]:
@@ -28,12 +27,7 @@ def _two_groups() -> dict[str, list]:
 
 def _curves(svg: str) -> list[list[tuple[float, float]]]:
     """The (x, y) vertices of every ``kde-series`` path, in document order."""
-    paths = [dict(_ATTR_RE.findall(tag)) for tag in re.findall(r"<path\b[^>]*/>", svg)]
-    return [
-        [(float(vx), float(vy)) for vx, vy in _VERTEX_RE.findall(path["d"])]
-        for path in paths
-        if "kde-series" in path.get("class", "")
-    ]
+    return [[(float(vx), float(vy)) for vx, vy in _VERTEX_RE.findall(path["d"])] for path in tags(svg, "path", "kde-series")]
 
 
 def _style_rule(svg: str, selector: str) -> str:
@@ -115,7 +109,7 @@ def test_groups_are_ordered_by_their_label() -> None:
     """Same rule as every other hued chart, so palette assignment is reproducible."""
     svg = kdeplot({"v": _sample(n=40) + _sample(n=40, seed=9), "grp": ["b"] * 40 + ["a"] * 40}, x="v", hue="grp")
 
-    assert re.findall(r'class="legend-text">([^<]+)<', svg.to_string()) == ["a", "b"]
+    assert texts(svg.to_string(), "text", "legend-text") == ["a", "b"]
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +233,7 @@ def test_kdeplot_is_deterministic() -> None:
 
 
 def _raw_curve(svg: str) -> str:
-    return next(dict(_ATTR_RE.findall(tag))["d"] for tag in re.findall(r"<path\b[^>]*/>", svg) if "kde-series" in tag)
+    return tags(svg, "path", "kde-series")[0]["d"]
 
 
 # ---------------------------------------------------------------------------
@@ -279,7 +273,7 @@ def test_every_group_is_drawn_against_one_shared_peak() -> None:
     svg = kdeplot(data, x="v", hue="grp").to_string()
     curves = _curves(svg)
 
-    labels = re.findall(r'class="legend-text">([^<]+)<', svg)
+    labels = texts(svg, "text", "legend-text")
     heights = {label: AREA_WITH_LEGEND.bottom - min(y for _, y in curve) for label, curve in zip(labels, curves, strict=True)}
     full = AREA_WITH_LEGEND.bottom - AREA_WITH_LEGEND.top
 
@@ -316,7 +310,10 @@ def test_a_hued_chart_renders_with_and_without_fill(fill: bool) -> None:
 
     # The swatch shape has to follow the curve: a filled density gets a rect, an unfilled
     # one a line. Handing the legend a fixed style would draw the wrong mark for one of them.
-    swatches = re.findall(r"<(rect|line)\b[^>]*class=\"[^\"]*series-1[^\"]*\"", svg)
+    # One entry per matching element, not per element *name*: the assertion below is that
+    # exactly one swatch was drawn, and a version that collapsed two rects into one "rect"
+    # could not tell the difference.
+    swatches = [element for element in ("rect", "line") for _ in tags(svg, element, "series-1")]
     assert swatches == (["rect"] if fill else ["line"])
 
 

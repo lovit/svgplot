@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from _svg_probe import every_tag
 from svgplot.charts.scatter import scatterplot
 
 PLAIN = {"x": [1, 2, 3, 4, 5], "y": [2.0, 4.0, 1.0, 5.0, 3.0]}
@@ -156,15 +157,9 @@ def test_size_legend_sits_below_the_hue_legend_even_if_the_row_height_changes(mo
     this pins that by enlarging the constant and asserting the two legends' drawn
     *extents* (not just their reference points) stay disjoint.
     """
-    import re
 
     from svgplot.charts import _legend
     from svgplot.charts._legend import _SWATCH_HEIGHT
-
-    def attrs(tag: str) -> dict[str, str]:
-        """Attribute order in the emitted markup is an implementation detail, so parse
-        into a dict rather than matching a fixed sequence."""
-        return dict(re.findall(r'([\w-]+)="([^"]*)"', tag))
 
     # Far larger than scatter's own _SIZE_LEGEND_GAP, so a stale hardcoded row height
     # cannot be masked by the gap alone happening to clear the last row.
@@ -173,10 +168,25 @@ def test_size_legend_sits_below_the_hue_legend_even_if_the_row_height_changes(mo
 
     # Hue swatches are the <rect>s carrying a series class (the only other rect is the
     # full-canvas background); size samples are the <circle>s in that same x band.
-    swatches = [attrs(t) for t in re.findall(r"<rect[^>]*/>", svg) if "series-" in t]
+    # A class *token* starting with "series-", not the substring: `"series-" in tag` also
+    # matches a <title> naming a series, an id, or a path's d. Which series it is does not
+    # matter here -- the question is where the hue legend's block of swatches sits.
+    swatches = [
+        swatch
+        for swatch in every_tag(svg, "rect")
+        if any(name.startswith("series-") for name in swatch.get("class", "").split())
+    ]
     assert len(swatches) == 2, "expected one swatch per hue group"
     legend_x = min(float(a["x"]) for a in swatches)
-    samples = [a for a in (attrs(t) for t in re.findall(r"<circle[^>]*/>", svg)) if float(a["cx"]) >= legend_x]
+    # Excluded by class as well as by position. The x band alone happens to separate them
+    # today -- measured: data points reach cx=640, the legend starts at 660 -- but that is a
+    # coincidence of this fixture's numbers, not a property. Only the plotted points carry
+    # ``scatter-point``.
+    samples = [
+        circle
+        for circle in every_tag(svg, "circle")
+        if "scatter-point" not in circle.get("class", "").split() and float(circle["cx"]) >= legend_x
+    ]
     assert samples, "expected size-legend sample circles"
 
     # Compare real extents: a swatch occupies [y, y + height]; a sample [cy - r, cy + r].

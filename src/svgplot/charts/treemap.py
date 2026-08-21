@@ -37,6 +37,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._textwidth import needs_full_text, truncate_to_width
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.charts._tooltip import add_tooltip
 from svgplot.data._columns import column_length, extract_columns
 from svgplot.data._missing import is_missing
 from svgplot.theme.base import Theme
@@ -283,7 +284,7 @@ def treemap(
                 classes=["legend-text"],
             )
             if shown != tile.label or needs_full_text(tile.label, resolved_theme.legend_font_size, tile.width):
-                document.add_text(label_node, tile.label, tag="title")
+                add_tooltip(document, label_node, tile.label)
 
     render_legend(
         document,
