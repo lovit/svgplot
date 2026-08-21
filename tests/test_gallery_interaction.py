@@ -47,6 +47,12 @@ from _svg_probe import blank_style_bodies  # noqa: E402
 _SETUP = """
 import svgplot as sp
 
+SERIES = {
+    "주": [1, 2, 3, 4] * 2,
+    "매출": [120.0, 145.0, 98.0, 176.0, 84.0, 92.0, 110.0, 131.0],
+    "채널": ["온라인"] * 4 + ["오프라인"] * 4,
+}
+
 QUARTERS = {
     "분기": ["1분기", "2분기", "3분기", "4분기"] * 2,
     "매출": [120.0, 145.0, 98.0, 176.0, 84.0, 92.0, 110.0, 131.0],
@@ -571,6 +577,67 @@ def test_the_pages_that_declare_hover_are_the_ones_that_should() -> None:
     assert with_hover == _HOVER_PAGES, f"{sorted(with_hover ^ _HOVER_PAGES)} changed"
 
 
+_LINES = 'sp.lineplot(SERIES, x="주", y="매출", hue="채널")'
+
+
+def test_a_focus_group_dims_the_others_rather_than_lighting_the_one() -> None:
+    """Picking a line emits *one* rule naming the series it did not pick. Dimming everything and
+    lighting one back up would need two rules at the same weight and would read as an
+    instruction to undo itself.
+
+    Same ``opacity`` and the same ``pointer-events`` as a toggle, so the page's one note about
+    dimming covers both kinds."""
+    page = _stub([("lines", _LINES)], {1: "focus"})
+    rules = [selector for _figure, kind, selector in _page_rules(chart_page(page)) if kind == "focus"]
+
+    assert len(rules) == 2, rules
+    assert "#svgplot-stub-1-focus-1:checked ~ svg :is(.series-2)" in rules[0]
+    assert "#svgplot-stub-1-focus-2:checked ~ svg :is(.series-1)" in rules[1]
+
+
+def test_the_all_radio_is_checked_and_has_no_rule() -> None:
+    """A radio cannot be un-picked by clicking it again, so without this the reader leaves the
+    default state and never gets back. It carries no rule *because* nothing matching is what
+    returns the figure to undimmed -- an "all" that had its own rule would be a third state."""
+    html = chart_page(_stub([("lines", _LINES)], {1: "focus"}))
+    radios = re.findall(r"<input[^>]*type=\"radio\"[^>]*>", html)
+    keyed = set(re.findall(r"#([\w-]+):checked", html))
+
+    assert len(radios) == 3, "one per series plus all"
+    assert 'id="svgplot-stub-1-focus-0"' in radios[0] and 'checked="checked"' in radios[0]
+    assert all('checked="checked"' not in radio for radio in radios[1:]), "only all starts checked"
+    assert "svgplot-stub-1-focus-0" not in keyed
+
+
+def test_two_focus_figures_on_one_page_are_separate_groups() -> None:
+    """Radios are exclusive within a ``name``. Sharing one across figures would make picking a
+    line in the second silently release the first, which looks like the page losing its state
+    for no reason a reader can see."""
+    html = chart_page(_stub([("first", _LINES), ("second", _LINES)], {1: "focus", 2: "focus"}))
+    groups = set(re.findall(r'<input[^>]*type="radio"[^>]*name="([^"]*)"', html))
+
+    assert groups == {"svgplot-stub-1-focus", "svgplot-stub-2-focus"}
+
+
+def test_a_focus_control_is_named_by_the_legend_like_a_toggle() -> None:
+    """The same refusal a toggle gets: a chart with no legend entry for a series it drew would
+    give that radio an empty accessible name."""
+    with pytest.raises(ValueError, match="no legend entry"):
+        _stub([("one", 'sp.lineplot(SERIES, x="주", y="매출")')], {1: "focus"})
+
+
+def test_a_focus_page_gets_the_radio_chrome_and_not_the_checkbox_chrome() -> None:
+    """The per-kind halves are emitted for the kinds a page uses. Keeping them in one block put
+    two ``.series-focus`` rules on every page that has a checkbox -- eight files rewritten so
+    that seven of them could style an element they do not contain."""
+    focus_only = chart_page(_stub([("lines", _LINES)], {1: "focus"}))
+    toggle_only = chart_page(_stub([("bars", _BAR)], {1: "toggle"}))
+
+    assert "figure > .series-focus {" in focus_only and "figure > .series-toggle {" not in focus_only
+    assert "figure > .series-toggle {" in toggle_only and "figure > .series-focus {" not in toggle_only
+    assert "interaction-note" in focus_only, "a focus figure dims, so it carries the note too"
+
+
 def test_a_page_with_only_hover_gets_no_control_chrome() -> None:
     """The chrome styles ``<input>``/``<label>`` pairs, and a hover page has none. Its own half
     of the same claim -- the note -- is checked by
@@ -683,15 +750,23 @@ def test_a_page_with_controls_carries_the_note(html: str) -> None:
 
 @pytest.mark.parametrize("html", [pytest.param(html, id=name) for name, html in _PAGES])
 def test_every_control_reference_resolves_on_its_own_page(html: str) -> None:
-    """``for=`` pointing at nothing gives a label that does not toggle anything, and a rule
-    keyed on an id that is not there simply never fires. Both fail silently in a browser."""
+    """``for=`` pointing at nothing gives a label that does not operate anything, and a rule
+    keyed on an id that is not there simply never fires. Both fail silently in a browser.
+
+    Every control needs a **label**; not every control needs a **rule**. A ``focus`` group's
+    "all" radio deliberately has none -- nothing matching is exactly what makes it the way back
+    to the default state -- so the equality that held while ``toggle`` was the only kind with
+    markup is now an inclusion in one direction and an explicit exception in the other.
+    """
     present = set(re.findall(r'\bid="([^"]*)"', html))
     labelled = set(re.findall(r'<label for="([^"]*)"', html))
-    keyed = set(re.findall(r"#([\w-]+):not\(:checked\)", html))
+    keyed = set(re.findall(r"#([\w-]+):(?:not\(:checked\)|checked)", html))
+    ruleless = {name for name in labelled if name.endswith(f"-focus-{interaction.FOCUS_ALL}")}
 
     assert labelled <= present, f"label for= names {sorted(labelled - present)}, which is not on the page"
     assert keyed <= present, f"a rule is keyed on {sorted(keyed - present)}, which is not on the page"
-    assert keyed == labelled, "every control must have both a rule and a label"
+    assert keyed <= labelled, f"{sorted(keyed - labelled)} is keyed on by a rule and has no label"
+    assert labelled - keyed == ruleless, f"{sorted(labelled - keyed - ruleless)} has a label and no rule"
 
 
 @pytest.mark.parametrize("html", [pytest.param(html, id=name) for name, html in _PAGES])
@@ -747,8 +822,20 @@ def test_every_rule_reaches_the_figure_it_was_written_for(html: str) -> None:
             continue
 
         assert keyed
-        expected = {f"{figure_name}-toggle-{name.split('-')[1]}" for name in wanted if name.startswith("series-")}
-        assert keyed.group(1) in expected, f"{figure_name}'s rule for {sorted(wanted)} is keyed on {keyed.group(1)}"
+        # A ``focus`` rule is the one shape where the id and the classes are deliberately
+        # *different* series: picking line 1 dims the others, so the rule keyed on ``-focus-1``
+        # names ``.series-2``. Checked as "the id belongs to this figure and to a series it
+        # draws" rather than "the id matches the classes", which is true of every other kind.
+        numbers = {name.split("-")[1] for name in wanted if name.startswith("series-")}
+        drawn_numbers = {name.split("-")[1] for name in drawn if name.startswith("series-")}
+        if "-focus-" in keyed.group(1):
+            focused = keyed.group(1).rsplit("-", 1)[1]
+            assert keyed.group(1) == f"{figure_name}-focus-{focused}", keyed.group(1)
+            assert focused in drawn_numbers, f"{figure_name} focuses series {focused}, which it does not draw"
+            assert focused not in numbers, f"{figure_name}'s focus rule dims the series it focuses"
+        else:
+            expected = {f"{figure_name}-toggle-{number}" for number in numbers}
+            assert keyed.group(1) in expected, f"{figure_name}'s rule for {sorted(wanted)} is keyed on {keyed.group(1)}"
         _assert_the_combinator_walks(html, figure_name, keyed.group(1), selector)
 
 
