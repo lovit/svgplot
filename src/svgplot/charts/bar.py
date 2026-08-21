@@ -79,8 +79,20 @@ def _bar_tooltip(*, x: str, y: str, hue: str | None, category: str, value: float
     total, and where ``estimator=`` folded several rows it is the folded number. Both are what
     the rectangle is: a bar chart's mark is an aggregate, and a tooltip naming the rows behind
     it would be describing something that was never drawn.
+
+    The category goes through :func:`format_label` even though it is already a string, because
+    it is the first tooltip *value* in the package that comes straight out of somebody's file
+    rather than out of :func:`format_number`. Passed through raw, a three-bar chart with a
+    5,000-character category name went from 17,959 bytes to 33,081, and one ``<title>`` held
+    5,011 characters -- which the column names, the ``hue=`` labels and the axis ticks are all
+    already capped against. A category too long to read is dropped from the tooltip rather than
+    truncated, and so is one that draws nothing: ``"category:  · value: 1"`` names a bar with a
+    label that is not there.
     """
-    parts = [clause(x, category), clause(y, format_number(value))]
+    parts: list[str] = []
+    if (shown := format_label(category)) is not None:
+        parts.append(clause(x, shown))
+    parts.append(clause(y, format_number(value)))
     if hue is not None and (shown := format_label(label)) is not None:
         parts.append(clause(hue, shown))
     return " · ".join(parts)
