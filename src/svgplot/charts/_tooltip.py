@@ -132,9 +132,12 @@ def format_label(value: object) -> str | None:
     a label reaches here once *per mark*, where the legend says it once.
 
     Measured before it existed, on 1,000 points whose ``x`` and ``y`` are ``0.0``..``999.0``
-    and whose single hue group is named with 100,000 Hangul characters: **185,050 bytes with
-    the tooltip off, 100,235,830 with it on** -- 542 times larger. The fixture is written out
-    because a ratio without one is not a measurement.
+    and whose single hue group is named with 100,000 Hangul characters: ``len(to_string())``
+    went from **185,050 characters to 100,235,830**, 542 times larger. On disk it is worse --
+    UTF-8 spends three bytes on each of those characters, so the file goes from 385,070 bytes
+    to 300,437,850, a factor of 780. Both the fixture and the unit are written out because a
+    ratio without them is not a measurement: the same run reads 542 or 780 depending on which
+    you count.
 
     Left out rather than truncated, for the reason a column name is: half a label is a
     different label, and the mark still says its x and y.
