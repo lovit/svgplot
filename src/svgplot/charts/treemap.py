@@ -59,6 +59,16 @@ class _Tile:
 
     label: str
     value: float
+    """The tile's *pixel area*, which is what the layout compares. Not the caller's number."""
+    source: float
+    """The value the caller gave, carried through so a tile can name it.
+
+    A tile cannot be looked up by label afterwards: repeated labels are legal (the legend
+    already draws a row per repeat), and a ``{label: value}`` map collapses them last-wins.
+    Measured before this field existed, on ``["dup", "dup", "other"] / [10, 30, 60]``: the tile
+    drawn at 10% of the plot area said ``dup · value: 30 · 30.0%``, and the three shares summed
+    to 120%.
+    """
     x: float
     y: float
     width: float
@@ -85,7 +95,7 @@ def _worst_aspect_ratio(row: list[float], side: float, total: float) -> float:
     )
 
 
-def _layout_row(row: list[tuple[str, float]], row_total: float, area: PlotArea, vertical: bool) -> list[_Tile]:
+def _layout_row(row: list[tuple[str, float, float]], row_total: float, area: PlotArea, vertical: bool) -> list[_Tile]:
     """Place one closed row of tiles along the short side of ``area``.
 
     ``vertical`` selects which way the row runs: when the remaining rectangle is
@@ -99,15 +109,15 @@ def _layout_row(row: list[tuple[str, float]], row_total: float, area: PlotArea, 
     offset = 0.0
     if vertical:
         row_width = row_total / height if height > 0 else 0.0
-        for label, value in row:
+        for label, value, source in row:
             tile_height = (value / row_total) * height if row_total > 0 else 0.0
-            tiles.append(_Tile(label, value, area.left, area.top + offset, row_width, tile_height))
+            tiles.append(_Tile(label, value, source, area.left, area.top + offset, row_width, tile_height))
             offset += tile_height
     else:
         row_height = row_total / width if width > 0 else 0.0
-        for label, value in row:
+        for label, value, source in row:
             tile_width = (value / row_total) * width if row_total > 0 else 0.0
-            tiles.append(_Tile(label, value, area.left + offset, area.top, tile_width, row_height))
+            tiles.append(_Tile(label, value, source, area.left + offset, area.top, tile_width, row_height))
             offset += tile_width
     return tiles
 
@@ -122,7 +132,7 @@ def _remaining_area(area: PlotArea, row_total: float, vertical: bool) -> PlotAre
     return PlotArea(left=area.left, top=area.top + consumed, right=area.right, bottom=area.bottom)
 
 
-def _squarify(entries: list[tuple[str, float]], area: PlotArea) -> list[_Tile]:
+def _squarify(entries: list[tuple[str, float, float]], area: PlotArea) -> list[_Tile]:
     """Tile ``area`` with one rectangle per entry, area-proportional and near-square.
 
     ``entries`` must already be sorted by value descending and scaled so their sum
@@ -140,7 +150,9 @@ def _squarify(entries: list[tuple[str, float]], area: PlotArea) -> list[_Tile]:
         if width <= 0 or height <= 0:
             # Numerically exhausted: emit the rest as zero-area tiles at the corner so
             # every entry still yields exactly one rect (the count is part of the contract).
-            tiles.extend(_Tile(label, value, current.left, current.top, 0.0, 0.0) for label, value in remaining)
+            tiles.extend(
+                _Tile(label, value, source, current.left, current.top, 0.0, 0.0) for label, value, source in remaining
+            )
             break
 
         # Rows run along the *shorter* edge — that is what keeps tiles near-square.
@@ -151,13 +163,15 @@ def _squarify(entries: list[tuple[str, float]], area: PlotArea) -> list[_Tile]:
         vertical = width > height
         side = min(width, height)
 
-        row: list[tuple[str, float]] = [remaining[0]]
+        row: list[tuple[str, float, float]] = [remaining[0]]
         row_total = remaining[0][1]
         index = 1
         while index < len(remaining):
             candidate_total = row_total + remaining[index][1]
-            current_worst = _worst_aspect_ratio([value for _, value in row], side, row_total)
-            candidate_worst = _worst_aspect_ratio([value for _, value in row] + [remaining[index][1]], side, candidate_total)
+            current_worst = _worst_aspect_ratio([value for _, value, _source in row], side, row_total)
+            candidate_worst = _worst_aspect_ratio(
+                [value for _, value, _source in row] + [remaining[index][1]], side, candidate_total
+            )
             if candidate_worst > current_worst:
                 break
             row.append(remaining[index])
@@ -285,11 +299,10 @@ def treemap(
     # Scale values into pixel area up front so the layout's aspect-ratio comparisons
     # operate in one unit, and sort descending (squarified's precondition).
     plot_pixels = area.width * area.height
-    scaled = sorted(((label, value / total * plot_pixels) for label, value in pairs), key=lambda pair: -pair[1])
+    # The caller's value rides along beside the scaled one: a tile cannot be looked up by label
+    # afterwards, because repeated labels are legal and a map of them collapses last-wins.
+    scaled = sorted(((label, value / total * plot_pixels, value) for label, value in pairs), key=lambda entry: -entry[1])
     tiles = _squarify(scaled, area)
-    # A tile knows its pixel area, not the value it came from, and dividing back out would
-    # reintroduce the rounding the scaling put in. ``pairs`` is what the caller gave.
-    by_label = dict(pairs)
 
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
@@ -309,9 +322,7 @@ def treemap(
             classes=[series_class],
         )
         if tooltip:
-            add_tooltip(
-                document, rect, _tile_tooltip(values=values, label=tile.label, value=by_label[tile.label], total=total)
-            )
+            add_tooltip(document, rect, _tile_tooltip(values=values, label=tile.label, value=tile.source, total=total))
         if tile.width >= _MIN_LABEL_WIDTH and tile.height >= _MIN_LABEL_HEIGHT:
             # Centred in its tile, so a long label runs out both sides, over the neighbouring
             # tiles and their labels. Measured before this, ``"W" * 40`` on a 196.7px tile
