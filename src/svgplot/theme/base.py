@@ -36,65 +36,140 @@ _DEFAULT_PALETTE: tuple[str, ...] = tuple(DEFAULT_PALETTE)
 class Theme:
     """A complete, immutable set of visual defaults for a chart.
 
-    ~25 keys grouped by concern (background/foreground, palette, grid, spines,
-    ticks, marks, per-element font sizes, legend) — deliberately far short of
-    matplotlib's 344 rcParams or pygal's 83-key config, matching the
-    "what actually makes a theme identity" set matplotlib's own defaults imply
-    (docs-research/02-matplotlib.md A4). Immutability plus explicit
-    render-call passing (rather than a global "current theme") is the design
-    principle: two renders using the same ``Theme`` instance always look
-    identical, and no render can leak style state into another.
+    26 fields ordered by concern (background/foreground, palette, grid, spines, ticks, marks,
+    per-element font sizes, legend) — deliberately far short of matplotlib's 344 rcParams or
+    pygal's 83-key config, matching the "what actually makes a theme identity" set
+    matplotlib's own defaults imply (docs-research/02-matplotlib.md A4). Immutability plus
+    explicit render-call passing (rather than a global "current theme") is the design
+    principle: two renders using the same ``Theme`` instance always look identical, and no
+    render can leak style state into another.
+
+    **Nine of the 26 change no output byte on any of the sixteen charts today** --
+    ``grid_style``, ``tick_direction``, ``legend_position``, and six of the font sizes. Each
+    says so in its own docstring rather than in a list here, so a reader meets the fact where
+    they meet the field. ``tests/test_theme_fields.py`` measures the split by rendering, so
+    the docstrings cannot quietly go stale in either direction: implementing one of them fails
+    the test until its docstring is corrected.
     """
 
-    # background / foreground
     background: str = "#ffffff"
+    """The plot background, drawn as a full-canvas rect before anything else."""
+
     foreground: str = "#111111"
-    # palette — colorblind-safe by default (docs-research/12-aesthetics.md §2)
+    """Text colour for tick labels and legend entries."""
+
     palette: tuple[str, ...] = _DEFAULT_PALETTE
-    # grid (가이드선)
+    """Series colours, cycled in series order. Colorblind-safe by default
+    (docs-research/12-aesthetics.md §2).
+
+    Accepts a list and stores a tuple: ``Theme`` is frozen, and a list default would let a
+    caller mutate the palette of a theme two charts share. Must not be empty -- a chart would
+    have no colour to assign and the cycle would divide by zero.
+    """
+
     grid_color: str = "#e0e0e0"
+    """Guide-line colour."""
+
     grid_width: float = 1.0
+    """Guide-line stroke width in pixels."""
+
     grid_style: str = "solid"
-    # spines / axis lines
+    """Guide-line dash pattern. **Not consumed by any render path yet** -- the CSS emits no
+    ``stroke-dasharray``, so changing this changes no output byte on any of the sixteen
+    charts."""
+
     spine_color: str = "#333333"
+    """Axis-line colour."""
+
     spine_width: float = 1.0
-    # ticks
+    """Axis-line stroke width in pixels."""
+
     tick_color: str = "#333333"
+    """Tick-mark colour. The tick *label* takes :attr:`foreground`, not this."""
+
     tick_size: float = 4.0
+    """Tick-mark length in pixels. Also the gap the axis leaves for its labels, so a larger
+    value moves the labels out with the ticks rather than letting them overlap."""
+
     tick_direction: str = "out"
-    # marks
+    """Which side of the axis the ticks sit on. **Not consumed by any render path yet** --
+    every axis draws its ticks outward."""
+
     line_width: float = 2.0
+    """Stroke width for line-like marks in pixels."""
+
     marker_size: float = 5.0
+    """Marker radius in pixels. ``scatterplot(size=)`` maps its column into 0.5x to 2.5x of
+    this, so it stays the centre of that range rather than a floor or a ceiling."""
+
     opacity: float = 1.0
-    # Filled marks (bars/areas/pie slices) get an *additional* opacity factor on top of
-    # `opacity`, because they occlude rather than merely overlap: an unstacked multi-hue
-    # area chart draws series in sorted-label order, unrelated to value magnitude, so a
-    # fully opaque later series can hide an earlier one entirely (issue #45). The two
-    # multiply — `opacity` stays the whole-mark knob applying to stroked and filled marks
-    # alike, `fill_opacity` narrows to fills only — so a theme opts out of translucency
-    # with `fill_opacity=1.0` without disturbing stroke marks. 0.75 is a judgement call in
-    # the spirit of how seaborn treats overlapping distributions (it applies translucency
-    # selectively rather than as a global default): 25% bleed-through reads clearly as
-    # "something is underneath" while a lone fill still looks solid rather than washed out.
-    # It applies to every `mark_style="fill"` chart — bars, areas, pie slices and scatter
-    # markers — including ones whose marks rarely overlap (pie slices are disjoint), where
-    # it is a small cost paid for one uniform rule rather than a per-chart-type default.
+    """Whole-mark opacity, applied to stroked and filled marks alike. Must be in ``[0, 1]``."""
+
     fill_opacity: float = 0.75
+    """An *additional* opacity factor for filled marks (bars, areas, pie slices, scatter
+    markers), multiplied with :attr:`opacity`. Must be in ``[0, 1]``.
+
+    Filled marks occlude rather than merely overlap: an unstacked multi-hue area chart draws
+    series in sorted-label order, unrelated to value magnitude, so a fully opaque later series
+    can hide an earlier one entirely (issue #45). Keeping it separate from :attr:`opacity` is
+    what lets a theme opt out of translucency with ``fill_opacity=1.0`` without disturbing
+    stroke marks. 0.75 is a judgement call in the spirit of how seaborn treats overlapping
+    distributions (it applies translucency selectively rather than as a global default): 25%
+    bleed-through reads clearly as "something is underneath" while a lone fill still looks
+    solid rather than washed out. It applies to every ``mark_style="fill"`` chart including
+    ones whose marks rarely overlap (pie slices are disjoint), where it is a small cost paid
+    for one uniform rule rather than a per-chart-type default.
+    """
+
     corner_radius: float = 0.0
-    # fonts — one family, size per element (docs-research/12-aesthetics.md §3,
-    # the "8-set" font structure collapsed into theme fields instead of pygal's
-    # separate Style/Config split)
+    """Corner rounding in pixels for rectangular marks: ``barplot`` bars, ``histplot`` bars and
+    ``boxplot`` bodies. Treemap tiles keep square corners -- a tile's neighbours are its own
+    edges, and rounding them opens gaps that read as gaps in the data."""
+
     font_family: str = "sans-serif"
+    """One family for every text element. Also what the width estimator measures against, so
+    a change here moves the layout as well as the glyphs."""
+
     title_font_size: float = 18.0
+    """Size for a drawn chart title. **Nothing draws one yet** -- ``Chart.set_title`` writes
+    the title into the SVG's ``<title>``/``aria-label``, which is metadata a browser and a
+    screen reader present in their own type. :func:`~svgplot.theme.context.apply_context`
+    scales this field, so it is ready for the renderer that will use it."""
+
     subtitle_font_size: float = 13.0
+    """Size for a drawn subtitle. **Nothing draws one yet**; see :attr:`title_font_size`."""
+
     axis_label_font_size: float = 12.0
+    """Size for an axis *name* ("Sales", "Year"). **Nothing draws one yet** -- no chart emits
+    an axis title; :attr:`tick_label_font_size` is the one that sizes the numbers."""
+
     tick_label_font_size: float = 10.0
+    """Size for tick labels. The most load-bearing font field: the axis measures label widths
+    at this size to decide the left margin, how many ticks fit, and whether a category label
+    has to be shortened."""
+
     legend_font_size: float = 11.0
+    """Size for legend entries. Also measured, for the same reason -- it sets how much width
+    the legend reserves."""
+
     annotation_font_size: float = 10.0
+    """Size for in-plot annotations. **Nothing draws one at this size yet** -- the labels
+    inside pie slices, treemap tiles and gauges take :attr:`legend_font_size`, which is what
+    styles them today."""
+
     tooltip_font_size: float = 10.0
+    """Size for tooltip text. **Unreachable, not merely unimplemented**: ``tooltip=True``
+    emits ``<title>`` elements, which browsers render as native chrome outside the document.
+    No CSS this package writes can reach them, so this field would need a tooltip built out
+    of SVG elements before it could mean anything."""
+
     caption_font_size: float = 9.0
-    # legend
+    """Size for a caption below the plot. **Nothing draws one yet**; see
+    :attr:`title_font_size`."""
+
     legend_position: str = "right"
+    """Where the legend sits. **Not consumed by any render path yet** -- every chart that
+    draws a legend puts it to the right of the plot area."""
 
     def __post_init__(self) -> None:
         palette = tuple(self.palette) if isinstance(self.palette, list) else self.palette
