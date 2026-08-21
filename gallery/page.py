@@ -143,9 +143,10 @@ def chart_page(page: Page) -> str:
     ]
     controls = [example.controls for example in page.examples if example.controls]
     if controls:
-        # Once per page, above the first figure that has controls, because it is a statement
-        # about the mechanism rather than about one chart. The text lives in interaction.py so
-        # sixteen pages cannot end up describing it sixteen slightly different ways.
+        # Once per page and above *every* figure on it, not beside the one that has controls:
+        # it is a statement about the mechanism, and a reader who meets it before the first
+        # chart is not surprised by the third. The text lives in interaction.py so sixteen
+        # pages cannot end up describing it sixteen slightly different ways.
         parts.append(f'    <p class="interaction-note">{escape(NOTE)}</p>\n')
     for example in page.examples:
         parts += [
