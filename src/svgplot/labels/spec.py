@@ -209,8 +209,31 @@ def _format_plain(value: object) -> str:
 
     if isinstance(value, bool):
         return str(value)
-    if isinstance(value, int | float) and math.isfinite(value):
-        return format_value_label(float(value))
+    if isinstance(value, int):
+        # ``str``, not the float path below. An int is exact and Python spells it exactly at
+        # any size; routing it through ``float`` silently rewrites every int above 2**53 --
+        # ``9007199254740993`` came out ``…992``, and ``10**23`` came out
+        # ``99999999999999991611392``. That is a different number, printed in a footnote table
+        # as the caller's own data. The float path exists so a float column reads ``30``
+        # rather than ``30.0``, which an int never needs: measured over 2,035 ints inside
+        # 2**53, the two spellings never disagree, so this changes nothing for ordinary data.
+        #
+        # It also settles the large-int question in one place. ``math.isfinite(10**400)``
+        # raises ``OverflowError`` -- it converts to float first -- which used to escape
+        # ``render_value``'s promise to raise only ``ValueError``, and a tooltip reads
+        # ``info=`` once per mark and cannot let that through: it would stop the chart being
+        # built at all. Now no int reaches a float conversion here, so there is nothing to
+        # overflow.
+        #
+        # One real behaviour change beyond the two bugs: an ``int`` *subclass* that overrides
+        # ``__str__`` now gets its own spelling, where the float path ignored it. That is what
+        # a scheme documented as "the value as it is" should do, and it is what this function
+        # already did for every non-int type. ``IntEnum``/``IntFlag`` are unaffected -- they
+        # use ``int.__str__`` from 3.11 on -- and neither numpy nor pandas integers subclass
+        # ``int``.
+        return str(value)
+    if isinstance(value, float) and math.isfinite(value):
+        return format_value_label(value)
     return str(value)
 
 

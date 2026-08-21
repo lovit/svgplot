@@ -286,3 +286,37 @@ def test_a_literal_backslash_is_doubled_before_the_pipe_escape_is_inserted() -> 
 
     assert render_table({"a": ["\\|"]}, spec).splitlines()[2] == r"| \\\| |"
     assert render_table({"a": ["\\"]}, spec).splitlines()[2] == r"| \\ |"
+
+
+# ---------------------------------------------------------------------------
+# asking the snapshot about one row
+# ---------------------------------------------------------------------------
+
+_HOLED = {"day": [1.0, None, 3.0], "sales": [10.0, 20.0, 30.0], "note": ["첫", "둘", "셋"]}
+
+
+def test_a_row_is_found_by_its_number_in_the_input() -> None:
+    """A mark knows the row it was drawn from as a number in the caller's data. If the snapshot
+    answered by position instead, every row after a dropped one would answer for its neighbour
+    -- and the answer would be a real row of real data, which is what makes it hard to see."""
+    labels = collect_label_data(_HOLED, [("메모", "@note")], required=("day",))
+
+    assert labels.row(0) == {"note": "첫"}
+    assert labels.row(2) == {"note": "셋"}
+
+
+def test_a_row_the_snapshot_dropped_answers_none_rather_than_the_next_one() -> None:
+    """``None`` is what lets a caller fall back instead of publishing another row's data."""
+    labels = collect_label_data(_HOLED, [("메모", "@note")], required=("day",))
+
+    assert labels.row(1) is None
+    assert labels.row(99) is None
+
+
+def test_the_indices_line_up_with_the_columns_they_describe() -> None:
+    labels = collect_label_data(_HOLED, [("메모", "@note")], required=("day",))
+
+    assert labels.row_indices == (0, 2)
+    assert [labels.row(index) for index in labels.row_indices] == [
+        {name: values[position] for name, values in labels.columns.items()} for position in range(len(labels))
+    ]

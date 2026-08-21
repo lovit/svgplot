@@ -45,6 +45,10 @@ import xml.etree.ElementTree as ET
 
 from svgplot._svg import SvgDocument
 from svgplot.charts._layout import format_value_label
+from svgplot.data._missing import is_missing
+from svgplot.labels._source import LabelData
+from svgplot.labels.spec import render_value
+from svgplot.labels.table import MISSING_TEXT
 
 _TITLE_TAG = "title"
 
@@ -229,3 +233,70 @@ def add_tooltip(document: SvgDocument, node: ET.Element, text: str) -> ET.Elemen
         node.remove(title)
         node.insert(0, title)
     return title
+
+
+def info_clauses(labels: LabelData, index: int) -> str | None:
+    """One row's ``info=`` fields as tooltip text, or ``None`` if they should not be used.
+
+    **The rule both charts follow: ``info=`` replaces the clauses that came out of the row, and
+    the chart keeps the clauses it computed.** A scatter point has only row clauses, so its
+    whole tooltip becomes this; a pie slice keeps its share and running share, which are in the
+    picture and in no column. Without the rule ``info=`` would either drop facts the table
+    cannot hold or repeat the ones it already prints -- ``info=`` almost always names the same
+    columns the chart is drawn from, and a tooltip that says one number twice reads as a bug.
+
+    ``None`` in three cases, each of which leaves the caller's own clauses in place:
+
+    * the row did not survive ``info=``'s filter. Today it always does -- both charts filter
+      their marks on exactly the channels :func:`~svgplot.labels._source.collect_label_data`
+      is told are required -- so this is what happens *if the two ever drift apart*. Dropping
+      back to the channel clauses is the honest answer; pairing by position, the obvious
+      alternative, would keep answering with the neighbouring row.
+    * the row renders to nothing visible.
+    * the *assembled* row is longer than :data:`MAX_TOOLTIP_CHARS`. This is a stricter rule
+      than :func:`clause`'s, not the same one: ``clause`` measures each column *name* and lets
+      the value through unmeasured, because the value is the caller's own datum and truncating
+      it would make the tooltip say something false. Here the whole sentence is measured,
+      because ``info=`` chooses how many fields there are as well as what is in them -- a
+      twelve-field spec is a caller decision that costs a paragraph per mark. The effect a
+      reader can see is that a chart may mix vocabularies: a mark whose row is short says its
+      ``info=`` fields, and a mark whose row is long says its channels instead.
+
+    A value the spec cannot format leaves the mark on its channel clauses too -- see the
+    ``ValueError`` branch below for why it is not allowed to reach the caller here.
+
+    The pairing is by *original row index*, never by position among the marks, which is what
+    makes it safe when the two orders differ -- under ``hue=`` they do, because the table is in
+    input order and the points are grouped into series.
+
+    Each clause is named by the spec's *label*, not the column it reads -- ``[("\ud300", "@note")]``
+    heads its table column ``\ud300``, and a tooltip that answered ``note`` would be the same data
+    under a name the caller went out of their way to replace. Holes read as
+    :data:`~svgplot.labels.table.MISSING_TEXT`, the same substitute the table prints for the
+    same cell; two spellings of one hole would be two claims about one datum.
+    """
+    values = labels.row(index)
+    if values is None:
+        return None
+    try:
+        text = _spelled(labels, values)
+    except ValueError:
+        # A value the spec cannot format. ``Chart.to_markdown`` documents that failure as
+        # deferred to the moment somebody asks for the table -- "validating every row at plot
+        # time would make info= cost a full pass over the data whether or not markdown is ever
+        # asked for" -- and reading the spec per mark would move it to plot time, where it
+        # would stop a chart from being built at all. A chart that renders with tooltips off
+        # has to render with them on. So the mark falls back to its own clauses and the table
+        # still raises when it is asked.
+        return None
+    return text if has_visible_text(text) and fits_a_tooltip(text) else None
+
+
+def _spelled(labels: LabelData, values: dict[str, object]) -> str:
+    return " · ".join(
+        clause(
+            field.label,
+            MISSING_TEXT if is_missing(values[field.field]) else render_value(field, values[field.field]),
+        )
+        for field in labels.spec
+    )

@@ -29,12 +29,12 @@ from svgplot.charts._layout import (
     value_scale,
 )
 from svgplot.charts._legend import render_legend, require_room, size_legend_ink_height
-from svgplot.charts._series import series_items as build_series
+from svgplot.charts._series import series_rows as build_series_rows
 from svgplot.charts._theme_resolve import resolve_theme
-from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
+from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number, info_clauses
 from svgplot.data._missing import numeric_or_none
 from svgplot.data.ingest import ingest_longform
-from svgplot.labels._source import collect_label_data
+from svgplot.labels._source import LabelData, collect_label_data
 from svgplot.labels.spec import LabelSpec
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
@@ -146,7 +146,9 @@ def _size_clause(size: str | None) -> str | None:
     return f'marker size from "{size}"' if fits(size) else "marker size from another column"
 
 
-def _point_tooltip(*, x: str, y: str, size: str | None, hue: str | None, row: tuple, label: object) -> str:
+def _point_tooltip(
+    *, x: str, y: str, size: str | None, hue: str | None, row: tuple, label: object, labels: LabelData | None = None
+) -> str:
     """What one point's ``<title>`` says: its own values, named by the columns they came from.
 
     **Everything here is bounded, and that is the whole design constraint.** Each clause is
@@ -164,7 +166,15 @@ def _point_tooltip(*, x: str, y: str, size: str | None, hue: str | None, row: tu
     -- ``"a · b"`` as a group name reads as two clauses. Escaping it would make the common case
     unreadable to buy an unambiguous parse nobody performs; the tooltip is prose for a person,
     not a record.
+
+    When ``info=`` was given, the point speaks that spec instead of its channels -- the same
+    declaration fills the footnote table and the tooltip, so hovering a mark and reading the
+    table tell a reader the same thing in the same words. Every clause here comes out of the
+    row, so under that rule (see :func:`~svgplot.charts._tooltip.info_clauses`) none of them
+    survive; a chart with computed clauses, like ``pieplot``'s running share, keeps those.
     """
+    if labels is not None and (spelled := info_clauses(labels, row[3])) is not None:
+        return spelled
     parts = [clause(x, format_number(row[0])), clause(y, format_number(row[1]))]
     if size is not None:
         # ``row[2]`` cannot be None here: the row loop drops any row with a missing size when
@@ -239,6 +249,12 @@ def scatterplot(
     ``info=`` charts on one page need :meth:`~svgplot.chart.base.Chart.set_table_id` to tell
     their tables apart.
 
+    With ``tooltip=True`` the same declaration also fills the tooltips: each point's ``<title>``
+    reads its ``info=`` row instead of naming its channels, under the caller's own column
+    headings. One line of Python then answers the reader who hovers and the reader who reads
+    the table with the same words, and pairing is by input row -- not by counting marks, which
+    would go wrong the moment ``hue=`` groups the points into an order the table doesn't share.
+
     Raises:
         KeyError: if ``x``/``y``/``hue``/``size`` isn't a column in ``data``, or if
             ``theme`` is a string that isn't a registered preset name.
@@ -253,20 +269,27 @@ def scatterplot(
     if size is not None and size not in longform.columns:
         raise KeyError(f"size column not found in data: {size!r}")
 
-    series_items = build_series(data, longform.columns, hue)
+    grouped = build_series_rows(data, longform.columns, hue)
 
-    # (label, x, y, size_or_None) per surviving row, grouped by hue label.
-    series_rows: list[tuple[object, list[tuple[float, float, float | None]]]] = []
-    for label, columns in series_items:
+    # (x, y, size_or_None, original_row_index) per surviving row, grouped by hue label. The
+    # index is what lets a point ask ``info=`` about the row it was drawn from; it survives the
+    # filter below, which is why it travels in the tuple rather than being recovered by
+    # counting -- the count would be the position in *this* list, not in the data.
+    series_rows: list[tuple[object, list[tuple[float, float, float | None, int]]]] = []
+    for label, columns, indices in grouped:
         rows = []
-        for xv, yv, sv in zip(
-            columns[x], columns[y], columns[size] if size is not None else [None] * len(columns[x]), strict=True
+        for xv, yv, sv, index in zip(
+            columns[x],
+            columns[y],
+            columns[size] if size is not None else [None] * len(columns[x]),
+            indices,
+            strict=True,
         ):
             xn, yn = numeric_or_none(xv), numeric_or_none(yv)
             sn = numeric_or_none(sv) if size is not None else None
             if xn is None or yn is None or (size is not None and sn is None):
                 continue
-            rows.append((xn, yn, sn))
+            rows.append((xn, yn, sn, index))
         series_rows.append((label, rows))
 
     all_rows = [row for _, rows in series_rows for row in rows]
@@ -328,7 +351,7 @@ def scatterplot(
         series_class = document.semantic_class("series")
         series_classes.append(series_class)
         for row in rows:
-            xv, yv, sv = row
+            xv, yv, sv, _index = row
             radius = radius_of(sv) if radius_of is not None else resolved_theme.marker_size
             point = document.add_node(
                 None,
@@ -341,7 +364,11 @@ def scatterplot(
                 classes=[series_class, "scatter-point"],
             )
             if tooltip:
-                add_tooltip(document, point, _point_tooltip(x=x, y=y, size=size, hue=hue, row=row, label=label))
+                add_tooltip(
+                    document,
+                    point,
+                    _point_tooltip(x=x, y=y, size=size, hue=hue, row=row, label=label, labels=label_data),
+                )
         if label is not None:
             legend_entries.append((str(label), series_class))
 
@@ -373,7 +400,7 @@ def scatterplot(
     points = plural(len(all_rows), "point")
     description = describe(
         "Scatter plot",
-        over([str(label) for label, _ in series_items] if hue is not None else None, points),
+        over([str(label) for label, _, _ in grouped] if hue is not None else None, points),
         span("x", *x_domain),
         span("y", *y_domain),
         _size_clause(size),

@@ -249,3 +249,26 @@ def test_no_page_carries_an_xml_declaration(page: Path) -> None:
     """A prolog is legal only at the very start of an entity. One arriving mid-document with
     an inlined chart renders as text and stops the page parsing."""
     assert "<?xml" not in page.read_text(encoding="utf-8")
+
+
+def test_the_gallery_figure_shows_the_two_orders_disagreeing() -> None:
+    """The page says the table's order and the marks' order differ; on the first draft's data
+    they did not.
+
+    The regions were five 수도권 then five 지방, which sort in that same order and sit in
+    contiguous blocks -- so a purely positional implementation would have produced a
+    byte-identical page, and the one published figure demonstrating the pairing rule did not
+    exercise it. Interleaving the regions fixed the data; this keeps it fixed, because the
+    NOTE beside the figure is a claim about that data and nothing else reads it.
+    """
+    from gallery.examples import scatterplot as page
+
+    namespace: dict[str, object] = {}
+    exec(page.SETUP, namespace)
+    stores = namespace["STORES"]
+
+    chart = sp.scatterplot(stores, x="면적", y="매출", hue="지역", info=[("점포", "@점포")], tooltip=True)
+    from_marks = [title.removeprefix("점포: ") for title in re.findall(r"<title>([^<]*)</title>", chart.to_string())[:-1]]
+
+    assert from_marks != list(stores["점포"]), "the figure's data no longer shows the two orders differing"
+    assert sorted(from_marks) == sorted(stores["점포"]), "the marks and the table hold the same rows"

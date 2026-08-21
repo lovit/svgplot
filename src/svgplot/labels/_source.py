@@ -26,10 +26,14 @@ sorts them. Three alignments were possible and two are wrong:
   ``data._missing.is_missing``, so the rule is *identical* to the one each chart applies
   when dropping unplottable points, and it stays well-defined for every chart type.
 
-Row *order* is input order, not plot order. Plot order differs only for ``lineplot``, and
-restoring it would mean threading the indices ``extract_channels`` discards through seven
-chart modules; with ``hue=`` it would also group-order the table, which reads worse. A
-table is a lookup structure keyed by value, not a positional companion to the marks.
+Row *order* is input order, not plot order, and with ``hue=`` the two can differ -- the marks
+are grouped into series and the table is not, so they coincide only when the groups happen to
+be contiguous and already in sorted order. Reordering the table to match was rejected rather
+than deferred: a table is a lookup structure keyed by value, and group-ordering it reads worse
+than the input order the caller wrote. What a mark needs is not the same order but the same
+*row*, and it gets it by number: :attr:`LabelData.row_indices` records which input rows
+survived, ``data.semantic.channel_row_indices`` records which rows each series holds, and
+:meth:`LabelData.row` is asked by index rather than by position.
 
 A column named in the spec but *not* used as a chart channel may still be missing in a
 surviving row. Those cells render as :data:`MISSING_TEXT` and the row is kept -- dropping
@@ -40,6 +44,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import cached_property
 
 from svgplot.data._columns import column_length, extract_columns
 from svgplot.data._missing import is_missing
@@ -60,9 +65,52 @@ class LabelData:
 
     spec: LabelSpec
     columns: dict[str, list]
+    row_indices: tuple[int, ...] = ()
+    """Which original rows survived, in the order ``columns`` holds them.
+
+    The table does not need this -- it reads its rows in order. A *tooltip* does: a mark knows
+    the row it was drawn from, and the only way to ask this snapshot about that row is by
+    index. Every other way of pairing them is a second filter, and two filters over the same
+    data is exactly the thing that can silently disagree.
+
+    Defaults to empty so the dataclass can be built without it in a test; every path through
+    :func:`collect_label_data` fills it.
+    """
 
     def __len__(self) -> int:
         return column_length(self.columns)
+
+    def row(self, index: int) -> dict[str, object] | None:
+        """The snapshot's row for original row ``index``, or ``None`` if it did not survive.
+
+        ``None`` rather than a raise. Today no chart can ask about a row this snapshot dropped:
+        the filter here is ``is_missing`` over the required channels, and so is every chart's,
+        by one of two routes: ``pieplot`` calls ``is_missing`` itself, and ``scatterplot`` uses
+        ``numeric_or_none``, which returns ``None`` precisely when ``is_missing`` is true and
+        raises rather than dropping for a value it cannot read at all. The ``hue`` channel is
+        filtered by ``is_missing`` either way, inside ``channel_row_indices``. So this is the answer *if the two ever drift apart*,
+        and the caller falls back to naming its own channels. The alternative, answering with
+        whichever row is at that position, keeps working and starts lying.
+        """
+        position = self._positions.get(index)
+        return None if position is None else {name: values[position] for name, values in self.columns.items()}
+
+    @cached_property
+    def _positions(self) -> dict[int, int]:
+        """``row_indices`` inverted, built once.
+
+        A plain property rebuilt it on every call, and :meth:`row` is called once per mark:
+        an 8,000-point scatter with ``info=`` and ``tooltip=True`` spent 1.38s against 0.05s
+        without, and 64,000 points took 85s where the same lookups against a dict built once
+        take 7ms. Quadratic in the number of marks is the wrong shape for a lookup that exists
+        so a tooltip can be filled.
+
+        ``cached_property`` on a frozen dataclass writes through ``__dict__`` directly, which
+        ``frozen=True`` does not block -- it intercepts ``__setattr__``, and this never calls
+        it. Sound because the value is derived from ``row_indices``, which is a tuple and
+        cannot change underneath it.
+        """
+        return {row_index: position for position, row_index in enumerate(self.row_indices)}
 
 
 def collect_label_data(
@@ -114,4 +162,5 @@ def collect_label_data(
     return LabelData(
         spec=spec,
         columns={field.field: [columns[field.field][row_index] for row_index in kept] for field in spec},
+        row_indices=tuple(kept),
     )
