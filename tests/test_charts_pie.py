@@ -305,7 +305,7 @@ def _slice_titles(svg: str) -> list[str]:
     return re.findall(r'<path\b[^>]*\bclass="series-\d+"[^>]*>\s*<title>([^<]*)</title>', svg)
 
 
-def test_a_slice_says_its_share_and_the_share_of_everything_before_it() -> None:
+def test_a_slice_says_its_share_and_the_share_up_to_and_including_it() -> None:
     """The running share is in the picture and written nowhere. A pie is read clockwise from
     twelve o'clock, so where a slice ends is already a statement about the whole -- and the only
     way to read it off the drawing is to add the slices back up."""
@@ -379,4 +379,58 @@ def test_a_label_too_long_to_read_is_left_out_of_the_tooltip() -> None:
     assert _slice_titles(svg) == [
         "value: 60 · 60.0% · 60.0% cumulative",
         "b · value: 40 · 40.0% · 100.0% cumulative",
+    ]
+
+
+def test_the_total_is_the_rows_the_chart_drew() -> None:
+    """A row with a value and no label is dropped from the pie, so it must not be in the
+    denominator either. Summing the column instead leaves the last slice reading ``20.0%
+    cumulative`` -- it contradicts the one thing the running share is for, and every test in
+    this file passed while it did."""
+    partial = {"label": ["a", None, "c"], "value": [10.0, 80.0, 10.0]}
+    svg = pieplot(partial, values="value", labels="label", tooltip=True).to_string()
+
+    assert _slice_titles(svg) == [
+        "a · value: 10 · 50.0% · 50.0% cumulative",
+        "c · value: 10 · 50.0% · 100.0% cumulative",
+    ]
+
+
+def test_the_column_name_is_capped_like_every_other_caller_string() -> None:
+    """``values=`` is repeated once per slice, so an unreadable one would be the largest thing
+    in the file. Dropped rather than truncated; the value stays. Only the *label* half of this
+    was pinned, and the name half is the one pie repeats."""
+    long_name = "면" * 5000
+    data = {"label": ["a", "b"], long_name: [1.0, 1.0]}
+    svg = pieplot(data, values=long_name, labels="label", tooltip=True).to_string()
+
+    assert _slice_titles(svg) == ["a · 1 · 50.0% · 50.0% cumulative", "b · 1 · 50.0% · 100.0% cumulative"]
+    assert long_name not in svg
+
+
+def test_the_value_is_spelled_exactly_not_as_the_axis_would() -> None:
+    """``format_value_label`` is a plain decimal literal, so ``1e307`` becomes 308 digits -- per
+    slice, in a mark's *accessible name*, read out one at a time. ``format_number`` picks the
+    shorter of two exact spellings, so it neither rounds nor expands."""
+    data = {"label": ["a", "b"], "value": [1e307, 1e307]}
+    svg = pieplot(data, values="value", labels="label", tooltip=True).to_string()
+
+    assert _slice_titles(svg)[0] == "a · value: 1e+307 · 50.0% · 50.0% cumulative"
+
+
+def test_a_zero_valued_slice_is_named_even_though_no_pointer_can_reach_it() -> None:
+    """A zero value draws a wedge whose arc starts and ends at the same point, which renderers
+    drop (SVG F.6.2). Unlike ``gaugeplot``'s rounding band -- where a *nonzero* value's arc
+    vanishes and naming it would claim a mark that is not there -- here the value really is
+    zero and the row really is in the data. The ``<title>`` is a named node in the accessibility
+    tree for a row a sighted reader cannot point at, which is more than they had, not less.
+
+    The running share is what makes it legible: the zero slice does not advance it."""
+    data = {"label": ["a", "none", "b"], "value": [5.0, 0.0, 5.0]}
+    svg = pieplot(data, values="value", labels="label", tooltip=True).to_string()
+
+    assert _slice_titles(svg) == [
+        "a · value: 5 · 50.0% · 50.0% cumulative",
+        "none · value: 0 · 0.0% · 50.0% cumulative",
+        "b · value: 5 · 50.0% · 100.0% cumulative",
     ]
