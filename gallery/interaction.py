@@ -84,11 +84,15 @@ KINDS = (TOGGLE, HOVER, CELL)
 MARK_CLASSES = ("heatmap-cell",)
 """The mark hooks :data:`CELL` can point at, in the order it prefers them.
 
-One entry today. It is a list rather than a hard-coded string because the question "which class
-is this chart's mark" has no general answer in the rendered file -- ``heatmap`` is simply the
-one chart that already labels its marks with a class of their own, put there so a reader can
-recolour cells by hand (``charts/heatmap.py``). A chart with no such hook cannot take this
-kind, and :func:`resolve` says so rather than emitting a rule that matches nothing.
+One entry today, and the reason is narrower than "heatmap is the only chart with a mark hook":
+``scatterplot`` marks its points ``scatter-point``, ``violinplot`` its bodies ``violin-body``,
+and several more do the same. ``heatmap`` is the one chart with a mark hook and **no series
+classes**, so it is the one that :data:`HOVER` cannot serve. The hook carries no colour either
+-- hand-recolouring a heatmap goes through the nine ``level-N`` rules, which is what that
+module's docstring is about.
+
+A chart with no hook this list knows cannot take this kind, and :func:`resolve` says so rather
+than emitting a rule that matches nothing.
 """
 
 DIM_OPACITY = "0.15"
@@ -134,7 +138,17 @@ closest category to it that the standard library exposes, which is the whole rea
 exists rather than that property.
 """
 
-_CLASS_ATTRIBUTE = re.compile(r'\bclass="([^"]*)"')
+_CLASS_ATTRIBUTE = re.compile(r'<[a-zA-Z][^>]*?\bclass="([^"]*)"')
+"""Every ``class`` attribute in the picture -- anchored on a tag so *text* cannot supply one.
+
+``xml.etree`` does not escape ``"`` in text content, so a category literally named
+``class="heatmap-cell"`` renders as those characters inside a ``<text>`` element. Without the
+``<tag`` anchor, :func:`resolve` accepted a ``cell`` control on a ``barplot`` carrying that
+label and emitted a rule matching nothing -- which is the outcome the whole "read it from the
+picture" rule exists to prevent. The anchor is not a parser: an attribute value containing
+``>`` would still cut the match short. It is the cheap half of the fix, and the expensive half
+(parsing) buys nothing here, because every generator of these files is this package.
+"""
 _SERIES_CLASS = re.compile(r"^series-(\d+)(?:-marker)?$")
 # A legend row is a swatch element immediately followed by its label, and ``_legend.py``
 # emits nothing between them. Anchoring on the label and looking *back* one element is what
@@ -282,7 +296,8 @@ def resolve(figure: str, kind: str, svg: str) -> Controls:
         # Read from the picture, like everything else here: a hook the emitter *believes* is
         # there produces a rule that matches nothing, and a rule that matches nothing looks
         # exactly like a figure whose author asked for no interaction.
-        drawn = [name for name in MARK_CLASSES if re.search(rf'class="(?:[^"]* )?{name}(?: [^"]*)?"', svg)]
+        painted = {name for attribute in _CLASS_ATTRIBUTE.findall(svg) for name in attribute.split()}
+        drawn = [name for name in MARK_CLASSES if name in painted]
         if not drawn:
             raise ValueError(f"{figure}: the chart draws no mark hook, so there is nothing to point at; tried {MARK_CLASSES}")
         return Controls(figure=figure, kind=kind, series=(Series(index=0, label="", classes=(drawn[0],)),))
