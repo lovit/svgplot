@@ -250,6 +250,16 @@ def treemap(
     refused rather than clamped, and a chart may refuse a larger one if its own legend does
     not fit.
 
+    ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
+    (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
+    for the default theme. It is the only styling input -- colours, fonts, widths and
+    opacities all come from it, and no render reads or writes global style state, so two
+    charts given the same ``Theme`` are styled alike no matter what was drawn in between.
+
+    ``data`` is long-form -- one row per tile -- and is read by column name: only ``values``
+    and, if given, ``labels`` are consulted, and the remaining columns are ignored rather
+    than refused.
+
     Raises:
         KeyError: if ``values``/``labels`` isn't a column in ``data``, or if
             ``theme`` is a string that isn't a registered preset name.

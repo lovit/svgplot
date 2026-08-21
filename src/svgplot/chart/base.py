@@ -31,7 +31,18 @@ from svgplot.scope import apply_scope, validate_scope
 
 
 class Chart:
-    """A single rendered chart, backed by one SVG document."""
+    """A single rendered chart, backed by one SVG document.
+
+    Constructed by the chart functions, not usually by hand. ``svg_document`` is the finished
+    picture; ``labels`` is the ``info=`` snapshot a footnote table is rendered from, or
+    ``None``; ``domains`` records what the axes actually spanned, for
+    :func:`~svgplot.layout.facet.facet` to make panels agree; ``description`` is the sentence
+    that becomes the SVG's ``<desc>``, baked at render time because it describes the picture
+    that was drawn rather than the data it came from.
+
+    Nothing here is validated on the way in: every argument is produced by this package, and a
+    caller who builds one by hand is past the point where a chart function would have refused.
+    """
 
     DEFAULT_TITLE = "Chart"
     """Accessible name used when the caller hasn't set one. An empty ``aria-label``
@@ -142,6 +153,13 @@ class Chart:
         Not what ``.md`` output uses. A GitHub-flavored markdown table cannot carry an id,
         so :meth:`to_markdown` keeps rendering one — and suppresses ``aria-describedby``
         rather than emitting a reference that has nothing to resolve to.
+
+        Raises:
+            ValueError: if an ``info=`` value cannot be rendered by the format spec it was
+                given — the same deferral :meth:`to_markdown` documents, and for the same
+                reason. Validating every row at plot time would make ``info=`` cost a pass
+                over the data whether or not a table is ever asked for, so the refusal waits
+                until one is.
         """
         if self._labels is None:
             return None
@@ -150,7 +168,20 @@ class Chart:
         )
 
     def palette(self, spec: str | list[str]) -> Chart:
-        """Override the color palette. Returns self for chaining."""
+        """Record a palette override. Returns self for chaining.
+
+        **Not wired up.** ``spec`` is stored and never read: no render path consults it, so
+        calling this changes no output byte, and a ``spec`` that is not a palette at all is
+        accepted in silence rather than refused. It is documented that way instead of being
+        described by what the name promises, because a caller who reads "override the color
+        palette" and sees their chart unchanged has no way to tell which half is broken.
+
+        The intended meaning is either a list of ``#rrggbb`` colours or one of the
+        mini-language specs :func:`~svgplot.palette.minilang.parse_palette_spec` parses
+        (``"light:#rrggbb"``, ``"dark:#rrggbb"``, ``"blend:#rrggbb,#rrggbb"``,
+        ``"ch:start=…,rot=…"``, or a registered qualitative palette name). Until this reads
+        it, ``theme=`` with a ``Theme(palette=…)`` is the way to change a chart's colours.
+        """
         self._palette = spec
         return self
 
@@ -187,6 +218,10 @@ class Chart:
 
     def to_string(self, *, pretty: bool = True, declaration: bool = True) -> str:
         """Serialize to an SVG string. See svgplot.output.svg.
+
+        ``pretty=True`` (the default) indents the elements one per line; ``False`` emits the
+        document without that whitespace, which is smaller but not otherwise different -- SVG
+        has no whitespace-sensitive content here.
 
         ``declaration=False`` drops the ``<?xml …?>`` prolog. That is what inlining into an
         HTML document needs: a prolog is only legal at the very start of an entity, so one

@@ -53,6 +53,19 @@ def sparkline(
     plotted in their original order (unlike ``lineplot``, which sorts by ``x``: with no
     x column there is nothing to sort by, and reordering would misrepresent a sequence).
 
+    ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
+    (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
+    for the default theme. It is the only styling input -- colours, fonts, widths and
+    opacities all come from it, and no render reads or writes global style state, so two
+    charts given the same ``Theme`` are styled alike no matter what was drawn in between.
+
+    ``data`` is long-form and only ``y`` is read from it; the rows keep their input order.
+
+    ``width``/``height`` set the canvas in pixels and default to 120x24 -- a size meant to sit
+    inside a line of text rather than to be looked into. They are plain floats here, not
+    ``None``-means-default like the full-size charts, because there is no margin preset to
+    pick: a sparkline draws no axis, no ticks and no legend.
+
     Raises:
         KeyError: if ``y`` isn't a column in ``data``, or if ``theme`` is a string that
             isn't a registered preset name.

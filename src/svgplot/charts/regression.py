@@ -180,6 +180,12 @@ def regplot(
     them can shrink the axis and redraw the same fit at slightly different coordinates. Pin
     ``ylim`` and the two are identical.
 
+    ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
+    (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
+    for the default theme. It is the only styling input -- colours, fonts, widths and
+    opacities all come from it, and no render reads or writes global style state, so two
+    charts given the same ``Theme`` are styled alike no matter what was drawn in between.
+
     Raises:
         KeyError: if ``x``/``y`` isn't a column in ``data``, or if ``theme`` is a string
             that isn't a registered preset name.

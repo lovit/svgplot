@@ -276,7 +276,7 @@ class Composition:
         self._title: str | None = None
 
     def set_title(self, title: str) -> Composition:
-        """Set the composition's accessible name. Returns self for chaining.
+        """Set the composition's accessible name to ``title``. Returns self for chaining.
 
         Mirrors :meth:`svgplot.chart.base.Chart.set_title`. ``layout.add_caption`` also
         sets this when it isn't already set, since a caption *is* the figure's name —
@@ -357,7 +357,8 @@ class Composition:
         """Serialize to an SVG string. See svgplot.output.svg.
 
         ``declaration=False`` drops the ``<?xml …?>`` prolog, for inlining into an HTML
-        document. Same contract as :meth:`svgplot.chart.base.Chart.to_string`.
+        document, and ``pretty=False`` drops the indentation. Same contract as
+        :meth:`svgplot.chart.base.Chart.to_string`.
         """
         return to_string(self._accessible_document(), pretty=pretty, declaration=declaration)
 

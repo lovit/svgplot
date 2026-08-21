@@ -234,6 +234,9 @@ def lineplot(
     column name** rather than masked or clipped: a logarithm is undefined there, and both of
     the alternatives silently draw a different chart than the data describes.
 
+    ``x`` and ``y`` name the two columns the line is drawn through: ``x`` its position along
+    the horizontal axis (numeric, date or datetime), ``y`` the numeric column it plots.
+
     Raises:
         ValueError: if ``x`` holds a type with no position on an axis (``datetime.time`` is
             a time of day with no day, so two values a week apart are the same point), if it

@@ -141,7 +141,17 @@ def _parse_field(label: str, raw: str) -> LabelField:
 
 
 class LabelSpec:
-    """A field+format specification shared by every static label renderer (table/inline/panel)."""
+    """A field+format specification shared by every static label renderer (table/inline/panel).
+
+    ``fields`` is the same ``[("label", "@field{format}"), ...]`` list :meth:`parse` takes --
+    each entry pairs the heading a reader sees with the column it reads and how to format it.
+    Parsing happens here, so an unusable spec is refused where the caller wrote it rather
+    than at render time.
+
+    Raises:
+        ValueError: if ``fields`` isn't a non-empty list, or any entry doesn't parse (see
+            :meth:`parse` for what that covers).
+    """
 
     def __init__(self, fields: list[tuple[str, str]]) -> None:
         if not isinstance(fields, list) or not fields:
@@ -151,6 +161,10 @@ class LabelSpec:
     @classmethod
     def parse(cls, spec: list[tuple[str, str]]) -> LabelSpec:
         """Parse ``[("label", "@field{format}"), ...]`` into a :class:`LabelSpec`.
+
+        ``spec`` is that list: one entry per column the reader will see, pairing the heading
+        with the column it reads and how to format it. Equivalent to calling the constructor
+        — this exists so a caller can name the parse rather than a construction.
 
         Only this list-of-tuples form is supported — issue #11's Acceptance
         Criteria only calls for this shape, so a single-string mini-language
