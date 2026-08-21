@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 import time
 from collections.abc import Callable
@@ -512,15 +513,41 @@ def test_a_tooltip_lookup_does_not_cost_more_the_more_marks_there_are() -> None:
     """
 
     def elapsed(count: int) -> float:
+        """The fastest of three runs. A loaded machine can stretch any single sample; the
+        broken version reads 40x even under heavy contention, so taking the minimum removes
+        the flake without weakening what the bound rejects."""
         data = {
             "x": [float(i) for i in range(count)],
             "y": [float(i % 7) for i in range(count)],
             "m": [f"r{i}" for i in range(count)],
         }
-        start = time.perf_counter()
-        sp.scatterplot(data, x="x", y="y", info=[("M", "@m")], tooltip=True).to_string()
-        return time.perf_counter() - start
+        best = math.inf
+        for _ in range(3):
+            start = time.perf_counter()
+            sp.scatterplot(data, x="x", y="y", info=[("M", "@m")], tooltip=True).to_string()
+            best = min(best, time.perf_counter() - start)
+        return best
 
     small, large = elapsed(1000), elapsed(8000)
 
     assert large < small * 24, f"8x the marks cost {large / small:.1f}x the time — the lookup is not O(1)"
+
+
+def test_an_int_too_large_for_a_float_is_spelled_not_refused() -> None:
+    """The one scheme that could still leak a non-``ValueError`` out of ``render_value``.
+
+    ``math.isfinite(10**400)`` raises ``OverflowError`` -- it converts to float first -- and
+    ``_format_plain`` was calling it bare. So a bare ``@column`` holding an ordinary large
+    Python int still stopped the chart from being built with ``tooltip=True`` after the
+    ``ValueError`` fallback went in: the fallback did not cover the type that escaped. A plain
+    field has a perfectly good spelling for that number, so it is spelled rather than refused,
+    and the numeric schemes keep refusing it because for them it really is a refusal.
+    """
+    data = {"day": [1.0, 2.0], "sales": [10.0, 20.0], "n": [10**400, 1]}
+
+    chart = sp.scatterplot(data, x="day", y="sales", info=[("N", "@n")], tooltip=True)
+
+    assert _tooltips(chart) == ["day: 1 · sales: 10", "N: 1"], "the huge value is over the per-mark cap, not refused"
+    assert str(10**400) in chart.to_markdown(), "the table is not capped, and spells it exactly"
+    with pytest.raises(ValueError, match="finite"):
+        sp.scatterplot(data, x="day", y="sales", info=[("N", "@n{0.0}")]).to_markdown()

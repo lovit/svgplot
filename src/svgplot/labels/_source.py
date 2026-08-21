@@ -26,8 +26,9 @@ sorts them. Three alignments were possible and two are wrong:
   ``data._missing.is_missing``, so the rule is *identical* to the one each chart applies
   when dropping unplottable points, and it stays well-defined for every chart type.
 
-Row *order* is input order, not plot order, and with ``hue=`` the two differ -- the marks are
-grouped into series and the table is not. Reordering the table to match was rejected rather
+Row *order* is input order, not plot order, and with ``hue=`` the two can differ -- the marks
+are grouped into series and the table is not, so they coincide only when the groups happen to
+be contiguous and already in sorted order. Reordering the table to match was rejected rather
 than deferred: a table is a lookup structure keyed by value, and group-ordering it reads worse
 than the input order the caller wrote. What a mark needs is not the same order but the same
 *row*, and it gets it by number: :attr:`LabelData.row_indices` records which input rows
@@ -83,10 +84,11 @@ class LabelData:
         """The snapshot's row for original row ``index``, or ``None`` if it did not survive.
 
         ``None`` rather than a raise. Today no chart can ask about a row this snapshot dropped:
-        the filter here is ``is_missing`` over the required channels and a chart's is
-        ``numeric_or_none`` over the same ones, and those agree exactly -- ``numeric_or_none``
-        returns ``None`` precisely when ``is_missing`` is true, and raises rather than dropping
-        for a value it cannot read at all. So this is the answer *if the two ever drift apart*,
+        the filter here is ``is_missing`` over the required channels, and so is every chart's,
+        by one of two routes: ``pieplot`` calls ``is_missing`` itself, and ``scatterplot`` uses
+        ``numeric_or_none``, which returns ``None`` precisely when ``is_missing`` is true and
+        raises rather than dropping for a value it cannot read at all. The ``hue`` channel is
+        filtered by ``is_missing`` either way, inside ``channel_row_indices``. So this is the answer *if the two ever drift apart*,
         and the caller falls back to naming its own channels. The alternative, answering with
         whichever row is at that position, keeps working and starts lying.
         """

@@ -209,9 +209,29 @@ def _format_plain(value: object) -> str:
 
     if isinstance(value, bool):
         return str(value)
-    if isinstance(value, int | float) and math.isfinite(value):
+    if isinstance(value, int | float) and _is_finite(value):
         return format_value_label(float(value))
     return str(value)
+
+
+def _is_finite(value: int | float) -> bool:
+    """``math.isfinite``, except that an int too large to be a float is False rather than a raise.
+
+    ``math.isfinite(10**400)`` raises ``OverflowError`` -- it converts to float first -- and
+    ``_format_plain`` only asks the question to decide *how* to spell the number, so a raise
+    there refuses a value that has a perfectly good plain spelling. It reaches ``str(value)``
+    instead, the same way ``inf`` already does. :func:`_require_finite_number` catches the same
+    overflow and turns it into the ``ValueError`` it promises, because for the numeric schemes
+    the answer really is a refusal; here it is not.
+
+    The distinction has teeth: ``render_value``'s docstring promises ``ValueError`` and nothing
+    else, and this was the one scheme that could leak another type. A tooltip reads ``info=``
+    once per mark and cannot let that escape -- it would stop the chart being built at all.
+    """
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def _require_finite_number(value: object, *, context: str) -> float:

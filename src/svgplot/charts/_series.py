@@ -27,11 +27,13 @@ SeriesRows = list[tuple[object | None, dict[str, list], list[int]]]
 def series_items(data: object, columns: dict[str, list], hue: str | None) -> SeriesItems:
     """The ``(label, columns)`` pairs a chart should draw, one per series.
 
-    ``columns`` is the chart's already-ingested long-form data, used as the single series when
-    there is no ``hue=``. ``data`` is the caller's original, because the grouping in
-    :func:`series_rows` does its own ingestion -- ``columns`` holds only the channels the
-    chart plots, and a series has to carry every column so ``info=`` can still read one the
-    chart never drew.
+    ``columns`` is the chart's already-ingested long-form data and is returned as the single
+    series when there is no ``hue=``. ``data`` is the caller's original because the ``hue=``
+    branch re-ingests from it and does not consult ``columns`` at all -- see
+    :func:`series_rows`, where the split and the row numbers both come from ``data``. The two
+    are the same content today (``ingest_longform`` drops no rows and filters no columns), and
+    every caller in this package passes ``longform.columns``; a caller that passed something
+    narrower would get one answer without ``hue=`` and another with it.
 
     Ordered by ``str(label)`` rather than by the values themselves. The labels of one column
     can be a mix of types that do not compare -- ``sorted`` would raise ``TypeError`` on
