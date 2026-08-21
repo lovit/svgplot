@@ -224,6 +224,13 @@ def _format_plain(value: object) -> str:
         # ``info=`` once per mark and cannot let that through: it would stop the chart being
         # built at all. Now no int reaches a float conversion here, so there is nothing to
         # overflow.
+        #
+        # One real behaviour change beyond the two bugs: an ``int`` *subclass* that overrides
+        # ``__str__`` now gets its own spelling, where the float path ignored it. That is what
+        # a scheme documented as "the value as it is" should do, and it is what this function
+        # already did for every non-int type. ``IntEnum``/``IntFlag`` are unaffected -- they
+        # use ``int.__str__`` from 3.11 on -- and neither numpy nor pandas integers subclass
+        # ``int``.
         return str(value)
     if isinstance(value, float) and math.isfinite(value):
         return format_value_label(value)
