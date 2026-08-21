@@ -31,7 +31,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend, require_room, size_legend_ink_height
 from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
-from svgplot.charts._tooltip import add_tooltip, format_label, format_number, has_visible_text
+from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
 from svgplot.data._missing import numeric_or_none
 from svgplot.data.ingest import ingest_longform
 from svgplot.labels._source import collect_label_data
@@ -132,7 +132,7 @@ def _render_size_legend(
         row_y += radius + _SIZE_LEGEND_ROW_PADDING
 
 
-def _size_clause(size: str | None) -> str | None:
+def _sizeclause(size: str | None) -> str | None:
     """The ``size=`` clause, with the column name capped like every other caller string.
 
     This is the one clause in the package that names something the caller typed rather
@@ -144,18 +144,6 @@ def _size_clause(size: str | None) -> str | None:
     if size is None:
         return None
     return f'marker size from "{size}"' if fits(size) else "marker size from another column"
-
-
-def _clause(name: str, value: str) -> str:
-    """``"name: value"``, or the value alone when the name is not worth repeating.
-
-    Column names are caller strings, and here one of them is repeated **once per point** --
-    an unreadably long name would be the largest thing in the file. Dropped rather than
-    truncated, for ``_size_clause``'s reason: half a column name is a different column name.
-    ``has_visible_text`` for the same job in the other direction -- a name of one tab is
-    short enough to fit and still reads as ``"\t: 45"``.
-    """
-    return f"{name}: {value}" if fits(name) and has_visible_text(name) else value
 
 
 def _point_tooltip(*, x: str, y: str, size: str | None, hue: str | None, row: tuple, label: object) -> str:
@@ -177,13 +165,13 @@ def _point_tooltip(*, x: str, y: str, size: str | None, hue: str | None, row: tu
     unreadable to buy an unambiguous parse nobody performs; the tooltip is prose for a person,
     not a record.
     """
-    parts = [_clause(x, format_number(row[0])), _clause(y, format_number(row[1]))]
+    parts = [clause(x, format_number(row[0])), clause(y, format_number(row[1]))]
     if size is not None:
         # ``row[2]`` cannot be None here: the row loop drops any row with a missing size when
         # ``size=`` was given, so surviving rows always carry one.
-        parts.append(_clause(size, format_number(row[2])))
+        parts.append(clause(size, format_number(row[2])))
     if hue is not None and (shown := format_label(label)) is not None:
-        parts.append(_clause(hue, shown))
+        parts.append(clause(hue, shown))
     return " · ".join(parts)
 
 
@@ -388,6 +376,6 @@ def scatterplot(
         over([str(label) for label, _ in series_items] if hue is not None else None, points),
         span("x", *x_domain),
         span("y", *y_domain),
-        _size_clause(size),
+        _sizeclause(size),
     )
     return Chart(document, label_data, description=description, domains=Domains(x=x_domain, y=y_domain))

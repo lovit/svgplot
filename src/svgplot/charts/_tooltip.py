@@ -151,6 +151,18 @@ def format_label(value: object) -> str | None:
     return format_number(float(value))
 
 
+def clause(name: str, value: str) -> str:
+    """``"name: value"``, or the value alone when the name is not worth repeating.
+
+    Column names are caller strings and a tooltip repeats one **once per mark**, so an
+    unreadably long name would be the largest thing in the file. Dropped rather than truncated,
+    for ``_describe._size_clause``'s reason: half a column name is a different column name.
+    :func:`has_visible_text` covers the other direction -- a name of one tab is short enough to
+    fit and still reads as ``"\t: 45"``.
+    """
+    return f"{name}: {value}" if fits(name) and has_visible_text(name) else value
+
+
 def add_tooltip(document: SvgDocument, node: ET.Element, text: str) -> ET.Element | None:
     """Give ``node`` a ``<title>`` child holding ``text``, and return it.
 
