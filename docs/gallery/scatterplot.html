@@ -87,6 +87,21 @@
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+      /* Controls sit inside the figure element, before the chart, as its direct children:
+         the sibling combinator in the generated rules depends on that, and a wrapper would
+         quietly break every one of them. Left as native checkboxes -- a real control is
+         reachable with Tab and operated with Space without anything here arranging it. */
+      figure > .series-toggle { margin: 0 0.3rem 0.75rem 0; vertical-align: -0.1em; }
+      figure > .series-toggle + label { margin-right: 1.1rem; font-size: 0.9rem; color: var(--muted); }
+      .interaction-note { margin: 0 0 1.75rem; color: var(--muted); font-size: 0.9rem; }
+      /* svgplot-scatterplot-2 */
+      #svgplot-scatterplot-2-toggle-1:not(:checked) ~ svg :is(.series-1) { opacity: 0.15; }
+      #svgplot-scatterplot-2-toggle-1:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      #svgplot-scatterplot-2-toggle-2:not(:checked) ~ svg :is(.series-2) { opacity: 0.15; }
+      #svgplot-scatterplot-2-toggle-2:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      /* svgplot-scatterplot-4 */
+      .svgplot-scatterplot-4 :is(.series-1:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
+      .svgplot-scatterplot-4 :is(.series-2:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
     </style>
   </head>
   <body>
@@ -107,6 +122,7 @@ STORES = {
     &quot;지역&quot;: [&quot;수도권&quot;] * 5 + [&quot;지방&quot;] * 5,
 }</code></pre>
     <h2>예시</h2>
+    <p class="interaction-note">체크를 끄면 시리즈가 사라지지 않고 흐려진다. 축·눈금·카테고리 밴드는 그릴 때 한 번 정해지고 다시 계산되지 않으므로, 감추면 남은 그림이 자기보다 넓은 축 위에 서게 된다. 흐리게 하는 것은 &quot;이건 지금 보지 말라&quot;는 말이고, 감추는 것은 &quot;이 값은 없다&quot;는 말이다 — 뒤쪽은 사실이 아니다.</p>
     <h3>기본</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-1" role="img" aria-label="기본">
@@ -173,6 +189,10 @@ STORES = {
     <pre><code>sp.scatterplot(STORES, x=&quot;면적&quot;, y=&quot;매출&quot;)</code></pre>
     <h3>hue= 는 점 색을 나눈다</h3>
     <figure>
+      <input type="checkbox" class="series-toggle" id="svgplot-scatterplot-2-toggle-1" checked="checked" />
+      <label for="svgplot-scatterplot-2-toggle-1">수도권</label>
+      <input type="checkbox" class="series-toggle" id="svgplot-scatterplot-2-toggle-2" checked="checked" />
+      <label for="svgplot-scatterplot-2-toggle-2">지방</label>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-2" role="img" aria-label="hue= 는 점 색을 나눈다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
@@ -310,9 +330,104 @@ STORES = {
 </svg>
     </figure>
     <pre><code>sp.scatterplot(STORES, x=&quot;면적&quot;, y=&quot;매출&quot;, size=&quot;직원수&quot;)</code></pre>
+    <h3>tooltip=True — 점마다 자기 값을 말한다</h3>
+    <figure>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-4" role="img" aria-label="tooltip=True — 점마다 자기 값을 말한다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="640" y2="550" class="spine" />
+  <line x1="135.652174" y1="30" x2="135.652174" y2="550" class="grid-line" />
+  <line x1="135.652174" y1="550" x2="135.652174" y2="554" class="tick-line" />
+  <text x="135.652174" y="572" text-anchor="middle" class="tick-label">40</text>
+  <line x1="236.521739" y1="30" x2="236.521739" y2="550" class="grid-line" />
+  <line x1="236.521739" y1="550" x2="236.521739" y2="554" class="tick-line" />
+  <text x="236.521739" y="572" text-anchor="middle" class="tick-label">60</text>
+  <line x1="337.391304" y1="30" x2="337.391304" y2="550" class="grid-line" />
+  <line x1="337.391304" y1="550" x2="337.391304" y2="554" class="tick-line" />
+  <text x="337.391304" y="572" text-anchor="middle" class="tick-label">80</text>
+  <line x1="438.26087" y1="30" x2="438.26087" y2="550" class="grid-line" />
+  <line x1="438.26087" y1="550" x2="438.26087" y2="554" class="tick-line" />
+  <text x="438.26087" y="572" text-anchor="middle" class="tick-label">100</text>
+  <line x1="539.130435" y1="30" x2="539.130435" y2="550" class="grid-line" />
+  <line x1="539.130435" y1="550" x2="539.130435" y2="554" class="tick-line" />
+  <text x="539.130435" y="572" text-anchor="middle" class="tick-label">120</text>
+  <line x1="640" y1="30" x2="640" y2="550" class="grid-line" />
+  <line x1="640" y1="550" x2="640" y2="554" class="tick-line" />
+  <text x="640" y="572" text-anchor="middle" class="tick-label">140</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="485" x2="640" y2="485" class="grid-line" />
+  <line x1="56" y1="485" x2="60" y2="485" class="tick-line" />
+  <text x="54" y="489" text-anchor="end" class="tick-label">10</text>
+  <line x1="60" y1="403.75" x2="640" y2="403.75" class="grid-line" />
+  <line x1="56" y1="403.75" x2="60" y2="403.75" class="tick-line" />
+  <text x="54" y="407.75" text-anchor="end" class="tick-label">15</text>
+  <line x1="60" y1="322.5" x2="640" y2="322.5" class="grid-line" />
+  <line x1="56" y1="322.5" x2="60" y2="322.5" class="tick-line" />
+  <text x="54" y="326.5" text-anchor="end" class="tick-label">20</text>
+  <line x1="60" y1="241.25" x2="640" y2="241.25" class="grid-line" />
+  <line x1="56" y1="241.25" x2="60" y2="241.25" class="tick-line" />
+  <text x="54" y="245.25" text-anchor="end" class="tick-label">25</text>
+  <line x1="60" y1="160" x2="640" y2="160" class="grid-line" />
+  <line x1="56" y1="160" x2="60" y2="160" class="tick-line" />
+  <text x="54" y="164" text-anchor="end" class="tick-label">30</text>
+  <line x1="60" y1="78.75" x2="640" y2="78.75" class="grid-line" />
+  <line x1="56" y1="78.75" x2="60" y2="78.75" class="tick-line" />
+  <text x="54" y="82.75" text-anchor="end" class="tick-label">35</text>
+  <circle cx="85.217391" cy="517.5" r="2.5" class="series-1 scatter-point">
+    <title>면적: 30 · 매출: 8 · 직원수: 2 · 지역: 수도권</title>
+  </circle>
+  <circle cx="160.869565" cy="420" r="3.611111" class="series-1 scatter-point">
+    <title>면적: 45 · 매출: 14 · 직원수: 3 · 지역: 수도권</title>
+  </circle>
+  <circle cx="236.521739" cy="371.25" r="4.722222" class="series-1 scatter-point">
+    <title>면적: 60 · 매출: 17 · 직원수: 4 · 지역: 수도권</title>
+  </circle>
+  <circle cx="362.608696" cy="225" r="6.944444" class="series-1 scatter-point">
+    <title>면적: 85 · 매출: 26 · 직원수: 6 · 지역: 수도권</title>
+  </circle>
+  <circle cx="539.130435" cy="143.75" r="10.277778" class="series-1 scatter-point">
+    <title>면적: 120 · 매출: 31 · 직원수: 9 · 지역: 수도권</title>
+  </circle>
+  <circle cx="60" cy="550" r="2.5" class="series-2 scatter-point">
+    <title>면적: 25 · 매출: 6 · 직원수: 2 · 지역: 지방</title>
+  </circle>
+  <circle cx="186.086957" cy="403.75" r="4.722222" class="series-2 scatter-point">
+    <title>면적: 50 · 매출: 15 · 직원수: 4 · 지역: 지방</title>
+  </circle>
+  <circle cx="286.956522" cy="306.25" r="5.833333" class="series-2 scatter-point">
+    <title>면적: 70 · 매출: 21 · 직원수: 5 · 지역: 지방</title>
+  </circle>
+  <circle cx="413.043478" cy="208.75" r="8.055556" class="series-2 scatter-point">
+    <title>면적: 95 · 매출: 27 · 직원수: 7 · 지역: 지방</title>
+  </circle>
+  <circle cx="640" cy="30" r="12.5" class="series-2 scatter-point">
+    <title>면적: 140 · 매출: 38 · 직원수: 11 · 지역: 지방</title>
+  </circle>
+  <rect x="660" y="25" width="16" height="10" class="series-1" />
+  <text x="682" y="34" class="legend-text">수도권</text>
+  <rect x="660" y="45" width="16" height="10" class="series-2" />
+  <text x="682" y="54" class="legend-text">지방</text>
+  <circle cx="662.5" cy="96.5" r="2.5" class="series-1" />
+  <text x="691" y="100.5" class="legend-text">2</text>
+  <circle cx="667.5" cy="114.5" r="7.5" class="series-1" />
+  <text x="691" y="118.5" class="legend-text">6.5</text>
+  <circle cx="672.5" cy="142.5" r="12.5" class="series-1" />
+  <text x="691" y="146.5" class="legend-text">11</text>
+  <style>:where(.svgplot-scatterplot-4) .plot-background { fill: #ffffff; }
+:where(.svgplot-scatterplot-4) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-scatterplot-4) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-scatterplot-4) .tick-line { stroke: #333333; }
+:where(.svgplot-scatterplot-4) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-scatterplot-4) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-scatterplot-4) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-scatterplot-4) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
+  <title>tooltip=True — 점마다 자기 값을 말한다</title>
+  <desc>Scatter plot, 2 series (수도권, 지방) over 10 points, x 25 to 140, y 6 to 38, marker size from "직원수".</desc>
+</svg>
+    </figure>
+    <pre><code>sp.scatterplot(STORES, x=&quot;면적&quot;, y=&quot;매출&quot;, hue=&quot;지역&quot;, size=&quot;직원수&quot;, tooltip=True)</code></pre>
     <h3>yscale=&quot;log&quot; — 값이 자릿수로 벌어질 때</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-4" role="img" aria-label="yscale=&quot;log&quot; — 값이 자릿수로 벌어질 때">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-5" role="img" aria-label="yscale=&quot;log&quot; — 값이 자릿수로 벌어질 때">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="760" y2="550" class="spine" />
   <line x1="60" y1="30" x2="60" y2="550" class="grid-line" />
@@ -345,13 +460,13 @@ STORES = {
   <circle cx="410" cy="369.09946" r="5" class="series-1 scatter-point" />
   <circle cx="585" cy="205.006634" r="5" class="series-1 scatter-point" />
   <circle cx="760" cy="30" r="5" class="series-1 scatter-point" />
-  <style>:where(.svgplot-scatterplot-4) .plot-background { fill: #ffffff; }
-:where(.svgplot-scatterplot-4) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
-:where(.svgplot-scatterplot-4) .spine { stroke: #333333; stroke-width: 1; fill: none; }
-:where(.svgplot-scatterplot-4) .tick-line { stroke: #333333; }
-:where(.svgplot-scatterplot-4) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
-:where(.svgplot-scatterplot-4) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
-:where(.svgplot-scatterplot-4) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
+  <style>:where(.svgplot-scatterplot-5) .plot-background { fill: #ffffff; }
+:where(.svgplot-scatterplot-5) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-scatterplot-5) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-scatterplot-5) .tick-line { stroke: #333333; }
+:where(.svgplot-scatterplot-5) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-scatterplot-5) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-scatterplot-5) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
   <title>yscale="log" — 값이 자릿수로 벌어질 때</title>
   <desc>Scatter plot, 5 points, x 10 to 100000, y 1.2 to 1400.</desc>
 </svg>
@@ -363,6 +478,9 @@ STORES = {
 sp.scatterplot(LATENCY, x=&quot;요청수&quot;, y=&quot;지연ms&quot;, xscale=&quot;log&quot;, yscale=&quot;log&quot;)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
+      <li>이 페이지의 두 번째 그림에는 체크박스가, 네 번째에는 마우스오버 강조가 붙어 있다. 둘 다 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.</li>
+      <li>tooltip=True 는 점마다 &lt;title&gt; 을 붙인다. 브라우저가 그걸 마우스오버 툴팁으로 띄우고, 같은 것이 그 점의 접근 가능한 이름이 된다 — 점 무더기 하나가 아니라 이름이 있는 마크 여러 개가 된다. &lt;img&gt; 로 넣은 SVG 에서는 동작하지 않는다: 그건 별개 문서라 브라우저가 상호작용 없이 그린다.</li>
+      <li>tooltip=False 가 기본이다. 마크마다 &lt;title&gt; 은 마크마다 요소이므로 점 1000개짜리 차트는 요소 1000개가 늘고, 기존 사용자의 출력 바이트가 요청하지 않은 기능 때문에 전부 바뀐다. 꺼두면 파일은 예전 그대로다.</li>
       <li>hue= 와 size= 를 함께 주면 범례가 둘 쌓인다. 캔버스가 그 높이를 감당하지 못하면 잘라 그리는 대신 거부한다.</li>
       <li>size= 의 반지름은 theme.marker_size 의 0.5배에서 2.5배 사이로 매핑된다. 값이 하나뿐이면 전부 기본 크기가 된다.</li>
       <li>로그 축은 0 이하 값을 컬럼명을 대고 거부한다. ylim= 이 그 값을 도메인 밖으로 밀어내도 그린다면 마찬가지로 거부한다.</li>

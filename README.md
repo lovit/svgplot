@@ -4,7 +4,9 @@ markdown 문서에 넣을 정적 SVG 차트를 만드는 Python 패키지.
 
 출력은 텍스트 SVG 한 장이다. 도형에는 `series-1`, `tick-label`, `grid-line` 같은 클래스가 붙고, 색과 두께는 그 파일 안의 `<style>` 블록에 규칙으로 모여 있다. 같은 입력에는 같은 SVG 를 낸다. 런타임 의존성은 없다.
 
-JavaScript 는 내보내지 않는다 — `<script>` 태그와 `style=` 속성은 노드를 만드는 시점에 거부된다(직렬화까지 가지 않는다). 상호작용·애니메이션·3D·등고선·수식 조판은 다루지 않는다.
+JavaScript 는 내보내지 않는다 — `<script>` 태그와 `style=` 속성은 노드를 만드는 시점에 거부된다(직렬화까지 가지 않는다). 애니메이션·3D·등고선·수식 조판은 다루지 않는다.
+
+상호작용은 브라우저가 SVG 에 대해 이미 하는 것까지다. `tooltip=True` 는 마크마다 `<title>` 을 붙이고 브라우저가 그것을 마우스오버 툴팁으로 띄운다. 그 이상 — 커서를 따라다니는 툴팁, 확대, 차트 간 연동 — 은 위치 계산이 필요하고 그건 JavaScript 다. 그리고 이것들은 SVG 를 페이지에 **인라인**했을 때만 동작한다: `<img>` 안의 SVG 는 별개 문서라 브라우저가 상호작용 없이 그린다.
 
 GitHub 는 렌더된 markdown 에서 인라인 SVG 를 지운다. github.com 에서 보여야 하는 문서라면 `<img src="...svg">` 로 참조한다.
 
@@ -83,6 +85,7 @@ sp.lineplot(data, x="day", y="sales", hue="region").save("sales.svg")
 
 일부:
 
+- **`tooltip=`** — `scatterplot`. 마크마다 `<title>` 을 붙여 브라우저의 마우스오버 툴팁으로 만든다. 같은 것이 그 마크의 접근 가능한 이름이 되므로 점 무더기 하나가 아니라 이름 있는 마크 여러 개가 된다. 기본은 `False` 다 — 마크마다 요소가 하나씩 늘고, 켜면 기존 출력의 바이트가 바뀐다
 - **`xscale=`** — `lineplot` · `scatterplot` · `areaplot`. **`yscale=`** — `lineplot` · `scatterplot`. `"linear"` / `"log"` 이고, 날짜 축에 `log` 는 거부된다
 - **`estimator=`** — `lineplot` · `barplot` · `areaplot`. 같은 x 에 여러 행이 있을 때 `"mean"`/`"sum"`/`"median"` 등으로 접는다. 지정하지 않으면 차트별 기본 규칙이 적용되는데, 행을 버리면서 그 사실을 알리는 것은 `barplot` 뿐이다 — `AggregationWarning` 이 몇 행이 남았는지 말해준다(`areaplot` 은 합산하고 `lineplot` 은 둘 다 그리므로 잃는 것이 없다. `radarplot` 은 `estimator=` 를 받지 않으면서 `barplot` 과 같은 규칙으로 접는데 경고하지 않는다)
 - **`info=`** — `lineplot` · `scatterplot` · `pieplot`. 차트가 실제로 그린 행만 담은 표를 함께 내보낸다. 한 페이지에 `info=` 차트가 둘 이상이면 `Chart.set_table_id()` 로 표 `id` 를 나눠야 한다
