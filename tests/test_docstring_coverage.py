@@ -107,10 +107,10 @@ _METHODS = sorted(
 
 _THEME_PARAGRAPH = """``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
     (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
-    for the default theme. Fonts, line widths, opacities and the grid/spine/tick colours come
-    from it, along with every colour this chart's own arguments do not set. No render reads or
-    writes global style state, so two charts given the same ``Theme`` are styled alike no
-    matter what was drawn in between."""
+    for the default theme. Fonts, line widths, opacities, the grid/spine/tick colours and --
+    where a chart has series -- the palette all come from it. No render reads or writes global
+    style state, so two charts given the same ``Theme`` are styled alike no matter what was
+    drawn in between."""
 """The paragraph in full, not its opening. The first version stopped after the preset names,
 which left the two sentences carrying the substantive claims outside the guard -- one copy
 could be rewritten to say the opposite and nothing failed."""
@@ -164,7 +164,7 @@ def _attribute_docs(cls: type) -> set[str]:
     return documented
 
 
-def _can_refuse(function: object) -> bool:
+def _can_refuse(function: object, seen: frozenset[object] = frozenset()) -> bool:
     """Whether calling this can raise -- its own ``raise``, or one in something it calls.
 
     One level, not none and not the whole graph. None was tried and is too weak: ``set_scope``
@@ -176,6 +176,13 @@ def _can_refuse(function: object) -> bool:
     One level is where a validator sits in this package: a public method that refuses
     something does it by calling a named validator on the first lines of its body.
     """
+    if function in seen:
+        # No cycle exists among this package's private helpers today -- I built the call graph
+        # the way ``_callee`` resolves it over all 121 of them and found none. But a guard whose
+        # failure mode is a ``RecursionError`` reports a stack overflow instead of a finding,
+        # and two mutually recursive helpers is an ordinary thing to write.
+        return False
+    seen = seen | {function}
     try:
         source = textwrap.dedent(inspect.getsource(function))  # type: ignore[arg-type]
     except (OSError, TypeError):  # pragma: no cover
@@ -197,7 +204,7 @@ def _can_refuse(function: object) -> bool:
         # read ``_accessible_document``'s docstring has been sent to the wrong place, so its
         # refusals are the method's refusals. Public callees stop here -- they document
         # themselves, and following them reaches something that raises from everywhere.
-        if callee.__name__.startswith("_") and _can_refuse(callee):
+        if callee.__name__.startswith("_") and _can_refuse(callee, seen):
             return True
     return False
 

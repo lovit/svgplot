@@ -298,10 +298,14 @@ def heatmap(
 
     ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
     (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
-    for the default theme. Fonts, line widths, opacities and the grid/spine/tick colours come
-    from it, along with every colour this chart's own arguments do not set. No render reads or
-    writes global style state, so two charts given the same ``Theme`` are styled alike no
-    matter what was drawn in between.
+    for the default theme. Fonts, line widths, opacities, the grid/spine/tick colours and --
+    where a chart has series -- the palette all come from it. No render reads or writes global
+    style state, so two charts given the same ``Theme`` are styled alike no matter what was
+    drawn in between.
+
+    This chart has no series, so it takes no palette from the theme: a cell's colour comes
+    from ``cmap=``, and ``annot=True`` writes its numbers in black or white chosen for
+    contrast against the cell beneath rather than in any themed ink.
 
     ``values`` names the numeric column a cell's colour comes from, with ``x`` and ``y``
     naming the two columns whose pairs address the cells. Those two are read as categories --

@@ -188,16 +188,18 @@ def barplot(
 
     ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
     (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
-    for the default theme. Fonts, line widths, opacities and the grid/spine/tick colours come
-    from it, along with every colour this chart's own arguments do not set. No render reads or
-    writes global style state, so two charts given the same ``Theme`` are styled alike no
-    matter what was drawn in between.
+    for the default theme. Fonts, line widths, opacities, the grid/spine/tick colours and --
+    where a chart has series -- the palette all come from it. No render reads or writes global
+    style state, so two charts given the same ``Theme`` are styled alike no matter what was
+    drawn in between.
 
     ``data`` is long-form, with ``x`` naming the category column and ``y`` the numeric column
     a bar's length comes from; both are read by name, so the other columns come along
     untouched and can be used for ``hue=``. One row per bar is the simple case, not a
-    requirement -- rows sharing a category within one series are folded together by
-    ``estimator=`` and the fold is reported as an ``AggregationWarning``.
+    requirement, but the two ways of exceeding it differ: with ``estimator=`` the rows sharing
+    a category within one series are combined, silently, because combining them is what was
+    asked for; without it the last such row wins and the others are dropped, which is reported
+    as an ``AggregationWarning`` because nobody asked for that.
 
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``

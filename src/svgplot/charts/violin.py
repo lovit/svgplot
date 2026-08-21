@@ -246,10 +246,10 @@ def violinplot(
 
     ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
     (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
-    for the default theme. Fonts, line widths, opacities and the grid/spine/tick colours come
-    from it, along with every colour this chart's own arguments do not set. No render reads or
-    writes global style state, so two charts given the same ``Theme`` are styled alike no
-    matter what was drawn in between.
+    for the default theme. Fonts, line widths, opacities, the grid/spine/tick colours and --
+    where a chart has series -- the palette all come from it. No render reads or writes global
+    style state, so two charts given the same ``Theme`` are styled alike no matter what was
+    drawn in between.
 
     Raises:
         KeyError: if ``x``/``y`` isn't a column in ``data``, or if ``theme`` is a string

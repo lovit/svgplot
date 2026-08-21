@@ -85,7 +85,9 @@ class Chart:
     def set_title(self, title: str) -> Chart:
         """Set the chart title to ``title``. Returns self for chaining.
 
-        Accepts anything, including a string XML cannot carry. The title is read at
+        Accepts any string, including one XML cannot carry -- but a non-string is not
+        rejected here either, and surfaces later as an ``AttributeError`` rather than as
+        anything this package chose. The title is read at
         serialization time rather than baked in here -- that is what lets a ``set_title``
         after an earlier render still take effect -- so a character XML 1.0 forbids is
         refused by :meth:`to_string`/:meth:`save` instead, away from the call that caused it.

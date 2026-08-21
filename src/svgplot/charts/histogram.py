@@ -157,10 +157,10 @@ def histplot(
 
     ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
     (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
-    for the default theme. Fonts, line widths, opacities and the grid/spine/tick colours come
-    from it, along with every colour this chart's own arguments do not set. No render reads or
-    writes global style state, so two charts given the same ``Theme`` are styled alike no
-    matter what was drawn in between.
+    for the default theme. Fonts, line widths, opacities, the grid/spine/tick colours and --
+    where a chart has series -- the palette all come from it. No render reads or writes global
+    style state, so two charts given the same ``Theme`` are styled alike no matter what was
+    drawn in between.
 
     ``x`` names the numeric column being binned -- the only data column this chart needs,
     since the y axis is a count it computes. ``bins=`` is either an integer count or the name

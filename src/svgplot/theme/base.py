@@ -13,8 +13,9 @@ the output rather than here.
 block built by interpolating these strings, so XML escaping alone would not stop
 ``}``/``;``/``@import``/``url(...)`` from breaking out of a CSS rule. It therefore validates
 each value as a CSS literal before use — ``_validate_css_color`` requires a strict
-``#rrggbb``, ``_validate_css_font_family`` allows only letters, digits, spaces, commas,
-hyphens and apostrophes, and ``_validate_css_class_name`` guards the selectors. Anything
+``#rrggbb``, and ``_validate_css_font_family`` allows only letters, digits, spaces,
+commas, hyphens and apostrophes. (Its ``_validate_css_class_name`` guards the selectors
+those values sit in, which come from the chart rather than from ``Theme``.) Anything
 else that wires ``Theme`` into rendering has the same obligation, plus ``_svg.py``'s
 validated API (``add_node``/``add_text``/``set_attribute``) for XML-structural safety rather
 than raw string concatenation — see ``_svg.py``'s own "escape chokepoint" docstring.
@@ -133,9 +134,9 @@ class Theme:
     Three other rectangles ignore it, and only the first is a decision: treemap tiles keep
     square corners because a tile's neighbours are its own edges and rounding them opens gaps
     that read as gaps in the data, and the same argument covers ``heatmap`` cells. The third,
-    ``violinplot(inner="box")``'s quartile box, is simply inconsistent -- it is drawn to land
-    exactly where a default ``boxplot`` would put the same box, and rounds where that one
-    would not.
+    ``violinplot(inner="box")``'s quartile box, is simply inconsistent -- ``violin.py`` never
+    reads this field, so that box stays square while the ``boxplot`` it is drawn to coincide
+    with rounds.
     """
 
     font_family: str = "sans-serif"
