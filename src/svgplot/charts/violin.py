@@ -148,10 +148,9 @@ def _violin_tooltip(
     which are there whether or not the annotation is.
 
     The same sentence goes on all three marks of a violin -- body, inner box, median tick.
-    ``violinplot`` is the first chart here to repeat one, so this is a decision rather than a
-    convention: the pointer stops at the topmost element under it, and the box and the tick are
-    added after the body, so leaving either untitled puts a hole in the middle of a violin that
-    otherwise responds. Giving them *different* sentences would be worse, since which one the
+    ``boxplot`` repeats its own across six for the same reason: the pointer stops at the
+    topmost element under it, and here the box and the tick are added after the body, so leaving
+    either untitled puts a hole in the middle of a violin that otherwise responds. Giving them *different* sentences would be worse, since which one the
     reader gets would depend on the pixel.
 
     ``quartiles`` is computed by the caller and shared with the inner box, so the two cannot
