@@ -8,9 +8,12 @@ are shaped specifically against ways this file could pass while asserting nothin
   disk had not changed -- it was measuring staleness, which ``test_gallery.py`` already does.
 * Several of the pages here are built by :func:`_stub`. ``ecdfplot`` became the first real
   page to declare ``INTERACTIONS`` (#207), so the "a page with controls must ..." checks are no
-  longer vacuous on their own -- but one page cannot cover the shapes that matter. The stubs
-  are the ones no committed page has: controls on the **first** figure, a series drawn as two
-  classes (``boxplot``'s ``-marker``), and a label with characters that have to be escaped.
+  longer vacuous on their own -- but one page cannot cover the shapes that matter. What the
+  stubs add is **controls on figures no committed page puts them on**: the *first* figure of a
+  page (the sixteen chart pages leave example 1 alone so the index thumbnails stay put), and a
+  chart whose series is two classes -- ``boxplot`` draws that shape on every one of its four
+  committed figures, but none of them carries a control. A third shape, a label with characters
+  that have to be escaped, comes from :func:`_one_example` rather than from a stub.
 * ``test_a_rule_names_every_class_its_series_actually_has`` uses ``boxplot``, the one chart
   whose series is two classes. Against any other chart a rule that dropped ``-marker`` would
   look correct.
@@ -58,11 +61,13 @@ _BOX = 'sp.boxplot(QUARTERS, x="분기", y="매출", hue="채널")'
 def _stub(examples: list[tuple[str, str]], interactions: dict[int, str] | None = None, name: str = "stub") -> Page:
     """A gallery page built here rather than committed.
 
-    Real pages declare ``INTERACTIONS`` now (``ecdfplot`` was the first, in #207), but only in
-    the combinations those pages happen to want. Building one here is how a check reaches a
-    shape no committed page has -- a chart whose series is two classes, a label with characters
-    that have to be escaped, a control on the first figure -- without waiting for a chart PR
-    that wants exactly that.
+    Real pages declare ``INTERACTIONS`` now (``ecdfplot`` was the first, in #207), but only on
+    the figures those pages happen to want. Building one here is how a check reaches a
+    *controlled* figure that no committed page provides -- the first figure of a page, or a
+    chart whose series is two classes -- without waiting for a chart PR that wants exactly
+    that. Every call below passes ``_BAR`` or ``_BOX``, whose labels are ``온라인``/``오프라인``;
+    the cases that need a label with something to escape build their own module through
+    :func:`_one_example`.
     """
     module = types.ModuleType(name)
     module.TITLE = name
