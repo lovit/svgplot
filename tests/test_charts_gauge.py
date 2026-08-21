@@ -383,7 +383,11 @@ def test_the_values_are_printed_in_the_hole_in_row_order() -> None:
 def test_the_printed_values_are_centred_as_a_block_on_the_dial() -> None:
     """One line or five, the stack has to stay centred -- laid out from the top down it
     would drift below the centre as rows are added."""
-    positions = re.findall(r'<text x="325" y="(-?[\d.]+)" text-anchor="middle"[^>]*class="legend-text"', _svg())
+    # Matched on the class *list*, not on ``class="legend-text"`` as a literal attribute value.
+    # The literal form went blind the moment these labels gained a second class (#192) -- it
+    # found nothing and compared two empty lists' lengths, which is a failure only because the
+    # expectation is three. A test asserting "none of these exist" would have stayed green.
+    positions = [label["y"] for label in _tags(_svg(), "text", "gauge-value")]
 
     assert [float(y) for y in positions] == pytest.approx([_CY - 18.0, _CY, _CY + 18.0])
 
