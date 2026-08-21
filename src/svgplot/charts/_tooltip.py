@@ -129,11 +129,15 @@ def format_label(value: object) -> str | None:
     value two ways -- a numeric ``hue=`` column would otherwise read ``x: 1 · group: 1.0``.
 
     ``None`` for a label that is unreadably long or draws nothing, and that bound is the point:
-    a label reaches here once *per mark*. Measured before it existed, a 100,000-character hue
-    value took a 1,000-point chart from 185 KB to 100 MB -- 542 times larger -- because what the
-    legend says once, a tooltip says a thousand times. Left out rather than truncated, for the
-    reason a column name is: half a label is a different label, and the mark still says its x
-    and y.
+    a label reaches here once *per mark*, where the legend says it once.
+
+    Measured before it existed, on 1,000 points whose ``x`` and ``y`` are ``0.0``..``999.0``
+    and whose single hue group is named with 100,000 Hangul characters: **185,050 bytes with
+    the tooltip off, 100,235,830 with it on** -- 542 times larger. The fixture is written out
+    because a ratio without one is not a measurement.
+
+    Left out rather than truncated, for the reason a column name is: half a label is a
+    different label, and the mark still says its x and y.
     """
     if isinstance(value, bool) or not isinstance(value, int | float):
         text = str(value)

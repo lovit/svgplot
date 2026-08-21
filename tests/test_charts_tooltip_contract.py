@@ -125,7 +125,8 @@ def test_a_group_label_too_long_to_read_is_dropped_rather_than_repeated() -> Non
     says it once per mark.
 
     Measured before the cap, with that label on every point: 185 KB to 100 MB, 542 times
-    larger. (Half the points carrying it is 50 MB -- the multiplier is the mark count.) The clause is left out rather than truncated, and the
+    larger. (Half the points carrying it is 50 MB -- the multiplier is the mark count.) The
+    clause is left out rather than truncated, and the
     point still says its x and y.
     """
     long_label = "가" * 5000
@@ -159,9 +160,13 @@ def test_a_tooltip_never_rewrites_the_number_it_names() -> None:
 
 def test_a_tooltip_number_is_bounded_because_it_is_an_accessible_name() -> None:
     """``1e308`` written as a decimal literal is 309 digits, and a mark's ``<title>`` is its
-    accessible name -- so those digits are read out one at a time, once per mark. The same
-    ``MAX_NUMBER_CHARS`` budget the ``<desc>`` uses, past which the number is said the short
-    way it already was."""
+    accessible name -- so those digits are read out one at a time, once per mark.
+
+    There is no threshold: the rule picks the shorter of two exact spellings, and Python's
+    ``repr`` only wins when the decimal literal is expanding scientific notation back into
+    digits. An earlier version *did* have a threshold, borrowed from the ``<desc>``, and it is
+    what made :func:`test_a_tooltip_never_rewrites_the_number_it_names` necessary.
+    """
     svg = sp.scatterplot({"a": [1e308, 1.0], "b": [1.0, 2.0]}, x="a", y="b", tooltip=True).to_string()
 
     assert "<title>a: 1e+308 · b: 1</title>" in svg
