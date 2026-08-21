@@ -21,7 +21,7 @@ EXAMPLES = [
         'sp.pieplot(BUDGET, values="금액", labels="항목", inner_radius=0.45)',
     ),
     (
-        "info= 는 그림 옆에 각주 표를 붙인다 — .md 로 저장할 때 함께 실린다",
+        "info= 로 각주 표를 함께 낸 예산 도넛",
         'sp.pieplot(BUDGET, values="금액", labels="항목", info=[("항목", "@항목"), ("금액", "@금액{0,0}")])',
     ),
 ]

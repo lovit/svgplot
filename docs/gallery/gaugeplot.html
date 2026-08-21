@@ -54,25 +54,36 @@
       pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
       pre code { font-size: 0.84rem; line-height: 1.55; }
       code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
-         CSS does not reach inside it. That isolation is the point: two charts on one page
-         both define .series-1 with opposite rules, and inlining them would let the later
-         one restyle the earlier. */
+      /* Each chart is inlined into this page. An SVG's <style> is not scoped to the SVG --
+         it applies to the whole document -- so two charts here would both define .series-1
+         with opposite rules and the later one would repaint the earlier. Every chart is
+         emitted under its own scope class (Chart.set_scope) and every rule sits under it,
+         which is what makes inlining safe. The trade-offs of each embedding route are in
+         ../tutorial/. */
       figure { margin: 0 0 1rem; }
-      figure img {
+      figure > svg {
         display: block;
-        width: 100%;
         max-width: 100%;
         height: auto;
         background: var(--figure-bg);
         border: 1px solid var(--rule);
         border-radius: 6px;
       }
+      /* The info= footnote table, which a figure carries when its chart was built with one.
+         Without these it renders as an unstyled browser-default table inside an otherwise
+         styled page -- the one piece of the gallery that looked unfinished. */
+      figure table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.9rem; }
+      figure th, figure td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--rule); text-align: left; }
+      figure th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      figure td { font-variant-numeric: tabular-nums; }
+      /* The thumbnail wrapper. Named so it stops inheriting ul.index span, which is the rule
+         for the summary line beneath it. */
+      ul.index .thumb { display: block; }
       ul.notes { margin: 0; padding-left: 1.2rem; color: var(--muted); }
       ul.notes li { margin-bottom: 0.3rem; }
       ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
       ul.index a { display: block; text-decoration: none; color: inherit; }
-      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index svg { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
@@ -96,18 +107,124 @@ KPI = {
     <h2>예시</h2>
     <h3>기본 — 행 하나면 범례도 없다</h3>
     <figure>
-      <img src="svg/gaugeplot-1.svg" alt="기본 — 행 하나면 범례도 없다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-1" role="img" aria-label="기본 — 행 하나면 범례도 없다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="115.421852" y1="421" x2="111.957751" y2="423" class="tick-line" />
+  <text x="103.297497" y="428" text-anchor="end" dominant-baseline="middle" class="tick-label">0</text>
+  <line x1="94.844323" y1="225.217887" x2="91.040097" y2="223.981819" class="tick-line" />
+  <text x="81.529532" y="220.891649" text-anchor="end" dominant-baseline="middle" class="tick-label">20</text>
+  <line x1="226.569732" y1="78.921999" x2="224.942786" y2="75.267817" class="tick-line" />
+  <text x="220.875419" y="66.132363" text-anchor="end" dominant-baseline="middle" class="tick-label">40</text>
+  <line x1="423.430268" y1="78.921999" x2="425.057214" y2="75.267817" class="tick-line" />
+  <text x="429.124581" y="66.132363" text-anchor="start" dominant-baseline="middle" class="tick-label">60</text>
+  <line x1="555.155677" y1="225.217887" x2="558.959903" y2="223.981819" class="tick-line" />
+  <text x="568.470468" y="220.891649" text-anchor="start" dominant-baseline="middle" class="tick-label">80</text>
+  <line x1="534.578148" y1="421" x2="538.042249" y2="423" class="tick-line" />
+  <text x="546.702503" y="428" text-anchor="start" dominant-baseline="middle" class="tick-label">100</text>
+  <path d="M 115.421852,421 A 242,242 0 1 1 534.578148,421 L 398.352352,342.35 A 84.7,84.7 0 1 0 251.647648,342.35 Z" class="gauge-track spine" />
+  <path d="M 115.421852,421 A 242,242 0 0 1 517.76024,153.687014 L 392.466084,248.790455 A 84.7,84.7 0 0 0 251.647648,342.35 Z" class="series-1 gauge-value" />
+  <text x="325" y="300" text-anchor="middle" dominant-baseline="middle" class="legend-text">72</text>
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">가동률</text>
+  <style>:where(.svgplot-gaugeplot-1) .plot-background { fill: #ffffff; }
+:where(.svgplot-gaugeplot-1) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-gaugeplot-1) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-gaugeplot-1) .tick-line { stroke: #333333; }
+:where(.svgplot-gaugeplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-gaugeplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-gaugeplot-1) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }</style>
+  <title>기본 — 행 하나면 범례도 없다</title>
+  <desc>Gauge, 1 arc (가동률), values 72 to 72, range 0 to 100.</desc>
+</svg>
     </figure>
     <pre><code>ONE = {&quot;지표&quot;: [&quot;가동률&quot;], &quot;값&quot;: [72.0]}
 sp.gaugeplot(ONE, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0)</code></pre>
     <h3>여러 행은 하나의 범위를 공유하는 동심 아크가 된다</h3>
     <figure>
-      <img src="svg/gaugeplot-2.svg" alt="여러 행은 하나의 범위를 공유하는 동심 아크가 된다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-2" role="img" aria-label="여러 행은 하나의 범위를 공유하는 동심 아크가 된다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="115.421852" y1="421" x2="111.957751" y2="423" class="tick-line" />
+  <text x="103.297497" y="428" text-anchor="end" dominant-baseline="middle" class="tick-label">0</text>
+  <line x1="94.844323" y1="225.217887" x2="91.040097" y2="223.981819" class="tick-line" />
+  <text x="81.529532" y="220.891649" text-anchor="end" dominant-baseline="middle" class="tick-label">20</text>
+  <line x1="226.569732" y1="78.921999" x2="224.942786" y2="75.267817" class="tick-line" />
+  <text x="220.875419" y="66.132363" text-anchor="end" dominant-baseline="middle" class="tick-label">40</text>
+  <line x1="423.430268" y1="78.921999" x2="425.057214" y2="75.267817" class="tick-line" />
+  <text x="429.124581" y="66.132363" text-anchor="start" dominant-baseline="middle" class="tick-label">60</text>
+  <line x1="555.155677" y1="225.217887" x2="558.959903" y2="223.981819" class="tick-line" />
+  <text x="568.470468" y="220.891649" text-anchor="start" dominant-baseline="middle" class="tick-label">80</text>
+  <line x1="534.578148" y1="421" x2="538.042249" y2="423" class="tick-line" />
+  <text x="546.702503" y="428" text-anchor="start" dominant-baseline="middle" class="tick-label">100</text>
+  <path d="M 115.421852,421 A 242,242 0 1 1 534.578148,421 L 491.47895,396.116667 A 192.233333,192.233333 0 1 0 158.52105,396.116667 Z" class="gauge-track spine" />
+  <path d="M 115.421852,421 A 242,242 0 0 1 517.76024,153.687014 L 478.119601,183.775897 A 192.233333,192.233333 0 0 0 158.52105,396.116667 Z" class="series-1 gauge-value" />
+  <path d="M 161.985151,394.116667 A 188.233333,188.233333 0 1 1 488.014849,394.116667 L 444.915651,369.233333 A 138.466667,138.466667 0 1 0 205.084349,369.233333 Z" class="gauge-track spine" />
+  <path d="M 161.985151,394.116667 A 188.233333,188.233333 0 1 1 511.214029,327.497695 L 461.981242,320.22763 A 138.466667,138.466667 0 1 0 205.084349,369.233333 Z" class="series-2 gauge-value" />
+  <path d="M 208.548451,367.233333 A 134.466667,134.466667 0 1 1 441.451549,367.233333 L 398.352352,342.35 A 84.7,84.7 0 1 0 251.647648,342.35 Z" class="gauge-track spine" />
+  <path d="M 208.548451,367.233333 A 134.466667,134.466667 0 0 1 260.220189,182.165962 L 284.195464,225.776824 A 84.7,84.7 0 0 0 251.647648,342.35 Z" class="series-3 gauge-value" />
+  <text x="325" y="282" text-anchor="middle" dominant-baseline="middle" class="legend-text">72</text>
+  <text x="325" y="300" text-anchor="middle" dominant-baseline="middle" class="legend-text">91</text>
+  <text x="325" y="318" text-anchor="middle" dominant-baseline="middle" class="legend-text">38</text>
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">가동률</text>
+  <rect x="640" y="45" width="16" height="10" class="series-2" />
+  <text x="662" y="54" class="legend-text">적중률</text>
+  <rect x="640" y="65" width="16" height="10" class="series-3" />
+  <text x="662" y="74" class="legend-text">재구매율</text>
+  <style>:where(.svgplot-gaugeplot-2) .plot-background { fill: #ffffff; }
+:where(.svgplot-gaugeplot-2) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-gaugeplot-2) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-gaugeplot-2) .tick-line { stroke: #333333; }
+:where(.svgplot-gaugeplot-2) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-gaugeplot-2) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-gaugeplot-2) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }
+:where(.svgplot-gaugeplot-2) .series-2 { stroke: #56B4E9; stroke-width: 2; fill: #56B4E9; fill-opacity: 0.75; opacity: 1; }
+:where(.svgplot-gaugeplot-2) .series-3 { stroke: #009E73; stroke-width: 2; fill: #009E73; fill-opacity: 0.75; opacity: 1; }</style>
+  <title>여러 행은 하나의 범위를 공유하는 동심 아크가 된다</title>
+  <desc>Gauge, 3 arcs (가동률, 적중률, 재구매율), values 38 to 91, range 0 to 100.</desc>
+</svg>
     </figure>
     <pre><code>sp.gaugeplot(KPI, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0)</code></pre>
     <h3>vmin=/vmax= 를 주지 않으면 데이터에서 범위를 잡는다</h3>
     <figure>
-      <img src="svg/gaugeplot-3.svg" alt="vmin=/vmax= 를 주지 않으면 데이터에서 범위를 잡는다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-3" role="img" aria-label="vmin=/vmax= 를 주지 않으면 데이터에서 범위를 잡는다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="115.421852" y1="421" x2="111.957751" y2="423" class="tick-line" />
+  <text x="103.297497" y="428" text-anchor="end" dominant-baseline="middle" class="tick-label">0</text>
+  <line x1="101.822878" y1="206.426648" x2="98.134" y2="204.879981" class="tick-line" />
+  <text x="88.911805" y="201.013314" text-anchor="end" dominant-baseline="middle" class="tick-label">20</text>
+  <line x1="264.385571" y1="65.714083" x2="263.38368" y2="61.841588" class="tick-line" />
+  <text x="260.878952" y="52.160352" text-anchor="end" dominant-baseline="middle" class="tick-label">40</text>
+  <line x1="474.793397" y1="109.931754" x2="477.269321" y2="106.79013" class="tick-line" />
+  <text x="483.45913" y="98.93607" text-anchor="start" dominant-baseline="middle" class="tick-label">60</text>
+  <line x1="566.963948" y1="304.177075" x2="570.963352" y2="304.246118" class="tick-line" />
+  <text x="580.961862" y="304.418724" text-anchor="start" dominant-baseline="middle" class="tick-label">80</text>
+  <path d="M 115.421852,421 A 242,242 0 1 1 534.578148,421 L 491.47895,396.116667 A 192.233333,192.233333 0 1 0 158.52105,396.116667 Z" class="gauge-track spine" />
+  <path d="M 115.421852,421 A 242,242 0 1 1 552.24645,216.795127 L 505.513812,233.905991 A 192.233333,192.233333 0 1 0 158.52105,396.116667 Z" class="series-1 gauge-value" />
+  <path d="M 161.985151,394.116667 A 188.233333,188.233333 0 1 1 488.014849,394.116667 L 444.915651,369.233333 A 138.466667,138.466667 0 1 0 205.084349,369.233333 Z" class="gauge-track spine" />
+  <path d="M 161.985151,394.116667 A 188.233333,188.233333 0 1 1 488.014849,394.116667 L 444.915651,369.233333 A 138.466667,138.466667 0 1 0 205.084349,369.233333 Z" class="series-2 gauge-value" />
+  <path d="M 208.548451,367.233333 A 134.466667,134.466667 0 1 1 441.451549,367.233333 L 398.352352,342.35 A 84.7,84.7 0 1 0 251.647648,342.35 Z" class="gauge-track spine" />
+  <path d="M 208.548451,367.233333 A 134.466667,134.466667 0 0 1 279.494721,173.467182 L 296.336412,220.297499 A 84.7,84.7 0 0 0 251.647648,342.35 Z" class="series-3 gauge-value" />
+  <text x="325" y="282" text-anchor="middle" dominant-baseline="middle" class="legend-text">72</text>
+  <text x="325" y="300" text-anchor="middle" dominant-baseline="middle" class="legend-text">91</text>
+  <text x="325" y="318" text-anchor="middle" dominant-baseline="middle" class="legend-text">38</text>
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">가동률</text>
+  <rect x="640" y="45" width="16" height="10" class="series-2" />
+  <text x="662" y="54" class="legend-text">적중률</text>
+  <rect x="640" y="65" width="16" height="10" class="series-3" />
+  <text x="662" y="74" class="legend-text">재구매율</text>
+  <style>:where(.svgplot-gaugeplot-3) .plot-background { fill: #ffffff; }
+:where(.svgplot-gaugeplot-3) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-gaugeplot-3) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-gaugeplot-3) .tick-line { stroke: #333333; }
+:where(.svgplot-gaugeplot-3) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-gaugeplot-3) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-gaugeplot-3) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }
+:where(.svgplot-gaugeplot-3) .series-2 { stroke: #56B4E9; stroke-width: 2; fill: #56B4E9; fill-opacity: 0.75; opacity: 1; }
+:where(.svgplot-gaugeplot-3) .series-3 { stroke: #009E73; stroke-width: 2; fill: #009E73; fill-opacity: 0.75; opacity: 1; }</style>
+  <title>vmin=/vmax= 를 주지 않으면 데이터에서 범위를 잡는다</title>
+  <desc>Gauge, 3 arcs (가동률, 적중률, 재구매율), values 38 to 91, range 0 to 91.</desc>
+</svg>
     </figure>
     <pre><code>sp.gaugeplot(KPI, value=&quot;값&quot;, labels=&quot;지표&quot;)</code></pre>
     <h2>메모</h2>

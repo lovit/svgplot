@@ -54,25 +54,36 @@
       pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
       pre code { font-size: 0.84rem; line-height: 1.55; }
       code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
-         CSS does not reach inside it. That isolation is the point: two charts on one page
-         both define .series-1 with opposite rules, and inlining them would let the later
-         one restyle the earlier. */
+      /* Each chart is inlined into this page. An SVG's <style> is not scoped to the SVG --
+         it applies to the whole document -- so two charts here would both define .series-1
+         with opposite rules and the later one would repaint the earlier. Every chart is
+         emitted under its own scope class (Chart.set_scope) and every rule sits under it,
+         which is what makes inlining safe. The trade-offs of each embedding route are in
+         ../tutorial/. */
       figure { margin: 0 0 1rem; }
-      figure img {
+      figure > svg {
         display: block;
-        width: 100%;
         max-width: 100%;
         height: auto;
         background: var(--figure-bg);
         border: 1px solid var(--rule);
         border-radius: 6px;
       }
+      /* The info= footnote table, which a figure carries when its chart was built with one.
+         Without these it renders as an unstyled browser-default table inside an otherwise
+         styled page -- the one piece of the gallery that looked unfinished. */
+      figure table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.9rem; }
+      figure th, figure td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--rule); text-align: left; }
+      figure th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      figure td { font-variant-numeric: tabular-nums; }
+      /* The thumbnail wrapper. Named so it stops inheriting ul.index span, which is the rule
+         for the summary line beneath it. */
+      ul.index .thumb { display: block; }
       ul.notes { margin: 0; padding-left: 1.2rem; color: var(--muted); }
       ul.notes li { margin-bottom: 0.3rem; }
       ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
       ul.index a { display: block; text-decoration: none; color: inherit; }
-      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index svg { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
@@ -100,22 +111,268 @@ WAIT = {
     <h2>예시</h2>
     <h3>기본 — bins=&quot;auto&quot; 가 구간 폭을 고른다</h3>
     <figure>
-      <img src="svg/histplot-1.svg" alt="기본 — bins=&quot;auto&quot; 가 구간 폭을 고른다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-histplot-1" role="img" aria-label="기본 — bins=&quot;auto&quot; 가 구간 폭을 고른다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="760" y2="550" class="spine" />
+  <line x1="128.238994" y1="30" x2="128.238994" y2="550" class="grid-line" />
+  <line x1="128.238994" y1="550" x2="128.238994" y2="554" class="tick-line" />
+  <text x="128.238994" y="572" text-anchor="middle" class="tick-label">5</text>
+  <line x1="238.301887" y1="30" x2="238.301887" y2="550" class="grid-line" />
+  <line x1="238.301887" y1="550" x2="238.301887" y2="554" class="tick-line" />
+  <text x="238.301887" y="572" text-anchor="middle" class="tick-label">10</text>
+  <line x1="348.36478" y1="30" x2="348.36478" y2="550" class="grid-line" />
+  <line x1="348.36478" y1="550" x2="348.36478" y2="554" class="tick-line" />
+  <text x="348.36478" y="572" text-anchor="middle" class="tick-label">15</text>
+  <line x1="458.427673" y1="30" x2="458.427673" y2="550" class="grid-line" />
+  <line x1="458.427673" y1="550" x2="458.427673" y2="554" class="tick-line" />
+  <text x="458.427673" y="572" text-anchor="middle" class="tick-label">20</text>
+  <line x1="568.490566" y1="30" x2="568.490566" y2="550" class="grid-line" />
+  <line x1="568.490566" y1="550" x2="568.490566" y2="554" class="tick-line" />
+  <text x="568.490566" y="572" text-anchor="middle" class="tick-label">25</text>
+  <line x1="678.553459" y1="30" x2="678.553459" y2="550" class="grid-line" />
+  <line x1="678.553459" y1="550" x2="678.553459" y2="554" class="tick-line" />
+  <text x="678.553459" y="572" text-anchor="middle" class="tick-label">30</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="550" x2="760" y2="550" class="grid-line" />
+  <line x1="56" y1="550" x2="60" y2="550" class="tick-line" />
+  <text x="54" y="554" text-anchor="end" class="tick-label">0</text>
+  <line x1="60" y1="426.190476" x2="760" y2="426.190476" class="grid-line" />
+  <line x1="56" y1="426.190476" x2="60" y2="426.190476" class="tick-line" />
+  <text x="54" y="430.190476" text-anchor="end" class="tick-label">10</text>
+  <line x1="60" y1="302.380952" x2="760" y2="302.380952" class="grid-line" />
+  <line x1="56" y1="302.380952" x2="60" y2="302.380952" class="tick-line" />
+  <text x="54" y="306.380952" text-anchor="end" class="tick-label">20</text>
+  <line x1="60" y1="178.571429" x2="760" y2="178.571429" class="grid-line" />
+  <line x1="56" y1="178.571429" x2="60" y2="178.571429" class="tick-line" />
+  <text x="54" y="182.571429" text-anchor="end" class="tick-label">30</text>
+  <line x1="60" y1="54.761905" x2="760" y2="54.761905" class="grid-line" />
+  <line x1="56" y1="54.761905" x2="60" y2="54.761905" class="tick-line" />
+  <text x="54" y="58.761905" text-anchor="end" class="tick-label">40</text>
+  <rect x="60" y="488.095238" width="63.636364" height="61.904762" class="series-1" />
+  <rect x="123.636364" y="339.52381" width="63.636364" height="210.47619" class="series-1" />
+  <rect x="187.272727" y="240.47619" width="63.636364" height="309.52381" class="series-1" />
+  <rect x="250.909091" y="79.52381" width="63.636364" height="470.47619" class="series-1" />
+  <rect x="314.545455" y="30" width="63.636364" height="520" class="series-1" />
+  <rect x="378.181818" y="116.666667" width="63.636364" height="433.333333" class="series-1" />
+  <rect x="441.818182" y="153.809524" width="63.636364" height="396.190476" class="series-1" />
+  <rect x="505.454545" y="265.238095" width="63.636364" height="284.761905" class="series-1" />
+  <rect x="569.090909" y="314.761905" width="63.636364" height="235.238095" class="series-1" />
+  <rect x="632.727273" y="525.238095" width="63.636364" height="24.761905" class="series-1" />
+  <rect x="696.363636" y="525.238095" width="63.636364" height="24.761905" class="series-1" />
+  <style>:where(.svgplot-histplot-1) .plot-background { fill: #ffffff; }
+:where(.svgplot-histplot-1) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-histplot-1) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-histplot-1) .tick-line { stroke: #333333; }
+:where(.svgplot-histplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-histplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-histplot-1) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
+  <title>기본 — bins="auto" 가 구간 폭을 고른다</title>
+  <desc>Histogram, 240 observations in 11 bins, x 1.9 to 33.7, counts 0 to 42.</desc>
+</svg>
     </figure>
     <pre><code>sp.histplot(WAIT, x=&quot;대기분&quot;)</code></pre>
     <h3>bins= 에 정수를 주면 그 수만큼 나눈다</h3>
     <figure>
-      <img src="svg/histplot-2.svg" alt="bins= 에 정수를 주면 그 수만큼 나눈다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-histplot-2" role="img" aria-label="bins= 에 정수를 주면 그 수만큼 나눈다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="760" y2="550" class="spine" />
+  <line x1="128.238994" y1="30" x2="128.238994" y2="550" class="grid-line" />
+  <line x1="128.238994" y1="550" x2="128.238994" y2="554" class="tick-line" />
+  <text x="128.238994" y="572" text-anchor="middle" class="tick-label">5</text>
+  <line x1="238.301887" y1="30" x2="238.301887" y2="550" class="grid-line" />
+  <line x1="238.301887" y1="550" x2="238.301887" y2="554" class="tick-line" />
+  <text x="238.301887" y="572" text-anchor="middle" class="tick-label">10</text>
+  <line x1="348.36478" y1="30" x2="348.36478" y2="550" class="grid-line" />
+  <line x1="348.36478" y1="550" x2="348.36478" y2="554" class="tick-line" />
+  <text x="348.36478" y="572" text-anchor="middle" class="tick-label">15</text>
+  <line x1="458.427673" y1="30" x2="458.427673" y2="550" class="grid-line" />
+  <line x1="458.427673" y1="550" x2="458.427673" y2="554" class="tick-line" />
+  <text x="458.427673" y="572" text-anchor="middle" class="tick-label">20</text>
+  <line x1="568.490566" y1="30" x2="568.490566" y2="550" class="grid-line" />
+  <line x1="568.490566" y1="550" x2="568.490566" y2="554" class="tick-line" />
+  <text x="568.490566" y="572" text-anchor="middle" class="tick-label">25</text>
+  <line x1="678.553459" y1="30" x2="678.553459" y2="550" class="grid-line" />
+  <line x1="678.553459" y1="550" x2="678.553459" y2="554" class="tick-line" />
+  <text x="678.553459" y="572" text-anchor="middle" class="tick-label">30</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="550" x2="760" y2="550" class="grid-line" />
+  <line x1="56" y1="550" x2="60" y2="550" class="tick-line" />
+  <text x="54" y="554" text-anchor="end" class="tick-label">0</text>
+  <line x1="60" y1="423.170732" x2="760" y2="423.170732" class="grid-line" />
+  <line x1="56" y1="423.170732" x2="60" y2="423.170732" class="tick-line" />
+  <text x="54" y="427.170732" text-anchor="end" class="tick-label">10</text>
+  <line x1="60" y1="296.341463" x2="760" y2="296.341463" class="grid-line" />
+  <line x1="56" y1="296.341463" x2="60" y2="296.341463" class="tick-line" />
+  <text x="54" y="300.341463" text-anchor="end" class="tick-label">20</text>
+  <line x1="60" y1="169.512195" x2="760" y2="169.512195" class="grid-line" />
+  <line x1="56" y1="169.512195" x2="60" y2="169.512195" class="tick-line" />
+  <text x="54" y="173.512195" text-anchor="end" class="tick-label">30</text>
+  <line x1="60" y1="42.682927" x2="760" y2="42.682927" class="grid-line" />
+  <line x1="56" y1="42.682927" x2="60" y2="42.682927" class="tick-line" />
+  <text x="54" y="46.682927" text-anchor="end" class="tick-label">40</text>
+  <rect x="60" y="486.585366" width="58.333333" height="63.414634" class="series-1" />
+  <rect x="118.333333" y="347.073171" width="58.333333" height="202.926829" class="series-1" />
+  <rect x="176.666667" y="321.707317" width="58.333333" height="228.292683" class="series-1" />
+  <rect x="235" y="144.146341" width="58.333333" height="405.853659" class="series-1" />
+  <rect x="293.333333" y="30" width="58.333333" height="520" class="series-1" />
+  <rect x="351.666667" y="169.512195" width="58.333333" height="380.487805" class="series-1" />
+  <rect x="410" y="156.829268" width="58.333333" height="393.170732" class="series-1" />
+  <rect x="468.333333" y="245.609756" width="58.333333" height="304.390244" class="series-1" />
+  <rect x="526.666667" y="220.243902" width="58.333333" height="329.756098" class="series-1" />
+  <rect x="585" y="385.121951" width="58.333333" height="164.878049" class="series-1" />
+  <rect x="643.333333" y="524.634146" width="58.333333" height="25.365854" class="series-1" />
+  <rect x="701.666667" y="524.634146" width="58.333333" height="25.365854" class="series-1" />
+  <style>:where(.svgplot-histplot-2) .plot-background { fill: #ffffff; }
+:where(.svgplot-histplot-2) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-histplot-2) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-histplot-2) .tick-line { stroke: #333333; }
+:where(.svgplot-histplot-2) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-histplot-2) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-histplot-2) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
+  <title>bins= 에 정수를 주면 그 수만큼 나눈다</title>
+  <desc>Histogram, 240 observations in 12 bins, x 1.9 to 33.7, counts 0 to 41.</desc>
+</svg>
     </figure>
     <pre><code>sp.histplot(WAIT, x=&quot;대기분&quot;, bins=12)</code></pre>
     <h3>bins= 에 전략 이름을 줄 수도 있다</h3>
     <figure>
-      <img src="svg/histplot-3.svg" alt="bins= 에 전략 이름을 줄 수도 있다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-histplot-3" role="img" aria-label="bins= 에 전략 이름을 줄 수도 있다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="760" y2="550" class="spine" />
+  <line x1="128.238994" y1="30" x2="128.238994" y2="550" class="grid-line" />
+  <line x1="128.238994" y1="550" x2="128.238994" y2="554" class="tick-line" />
+  <text x="128.238994" y="572" text-anchor="middle" class="tick-label">5</text>
+  <line x1="238.301887" y1="30" x2="238.301887" y2="550" class="grid-line" />
+  <line x1="238.301887" y1="550" x2="238.301887" y2="554" class="tick-line" />
+  <text x="238.301887" y="572" text-anchor="middle" class="tick-label">10</text>
+  <line x1="348.36478" y1="30" x2="348.36478" y2="550" class="grid-line" />
+  <line x1="348.36478" y1="550" x2="348.36478" y2="554" class="tick-line" />
+  <text x="348.36478" y="572" text-anchor="middle" class="tick-label">15</text>
+  <line x1="458.427673" y1="30" x2="458.427673" y2="550" class="grid-line" />
+  <line x1="458.427673" y1="550" x2="458.427673" y2="554" class="tick-line" />
+  <text x="458.427673" y="572" text-anchor="middle" class="tick-label">20</text>
+  <line x1="568.490566" y1="30" x2="568.490566" y2="550" class="grid-line" />
+  <line x1="568.490566" y1="550" x2="568.490566" y2="554" class="tick-line" />
+  <text x="568.490566" y="572" text-anchor="middle" class="tick-label">25</text>
+  <line x1="678.553459" y1="30" x2="678.553459" y2="550" class="grid-line" />
+  <line x1="678.553459" y1="550" x2="678.553459" y2="554" class="tick-line" />
+  <text x="678.553459" y="572" text-anchor="middle" class="tick-label">30</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="550" x2="760" y2="550" class="grid-line" />
+  <line x1="56" y1="550" x2="60" y2="550" class="tick-line" />
+  <text x="54" y="554" text-anchor="end" class="tick-label">0</text>
+  <line x1="60" y1="448.039216" x2="760" y2="448.039216" class="grid-line" />
+  <line x1="56" y1="448.039216" x2="60" y2="448.039216" class="tick-line" />
+  <text x="54" y="452.039216" text-anchor="end" class="tick-label">10</text>
+  <line x1="60" y1="346.078431" x2="760" y2="346.078431" class="grid-line" />
+  <line x1="56" y1="346.078431" x2="60" y2="346.078431" class="tick-line" />
+  <text x="54" y="350.078431" text-anchor="end" class="tick-label">20</text>
+  <line x1="60" y1="244.117647" x2="760" y2="244.117647" class="grid-line" />
+  <line x1="56" y1="244.117647" x2="60" y2="244.117647" class="tick-line" />
+  <text x="54" y="248.117647" text-anchor="end" class="tick-label">30</text>
+  <line x1="60" y1="142.156863" x2="760" y2="142.156863" class="grid-line" />
+  <line x1="56" y1="142.156863" x2="60" y2="142.156863" class="tick-line" />
+  <text x="54" y="146.156863" text-anchor="end" class="tick-label">40</text>
+  <line x1="60" y1="40.196078" x2="760" y2="40.196078" class="grid-line" />
+  <line x1="56" y1="40.196078" x2="60" y2="40.196078" class="tick-line" />
+  <text x="54" y="44.196078" text-anchor="end" class="tick-label">50</text>
+  <rect x="60" y="458.235294" width="77.777778" height="91.764706" class="series-1" />
+  <rect x="137.777778" y="325.686275" width="77.777778" height="224.313725" class="series-1" />
+  <rect x="215.555556" y="142.156863" width="77.777778" height="407.843137" class="series-1" />
+  <rect x="293.333333" y="30" width="77.777778" height="520" class="series-1" />
+  <rect x="371.111111" y="111.568627" width="77.777778" height="438.431373" class="series-1" />
+  <rect x="448.888889" y="223.72549" width="77.777778" height="326.27451" class="series-1" />
+  <rect x="526.666667" y="254.313725" width="77.777778" height="295.686275" class="series-1" />
+  <rect x="604.444444" y="427.647059" width="77.777778" height="122.352941" class="series-1" />
+  <rect x="682.222222" y="529.607843" width="77.777778" height="20.392157" class="series-1" />
+  <style>:where(.svgplot-histplot-3) .plot-background { fill: #ffffff; }
+:where(.svgplot-histplot-3) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-histplot-3) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-histplot-3) .tick-line { stroke: #333333; }
+:where(.svgplot-histplot-3) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-histplot-3) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-histplot-3) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
+  <title>bins= 에 전략 이름을 줄 수도 있다</title>
+  <desc>Histogram, 240 observations in 9 bins, x 1.9 to 33.7, counts 0 to 51.</desc>
+</svg>
     </figure>
     <pre><code>sp.histplot(WAIT, x=&quot;대기분&quot;, bins=&quot;sturges&quot;)</code></pre>
     <h3>hue= 그룹은 하나의 구간 경계를 공유한다</h3>
     <figure>
-      <img src="svg/histplot-4.svg" alt="hue= 그룹은 하나의 구간 경계를 공유한다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-histplot-4" role="img" aria-label="hue= 그룹은 하나의 구간 경계를 공유한다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="640" y2="550" class="spine" />
+  <line x1="116.540881" y1="30" x2="116.540881" y2="550" class="grid-line" />
+  <line x1="116.540881" y1="550" x2="116.540881" y2="554" class="tick-line" />
+  <text x="116.540881" y="572" text-anchor="middle" class="tick-label">5</text>
+  <line x1="207.735849" y1="30" x2="207.735849" y2="550" class="grid-line" />
+  <line x1="207.735849" y1="550" x2="207.735849" y2="554" class="tick-line" />
+  <text x="207.735849" y="572" text-anchor="middle" class="tick-label">10</text>
+  <line x1="298.930818" y1="30" x2="298.930818" y2="550" class="grid-line" />
+  <line x1="298.930818" y1="550" x2="298.930818" y2="554" class="tick-line" />
+  <text x="298.930818" y="572" text-anchor="middle" class="tick-label">15</text>
+  <line x1="390.125786" y1="30" x2="390.125786" y2="550" class="grid-line" />
+  <line x1="390.125786" y1="550" x2="390.125786" y2="554" class="tick-line" />
+  <text x="390.125786" y="572" text-anchor="middle" class="tick-label">20</text>
+  <line x1="481.320755" y1="30" x2="481.320755" y2="550" class="grid-line" />
+  <line x1="481.320755" y1="550" x2="481.320755" y2="554" class="tick-line" />
+  <text x="481.320755" y="572" text-anchor="middle" class="tick-label">25</text>
+  <line x1="572.515723" y1="30" x2="572.515723" y2="550" class="grid-line" />
+  <line x1="572.515723" y1="550" x2="572.515723" y2="554" class="tick-line" />
+  <text x="572.515723" y="572" text-anchor="middle" class="tick-label">30</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="550" x2="640" y2="550" class="grid-line" />
+  <line x1="56" y1="550" x2="60" y2="550" class="tick-line" />
+  <text x="54" y="554" text-anchor="end" class="tick-label">0</text>
+  <line x1="60" y1="468.75" x2="640" y2="468.75" class="grid-line" />
+  <line x1="56" y1="468.75" x2="60" y2="468.75" class="tick-line" />
+  <text x="54" y="472.75" text-anchor="end" class="tick-label">5</text>
+  <line x1="60" y1="387.5" x2="640" y2="387.5" class="grid-line" />
+  <line x1="56" y1="387.5" x2="60" y2="387.5" class="tick-line" />
+  <text x="54" y="391.5" text-anchor="end" class="tick-label">10</text>
+  <line x1="60" y1="306.25" x2="640" y2="306.25" class="grid-line" />
+  <line x1="56" y1="306.25" x2="60" y2="306.25" class="tick-line" />
+  <text x="54" y="310.25" text-anchor="end" class="tick-label">15</text>
+  <line x1="60" y1="225" x2="640" y2="225" class="grid-line" />
+  <line x1="56" y1="225" x2="60" y2="225" class="tick-line" />
+  <text x="54" y="229" text-anchor="end" class="tick-label">20</text>
+  <line x1="60" y1="143.75" x2="640" y2="143.75" class="grid-line" />
+  <line x1="56" y1="143.75" x2="60" y2="143.75" class="tick-line" />
+  <text x="54" y="147.75" text-anchor="end" class="tick-label">25</text>
+  <line x1="60" y1="62.5" x2="640" y2="62.5" class="grid-line" />
+  <line x1="56" y1="62.5" x2="60" y2="62.5" class="tick-line" />
+  <text x="54" y="66.5" text-anchor="end" class="tick-label">30</text>
+  <rect x="112.727273" y="501.25" width="52.727273" height="48.75" class="series-1" />
+  <rect x="165.454545" y="517.5" width="52.727273" height="32.5" class="series-1" />
+  <rect x="218.181818" y="436.25" width="52.727273" height="113.75" class="series-1" />
+  <rect x="270.909091" y="371.25" width="52.727273" height="178.75" class="series-1" />
+  <rect x="323.636364" y="241.25" width="52.727273" height="308.75" class="series-1" />
+  <rect x="376.363636" y="30" width="52.727273" height="520" class="series-1" />
+  <rect x="429.090909" y="176.25" width="52.727273" height="373.75" class="series-1" />
+  <rect x="481.818182" y="241.25" width="52.727273" height="308.75" class="series-1" />
+  <rect x="534.545455" y="517.5" width="52.727273" height="32.5" class="series-1" />
+  <rect x="587.272727" y="517.5" width="52.727273" height="32.5" class="series-1" />
+  <rect x="60" y="468.75" width="52.727273" height="81.25" class="series-2" />
+  <rect x="112.727273" y="322.5" width="52.727273" height="227.5" class="series-2" />
+  <rect x="165.454545" y="176.25" width="52.727273" height="373.75" class="series-2" />
+  <rect x="218.181818" y="46.25" width="52.727273" height="503.75" class="series-2" />
+  <rect x="270.909091" y="46.25" width="52.727273" height="503.75" class="series-2" />
+  <rect x="323.636364" y="290" width="52.727273" height="260" class="series-2" />
+  <rect x="660" y="25" width="16" height="10" class="series-1" />
+  <text x="682" y="34" class="legend-text">우선</text>
+  <rect x="660" y="45" width="16" height="10" class="series-2" />
+  <text x="682" y="54" class="legend-text">일반</text>
+  <style>:where(.svgplot-histplot-4) .plot-background { fill: #ffffff; }
+:where(.svgplot-histplot-4) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-histplot-4) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-histplot-4) .tick-line { stroke: #333333; }
+:where(.svgplot-histplot-4) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-histplot-4) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-histplot-4) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-histplot-4) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
+  <title>hue= 그룹은 하나의 구간 경계를 공유한다</title>
+  <desc>Histogram, 2 series (우선, 일반) over 240 observations in 11 bins, x 1.9 to 33.7, counts 0 to 32.</desc>
+</svg>
     </figure>
     <pre><code>sp.histplot(WAIT, x=&quot;대기분&quot;, hue=&quot;창구&quot;)</code></pre>
     <h2>메모</h2>

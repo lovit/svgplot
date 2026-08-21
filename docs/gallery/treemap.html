@@ -54,25 +54,36 @@
       pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
       pre code { font-size: 0.84rem; line-height: 1.55; }
       code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
-         CSS does not reach inside it. That isolation is the point: two charts on one page
-         both define .series-1 with opposite rules, and inlining them would let the later
-         one restyle the earlier. */
+      /* Each chart is inlined into this page. An SVG's <style> is not scoped to the SVG --
+         it applies to the whole document -- so two charts here would both define .series-1
+         with opposite rules and the later one would repaint the earlier. Every chart is
+         emitted under its own scope class (Chart.set_scope) and every rule sits under it,
+         which is what makes inlining safe. The trade-offs of each embedding route are in
+         ../tutorial/. */
       figure { margin: 0 0 1rem; }
-      figure img {
+      figure > svg {
         display: block;
-        width: 100%;
         max-width: 100%;
         height: auto;
         background: var(--figure-bg);
         border: 1px solid var(--rule);
         border-radius: 6px;
       }
+      /* The info= footnote table, which a figure carries when its chart was built with one.
+         Without these it renders as an unstyled browser-default table inside an otherwise
+         styled page -- the one piece of the gallery that looked unfinished. */
+      figure table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.9rem; }
+      figure th, figure td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--rule); text-align: left; }
+      figure th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      figure td { font-variant-numeric: tabular-nums; }
+      /* The thumbnail wrapper. Named so it stops inheriting ul.index span, which is the rule
+         for the summary line beneath it. */
+      ul.index .thumb { display: block; }
       ul.notes { margin: 0; padding-left: 1.2rem; color: var(--muted); }
       ul.notes li { margin-bottom: 0.3rem; }
       ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
       ul.index a { display: block; text-decoration: none; color: inherit; }
-      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index svg { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
@@ -96,17 +107,136 @@ STORAGE = {
     <h2>예시</h2>
     <h3>기본 — labels= 를 주지 않으면 타일 번호가 이름이 된다</h3>
     <figure>
-      <img src="svg/treemap-1.svg" alt="기본 — labels= 를 주지 않으면 타일 번호가 이름이 된다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-treemap-1" role="img" aria-label="기본 — labels= 를 주지 않으면 타일 번호가 이름이 된다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <rect x="30" y="30" width="263.712121" height="540" class="series-1" />
+  <text x="161.856061" y="300" text-anchor="middle" class="legend-text">2</text>
+  <rect x="293.712121" y="30" width="326.287879" height="236.712329" class="series-2" />
+  <text x="456.856061" y="148.356164" text-anchor="middle" class="legend-text">5</text>
+  <rect x="293.712121" y="266.712329" width="167.12306" height="303.287671" class="series-3" />
+  <text x="377.273651" y="418.356164" text-anchor="middle" class="legend-text">1</text>
+  <rect x="460.835181" y="266.712329" width="159.164819" height="197.136986" class="series-4" />
+  <text x="540.417591" y="365.280822" text-anchor="middle" class="legend-text">4</text>
+  <rect x="460.835181" y="463.849315" width="108.004699" height="106.150685" class="series-5" />
+  <text x="514.83753" y="516.924658" text-anchor="middle" class="legend-text">3</text>
+  <rect x="568.83988" y="463.849315" width="51.16012" height="106.150685" class="series-6" />
+  <text x="594.41994" y="516.924658" text-anchor="middle" class="legend-text">6</text>
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">2</text>
+  <rect x="640" y="45" width="16" height="10" class="series-2" />
+  <text x="662" y="54" class="legend-text">5</text>
+  <rect x="640" y="65" width="16" height="10" class="series-3" />
+  <text x="662" y="74" class="legend-text">1</text>
+  <rect x="640" y="85" width="16" height="10" class="series-4" />
+  <text x="662" y="94" class="legend-text">4</text>
+  <rect x="640" y="105" width="16" height="10" class="series-5" />
+  <text x="662" y="114" class="legend-text">3</text>
+  <rect x="640" y="125" width="16" height="10" class="series-6" />
+  <text x="662" y="134" class="legend-text">6</text>
+  <style>:where(.svgplot-treemap-1) .plot-background { fill: #ffffff; }
+:where(.svgplot-treemap-1) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-treemap-1) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-treemap-1) .tick-line { stroke: #333333; }
+:where(.svgplot-treemap-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-treemap-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-treemap-1) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-1) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-1) .series-3 { fill: #009E73; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-1) .series-4 { fill: #F0E442; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-1) .series-5 { fill: #0072B2; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-1) .series-6 { fill: #D55E00; stroke: none; opacity: 0.75; }</style>
+  <title>기본 — labels= 를 주지 않으면 타일 번호가 이름이 된다</title>
+  <desc>Treemap, 6 tiles (1, 2, 3, 4, 5, 6), values 45 to 1180, total 2640.</desc>
+</svg>
     </figure>
     <pre><code>sp.treemap(STORAGE, values=&quot;GB&quot;)</code></pre>
     <h3>labels= 로 타일에 이름을 붙인다</h3>
     <figure>
-      <img src="svg/treemap-2.svg" alt="labels= 로 타일에 이름을 붙인다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-treemap-2" role="img" aria-label="labels= 로 타일에 이름을 붙인다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <rect x="30" y="30" width="263.712121" height="540" class="series-1" />
+  <text x="161.856061" y="300" text-anchor="middle" class="legend-text">동영상</text>
+  <rect x="293.712121" y="30" width="326.287879" height="236.712329" class="series-2" />
+  <text x="456.856061" y="148.356164" text-anchor="middle" class="legend-text">백업</text>
+  <rect x="293.712121" y="266.712329" width="167.12306" height="303.287671" class="series-3" />
+  <text x="377.273651" y="418.356164" text-anchor="middle" class="legend-text">이미지</text>
+  <rect x="460.835181" y="266.712329" width="159.164819" height="197.136986" class="series-4" />
+  <text x="540.417591" y="365.280822" text-anchor="middle" class="legend-text">로그</text>
+  <rect x="460.835181" y="463.849315" width="108.004699" height="106.150685" class="series-5" />
+  <text x="514.83753" y="516.924658" text-anchor="middle" class="legend-text">문서</text>
+  <rect x="568.83988" y="463.849315" width="51.16012" height="106.150685" class="series-6" />
+  <text x="594.41994" y="516.924658" text-anchor="middle" class="legend-text">기타</text>
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">동영상</text>
+  <rect x="640" y="45" width="16" height="10" class="series-2" />
+  <text x="662" y="54" class="legend-text">백업</text>
+  <rect x="640" y="65" width="16" height="10" class="series-3" />
+  <text x="662" y="74" class="legend-text">이미지</text>
+  <rect x="640" y="85" width="16" height="10" class="series-4" />
+  <text x="662" y="94" class="legend-text">로그</text>
+  <rect x="640" y="105" width="16" height="10" class="series-5" />
+  <text x="662" y="114" class="legend-text">문서</text>
+  <rect x="640" y="125" width="16" height="10" class="series-6" />
+  <text x="662" y="134" class="legend-text">기타</text>
+  <style>:where(.svgplot-treemap-2) .plot-background { fill: #ffffff; }
+:where(.svgplot-treemap-2) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-treemap-2) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-treemap-2) .tick-line { stroke: #333333; }
+:where(.svgplot-treemap-2) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-treemap-2) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-treemap-2) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-2) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-2) .series-3 { fill: #009E73; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-2) .series-4 { fill: #F0E442; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-2) .series-5 { fill: #0072B2; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-2) .series-6 { fill: #D55E00; stroke: none; opacity: 0.75; }</style>
+  <title>labels= 로 타일에 이름을 붙인다</title>
+  <desc>Treemap, 6 tiles (이미지, 동영상, 문서, 로그, 백업, 기타), values 45 to 1180, total 2640.</desc>
+</svg>
     </figure>
     <pre><code>sp.treemap(STORAGE, values=&quot;GB&quot;, labels=&quot;종류&quot;)</code></pre>
     <h3>타일이 작으면 라벨을 넣지 않는다 — 값이 고르지 않을수록 자주 일어난다</h3>
     <figure>
-      <img src="svg/treemap-3.svg" alt="타일이 작으면 라벨을 넣지 않는다 — 값이 고르지 않을수록 자주 일어난다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-treemap-3" role="img" aria-label="타일이 작으면 라벨을 넣지 않는다 — 값이 고르지 않을수록 자주 일어난다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <rect x="30" y="30" width="545.822492" height="540" class="series-1" />
+  <text x="302.911246" y="300" text-anchor="middle" class="legend-text">동영상</text>
+  <rect x="575.822492" y="30" width="44.177508" height="375.289575" class="series-2" />
+  <text x="597.911246" y="217.644788" text-anchor="middle" class="legend-text">이미지<title>이미지</title>
+  </text>
+  <rect x="575.822492" y="405.289575" width="44.177508" height="83.397683" class="series-3" />
+  <text x="597.911246" y="446.988417" text-anchor="middle" class="legend-text">문서</text>
+  <rect x="575.822492" y="488.687259" width="44.177508" height="45.868726" class="series-4" />
+  <text x="597.911246" y="511.621622" text-anchor="middle" class="legend-text">캐시</text>
+  <rect x="575.822492" y="534.555985" width="28.585446" height="35.444015" class="series-5" />
+  <rect x="604.407938" y="534.555985" width="15.592062" height="35.444015" class="series-6" />
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">동영상</text>
+  <rect x="640" y="45" width="16" height="10" class="series-2" />
+  <text x="662" y="54" class="legend-text">이미지</text>
+  <rect x="640" y="65" width="16" height="10" class="series-3" />
+  <text x="662" y="74" class="legend-text">문서</text>
+  <rect x="640" y="85" width="16" height="10" class="series-4" />
+  <text x="662" y="94" class="legend-text">캐시</text>
+  <rect x="640" y="105" width="16" height="10" class="series-5" />
+  <text x="662" y="114" class="legend-text">임시</text>
+  <rect x="640" y="125" width="16" height="10" class="series-6" />
+  <text x="662" y="134" class="legend-text">기타</text>
+  <style>:where(.svgplot-treemap-3) .plot-background { fill: #ffffff; }
+:where(.svgplot-treemap-3) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-treemap-3) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-treemap-3) .tick-line { stroke: #333333; }
+:where(.svgplot-treemap-3) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-treemap-3) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-treemap-3) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-3) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-3) .series-3 { fill: #009E73; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-3) .series-4 { fill: #F0E442; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-3) .series-5 { fill: #0072B2; stroke: none; opacity: 0.75; }
+:where(.svgplot-treemap-3) .series-6 { fill: #D55E00; stroke: none; opacity: 0.75; }</style>
+  <title>타일이 작으면 라벨을 넣지 않는다 — 값이 고르지 않을수록 자주 일어난다</title>
+  <desc>Treemap, 6 tiles (동영상, 이미지, 문서, 캐시, 임시, 기타), values 6 to 3200, total 3459.</desc>
+</svg>
     </figure>
     <pre><code>LOPSIDED = {
     &quot;종류&quot;: [&quot;동영상&quot;, &quot;이미지&quot;, &quot;문서&quot;, &quot;캐시&quot;, &quot;임시&quot;, &quot;기타&quot;],

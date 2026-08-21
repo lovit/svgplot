@@ -54,25 +54,36 @@
       pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
       pre code { font-size: 0.84rem; line-height: 1.55; }
       code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
-         CSS does not reach inside it. That isolation is the point: two charts on one page
-         both define .series-1 with opposite rules, and inlining them would let the later
-         one restyle the earlier. */
+      /* Each chart is inlined into this page. An SVG's <style> is not scoped to the SVG --
+         it applies to the whole document -- so two charts here would both define .series-1
+         with opposite rules and the later one would repaint the earlier. Every chart is
+         emitted under its own scope class (Chart.set_scope) and every rule sits under it,
+         which is what makes inlining safe. The trade-offs of each embedding route are in
+         ../tutorial/. */
       figure { margin: 0 0 1rem; }
-      figure img {
+      figure > svg {
         display: block;
-        width: 100%;
         max-width: 100%;
         height: auto;
         background: var(--figure-bg);
         border: 1px solid var(--rule);
         border-radius: 6px;
       }
+      /* The info= footnote table, which a figure carries when its chart was built with one.
+         Without these it renders as an unstyled browser-default table inside an otherwise
+         styled page -- the one piece of the gallery that looked unfinished. */
+      figure table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.9rem; }
+      figure th, figure td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--rule); text-align: left; }
+      figure th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      figure td { font-variant-numeric: tabular-nums; }
+      /* The thumbnail wrapper. Named so it stops inheriting ul.index span, which is the rule
+         for the summary line beneath it. */
+      ul.index .thumb { display: block; }
       ul.notes { margin: 0; padding-left: 1.2rem; color: var(--muted); }
       ul.notes li { margin-bottom: 0.3rem; }
       ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
       ul.index a { display: block; text-decoration: none; color: inherit; }
-      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index svg { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
@@ -98,18 +109,116 @@ SPEC = {
     <h2>예시</h2>
     <h3>기본 — 시리즈 하나</h3>
     <figure>
-      <img src="svg/radarplot-1.svg" alt="기본 — 시리즈 하나" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-radarplot-1" role="img" aria-label="기본 — 시리즈 하나">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <path d="M 400,240.97561 L 451.116621,270.487805 L 451.116621,329.512195 L 400,359.02439 L 348.883379,329.512195 L 348.883379,270.487805 Z" class="grid-line" />
+  <path d="M 400,181.95122 L 502.233243,240.97561 L 502.233243,359.02439 L 400,418.04878 L 297.766757,359.02439 L 297.766757,240.97561 Z" class="grid-line" />
+  <path d="M 400,122.926829 L 553.349864,211.463415 L 553.349864,388.536585 L 400,477.073171 L 246.650136,388.536585 L 246.650136,211.463415 Z" class="grid-line" />
+  <path d="M 400,63.902439 L 604.466486,181.95122 L 604.466486,418.04878 L 400,536.097561 L 195.533514,418.04878 L 195.533514,181.95122 Z" class="grid-line" />
+  <line x1="400" y1="300" x2="400" y2="58" class="grid-line" />
+  <text x="400" y="40" text-anchor="middle" dominant-baseline="middle" class="tick-label">속도</text>
+  <line x1="400" y1="300" x2="609.578148" y2="179" class="grid-line" />
+  <text x="625.166605" y="170" text-anchor="start" dominant-baseline="middle" class="tick-label">내구성</text>
+  <line x1="400" y1="300" x2="609.578148" y2="421" class="grid-line" />
+  <text x="625.166605" y="430" text-anchor="start" dominant-baseline="middle" class="tick-label">연비</text>
+  <line x1="400" y1="300" x2="400" y2="542" class="grid-line" />
+  <text x="400" y="560" text-anchor="middle" dominant-baseline="middle" class="tick-label">정숙성</text>
+  <line x1="400" y1="300" x2="190.421852" y2="421" class="grid-line" />
+  <text x="174.833395" y="430" text-anchor="end" dominant-baseline="middle" class="tick-label">적재량</text>
+  <line x1="400" y1="300" x2="190.421852" y2="179" class="grid-line" />
+  <text x="174.833395" y="170" text-anchor="end" dominant-baseline="middle" class="tick-label">가격</text>
+  <path d="M 400,58 L 563.573188,205.560976 L 581.464006,404.768293 L 400,462.317073 L 277.320109,370.829268 L 246.650136,211.463415 Z" class="series-1 radar-series" />
+  <style>:where(.svgplot-radarplot-1) .plot-background { fill: #ffffff; }
+:where(.svgplot-radarplot-1) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-radarplot-1) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-radarplot-1) .tick-line { stroke: #333333; }
+:where(.svgplot-radarplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-radarplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-radarplot-1) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }</style>
+  <title>기본 — 시리즈 하나</title>
+  <desc>Radar chart, 6 spokes (속도, 내구성, 연비, 정숙성, 적재량, 가격), values 0 to 82.</desc>
+</svg>
     </figure>
     <pre><code>ONE = {&quot;항목&quot;: [&quot;속도&quot;, &quot;내구성&quot;, &quot;연비&quot;, &quot;정숙성&quot;, &quot;적재량&quot;, &quot;가격&quot;], &quot;점수&quot;: [82.0, 64.0, 71.0, 55.0, 48.0, 60.0]}
 sp.radarplot(ONE, x=&quot;항목&quot;, y=&quot;점수&quot;)</code></pre>
     <h3>hue= 는 시리즈마다 다각형을 하나씩 그린다</h3>
     <figure>
-      <img src="svg/radarplot-2.svg" alt="hue= 는 시리즈마다 다각형을 하나씩 그린다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-radarplot-2" role="img" aria-label="hue= 는 시리즈마다 다각형을 하나씩 그린다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <path d="M 330,245 L 377.631397,272.5 L 377.631397,327.5 L 330,355 L 282.368603,327.5 L 282.368603,272.5 Z" class="grid-line" />
+  <path d="M 330,190 L 425.262794,245 L 425.262794,355 L 330,410 L 234.737206,355 L 234.737206,245 Z" class="grid-line" />
+  <path d="M 330,135 L 472.894192,217.5 L 472.894192,382.5 L 330,465 L 187.105808,382.5 L 187.105808,217.5 Z" class="grid-line" />
+  <path d="M 330,80 L 520.525589,190 L 520.525589,410 L 330,520 L 139.474411,410 L 139.474411,190 Z" class="grid-line" />
+  <line x1="330" y1="300" x2="330" y2="58" class="grid-line" />
+  <text x="330" y="40" text-anchor="middle" dominant-baseline="middle" class="tick-label">속도</text>
+  <line x1="330" y1="300" x2="539.578148" y2="179" class="grid-line" />
+  <text x="555.166605" y="170" text-anchor="start" dominant-baseline="middle" class="tick-label">내구성</text>
+  <line x1="330" y1="300" x2="539.578148" y2="421" class="grid-line" />
+  <text x="555.166605" y="430" text-anchor="start" dominant-baseline="middle" class="tick-label">연비</text>
+  <line x1="330" y1="300" x2="330" y2="542" class="grid-line" />
+  <text x="330" y="560" text-anchor="middle" dominant-baseline="middle" class="tick-label">정숙성</text>
+  <line x1="330" y1="300" x2="120.421852" y2="421" class="grid-line" />
+  <text x="104.833395" y="430" text-anchor="end" dominant-baseline="middle" class="tick-label">적재량</text>
+  <line x1="330" y1="300" x2="120.421852" y2="179" class="grid-line" />
+  <text x="104.833395" y="170" text-anchor="end" dominant-baseline="middle" class="tick-label">가격</text>
+  <path d="M 330,74.5 L 482.420471,212 L 499.09146,397.625 L 330,451.25 L 215.684647,366 L 187.105808,217.5 Z" class="series-1 radar-series" />
+  <path d="M 330,140.5 L 539.578148,179 L 477.657331,385.25 L 330,517.25 L 129.948132,415.5 L 222.829356,238.125 Z" class="series-2 radar-series" />
+  <rect x="640" y="35" width="16" height="10" class="series-1" />
+  <text x="662" y="44" class="legend-text">A형</text>
+  <rect x="640" y="55" width="16" height="10" class="series-2" />
+  <text x="662" y="64" class="legend-text">B형</text>
+  <style>:where(.svgplot-radarplot-2) .plot-background { fill: #ffffff; }
+:where(.svgplot-radarplot-2) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-radarplot-2) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-radarplot-2) .tick-line { stroke: #333333; }
+:where(.svgplot-radarplot-2) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-radarplot-2) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-radarplot-2) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }
+:where(.svgplot-radarplot-2) .series-2 { stroke: #56B4E9; stroke-width: 2; fill: #56B4E9; fill-opacity: 0.75; opacity: 1; }</style>
+  <title>hue= 는 시리즈마다 다각형을 하나씩 그린다</title>
+  <desc>Radar chart, 6 spokes (속도, 내구성, 연비, 정숙성, 적재량, 가격), 2 series (A형, B형), values 0 to 88.</desc>
+</svg>
     </figure>
     <pre><code>sp.radarplot(SPEC, x=&quot;항목&quot;, y=&quot;점수&quot;, hue=&quot;모델&quot;)</code></pre>
     <h3>fill=False 는 윤곽만 남긴다 — 겹치는 시리즈가 서로를 가리지 않는다</h3>
     <figure>
-      <img src="svg/radarplot-3.svg" alt="fill=False 는 윤곽만 남긴다 — 겹치는 시리즈가 서로를 가리지 않는다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-radarplot-3" role="img" aria-label="fill=False 는 윤곽만 남긴다 — 겹치는 시리즈가 서로를 가리지 않는다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <path d="M 330,245 L 377.631397,272.5 L 377.631397,327.5 L 330,355 L 282.368603,327.5 L 282.368603,272.5 Z" class="grid-line" />
+  <path d="M 330,190 L 425.262794,245 L 425.262794,355 L 330,410 L 234.737206,355 L 234.737206,245 Z" class="grid-line" />
+  <path d="M 330,135 L 472.894192,217.5 L 472.894192,382.5 L 330,465 L 187.105808,382.5 L 187.105808,217.5 Z" class="grid-line" />
+  <path d="M 330,80 L 520.525589,190 L 520.525589,410 L 330,520 L 139.474411,410 L 139.474411,190 Z" class="grid-line" />
+  <line x1="330" y1="300" x2="330" y2="58" class="grid-line" />
+  <text x="330" y="40" text-anchor="middle" dominant-baseline="middle" class="tick-label">속도</text>
+  <line x1="330" y1="300" x2="539.578148" y2="179" class="grid-line" />
+  <text x="555.166605" y="170" text-anchor="start" dominant-baseline="middle" class="tick-label">내구성</text>
+  <line x1="330" y1="300" x2="539.578148" y2="421" class="grid-line" />
+  <text x="555.166605" y="430" text-anchor="start" dominant-baseline="middle" class="tick-label">연비</text>
+  <line x1="330" y1="300" x2="330" y2="542" class="grid-line" />
+  <text x="330" y="560" text-anchor="middle" dominant-baseline="middle" class="tick-label">정숙성</text>
+  <line x1="330" y1="300" x2="120.421852" y2="421" class="grid-line" />
+  <text x="104.833395" y="430" text-anchor="end" dominant-baseline="middle" class="tick-label">적재량</text>
+  <line x1="330" y1="300" x2="120.421852" y2="179" class="grid-line" />
+  <text x="104.833395" y="170" text-anchor="end" dominant-baseline="middle" class="tick-label">가격</text>
+  <path d="M 330,74.5 L 482.420471,212 L 499.09146,397.625 L 330,451.25 L 215.684647,366 L 187.105808,217.5 Z" class="series-1 radar-series" />
+  <path d="M 330,140.5 L 539.578148,179 L 477.657331,385.25 L 330,517.25 L 129.948132,415.5 L 222.829356,238.125 Z" class="series-2 radar-series" />
+  <line x1="640" y1="40" x2="656" y2="40" class="series-1" />
+  <text x="662" y="44" class="legend-text">A형</text>
+  <line x1="640" y1="60" x2="656" y2="60" class="series-2" />
+  <text x="662" y="64" class="legend-text">B형</text>
+  <style>:where(.svgplot-radarplot-3) .plot-background { fill: #ffffff; }
+:where(.svgplot-radarplot-3) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-radarplot-3) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-radarplot-3) .tick-line { stroke: #333333; }
+:where(.svgplot-radarplot-3) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-radarplot-3) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-radarplot-3) .series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-radarplot-3) .series-1-marker { fill: #E69F00; stroke: none; }
+:where(.svgplot-radarplot-3) .series-2 { stroke: #56B4E9; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-radarplot-3) .series-2-marker { fill: #56B4E9; stroke: none; }</style>
+  <title>fill=False 는 윤곽만 남긴다 — 겹치는 시리즈가 서로를 가리지 않는다</title>
+  <desc>Radar chart, 6 spokes (속도, 내구성, 연비, 정숙성, 적재량, 가격), 2 series (A형, B형), values 0 to 88.</desc>
+</svg>
     </figure>
     <pre><code>sp.radarplot(SPEC, x=&quot;항목&quot;, y=&quot;점수&quot;, hue=&quot;모델&quot;, fill=False)</code></pre>
     <h2>메모</h2>

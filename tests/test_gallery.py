@@ -24,6 +24,7 @@ import svgplot as sp
 
 ROOT = Path(__file__).resolve().parent.parent
 GALLERY = ROOT / "docs" / "gallery"
+_SVG_NS = "http://www.w3.org/2000/svg"
 
 # ``gallery`` is repo-root source, not part of the installed package.
 sys.path.insert(0, str(ROOT))
@@ -89,19 +90,45 @@ def test_every_page_is_well_formed(page: Path) -> None:
     """
     html = page.read_text()
     markup = re.sub(r"^<!doctype html>\s*", "", html, flags=re.I)
-    markup = re.sub(r"(<style>).*?(</style>)", r"\1\2", markup, flags=re.S)
+    # ``<style[^>]*>`` rather than ``<style>``: the bare form happens to match what this
+    # package emits today, so the day a style element gains an attribute this would stop
+    # matching and the test would fail on CSS content rather than on markup.
+    markup = re.sub(r"(<style[^>]*>).*?(</style>)", r"\1\2", markup, flags=re.S)
 
     ET.fromstring(markup)  # raises ParseError with a line number if a tag is unclosed
 
 
 @pytest.mark.parametrize("page", _pages(), ids=lambda path: path.name)
-def test_every_figure_a_page_references_exists(page: Path) -> None:
-    """A missing figure is a broken image in the reader's browser and nothing at all in CI."""
-    sources = re.findall(r'<img[^>]*src="([^"]+)"', page.read_text())
+def test_every_page_shows_the_figures_it_should(page: Path) -> None:
+    """The inline replacement for "the file it points at exists": there is no file to point
+    at, so what can go wrong is a figure silently not being emitted.
 
-    assert sources, f"{page.name} shows no figures"
-    missing = [src for src in sources if not (page.parent / src).is_file()]
-    assert not missing, f"{page.name} references figures that do not exist: {missing}"
+    A chart page carries one chart per example; the index carries one thumbnail per page.
+    """
+    inlined = len(re.findall(r"<svg\b", page.read_text(encoding="utf-8")))
+    pages = {found.name: found for found in discover()}
+
+    expected = len(pages) if page.stem == "index" else len(pages[page.stem].examples)
+
+    assert inlined == expected, f"{page.name} inlines {inlined} charts, expected {expected}"
+
+
+@pytest.mark.parametrize("page", _pages(), ids=lambda path: path.stem)
+def test_every_inlined_chart_is_really_an_svg(page: Path) -> None:
+    """Counting ``<svg`` lexically says a string is there, not that a browser sees a chart.
+
+    Parsed, every one has to land in the SVG namespace -- an ``<svg>`` written without its
+    ``xmlns`` is markup a browser reads as an unknown HTML element and draws as nothing.
+
+    This replaces the check that every ``<img src>`` resolved. Kept in reduced form it would
+    have been worse than nothing: no page has an ``<img>`` any more, so it passed on an empty
+    file. The tutorial page will need that check and can carry its own.
+    """
+    markup = page.read_text(encoding="utf-8")
+    charts = [node for node in ET.fromstring(_parseable(markup)).iter() if node.tag == f"{{{_SVG_NS}}}svg"]
+
+    assert markup.count("<svg"), f"{page.name} inlines no chart"
+    assert len(charts) == markup.count("<svg"), f"{page.name}: some <svg> is not in the SVG namespace"
 
 
 def test_every_example_module_declares_what_the_builder_needs() -> None:
@@ -111,7 +138,10 @@ def test_every_example_module_declares_what_the_builder_needs() -> None:
         assert page.examples, f"{page.name}: no examples"
         for example in page.examples:
             assert example.caption.strip(), f"{page.name}: an example has no caption"
-            assert example.svg.startswith("<?xml"), f"{page.name}: {example.caption!r} produced no SVG"
+            assert example.svg.startswith("<svg"), f"{page.name}: {example.caption!r} produced no SVG"
+            # The regression that matters: a prolog is legal only at the start of an entity,
+            # so one returning here would break every page it is inlined into.
+            assert "<?xml" not in example.svg, f"{page.name}: {example.caption!r} still carries an XML prolog"
 
 
 def test_the_index_links_every_page_it_should() -> None:
@@ -121,3 +151,100 @@ def test_the_index_links_every_page_it_should() -> None:
     linked = set(re.findall(r'<a href="(\w+)\.html"', index))
 
     assert linked == {path.stem for path in _pages() if path.stem != "index"}
+
+
+# --------------------------------------------------------------------- the inline model
+#
+# Inlining the SVG rather than referencing it opens failures the ``<img>`` model could not
+# have: a referenced SVG is its own document, so its CSS, its ids and its accessible name
+# were all somebody else's problem. Written before the conversion so each one could be seen
+# failing against the ``<img>`` gallery -- a guard nobody has watched fail is a guess.
+
+
+def _parseable(markup: str) -> str:
+    """The page with its doctype dropped and its ``<style>`` bodies blanked.
+
+    CSS is not markup: a rule holding ``>`` or ``&`` is valid CSS and invalid XML, so the
+    bodies come out before parsing.
+    """
+    without_doctype = re.sub(r"^<!doctype html>\n", "", markup, flags=re.I)
+    return re.sub(r"(<style[^>]*>).*?(</style>)", r"\1\2", without_doctype, flags=re.S)
+
+
+def _chart_style_bodies(markup: str) -> list[str]:
+    """The ``<style>`` bodies belonging to inlined charts, not the page's own stylesheet.
+
+    The page has a ``<style>`` of its own in ``<head>`` -- ordinary multi-line CSS with
+    ``:root { … }`` and closing braces on their own lines. Reading every ``<style>`` in the
+    file and splitting each line at ``{`` turns that into selectors named ``:root`` and ``}``,
+    which then look like duplicates on every page. Scoped to the charts, which is what these
+    checks are about.
+    """
+    return [
+        body
+        for figure in re.findall(r"<svg\b.*?</svg>", markup, re.S)
+        for body in re.findall(r"<style>(.*?)</style>", figure, re.S)
+    ]
+
+
+@pytest.mark.parametrize("page", _pages(), ids=lambda path: path.stem)
+def test_no_two_figures_on_a_page_define_the_same_selector(page: Path) -> None:
+    """The reason the gallery used ``<img>`` at all, now that it does not.
+
+    An inline SVG's ``<style>`` is document-global, so two charts on one page both defining
+    ``.series-1`` means the later one repaints the earlier. Duplicates are refused outright
+    rather than only when the declarations differ: every chart defines ``.tick-line``,
+    ``.spine`` and four others identically, so a "same selector, different body" check would
+    pass on a page with no scoping at all.
+    """
+    selectors = [
+        selector.strip()
+        for body in _chart_style_bodies(page.read_text(encoding="utf-8"))
+        for rule in body.splitlines()
+        if rule.strip()
+        for selector in rule.split("{")[0].split(",")
+    ]
+    duplicates = sorted({name for name in selectors if selectors.count(name) > 1})
+
+    assert selectors, f"{page.name} defines no CSS at all"
+    assert not duplicates, f"{page.name}: two figures define {duplicates}"
+
+
+@pytest.mark.parametrize("page", _pages(), ids=lambda path: path.stem)
+def test_no_page_repeats_an_element_id(page: Path) -> None:
+    """``Chart.set_table_id`` exists for exactly this, and inlining is what makes it real:
+    duplicate ids make ``aria-describedby`` resolve to whichever came first, so the second
+    chart would be described by the first chart's data."""
+    ids = re.findall(r'\bid="([^"]*)"', page.read_text(encoding="utf-8"))
+
+    assert len(ids) == len(set(ids)), f"{page.name} repeats {sorted({i for i in ids if ids.count(i) > 1})}"
+
+
+@pytest.mark.parametrize("page", _pages(), ids=lambda path: path.stem)
+def test_every_aria_describedby_points_at_something_on_the_page(page: Path) -> None:
+    """In the ``<img>`` model this reference dangled harmlessly -- it named an id in a document
+    the SVG could not see. Inlined, a dangling IDREF is a real one, and the fix is to render
+    the table it names rather than to drop the attribute."""
+    markup = page.read_text(encoding="utf-8")
+    referenced = set(re.findall(r'aria-describedby="([^"]*)"', markup))
+    present = set(re.findall(r'\bid="([^"]*)"', markup))
+
+    assert referenced <= present, f"{page.name}: {sorted(referenced - present)} is referenced but not on the page"
+
+
+@pytest.mark.parametrize("page", _pages(), ids=lambda path: path.stem)
+def test_no_inlined_chart_is_left_named_Chart(page: Path) -> None:  # noqa: N802 - the literal name is the point
+    """Inlined, each chart is a ``role="img"`` node in the page's accessibility tree, so its
+    ``aria-label`` is what a screen reader announces. The default is ``"Chart"`` for all of
+    them, which on the index would be sixteen nodes announcing the same word."""
+    labels = re.findall(r'<svg[^>]*\baria-label="([^"]*)"', page.read_text(encoding="utf-8"))
+
+    assert labels, f"{page.name} inlines no chart"
+    assert sp.Chart.DEFAULT_TITLE not in labels, f"{page.name} leaves a chart named {sp.Chart.DEFAULT_TITLE!r}"
+
+
+@pytest.mark.parametrize("page", _pages(), ids=lambda path: path.stem)
+def test_no_page_carries_an_xml_declaration(page: Path) -> None:
+    """A prolog is legal only at the very start of an entity. One arriving mid-document with
+    an inlined chart renders as text and stops the page parsing."""
+    assert "<?xml" not in page.read_text(encoding="utf-8")

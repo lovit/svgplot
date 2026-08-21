@@ -44,17 +44,18 @@ def discover() -> list[Page]:
 
 
 def write(pages: list[Page], output: Path) -> list[Path]:
-    """Write the index, one page per chart, and one SVG per example. Returns what was written."""
+    """Write the index and one page per chart. Returns what was written.
+
+    Charts are inlined into the pages rather than written beside them, so there are no
+    sidecar files: an SVG referenced with ``<img>`` is rendered as an image, and a browser
+    turns off ``:hover``, ``<title>`` tooltips and every other interaction inside one.
+    """
     if output.exists():
         shutil.rmtree(output)
-    (output / "svg").mkdir(parents=True)
+    output.mkdir(parents=True)
 
     written = []
     for page in pages:
-        for index, example in enumerate(page.examples, start=1):
-            path = output / "svg" / f"{page.name}-{index}.svg"
-            path.write_text(example.svg, encoding="utf-8")
-            written.append(path)
         path = output / f"{page.name}.html"
         path.write_text(chart_page(page), encoding="utf-8")
         written.append(path)

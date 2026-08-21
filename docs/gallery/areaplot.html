@@ -54,25 +54,36 @@
       pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
       pre code { font-size: 0.84rem; line-height: 1.55; }
       code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
-         CSS does not reach inside it. That isolation is the point: two charts on one page
-         both define .series-1 with opposite rules, and inlining them would let the later
-         one restyle the earlier. */
+      /* Each chart is inlined into this page. An SVG's <style> is not scoped to the SVG --
+         it applies to the whole document -- so two charts here would both define .series-1
+         with opposite rules and the later one would repaint the earlier. Every chart is
+         emitted under its own scope class (Chart.set_scope) and every rule sits under it,
+         which is what makes inlining safe. The trade-offs of each embedding route are in
+         ../tutorial/. */
       figure { margin: 0 0 1rem; }
-      figure img {
+      figure > svg {
         display: block;
-        width: 100%;
         max-width: 100%;
         height: auto;
         background: var(--figure-bg);
         border: 1px solid var(--rule);
         border-radius: 6px;
       }
+      /* The info= footnote table, which a figure carries when its chart was built with one.
+         Without these it renders as an unstyled browser-default table inside an otherwise
+         styled page -- the one piece of the gallery that looked unfinished. */
+      figure table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.9rem; }
+      figure th, figure td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--rule); text-align: left; }
+      figure th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      figure td { font-variant-numeric: tabular-nums; }
+      /* The thumbnail wrapper. Named so it stops inheriting ul.index span, which is the rule
+         for the summary line beneath it. */
+      ul.index .thumb { display: block; }
       ul.notes { margin: 0; padding-left: 1.2rem; color: var(--muted); }
       ul.notes li { margin-bottom: 0.3rem; }
       ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
       ul.index a { display: block; text-decoration: none; color: inherit; }
-      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index svg { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
@@ -97,23 +108,235 @@ TRAFFIC = {
     <h2>예시</h2>
     <h3>기본</h3>
     <figure>
-      <img src="svg/areaplot-1.svg" alt="기본" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-areaplot-1" role="img" aria-label="기본">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="760" y2="550" class="spine" />
+  <line x1="60" y1="30" x2="60" y2="550" class="grid-line" />
+  <line x1="60" y1="550" x2="60" y2="554" class="tick-line" />
+  <text x="60" y="572" text-anchor="middle" class="tick-label">1</text>
+  <line x1="200" y1="30" x2="200" y2="550" class="grid-line" />
+  <line x1="200" y1="550" x2="200" y2="554" class="tick-line" />
+  <text x="200" y="572" text-anchor="middle" class="tick-label">2</text>
+  <line x1="340" y1="30" x2="340" y2="550" class="grid-line" />
+  <line x1="340" y1="550" x2="340" y2="554" class="tick-line" />
+  <text x="340" y="572" text-anchor="middle" class="tick-label">3</text>
+  <line x1="480" y1="30" x2="480" y2="550" class="grid-line" />
+  <line x1="480" y1="550" x2="480" y2="554" class="tick-line" />
+  <text x="480" y="572" text-anchor="middle" class="tick-label">4</text>
+  <line x1="620" y1="30" x2="620" y2="550" class="grid-line" />
+  <line x1="620" y1="550" x2="620" y2="554" class="tick-line" />
+  <text x="620" y="572" text-anchor="middle" class="tick-label">5</text>
+  <line x1="760" y1="30" x2="760" y2="550" class="grid-line" />
+  <line x1="760" y1="550" x2="760" y2="554" class="tick-line" />
+  <text x="760" y="572" text-anchor="middle" class="tick-label">6</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="550" x2="760" y2="550" class="grid-line" />
+  <line x1="56" y1="550" x2="60" y2="550" class="tick-line" />
+  <text x="54" y="554" text-anchor="end" class="tick-label">0</text>
+  <line x1="60" y1="463.333333" x2="760" y2="463.333333" class="grid-line" />
+  <line x1="56" y1="463.333333" x2="60" y2="463.333333" class="tick-line" />
+  <text x="54" y="467.333333" text-anchor="end" class="tick-label">50</text>
+  <line x1="60" y1="376.666667" x2="760" y2="376.666667" class="grid-line" />
+  <line x1="56" y1="376.666667" x2="60" y2="376.666667" class="tick-line" />
+  <text x="54" y="380.666667" text-anchor="end" class="tick-label">100</text>
+  <line x1="60" y1="290" x2="760" y2="290" class="grid-line" />
+  <line x1="56" y1="290" x2="60" y2="290" class="tick-line" />
+  <text x="54" y="294" text-anchor="end" class="tick-label">150</text>
+  <line x1="60" y1="203.333333" x2="760" y2="203.333333" class="grid-line" />
+  <line x1="56" y1="203.333333" x2="60" y2="203.333333" class="tick-line" />
+  <text x="54" y="207.333333" text-anchor="end" class="tick-label">200</text>
+  <line x1="60" y1="116.666667" x2="760" y2="116.666667" class="grid-line" />
+  <line x1="56" y1="116.666667" x2="60" y2="116.666667" class="tick-line" />
+  <text x="54" y="120.666667" text-anchor="end" class="tick-label">250</text>
+  <line x1="60" y1="30" x2="760" y2="30" class="grid-line" />
+  <line x1="56" y1="30" x2="60" y2="30" class="tick-line" />
+  <text x="54" y="34" text-anchor="end" class="tick-label">300</text>
+  <path d="M 60,342 L 200,238 L 340,290 L 480,134 L 620,186 L 760,30 L 760,550 L 60,550 Z" class="series-1 area-series" />
+  <style>:where(.svgplot-areaplot-1) .plot-background { fill: #ffffff; }
+:where(.svgplot-areaplot-1) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-areaplot-1) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-areaplot-1) .tick-line { stroke: #333333; }
+:where(.svgplot-areaplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-areaplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-areaplot-1) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
+  <title>기본</title>
+  <desc>Area chart, 6 points, x 1 to 6, y 0 to 300.</desc>
+</svg>
     </figure>
     <pre><code>ONE_SERIES = {&quot;주차&quot;: [1, 2, 3, 4, 5, 6], &quot;방문&quot;: [120.0, 180.0, 150.0, 240.0, 210.0, 300.0]}
 sp.areaplot(ONE_SERIES, x=&quot;주차&quot;, y=&quot;방문&quot;)</code></pre>
     <h3>hue= 는 시리즈를 겹쳐 그린다</h3>
     <figure>
-      <img src="svg/areaplot-2.svg" alt="hue= 는 시리즈를 겹쳐 그린다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-areaplot-2" role="img" aria-label="hue= 는 시리즈를 겹쳐 그린다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="640" y2="550" class="spine" />
+  <line x1="60" y1="30" x2="60" y2="550" class="grid-line" />
+  <line x1="60" y1="550" x2="60" y2="554" class="tick-line" />
+  <text x="60" y="572" text-anchor="middle" class="tick-label">1</text>
+  <line x1="176" y1="30" x2="176" y2="550" class="grid-line" />
+  <line x1="176" y1="550" x2="176" y2="554" class="tick-line" />
+  <text x="176" y="572" text-anchor="middle" class="tick-label">2</text>
+  <line x1="292" y1="30" x2="292" y2="550" class="grid-line" />
+  <line x1="292" y1="550" x2="292" y2="554" class="tick-line" />
+  <text x="292" y="572" text-anchor="middle" class="tick-label">3</text>
+  <line x1="408" y1="30" x2="408" y2="550" class="grid-line" />
+  <line x1="408" y1="550" x2="408" y2="554" class="tick-line" />
+  <text x="408" y="572" text-anchor="middle" class="tick-label">4</text>
+  <line x1="524" y1="30" x2="524" y2="550" class="grid-line" />
+  <line x1="524" y1="550" x2="524" y2="554" class="tick-line" />
+  <text x="524" y="572" text-anchor="middle" class="tick-label">5</text>
+  <line x1="640" y1="30" x2="640" y2="550" class="grid-line" />
+  <line x1="640" y1="550" x2="640" y2="554" class="tick-line" />
+  <text x="640" y="572" text-anchor="middle" class="tick-label">6</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="550" x2="640" y2="550" class="grid-line" />
+  <line x1="56" y1="550" x2="60" y2="550" class="tick-line" />
+  <text x="54" y="554" text-anchor="end" class="tick-label">0</text>
+  <line x1="60" y1="463.333333" x2="640" y2="463.333333" class="grid-line" />
+  <line x1="56" y1="463.333333" x2="60" y2="463.333333" class="tick-line" />
+  <text x="54" y="467.333333" text-anchor="end" class="tick-label">50</text>
+  <line x1="60" y1="376.666667" x2="640" y2="376.666667" class="grid-line" />
+  <line x1="56" y1="376.666667" x2="60" y2="376.666667" class="tick-line" />
+  <text x="54" y="380.666667" text-anchor="end" class="tick-label">100</text>
+  <line x1="60" y1="290" x2="640" y2="290" class="grid-line" />
+  <line x1="56" y1="290" x2="60" y2="290" class="tick-line" />
+  <text x="54" y="294" text-anchor="end" class="tick-label">150</text>
+  <line x1="60" y1="203.333333" x2="640" y2="203.333333" class="grid-line" />
+  <line x1="56" y1="203.333333" x2="60" y2="203.333333" class="tick-line" />
+  <text x="54" y="207.333333" text-anchor="end" class="tick-label">200</text>
+  <line x1="60" y1="116.666667" x2="640" y2="116.666667" class="grid-line" />
+  <line x1="56" y1="116.666667" x2="60" y2="116.666667" class="tick-line" />
+  <text x="54" y="120.666667" text-anchor="end" class="tick-label">250</text>
+  <line x1="60" y1="30" x2="640" y2="30" class="grid-line" />
+  <line x1="56" y1="30" x2="60" y2="30" class="tick-line" />
+  <text x="54" y="34" text-anchor="end" class="tick-label">300</text>
+  <path d="M 60,342 L 176,238 L 292,290 L 408,134 L 524,186 L 640,30 L 640,550 L 60,550 Z" class="series-1 area-series" />
+  <path d="M 60,446 L 176,420 L 292,359.333333 L 408,385.333333 L 524,307.333333 L 640,272.666667 L 640,550 L 60,550 Z" class="series-2 area-series" />
+  <rect x="660" y="25" width="16" height="10" class="series-1" />
+  <text x="682" y="34" class="legend-text">검색</text>
+  <rect x="660" y="45" width="16" height="10" class="series-2" />
+  <text x="682" y="54" class="legend-text">추천</text>
+  <style>:where(.svgplot-areaplot-2) .plot-background { fill: #ffffff; }
+:where(.svgplot-areaplot-2) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-areaplot-2) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-areaplot-2) .tick-line { stroke: #333333; }
+:where(.svgplot-areaplot-2) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-areaplot-2) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-areaplot-2) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-areaplot-2) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
+  <title>hue= 는 시리즈를 겹쳐 그린다</title>
+  <desc>Area chart, 2 series (검색, 추천) over 12 points, x 1 to 6, y 0 to 300.</desc>
+</svg>
     </figure>
     <pre><code>sp.areaplot(TRAFFIC, x=&quot;주차&quot;, y=&quot;방문&quot;, hue=&quot;유입&quot;)</code></pre>
     <h3>stacked=True 는 쌓아서 합계를 보이게 한다</h3>
     <figure>
-      <img src="svg/areaplot-3.svg" alt="stacked=True 는 쌓아서 합계를 보이게 한다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-areaplot-3" role="img" aria-label="stacked=True 는 쌓아서 합계를 보이게 한다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="640" y2="550" class="spine" />
+  <line x1="60" y1="30" x2="60" y2="550" class="grid-line" />
+  <line x1="60" y1="550" x2="60" y2="554" class="tick-line" />
+  <text x="60" y="572" text-anchor="middle" class="tick-label">1</text>
+  <line x1="176" y1="30" x2="176" y2="550" class="grid-line" />
+  <line x1="176" y1="550" x2="176" y2="554" class="tick-line" />
+  <text x="176" y="572" text-anchor="middle" class="tick-label">2</text>
+  <line x1="292" y1="30" x2="292" y2="550" class="grid-line" />
+  <line x1="292" y1="550" x2="292" y2="554" class="tick-line" />
+  <text x="292" y="572" text-anchor="middle" class="tick-label">3</text>
+  <line x1="408" y1="30" x2="408" y2="550" class="grid-line" />
+  <line x1="408" y1="550" x2="408" y2="554" class="tick-line" />
+  <text x="408" y="572" text-anchor="middle" class="tick-label">4</text>
+  <line x1="524" y1="30" x2="524" y2="550" class="grid-line" />
+  <line x1="524" y1="550" x2="524" y2="554" class="tick-line" />
+  <text x="524" y="572" text-anchor="middle" class="tick-label">5</text>
+  <line x1="640" y1="30" x2="640" y2="550" class="grid-line" />
+  <line x1="640" y1="550" x2="640" y2="554" class="tick-line" />
+  <text x="640" y="572" text-anchor="middle" class="tick-label">6</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="550" x2="640" y2="550" class="grid-line" />
+  <line x1="56" y1="550" x2="60" y2="550" class="tick-line" />
+  <text x="54" y="554" text-anchor="end" class="tick-label">0</text>
+  <line x1="60" y1="436.956522" x2="640" y2="436.956522" class="grid-line" />
+  <line x1="56" y1="436.956522" x2="60" y2="436.956522" class="tick-line" />
+  <text x="54" y="440.956522" text-anchor="end" class="tick-label">100</text>
+  <line x1="60" y1="323.913043" x2="640" y2="323.913043" class="grid-line" />
+  <line x1="56" y1="323.913043" x2="60" y2="323.913043" class="tick-line" />
+  <text x="54" y="327.913043" text-anchor="end" class="tick-label">200</text>
+  <line x1="60" y1="210.869565" x2="640" y2="210.869565" class="grid-line" />
+  <line x1="56" y1="210.869565" x2="60" y2="210.869565" class="tick-line" />
+  <text x="54" y="214.869565" text-anchor="end" class="tick-label">300</text>
+  <line x1="60" y1="97.826087" x2="640" y2="97.826087" class="grid-line" />
+  <line x1="56" y1="97.826087" x2="60" y2="97.826087" class="tick-line" />
+  <text x="54" y="101.826087" text-anchor="end" class="tick-label">400</text>
+  <path d="M 60,414.347826 L 176,346.521739 L 292,380.434783 L 408,278.695652 L 524,312.608696 L 640,210.869565 L 640,550 L 524,550 L 408,550 L 292,550 L 176,550 L 60,550 Z" class="series-1 area-series" />
+  <path d="M 60,346.521739 L 176,261.73913 L 292,256.086957 L 408,171.304348 L 524,154.347826 L 640,30 L 640,210.869565 L 524,312.608696 L 408,278.695652 L 292,380.434783 L 176,346.521739 L 60,414.347826 Z" class="series-2 area-series" />
+  <rect x="660" y="25" width="16" height="10" class="series-1" />
+  <text x="682" y="34" class="legend-text">검색</text>
+  <rect x="660" y="45" width="16" height="10" class="series-2" />
+  <text x="682" y="54" class="legend-text">추천</text>
+  <style>:where(.svgplot-areaplot-3) .plot-background { fill: #ffffff; }
+:where(.svgplot-areaplot-3) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-areaplot-3) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-areaplot-3) .tick-line { stroke: #333333; }
+:where(.svgplot-areaplot-3) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-areaplot-3) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-areaplot-3) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-areaplot-3) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
+  <title>stacked=True 는 쌓아서 합계를 보이게 한다</title>
+  <desc>Stacked area chart, 2 series (검색, 추천) over 12 points, x 1 to 6, y 0 to 460.</desc>
+</svg>
     </figure>
     <pre><code>sp.areaplot(TRAFFIC, x=&quot;주차&quot;, y=&quot;방문&quot;, hue=&quot;유입&quot;, stacked=True)</code></pre>
     <h3>xscale=&quot;log&quot; — x 가 자릿수로 벌어질 때</h3>
     <figure>
-      <img src="svg/areaplot-4.svg" alt="xscale=&quot;log&quot; — x 가 자릿수로 벌어질 때" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-areaplot-4" role="img" aria-label="xscale=&quot;log&quot; — x 가 자릿수로 벌어질 때">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="760" y2="550" class="spine" />
+  <line x1="60" y1="30" x2="60" y2="550" class="grid-line" />
+  <line x1="60" y1="550" x2="60" y2="554" class="tick-line" />
+  <text x="60" y="572" text-anchor="middle" class="tick-label">1</text>
+  <line x1="235" y1="30" x2="235" y2="550" class="grid-line" />
+  <line x1="235" y1="550" x2="235" y2="554" class="tick-line" />
+  <text x="235" y="572" text-anchor="middle" class="tick-label">10</text>
+  <line x1="410" y1="30" x2="410" y2="550" class="grid-line" />
+  <line x1="410" y1="550" x2="410" y2="554" class="tick-line" />
+  <text x="410" y="572" text-anchor="middle" class="tick-label">100</text>
+  <line x1="585" y1="30" x2="585" y2="550" class="grid-line" />
+  <line x1="585" y1="550" x2="585" y2="554" class="tick-line" />
+  <text x="585" y="572" text-anchor="middle" class="tick-label">1000</text>
+  <line x1="760" y1="30" x2="760" y2="550" class="grid-line" />
+  <line x1="760" y1="550" x2="760" y2="554" class="tick-line" />
+  <text x="760" y="572" text-anchor="middle" class="tick-label">10000</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="550" x2="760" y2="550" class="grid-line" />
+  <line x1="56" y1="550" x2="60" y2="550" class="tick-line" />
+  <text x="54" y="554" text-anchor="end" class="tick-label">0</text>
+  <line x1="60" y1="446" x2="760" y2="446" class="grid-line" />
+  <line x1="56" y1="446" x2="60" y2="446" class="tick-line" />
+  <text x="54" y="450" text-anchor="end" class="tick-label">20</text>
+  <line x1="60" y1="342" x2="760" y2="342" class="grid-line" />
+  <line x1="56" y1="342" x2="60" y2="342" class="tick-line" />
+  <text x="54" y="346" text-anchor="end" class="tick-label">40</text>
+  <line x1="60" y1="238" x2="760" y2="238" class="grid-line" />
+  <line x1="56" y1="238" x2="60" y2="238" class="tick-line" />
+  <text x="54" y="242" text-anchor="end" class="tick-label">60</text>
+  <line x1="60" y1="134" x2="760" y2="134" class="grid-line" />
+  <line x1="56" y1="134" x2="60" y2="134" class="tick-line" />
+  <text x="54" y="138" text-anchor="end" class="tick-label">80</text>
+  <line x1="60" y1="30" x2="760" y2="30" class="grid-line" />
+  <line x1="56" y1="30" x2="60" y2="30" class="tick-line" />
+  <text x="54" y="34" text-anchor="end" class="tick-label">100</text>
+  <path d="M 60,539.6 L 235,503.2 L 410,388.8 L 585,196.4 L 760,30 L 760,550 L 60,550 Z" class="series-1 area-series" />
+  <style>:where(.svgplot-areaplot-4) .plot-background { fill: #ffffff; }
+:where(.svgplot-areaplot-4) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-areaplot-4) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-areaplot-4) .tick-line { stroke: #333333; }
+:where(.svgplot-areaplot-4) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-areaplot-4) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-areaplot-4) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
+  <title>xscale="log" — x 가 자릿수로 벌어질 때</title>
+  <desc>Area chart, 5 points, x 1 to 10000, y 0 to 100.</desc>
+</svg>
     </figure>
     <pre><code>SIZES = {&quot;바이트&quot;: [1.0, 10.0, 100.0, 1000.0, 10000.0], &quot;누적&quot;: [2.0, 9.0, 31.0, 68.0, 100.0]}
 sp.areaplot(SIZES, x=&quot;바이트&quot;, y=&quot;누적&quot;, xscale=&quot;log&quot;)</code></pre>

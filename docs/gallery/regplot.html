@@ -54,25 +54,36 @@
       pre { background: var(--code-bg); padding: 0.9rem 1.1rem; border-radius: 6px; overflow-x: auto; }
       pre code { font-size: 0.84rem; line-height: 1.55; }
       code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-      /* Each chart is its own SVG document, referenced rather than inlined, so this page's
-         CSS does not reach inside it. That isolation is the point: two charts on one page
-         both define .series-1 with opposite rules, and inlining them would let the later
-         one restyle the earlier. */
+      /* Each chart is inlined into this page. An SVG's <style> is not scoped to the SVG --
+         it applies to the whole document -- so two charts here would both define .series-1
+         with opposite rules and the later one would repaint the earlier. Every chart is
+         emitted under its own scope class (Chart.set_scope) and every rule sits under it,
+         which is what makes inlining safe. The trade-offs of each embedding route are in
+         ../tutorial/. */
       figure { margin: 0 0 1rem; }
-      figure img {
+      figure > svg {
         display: block;
-        width: 100%;
         max-width: 100%;
         height: auto;
         background: var(--figure-bg);
         border: 1px solid var(--rule);
         border-radius: 6px;
       }
+      /* The info= footnote table, which a figure carries when its chart was built with one.
+         Without these it renders as an unstyled browser-default table inside an otherwise
+         styled page -- the one piece of the gallery that looked unfinished. */
+      figure table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.9rem; }
+      figure th, figure td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--rule); text-align: left; }
+      figure th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+      figure td { font-variant-numeric: tabular-nums; }
+      /* The thumbnail wrapper. Named so it stops inheriting ul.index span, which is the rule
+         for the summary line beneath it. */
+      ul.index .thumb { display: block; }
       ul.notes { margin: 0; padding-left: 1.2rem; color: var(--muted); }
       ul.notes li { margin-bottom: 0.3rem; }
       ul.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1.5rem; margin: 0; padding: 0; list-style: none; }
       ul.index a { display: block; text-decoration: none; color: inherit; }
-      ul.index img { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
+      ul.index svg { width: 100%; height: auto; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: 6px; }
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
@@ -100,22 +111,357 @@ SPEND = {
     <h2>예시</h2>
     <h3>기본 — 95% 신뢰대역과 산점도</h3>
     <figure>
-      <img src="svg/regplot-1.svg" alt="기본 — 95% 신뢰대역과 산점도" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-regplot-1" role="img" aria-label="기본 — 95% 신뢰대역과 산점도">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="760" y2="550" class="spine" />
+  <line x1="166.228766" y1="30" x2="166.228766" y2="550" class="grid-line" />
+  <line x1="166.228766" y1="550" x2="166.228766" y2="554" class="tick-line" />
+  <text x="166.228766" y="572" text-anchor="middle" class="tick-label">20</text>
+  <line x1="324.779162" y1="30" x2="324.779162" y2="550" class="grid-line" />
+  <line x1="324.779162" y1="550" x2="324.779162" y2="554" class="tick-line" />
+  <text x="324.779162" y="572" text-anchor="middle" class="tick-label">40</text>
+  <line x1="483.329558" y1="30" x2="483.329558" y2="550" class="grid-line" />
+  <line x1="483.329558" y1="550" x2="483.329558" y2="554" class="tick-line" />
+  <text x="483.329558" y="572" text-anchor="middle" class="tick-label">60</text>
+  <line x1="641.879955" y1="30" x2="641.879955" y2="550" class="grid-line" />
+  <line x1="641.879955" y1="550" x2="641.879955" y2="554" class="tick-line" />
+  <text x="641.879955" y="572" text-anchor="middle" class="tick-label">80</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="450.251572" x2="760" y2="450.251572" class="grid-line" />
+  <line x1="56" y1="450.251572" x2="60" y2="450.251572" class="tick-line" />
+  <text x="54" y="454.251572" text-anchor="end" class="tick-label">50</text>
+  <line x1="60" y1="333.450135" x2="760" y2="333.450135" class="grid-line" />
+  <line x1="56" y1="333.450135" x2="60" y2="333.450135" class="tick-line" />
+  <text x="54" y="337.450135" text-anchor="end" class="tick-label">100</text>
+  <line x1="60" y1="216.648697" x2="760" y2="216.648697" class="grid-line" />
+  <line x1="56" y1="216.648697" x2="60" y2="216.648697" class="tick-line" />
+  <text x="54" y="220.648697" text-anchor="end" class="tick-label">150</text>
+  <line x1="60" y1="99.84726" x2="760" y2="99.84726" class="grid-line" />
+  <line x1="56" y1="99.84726" x2="60" y2="99.84726" class="tick-line" />
+  <text x="54" y="103.84726" text-anchor="end" class="tick-label">200</text>
+  <path d="M 60,471.217956 L 67.070707,467.665367 L 74.141414,464.112778 L 81.212121,460.56019 L 88.282828,457.007601 L 95.353535,453.423247 L 102.424242,449.635243 L 109.494949,446.106417 L 116.565657,442.608687 L 123.636364,439.11986 L 130.707071,435.704703 L 137.777778,432.15427 L 144.848485,428.633766 L 151.919192,425.136754 L 158.989899,421.499171 L 166.060606,417.797441 L 173.131313,414.103113 L 180.20202,410.411611 L 187.272727,406.780273 L 194.343434,403.453678 L 201.414141,400.013196 L 208.484848,396.625792 L 215.555556,392.909228 L 222.626263,389.189038 L 229.69697,385.464589 L 236.767677,381.665659 L 243.838384,378.032525 L 250.909091,374.395473 L 257.979798,370.76207 L 265.050505,367.361061 L 272.121212,363.695972 L 279.191919,359.900686 L 286.262626,356.218035 L 293.333333,352.453952 L 300.40404,348.849203 L 307.474747,345.062217 L 314.545455,341.022489 L 321.616162,337.02068 L 328.686869,333.168202 L 335.757576,329.320329 L 342.828283,325.476972 L 349.89899,321.781483 L 356.969697,317.949284 L 364.040404,314.350181 L 371.111111,310.454087 L 378.181818,306.570504 L 385.252525,302.808278 L 392.323232,299.026012 L 399.393939,295.249643 L 406.464646,291.472415 L 413.535354,287.701197 L 420.606061,283.922062 L 427.676768,279.918047 L 434.747475,275.951686 L 441.818182,272.200086 L 448.888889,268.25507 L 455.959596,264.346684 L 463.030303,260.360226 L 470.10101,256.433955 L 477.171717,252.587794 L 484.242424,248.644563 L 491.313131,244.690648 L 498.383838,240.7581 L 505.454545,236.728579 L 512.525253,232.719716 L 519.59596,228.769887 L 526.666667,224.823712 L 533.737374,220.878934 L 540.808081,216.773295 L 547.878788,212.672641 L 554.949495,208.59882 L 562.020202,204.517827 L 569.090909,200.235206 L 576.161616,195.953547 L 583.232323,191.678196 L 590.30303,187.570237 L 597.373737,183.395619 L 604.444444,179.32888 L 611.515152,175.092607 L 618.585859,170.856333 L 625.656566,166.62006 L 632.727273,162.383787 L 639.79798,158.01307 L 646.868687,153.919237 L 653.939394,149.68311 L 661.010101,145.404549 L 668.080808,141.080042 L 675.151515,136.85489 L 682.222222,132.547296 L 689.292929,128.178287 L 696.363636,123.918521 L 703.434343,119.620485 L 710.505051,115.15479 L 717.575758,110.931568 L 724.646465,106.634089 L 731.717172,102.481044 L 738.787879,98.208511 L 745.858586,93.822917 L 752.929293,89.406339 L 760,85.104722 L 760,134.366547 L 752.929293,137.725448 L 745.858586,141.343942 L 738.787879,144.935744 L 731.717172,148.414419 L 724.646465,151.889599 L 717.575758,155.362722 L 710.505051,158.835845 L 703.434343,162.266864 L 696.363636,165.792488 L 689.292929,169.412215 L 682.222222,172.778181 L 675.151515,176.400686 L 668.080808,180.089672 L 661.010101,183.696071 L 653.939394,187.228089 L 646.868687,190.698157 L 639.79798,194.357117 L 632.727273,198.132141 L 625.656566,201.883679 L 618.585859,205.408918 L 611.515152,208.93054 L 604.444444,212.47955 L 597.373737,216.121135 L 590.30303,219.652282 L 583.232323,223.453357 L 576.161616,227.294072 L 569.090909,231.091577 L 562.020202,234.832012 L 554.949495,238.574662 L 547.878788,242.107054 L 540.808081,245.600354 L 533.737374,249.154529 L 526.666667,252.831368 L 519.59596,256.495854 L 512.525253,260.370557 L 505.454545,263.911128 L 498.383838,267.608699 L 491.313131,271.275634 L 484.242424,274.856533 L 477.171717,278.587318 L 470.10101,282.263199 L 463.030303,286.023576 L 455.959596,289.836008 L 448.888889,293.726536 L 441.818182,297.628289 L 434.747475,301.32405 L 427.676768,305.088752 L 420.606061,309.104744 L 413.535354,312.91555 L 406.464646,316.829823 L 399.393939,320.906454 L 392.323232,324.781458 L 385.252525,328.797513 L 378.181818,332.947129 L 371.111111,337.046062 L 364.040404,341.017146 L 356.969697,344.94353 L 349.89899,348.945876 L 342.828283,353.052307 L 335.757576,356.952858 L 328.686869,360.74245 L 321.616162,364.715337 L 314.545455,368.958816 L 307.474747,373.202295 L 300.40404,377.442422 L 293.333333,381.573294 L 286.262626,385.817161 L 279.191919,389.932485 L 272.121212,393.96373 L 265.050505,398.123901 L 257.979798,402.335504 L 250.909091,406.450121 L 243.838384,410.553869 L 236.767677,414.850362 L 229.69697,419.183441 L 222.626263,423.415703 L 215.555556,427.511918 L 208.484848,431.397561 L 201.414141,435.277545 L 194.343434,439.309983 L 187.272727,443.414226 L 180.20202,447.675598 L 173.131313,452.035867 L 166.060606,456.127264 L 158.989899,460.377102 L 151.919192,464.62277 L 144.848485,468.855349 L 137.777778,472.952954 L 130.707071,477.136531 L 123.636364,481.338487 L 116.565657,485.347741 L 109.494949,489.407784 L 102.424242,493.581934 L 95.353535,497.814343 L 88.282828,502.046753 L 81.212121,506.279162 L 74.141414,510.604399 L 67.070707,514.985184 L 60,519.225676 Z" class="series-1 regression-band" />
+  <circle cx="419.9094" cy="255.193172" r="5" class="series-1 scatter-point" />
+  <circle cx="622.853907" cy="203.09973" r="5" class="series-1 scatter-point" />
+  <circle cx="732.253681" cy="174.833783" r="5" class="series-1 scatter-point" />
+  <circle cx="254.224236" cy="289.065588" r="5" class="series-1 scatter-point" />
+  <circle cx="593.522084" cy="233.234501" r="5" class="series-1 scatter-point" />
+  <circle cx="549.920725" cy="240.709793" r="5" class="series-1 scatter-point" />
+  <circle cx="519.003398" cy="152.875112" r="5" class="series-1 scatter-point" />
+  <circle cx="125.798414" cy="453.522013" r="5" class="series-1 scatter-point" />
+  <circle cx="66.342016" cy="525.471698" r="5" class="series-1 scatter-point" />
+  <circle cx="321.608154" cy="302.14735" r="5" class="series-1 scatter-point" />
+  <circle cx="580.0453" cy="214.779874" r="5" class="series-1 scatter-point" />
+  <circle cx="227.270668" cy="329.946092" r="5" class="series-1 scatter-point" />
+  <circle cx="404.847112" cy="308.454627" r="5" class="series-1 scatter-point" />
+  <circle cx="274.043035" cy="419.649596" r="5" class="series-1 scatter-point" />
+  <circle cx="651.392978" cy="30" r="5" class="series-1 scatter-point" />
+  <circle cx="721.947905" cy="56.397125" r="5" class="series-1 scatter-point" />
+  <circle cx="333.499434" cy="333.683738" r="5" class="series-1 scatter-point" />
+  <circle cx="760" cy="109.424978" r="5" class="series-1 scatter-point" />
+  <circle cx="91.710079" cy="550" r="5" class="series-1 scatter-point" />
+  <circle cx="626.817667" cy="209.173405" r="5" class="series-1 scatter-point" />
+  <circle cx="672.00453" cy="221.320755" r="5" class="series-1 scatter-point" />
+  <circle cx="155.130238" cy="394.654088" r="5" class="series-1 scatter-point" />
+  <circle cx="550.713477" cy="154.510332" r="5" class="series-1 scatter-point" />
+  <circle cx="446.070215" cy="296.774483" r="5" class="series-1 scatter-point" />
+  <circle cx="729.082673" cy="147.502246" r="5" class="series-1 scatter-point" />
+  <circle cx="197.146093" cy="397.457323" r="5" class="series-1 scatter-point" />
+  <circle cx="432.593431" cy="287.430368" r="5" class="series-1 scatter-point" />
+  <circle cx="676.761042" cy="121.105121" r="5" class="series-1 scatter-point" />
+  <circle cx="503.148358" cy="220.386343" r="5" class="series-1 scatter-point" />
+  <circle cx="267.701019" cy="356.810422" r="5" class="series-1 scatter-point" />
+  <circle cx="105.979615" cy="435.067385" r="5" class="series-1 scatter-point" />
+  <circle cx="717.984145" cy="180.673854" r="5" class="series-1 scatter-point" />
+  <circle cx="385.821065" cy="274.115004" r="5" class="series-1 scatter-point" />
+  <circle cx="758.414496" cy="213.378257" r="5" class="series-1 scatter-point" />
+  <circle cx="147.99547" cy="440.440252" r="5" class="series-1 scatter-point" />
+  <circle cx="626.817667" cy="193.522013" r="5" class="series-1 scatter-point" />
+  <circle cx="627.610419" cy="157.54717" r="5" class="series-1 scatter-point" />
+  <circle cx="703.714609" cy="145.39982" r="5" class="series-1 scatter-point" />
+  <circle cx="60" cy="482.722372" r="5" class="series-1 scatter-point" />
+  <circle cx="312.887882" cy="451.419587" r="5" class="series-1 scatter-point" />
+  <circle cx="84.575311" cy="510.754717" r="5" class="series-1 scatter-point" />
+  <circle cx="584.00906" cy="246.082659" r="5" class="series-1 scatter-point" />
+  <circle cx="300.203851" cy="341.859838" r="5" class="series-1 scatter-point" />
+  <circle cx="732.253681" cy="109.424978" r="5" class="series-1 scatter-point" />
+  <circle cx="314.473386" cy="378.301887" r="5" class="series-1 scatter-point" />
+  <circle cx="599.8641" cy="222.255166" r="5" class="series-1 scatter-point" />
+  <circle cx="666.455266" cy="195.624438" r="5" class="series-1 scatter-point" />
+  <circle cx="217.757644" cy="415.444744" r="5" class="series-1 scatter-point" />
+  <circle cx="444.484711" cy="258.230009" r="5" class="series-1 scatter-point" />
+  <circle cx="730.668177" cy="83.495058" r="5" class="series-1 scatter-point" />
+  <circle cx="423.080408" cy="301.680144" r="5" class="series-1 scatter-point" />
+  <circle cx="304.16761" cy="417.54717" r="5" class="series-1 scatter-point" />
+  <circle cx="237.576444" cy="442.542677" r="5" class="series-1 scatter-point" />
+  <circle cx="608.584371" cy="151.473495" r="5" class="series-1 scatter-point" />
+  <circle cx="184.462061" cy="484.357592" r="5" class="series-1 scatter-point" />
+  <circle cx="478.573046" cy="282.057502" r="5" class="series-1 scatter-point" />
+  <circle cx="443.691959" cy="407.502246" r="5" class="series-1 scatter-point" />
+  <circle cx="442.106455" cy="236.271339" r="5" class="series-1 scatter-point" />
+  <circle cx="140.06795" cy="450.485175" r="5" class="series-1 scatter-point" />
+  <circle cx="517.417894" cy="276.684636" r="5" class="series-1 scatter-point" />
+  <path d="M 60,495.110871 L 67.070707,491.226417 L 74.141414,487.341963 L 81.212121,483.457509 L 88.282828,479.573055 L 95.353535,475.6886 L 102.424242,471.804146 L 109.494949,467.919692 L 116.565657,464.035238 L 123.636364,460.150783 L 130.707071,456.266329 L 137.777778,452.381875 L 144.848485,448.497421 L 151.919192,444.612967 L 158.989899,440.728512 L 166.060606,436.844058 L 173.131313,432.959604 L 180.20202,429.07515 L 187.272727,425.190695 L 194.343434,421.306241 L 201.414141,417.421787 L 208.484848,413.537333 L 215.555556,409.652878 L 222.626263,405.768424 L 229.69697,401.88397 L 236.767677,397.999516 L 243.838384,394.115062 L 250.909091,390.230607 L 257.979798,386.346153 L 265.050505,382.461699 L 272.121212,378.577245 L 279.191919,374.69279 L 286.262626,370.808336 L 293.333333,366.923882 L 300.40404,363.039428 L 307.474747,359.154974 L 314.545455,355.270519 L 321.616162,351.386065 L 328.686869,347.501611 L 335.757576,343.617157 L 342.828283,339.732702 L 349.89899,335.848248 L 356.969697,331.963794 L 364.040404,328.07934 L 371.111111,324.194885 L 378.181818,320.310431 L 385.252525,316.425977 L 392.323232,312.541523 L 399.393939,308.657069 L 406.464646,304.772614 L 413.535354,300.88816 L 420.606061,297.003706 L 427.676768,293.119252 L 434.747475,289.234797 L 441.818182,285.350343 L 448.888889,281.465889 L 455.959596,277.581435 L 463.030303,273.696981 L 470.10101,269.812526 L 477.171717,265.928072 L 484.242424,262.043618 L 491.313131,258.159164 L 498.383838,254.274709 L 505.454545,250.390255 L 512.525253,246.505801 L 519.59596,242.621347 L 526.666667,238.736892 L 533.737374,234.852438 L 540.808081,230.967984 L 547.878788,227.08353 L 554.949495,223.199076 L 562.020202,219.314621 L 569.090909,215.430167 L 576.161616,211.545713 L 583.232323,207.661259 L 590.30303,203.776804 L 597.373737,199.89235 L 604.444444,196.007896 L 611.515152,192.123442 L 618.585859,188.238988 L 625.656566,184.354533 L 632.727273,180.470079 L 639.79798,176.585625 L 646.868687,172.701171 L 653.939394,168.816716 L 661.010101,164.932262 L 668.080808,161.047808 L 675.151515,157.163354 L 682.222222,153.2789 L 689.292929,149.394445 L 696.363636,145.509991 L 703.434343,141.625537 L 710.505051,137.741083 L 717.575758,133.856628 L 724.646465,129.972174 L 731.717172,126.08772 L 738.787879,122.203266 L 745.858586,118.318811 L 752.929293,114.434357 L 760,110.549903" class="series-1 regression-line" />
+  <style>:where(.svgplot-regplot-1) .plot-background { fill: #ffffff; }
+:where(.svgplot-regplot-1) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-regplot-1) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-regplot-1) .tick-line { stroke: #333333; }
+:where(.svgplot-regplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-regplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-regplot-1) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }</style>
+  <title>기본 — 95% 신뢰대역과 산점도</title>
+  <desc>Regression plot, fitted over 60 points, x 6.6 to 94.9, y 7.3 to 229.9, with a 95% confidence band.</desc>
+</svg>
     </figure>
     <pre><code>sp.regplot(SPEND, x=&quot;광고비&quot;, y=&quot;문의수&quot;)</code></pre>
     <h3>ci=None 은 대역 없이 선만 그린다</h3>
     <figure>
-      <img src="svg/regplot-2.svg" alt="ci=None 은 대역 없이 선만 그린다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-regplot-2" role="img" aria-label="ci=None 은 대역 없이 선만 그린다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="760" y2="550" class="spine" />
+  <line x1="166.228766" y1="30" x2="166.228766" y2="550" class="grid-line" />
+  <line x1="166.228766" y1="550" x2="166.228766" y2="554" class="tick-line" />
+  <text x="166.228766" y="572" text-anchor="middle" class="tick-label">20</text>
+  <line x1="324.779162" y1="30" x2="324.779162" y2="550" class="grid-line" />
+  <line x1="324.779162" y1="550" x2="324.779162" y2="554" class="tick-line" />
+  <text x="324.779162" y="572" text-anchor="middle" class="tick-label">40</text>
+  <line x1="483.329558" y1="30" x2="483.329558" y2="550" class="grid-line" />
+  <line x1="483.329558" y1="550" x2="483.329558" y2="554" class="tick-line" />
+  <text x="483.329558" y="572" text-anchor="middle" class="tick-label">60</text>
+  <line x1="641.879955" y1="30" x2="641.879955" y2="550" class="grid-line" />
+  <line x1="641.879955" y1="550" x2="641.879955" y2="554" class="tick-line" />
+  <text x="641.879955" y="572" text-anchor="middle" class="tick-label">80</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="450.251572" x2="760" y2="450.251572" class="grid-line" />
+  <line x1="56" y1="450.251572" x2="60" y2="450.251572" class="tick-line" />
+  <text x="54" y="454.251572" text-anchor="end" class="tick-label">50</text>
+  <line x1="60" y1="333.450135" x2="760" y2="333.450135" class="grid-line" />
+  <line x1="56" y1="333.450135" x2="60" y2="333.450135" class="tick-line" />
+  <text x="54" y="337.450135" text-anchor="end" class="tick-label">100</text>
+  <line x1="60" y1="216.648697" x2="760" y2="216.648697" class="grid-line" />
+  <line x1="56" y1="216.648697" x2="60" y2="216.648697" class="tick-line" />
+  <text x="54" y="220.648697" text-anchor="end" class="tick-label">150</text>
+  <line x1="60" y1="99.84726" x2="760" y2="99.84726" class="grid-line" />
+  <line x1="56" y1="99.84726" x2="60" y2="99.84726" class="tick-line" />
+  <text x="54" y="103.84726" text-anchor="end" class="tick-label">200</text>
+  <circle cx="419.9094" cy="255.193172" r="5" class="series-1 scatter-point" />
+  <circle cx="622.853907" cy="203.09973" r="5" class="series-1 scatter-point" />
+  <circle cx="732.253681" cy="174.833783" r="5" class="series-1 scatter-point" />
+  <circle cx="254.224236" cy="289.065588" r="5" class="series-1 scatter-point" />
+  <circle cx="593.522084" cy="233.234501" r="5" class="series-1 scatter-point" />
+  <circle cx="549.920725" cy="240.709793" r="5" class="series-1 scatter-point" />
+  <circle cx="519.003398" cy="152.875112" r="5" class="series-1 scatter-point" />
+  <circle cx="125.798414" cy="453.522013" r="5" class="series-1 scatter-point" />
+  <circle cx="66.342016" cy="525.471698" r="5" class="series-1 scatter-point" />
+  <circle cx="321.608154" cy="302.14735" r="5" class="series-1 scatter-point" />
+  <circle cx="580.0453" cy="214.779874" r="5" class="series-1 scatter-point" />
+  <circle cx="227.270668" cy="329.946092" r="5" class="series-1 scatter-point" />
+  <circle cx="404.847112" cy="308.454627" r="5" class="series-1 scatter-point" />
+  <circle cx="274.043035" cy="419.649596" r="5" class="series-1 scatter-point" />
+  <circle cx="651.392978" cy="30" r="5" class="series-1 scatter-point" />
+  <circle cx="721.947905" cy="56.397125" r="5" class="series-1 scatter-point" />
+  <circle cx="333.499434" cy="333.683738" r="5" class="series-1 scatter-point" />
+  <circle cx="760" cy="109.424978" r="5" class="series-1 scatter-point" />
+  <circle cx="91.710079" cy="550" r="5" class="series-1 scatter-point" />
+  <circle cx="626.817667" cy="209.173405" r="5" class="series-1 scatter-point" />
+  <circle cx="672.00453" cy="221.320755" r="5" class="series-1 scatter-point" />
+  <circle cx="155.130238" cy="394.654088" r="5" class="series-1 scatter-point" />
+  <circle cx="550.713477" cy="154.510332" r="5" class="series-1 scatter-point" />
+  <circle cx="446.070215" cy="296.774483" r="5" class="series-1 scatter-point" />
+  <circle cx="729.082673" cy="147.502246" r="5" class="series-1 scatter-point" />
+  <circle cx="197.146093" cy="397.457323" r="5" class="series-1 scatter-point" />
+  <circle cx="432.593431" cy="287.430368" r="5" class="series-1 scatter-point" />
+  <circle cx="676.761042" cy="121.105121" r="5" class="series-1 scatter-point" />
+  <circle cx="503.148358" cy="220.386343" r="5" class="series-1 scatter-point" />
+  <circle cx="267.701019" cy="356.810422" r="5" class="series-1 scatter-point" />
+  <circle cx="105.979615" cy="435.067385" r="5" class="series-1 scatter-point" />
+  <circle cx="717.984145" cy="180.673854" r="5" class="series-1 scatter-point" />
+  <circle cx="385.821065" cy="274.115004" r="5" class="series-1 scatter-point" />
+  <circle cx="758.414496" cy="213.378257" r="5" class="series-1 scatter-point" />
+  <circle cx="147.99547" cy="440.440252" r="5" class="series-1 scatter-point" />
+  <circle cx="626.817667" cy="193.522013" r="5" class="series-1 scatter-point" />
+  <circle cx="627.610419" cy="157.54717" r="5" class="series-1 scatter-point" />
+  <circle cx="703.714609" cy="145.39982" r="5" class="series-1 scatter-point" />
+  <circle cx="60" cy="482.722372" r="5" class="series-1 scatter-point" />
+  <circle cx="312.887882" cy="451.419587" r="5" class="series-1 scatter-point" />
+  <circle cx="84.575311" cy="510.754717" r="5" class="series-1 scatter-point" />
+  <circle cx="584.00906" cy="246.082659" r="5" class="series-1 scatter-point" />
+  <circle cx="300.203851" cy="341.859838" r="5" class="series-1 scatter-point" />
+  <circle cx="732.253681" cy="109.424978" r="5" class="series-1 scatter-point" />
+  <circle cx="314.473386" cy="378.301887" r="5" class="series-1 scatter-point" />
+  <circle cx="599.8641" cy="222.255166" r="5" class="series-1 scatter-point" />
+  <circle cx="666.455266" cy="195.624438" r="5" class="series-1 scatter-point" />
+  <circle cx="217.757644" cy="415.444744" r="5" class="series-1 scatter-point" />
+  <circle cx="444.484711" cy="258.230009" r="5" class="series-1 scatter-point" />
+  <circle cx="730.668177" cy="83.495058" r="5" class="series-1 scatter-point" />
+  <circle cx="423.080408" cy="301.680144" r="5" class="series-1 scatter-point" />
+  <circle cx="304.16761" cy="417.54717" r="5" class="series-1 scatter-point" />
+  <circle cx="237.576444" cy="442.542677" r="5" class="series-1 scatter-point" />
+  <circle cx="608.584371" cy="151.473495" r="5" class="series-1 scatter-point" />
+  <circle cx="184.462061" cy="484.357592" r="5" class="series-1 scatter-point" />
+  <circle cx="478.573046" cy="282.057502" r="5" class="series-1 scatter-point" />
+  <circle cx="443.691959" cy="407.502246" r="5" class="series-1 scatter-point" />
+  <circle cx="442.106455" cy="236.271339" r="5" class="series-1 scatter-point" />
+  <circle cx="140.06795" cy="450.485175" r="5" class="series-1 scatter-point" />
+  <circle cx="517.417894" cy="276.684636" r="5" class="series-1 scatter-point" />
+  <path d="M 60,495.110871 L 67.070707,491.226417 L 74.141414,487.341963 L 81.212121,483.457509 L 88.282828,479.573055 L 95.353535,475.6886 L 102.424242,471.804146 L 109.494949,467.919692 L 116.565657,464.035238 L 123.636364,460.150783 L 130.707071,456.266329 L 137.777778,452.381875 L 144.848485,448.497421 L 151.919192,444.612967 L 158.989899,440.728512 L 166.060606,436.844058 L 173.131313,432.959604 L 180.20202,429.07515 L 187.272727,425.190695 L 194.343434,421.306241 L 201.414141,417.421787 L 208.484848,413.537333 L 215.555556,409.652878 L 222.626263,405.768424 L 229.69697,401.88397 L 236.767677,397.999516 L 243.838384,394.115062 L 250.909091,390.230607 L 257.979798,386.346153 L 265.050505,382.461699 L 272.121212,378.577245 L 279.191919,374.69279 L 286.262626,370.808336 L 293.333333,366.923882 L 300.40404,363.039428 L 307.474747,359.154974 L 314.545455,355.270519 L 321.616162,351.386065 L 328.686869,347.501611 L 335.757576,343.617157 L 342.828283,339.732702 L 349.89899,335.848248 L 356.969697,331.963794 L 364.040404,328.07934 L 371.111111,324.194885 L 378.181818,320.310431 L 385.252525,316.425977 L 392.323232,312.541523 L 399.393939,308.657069 L 406.464646,304.772614 L 413.535354,300.88816 L 420.606061,297.003706 L 427.676768,293.119252 L 434.747475,289.234797 L 441.818182,285.350343 L 448.888889,281.465889 L 455.959596,277.581435 L 463.030303,273.696981 L 470.10101,269.812526 L 477.171717,265.928072 L 484.242424,262.043618 L 491.313131,258.159164 L 498.383838,254.274709 L 505.454545,250.390255 L 512.525253,246.505801 L 519.59596,242.621347 L 526.666667,238.736892 L 533.737374,234.852438 L 540.808081,230.967984 L 547.878788,227.08353 L 554.949495,223.199076 L 562.020202,219.314621 L 569.090909,215.430167 L 576.161616,211.545713 L 583.232323,207.661259 L 590.30303,203.776804 L 597.373737,199.89235 L 604.444444,196.007896 L 611.515152,192.123442 L 618.585859,188.238988 L 625.656566,184.354533 L 632.727273,180.470079 L 639.79798,176.585625 L 646.868687,172.701171 L 653.939394,168.816716 L 661.010101,164.932262 L 668.080808,161.047808 L 675.151515,157.163354 L 682.222222,153.2789 L 689.292929,149.394445 L 696.363636,145.509991 L 703.434343,141.625537 L 710.505051,137.741083 L 717.575758,133.856628 L 724.646465,129.972174 L 731.717172,126.08772 L 738.787879,122.203266 L 745.858586,118.318811 L 752.929293,114.434357 L 760,110.549903" class="series-1 regression-line" />
+  <style>:where(.svgplot-regplot-2) .plot-background { fill: #ffffff; }
+:where(.svgplot-regplot-2) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-regplot-2) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-regplot-2) .tick-line { stroke: #333333; }
+:where(.svgplot-regplot-2) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-regplot-2) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-regplot-2) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }</style>
+  <title>ci=None 은 대역 없이 선만 그린다</title>
+  <desc>Regression plot, fitted over 60 points, x 6.6 to 94.9, y 7.3 to 229.9, no confidence band.</desc>
+</svg>
     </figure>
     <pre><code>sp.regplot(SPEND, x=&quot;광고비&quot;, y=&quot;문의수&quot;, ci=None)</code></pre>
     <h3>ci=0.99 는 대역을 넓힌다</h3>
     <figure>
-      <img src="svg/regplot-3.svg" alt="ci=0.99 는 대역을 넓힌다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-regplot-3" role="img" aria-label="ci=0.99 는 대역을 넓힌다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="760" y2="550" class="spine" />
+  <line x1="166.228766" y1="30" x2="166.228766" y2="550" class="grid-line" />
+  <line x1="166.228766" y1="550" x2="166.228766" y2="554" class="tick-line" />
+  <text x="166.228766" y="572" text-anchor="middle" class="tick-label">20</text>
+  <line x1="324.779162" y1="30" x2="324.779162" y2="550" class="grid-line" />
+  <line x1="324.779162" y1="550" x2="324.779162" y2="554" class="tick-line" />
+  <text x="324.779162" y="572" text-anchor="middle" class="tick-label">40</text>
+  <line x1="483.329558" y1="30" x2="483.329558" y2="550" class="grid-line" />
+  <line x1="483.329558" y1="550" x2="483.329558" y2="554" class="tick-line" />
+  <text x="483.329558" y="572" text-anchor="middle" class="tick-label">60</text>
+  <line x1="641.879955" y1="30" x2="641.879955" y2="550" class="grid-line" />
+  <line x1="641.879955" y1="550" x2="641.879955" y2="554" class="tick-line" />
+  <text x="641.879955" y="572" text-anchor="middle" class="tick-label">80</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="450.251572" x2="760" y2="450.251572" class="grid-line" />
+  <line x1="56" y1="450.251572" x2="60" y2="450.251572" class="tick-line" />
+  <text x="54" y="454.251572" text-anchor="end" class="tick-label">50</text>
+  <line x1="60" y1="333.450135" x2="760" y2="333.450135" class="grid-line" />
+  <line x1="56" y1="333.450135" x2="60" y2="333.450135" class="tick-line" />
+  <text x="54" y="337.450135" text-anchor="end" class="tick-label">100</text>
+  <line x1="60" y1="216.648697" x2="760" y2="216.648697" class="grid-line" />
+  <line x1="56" y1="216.648697" x2="60" y2="216.648697" class="tick-line" />
+  <text x="54" y="220.648697" text-anchor="end" class="tick-label">150</text>
+  <line x1="60" y1="99.84726" x2="760" y2="99.84726" class="grid-line" />
+  <line x1="56" y1="99.84726" x2="60" y2="99.84726" class="tick-line" />
+  <text x="54" y="103.84726" text-anchor="end" class="tick-label">200</text>
+  <path d="M 60,462.630242 L 67.070707,459.387813 L 74.141414,456.145384 L 81.212121,452.902955 L 88.282828,449.660526 L 95.353535,446.418097 L 102.424242,443.175668 L 109.494949,439.933239 L 116.565657,436.519901 L 123.636364,432.991334 L 130.707071,429.462767 L 137.777778,425.908307 L 144.848485,422.308536 L 151.919192,418.708764 L 158.989899,415.108993 L 166.060606,411.553191 L 173.131313,408.251839 L 180.20202,404.760461 L 187.272727,401.402444 L 194.343434,397.976242 L 201.414141,394.172661 L 208.484848,390.641541 L 215.555556,387.110421 L 222.626263,383.579301 L 229.69697,380.049041 L 236.767677,376.518967 L 243.838384,372.988893 L 250.909091,369.260089 L 257.979798,365.524428 L 265.050505,361.788768 L 272.121212,358.053107 L 279.191919,354.317689 L 286.262626,350.582992 L 293.333333,347.118519 L 300.40404,343.360639 L 307.474747,339.56598 L 314.545455,335.881589 L 321.616162,332.279339 L 328.686869,328.67709 L 335.757576,325.075062 L 342.828283,321.473108 L 349.89899,317.829718 L 356.969697,313.800353 L 364.040404,310.310463 L 371.111111,306.154258 L 378.181818,302.010841 L 385.252525,298.272402 L 392.323232,294.535637 L 399.393939,290.716845 L 406.464646,286.602744 L 413.535354,282.633143 L 420.606061,278.688878 L 427.676768,274.638951 L 434.747475,270.589941 L 441.818182,266.766249 L 448.888889,263.20709 L 455.959596,259.439114 L 463.030303,255.360149 L 470.10101,251.281184 L 477.171717,247.202219 L 484.242424,243.123254 L 491.313131,239.044289 L 498.383838,234.965324 L 505.454545,230.887474 L 512.525253,226.809705 L 519.59596,222.731936 L 526.666667,218.809153 L 533.737374,214.566514 L 540.808081,210.322795 L 547.878788,206.079099 L 554.949495,201.836925 L 562.020202,197.698026 L 569.090909,193.590969 L 576.161616,189.257175 L 583.232323,184.923381 L 590.30303,180.703249 L 597.373737,176.378474 L 604.444444,172.134525 L 611.515152,167.890709 L 618.585859,163.647112 L 625.656566,159.404008 L 632.727273,155.161503 L 639.79798,150.918998 L 646.868687,146.676494 L 653.939394,142.553453 L 661.010101,138.437114 L 668.080808,134.320775 L 675.151515,130.204437 L 682.222222,126.088098 L 689.292929,121.971759 L 696.363636,117.599849 L 703.434343,113.188587 L 710.505051,108.777324 L 717.575758,104.366062 L 724.646465,100.001731 L 731.717172,95.757744 L 738.787879,91.513758 L 745.858586,87.269771 L 752.929293,83.025784 L 760,78.781798 L 760,141.372216 L 752.929293,144.849176 L 745.858586,148.151434 L 738.787879,151.39475 L 731.717172,154.638065 L 724.646465,157.881381 L 717.575758,161.124696 L 710.505051,164.543014 L 703.434343,167.966231 L 696.363636,171.389448 L 689.292929,174.812665 L 682.222222,178.235882 L 675.151515,181.6591 L 668.080808,185.082317 L 661.010101,188.505534 L 653.939394,191.928751 L 646.868687,195.351969 L 639.79798,198.775186 L 632.727273,202.208095 L 625.656566,205.782331 L 618.585859,209.749136 L 611.515152,213.715941 L 604.444444,217.682746 L 597.373737,221.348004 L 590.30303,224.825906 L 583.232323,228.302203 L 576.161616,231.778232 L 569.090909,234.914601 L 562.020202,237.998853 L 554.949495,241.483394 L 547.878788,245.099545 L 540.808081,248.404033 L 533.737374,251.806018 L 526.666667,255.269258 L 519.59596,258.664164 L 512.525253,262.582791 L 505.454545,266.501418 L 498.383838,270.028749 L 491.313131,273.758462 L 484.242424,277.540619 L 477.171717,281.322776 L 470.10101,285.104933 L 463.030303,288.88709 L 455.959596,292.669247 L 448.888889,296.451404 L 441.818182,300.233561 L 434.747475,304.015718 L 427.676768,308.106934 L 420.606061,312.204374 L 413.535354,316.301814 L 406.464646,320.399254 L 399.393939,324.496694 L 392.323232,328.594134 L 385.252525,332.691574 L 378.181818,336.789014 L 371.111111,340.886454 L 364.040404,344.918412 L 356.969697,348.840145 L 349.89899,352.761878 L 342.828283,357.080875 L 335.757576,360.808879 L 328.686869,364.870524 L 321.616162,369.053898 L 314.545455,373.237159 L 307.474747,377.22534 L 300.40404,381.553474 L 293.333333,385.791974 L 286.262626,390.066551 L 279.191919,394.164855 L 272.121212,398.263397 L 265.050505,402.361657 L 257.979798,406.460417 L 250.909091,410.563881 L 243.838384,414.800501 L 236.767677,419.037122 L 229.69697,423.273742 L 222.626263,427.510363 L 215.555556,431.746983 L 208.484848,435.983604 L 201.414141,440.194153 L 194.343434,444.379221 L 187.272727,448.564289 L 180.20202,452.749357 L 173.131313,456.934425 L 166.060606,461.119493 L 158.989899,465.304561 L 151.919192,469.48963 L 144.848485,473.674698 L 137.777778,477.978057 L 130.707071,482.412155 L 123.636364,486.826148 L 116.565657,491.06402 L 109.494949,495.415561 L 102.424242,499.538192 L 95.353535,503.932189 L 88.282828,508.38956 L 81.212121,512.846931 L 74.141414,517.304302 L 67.070707,521.761672 L 60,526.219043 Z" class="series-1 regression-band" />
+  <circle cx="419.9094" cy="255.193172" r="5" class="series-1 scatter-point" />
+  <circle cx="622.853907" cy="203.09973" r="5" class="series-1 scatter-point" />
+  <circle cx="732.253681" cy="174.833783" r="5" class="series-1 scatter-point" />
+  <circle cx="254.224236" cy="289.065588" r="5" class="series-1 scatter-point" />
+  <circle cx="593.522084" cy="233.234501" r="5" class="series-1 scatter-point" />
+  <circle cx="549.920725" cy="240.709793" r="5" class="series-1 scatter-point" />
+  <circle cx="519.003398" cy="152.875112" r="5" class="series-1 scatter-point" />
+  <circle cx="125.798414" cy="453.522013" r="5" class="series-1 scatter-point" />
+  <circle cx="66.342016" cy="525.471698" r="5" class="series-1 scatter-point" />
+  <circle cx="321.608154" cy="302.14735" r="5" class="series-1 scatter-point" />
+  <circle cx="580.0453" cy="214.779874" r="5" class="series-1 scatter-point" />
+  <circle cx="227.270668" cy="329.946092" r="5" class="series-1 scatter-point" />
+  <circle cx="404.847112" cy="308.454627" r="5" class="series-1 scatter-point" />
+  <circle cx="274.043035" cy="419.649596" r="5" class="series-1 scatter-point" />
+  <circle cx="651.392978" cy="30" r="5" class="series-1 scatter-point" />
+  <circle cx="721.947905" cy="56.397125" r="5" class="series-1 scatter-point" />
+  <circle cx="333.499434" cy="333.683738" r="5" class="series-1 scatter-point" />
+  <circle cx="760" cy="109.424978" r="5" class="series-1 scatter-point" />
+  <circle cx="91.710079" cy="550" r="5" class="series-1 scatter-point" />
+  <circle cx="626.817667" cy="209.173405" r="5" class="series-1 scatter-point" />
+  <circle cx="672.00453" cy="221.320755" r="5" class="series-1 scatter-point" />
+  <circle cx="155.130238" cy="394.654088" r="5" class="series-1 scatter-point" />
+  <circle cx="550.713477" cy="154.510332" r="5" class="series-1 scatter-point" />
+  <circle cx="446.070215" cy="296.774483" r="5" class="series-1 scatter-point" />
+  <circle cx="729.082673" cy="147.502246" r="5" class="series-1 scatter-point" />
+  <circle cx="197.146093" cy="397.457323" r="5" class="series-1 scatter-point" />
+  <circle cx="432.593431" cy="287.430368" r="5" class="series-1 scatter-point" />
+  <circle cx="676.761042" cy="121.105121" r="5" class="series-1 scatter-point" />
+  <circle cx="503.148358" cy="220.386343" r="5" class="series-1 scatter-point" />
+  <circle cx="267.701019" cy="356.810422" r="5" class="series-1 scatter-point" />
+  <circle cx="105.979615" cy="435.067385" r="5" class="series-1 scatter-point" />
+  <circle cx="717.984145" cy="180.673854" r="5" class="series-1 scatter-point" />
+  <circle cx="385.821065" cy="274.115004" r="5" class="series-1 scatter-point" />
+  <circle cx="758.414496" cy="213.378257" r="5" class="series-1 scatter-point" />
+  <circle cx="147.99547" cy="440.440252" r="5" class="series-1 scatter-point" />
+  <circle cx="626.817667" cy="193.522013" r="5" class="series-1 scatter-point" />
+  <circle cx="627.610419" cy="157.54717" r="5" class="series-1 scatter-point" />
+  <circle cx="703.714609" cy="145.39982" r="5" class="series-1 scatter-point" />
+  <circle cx="60" cy="482.722372" r="5" class="series-1 scatter-point" />
+  <circle cx="312.887882" cy="451.419587" r="5" class="series-1 scatter-point" />
+  <circle cx="84.575311" cy="510.754717" r="5" class="series-1 scatter-point" />
+  <circle cx="584.00906" cy="246.082659" r="5" class="series-1 scatter-point" />
+  <circle cx="300.203851" cy="341.859838" r="5" class="series-1 scatter-point" />
+  <circle cx="732.253681" cy="109.424978" r="5" class="series-1 scatter-point" />
+  <circle cx="314.473386" cy="378.301887" r="5" class="series-1 scatter-point" />
+  <circle cx="599.8641" cy="222.255166" r="5" class="series-1 scatter-point" />
+  <circle cx="666.455266" cy="195.624438" r="5" class="series-1 scatter-point" />
+  <circle cx="217.757644" cy="415.444744" r="5" class="series-1 scatter-point" />
+  <circle cx="444.484711" cy="258.230009" r="5" class="series-1 scatter-point" />
+  <circle cx="730.668177" cy="83.495058" r="5" class="series-1 scatter-point" />
+  <circle cx="423.080408" cy="301.680144" r="5" class="series-1 scatter-point" />
+  <circle cx="304.16761" cy="417.54717" r="5" class="series-1 scatter-point" />
+  <circle cx="237.576444" cy="442.542677" r="5" class="series-1 scatter-point" />
+  <circle cx="608.584371" cy="151.473495" r="5" class="series-1 scatter-point" />
+  <circle cx="184.462061" cy="484.357592" r="5" class="series-1 scatter-point" />
+  <circle cx="478.573046" cy="282.057502" r="5" class="series-1 scatter-point" />
+  <circle cx="443.691959" cy="407.502246" r="5" class="series-1 scatter-point" />
+  <circle cx="442.106455" cy="236.271339" r="5" class="series-1 scatter-point" />
+  <circle cx="140.06795" cy="450.485175" r="5" class="series-1 scatter-point" />
+  <circle cx="517.417894" cy="276.684636" r="5" class="series-1 scatter-point" />
+  <path d="M 60,495.110871 L 67.070707,491.226417 L 74.141414,487.341963 L 81.212121,483.457509 L 88.282828,479.573055 L 95.353535,475.6886 L 102.424242,471.804146 L 109.494949,467.919692 L 116.565657,464.035238 L 123.636364,460.150783 L 130.707071,456.266329 L 137.777778,452.381875 L 144.848485,448.497421 L 151.919192,444.612967 L 158.989899,440.728512 L 166.060606,436.844058 L 173.131313,432.959604 L 180.20202,429.07515 L 187.272727,425.190695 L 194.343434,421.306241 L 201.414141,417.421787 L 208.484848,413.537333 L 215.555556,409.652878 L 222.626263,405.768424 L 229.69697,401.88397 L 236.767677,397.999516 L 243.838384,394.115062 L 250.909091,390.230607 L 257.979798,386.346153 L 265.050505,382.461699 L 272.121212,378.577245 L 279.191919,374.69279 L 286.262626,370.808336 L 293.333333,366.923882 L 300.40404,363.039428 L 307.474747,359.154974 L 314.545455,355.270519 L 321.616162,351.386065 L 328.686869,347.501611 L 335.757576,343.617157 L 342.828283,339.732702 L 349.89899,335.848248 L 356.969697,331.963794 L 364.040404,328.07934 L 371.111111,324.194885 L 378.181818,320.310431 L 385.252525,316.425977 L 392.323232,312.541523 L 399.393939,308.657069 L 406.464646,304.772614 L 413.535354,300.88816 L 420.606061,297.003706 L 427.676768,293.119252 L 434.747475,289.234797 L 441.818182,285.350343 L 448.888889,281.465889 L 455.959596,277.581435 L 463.030303,273.696981 L 470.10101,269.812526 L 477.171717,265.928072 L 484.242424,262.043618 L 491.313131,258.159164 L 498.383838,254.274709 L 505.454545,250.390255 L 512.525253,246.505801 L 519.59596,242.621347 L 526.666667,238.736892 L 533.737374,234.852438 L 540.808081,230.967984 L 547.878788,227.08353 L 554.949495,223.199076 L 562.020202,219.314621 L 569.090909,215.430167 L 576.161616,211.545713 L 583.232323,207.661259 L 590.30303,203.776804 L 597.373737,199.89235 L 604.444444,196.007896 L 611.515152,192.123442 L 618.585859,188.238988 L 625.656566,184.354533 L 632.727273,180.470079 L 639.79798,176.585625 L 646.868687,172.701171 L 653.939394,168.816716 L 661.010101,164.932262 L 668.080808,161.047808 L 675.151515,157.163354 L 682.222222,153.2789 L 689.292929,149.394445 L 696.363636,145.509991 L 703.434343,141.625537 L 710.505051,137.741083 L 717.575758,133.856628 L 724.646465,129.972174 L 731.717172,126.08772 L 738.787879,122.203266 L 745.858586,118.318811 L 752.929293,114.434357 L 760,110.549903" class="series-1 regression-line" />
+  <style>:where(.svgplot-regplot-3) .plot-background { fill: #ffffff; }
+:where(.svgplot-regplot-3) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-regplot-3) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-regplot-3) .tick-line { stroke: #333333; }
+:where(.svgplot-regplot-3) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-regplot-3) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-regplot-3) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }</style>
+  <title>ci=0.99 는 대역을 넓힌다</title>
+  <desc>Regression plot, fitted over 60 points, x 6.6 to 94.9, y 7.3 to 229.9, with a 99% confidence band.</desc>
+</svg>
     </figure>
     <pre><code>sp.regplot(SPEND, x=&quot;광고비&quot;, y=&quot;문의수&quot;, ci=0.99)</code></pre>
     <h3>scatter=False 는 점을 빼고 적합만 남긴다</h3>
     <figure>
-      <img src="svg/regplot-4.svg" alt="scatter=False 는 점을 빼고 적합만 남긴다" />
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-regplot-4" role="img" aria-label="scatter=False 는 점을 빼고 적합만 남긴다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="760" y2="550" class="spine" />
+  <line x1="166.228766" y1="30" x2="166.228766" y2="550" class="grid-line" />
+  <line x1="166.228766" y1="550" x2="166.228766" y2="554" class="tick-line" />
+  <text x="166.228766" y="572" text-anchor="middle" class="tick-label">20</text>
+  <line x1="324.779162" y1="30" x2="324.779162" y2="550" class="grid-line" />
+  <line x1="324.779162" y1="550" x2="324.779162" y2="554" class="tick-line" />
+  <text x="324.779162" y="572" text-anchor="middle" class="tick-label">40</text>
+  <line x1="483.329558" y1="30" x2="483.329558" y2="550" class="grid-line" />
+  <line x1="483.329558" y1="550" x2="483.329558" y2="554" class="tick-line" />
+  <text x="483.329558" y="572" text-anchor="middle" class="tick-label">60</text>
+  <line x1="641.879955" y1="30" x2="641.879955" y2="550" class="grid-line" />
+  <line x1="641.879955" y1="550" x2="641.879955" y2="554" class="tick-line" />
+  <text x="641.879955" y="572" text-anchor="middle" class="tick-label">80</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="467.381242" x2="760" y2="467.381242" class="grid-line" />
+  <line x1="56" y1="467.381242" x2="60" y2="467.381242" class="tick-line" />
+  <text x="54" y="471.381242" text-anchor="end" class="tick-label">50</text>
+  <line x1="60" y1="327.473811" x2="760" y2="327.473811" class="grid-line" />
+  <line x1="56" y1="327.473811" x2="60" y2="327.473811" class="tick-line" />
+  <text x="54" y="331.473811" text-anchor="end" class="tick-label">100</text>
+  <line x1="60" y1="187.56638" x2="760" y2="187.56638" class="grid-line" />
+  <line x1="56" y1="187.56638" x2="60" y2="187.56638" class="tick-line" />
+  <text x="54" y="191.56638" text-anchor="end" class="tick-label">150</text>
+  <line x1="60" y1="47.658948" x2="760" y2="47.658948" class="grid-line" />
+  <line x1="56" y1="47.658948" x2="60" y2="47.658948" class="tick-line" />
+  <text x="54" y="51.658948" text-anchor="end" class="tick-label">200</text>
+  <path d="M 60,492.495256 L 67.070707,488.239884 L 74.141414,483.984512 L 81.212121,479.72914 L 88.282828,475.473768 L 95.353535,471.180347 L 102.424242,466.642989 L 109.494949,462.416081 L 116.565657,458.22642 L 123.636364,454.047423 L 130.707071,449.95667 L 137.777778,445.703881 L 144.848485,441.48694 L 151.919192,437.298139 L 158.989899,432.940959 L 166.060606,428.506942 L 173.131313,424.081792 L 180.20202,419.660026 L 187.272727,415.310327 L 194.343434,411.325655 L 201.414141,407.204567 L 208.484848,403.147057 L 215.555556,398.695272 L 222.626263,394.239144 L 229.69697,389.777913 L 236.767677,385.227468 L 243.838384,380.875617 L 250.909091,376.519073 L 257.979798,372.166899 L 265.050505,368.093093 L 272.121212,363.702967 L 279.191919,359.156885 L 286.262626,354.745722 L 293.333333,350.237018 L 300.40404,345.919166 L 307.474747,341.383029 L 314.545455,336.54415 L 321.616162,331.750692 L 328.686869,327.136105 L 335.757576,322.527036 L 342.828283,317.923374 L 349.89899,313.496834 L 356.969697,308.906538 L 364.040404,304.59545 L 371.111111,299.92862 L 378.181818,295.276775 L 385.252525,290.770294 L 392.323232,286.23981 L 399.393939,281.716389 L 406.464646,277.191939 L 413.535354,272.674688 L 420.606061,268.147954 L 427.676768,263.351853 L 434.747475,258.600855 L 441.818182,254.107103 L 448.888889,249.381672 L 455.959596,244.700119 L 463.030303,239.925048 L 470.10101,235.222071 L 477.171717,230.615052 L 484.242424,225.891759 L 491.313131,221.155669 L 498.383838,216.445173 L 505.454545,211.618521 L 512.525253,206.816614 L 519.59596,202.085418 L 526.666667,197.3586 L 533.737374,192.633454 L 540.808081,187.715625 L 547.878788,182.803768 L 554.949495,177.924052 L 562.020202,173.035746 L 569.090909,167.905925 L 576.161616,162.777256 L 583.232323,157.656142 L 590.30303,152.735536 L 597.373737,147.735082 L 604.444444,142.86385 L 611.515152,137.789545 L 618.585859,132.71524 L 625.656566,127.640935 L 632.727273,122.566629 L 639.79798,117.331285 L 646.868687,112.427599 L 653.939394,107.353468 L 661.010101,102.22851 L 668.080808,97.048517 L 675.151515,91.987534 L 682.222222,86.827799 L 689.292929,81.594501 L 696.363636,76.492055 L 703.434343,71.34377 L 710.505051,65.994658 L 717.575758,60.935986 L 724.646465,55.788367 L 731.717172,50.813755 L 738.787879,45.696018 L 745.858586,40.442853 L 752.929293,35.152575 L 760,30 L 760,89.006939 L 752.929293,93.030308 L 745.858586,97.364622 L 738.787879,101.666966 L 731.717172,105.833802 L 724.646465,109.996452 L 717.575758,114.156638 L 710.505051,118.316824 L 703.434343,122.426577 L 696.363636,126.64965 L 689.292929,130.985442 L 682.222222,135.017273 L 675.151515,139.356392 L 668.080808,143.775143 L 661.010101,148.094971 L 653.939394,152.325703 L 646.868687,156.48223 L 639.79798,160.865016 L 632.727273,165.386826 L 625.656566,169.880504 L 618.585859,174.103115 L 611.515152,178.321395 L 604.444444,182.57248 L 597.373737,186.934453 L 590.30303,191.164142 L 583.232323,195.717156 L 576.161616,200.317652 L 569.090909,204.866391 L 562.020202,209.34677 L 554.949495,213.829801 L 547.878788,218.060981 L 540.808081,222.245336 L 533.737374,226.502608 L 526.666667,230.906809 L 519.59596,235.296215 L 512.525253,239.937423 L 505.454545,244.1784 L 498.383838,248.607435 L 491.313131,252.999774 L 484.242424,257.289055 L 477.171717,261.757876 L 470.10101,266.160929 L 463.030303,270.665195 L 455.959596,275.231813 L 448.888889,279.891976 L 441.818182,284.565585 L 434.747475,288.992452 L 427.676768,293.501899 L 420.606061,298.312346 L 413.535354,302.877016 L 406.464646,307.565622 L 399.393939,312.448704 L 392.323232,317.090271 L 385.252525,321.900795 L 378.181818,326.8713 L 371.111111,331.781094 L 364.040404,336.53775 L 356.969697,341.240862 L 349.89899,346.034964 L 342.828283,350.953741 L 335.757576,355.62591 L 328.686869,360.16517 L 321.616162,364.923984 L 314.545455,370.006921 L 307.474747,375.089857 L 300.40404,380.168779 L 293.333333,385.116831 L 286.262626,390.200231 L 279.191919,395.129661 L 272.121212,399.958378 L 265.050505,404.941526 L 257.979798,409.98628 L 250.909091,414.914864 L 243.838384,419.830427 L 236.767677,424.976864 L 229.69697,430.167125 L 222.626263,435.236625 L 215.555556,440.143165 L 208.484848,444.797476 L 201.414141,449.44501 L 194.343434,454.275156 L 187.272727,459.191313 L 180.20202,464.295682 L 173.131313,469.518511 L 166.060606,474.419281 L 158.989899,479.509833 L 151.919192,484.595392 L 144.848485,489.665271 L 137.777778,494.573476 L 130.707071,499.58466 L 123.636364,504.61786 L 116.565657,509.420235 L 109.494949,514.283448 L 102.424242,519.28334 L 95.353535,524.353017 L 88.282828,529.422693 L 81.212121,534.49237 L 74.141414,539.673238 L 67.070707,544.920642 L 60,550 Z" class="series-1 regression-band" />
+  <path d="M 60,521.114736 L 67.070707,516.461848 L 74.141414,511.80896 L 81.212121,507.156072 L 88.282828,502.503184 L 95.353535,497.850296 L 102.424242,493.197408 L 109.494949,488.54452 L 116.565657,483.891632 L 123.636364,479.238744 L 130.707071,474.585856 L 137.777778,469.932968 L 144.848485,465.28008 L 151.919192,460.627191 L 158.989899,455.974303 L 166.060606,451.321415 L 173.131313,446.668527 L 180.20202,442.015639 L 187.272727,437.362751 L 194.343434,432.709863 L 201.414141,428.056975 L 208.484848,423.404087 L 215.555556,418.751199 L 222.626263,414.098311 L 229.69697,409.445423 L 236.767677,404.792535 L 243.838384,400.139647 L 250.909091,395.486759 L 257.979798,390.833871 L 265.050505,386.180983 L 272.121212,381.528095 L 279.191919,376.875207 L 286.262626,372.222319 L 293.333333,367.56943 L 300.40404,362.916542 L 307.474747,358.263654 L 314.545455,353.610766 L 321.616162,348.957878 L 328.686869,344.30499 L 335.757576,339.652102 L 342.828283,334.999214 L 349.89899,330.346326 L 356.969697,325.693438 L 364.040404,321.04055 L 371.111111,316.387662 L 378.181818,311.734774 L 385.252525,307.081886 L 392.323232,302.428998 L 399.393939,297.77611 L 406.464646,293.123222 L 413.535354,288.470334 L 420.606061,283.817446 L 427.676768,279.164558 L 434.747475,274.511669 L 441.818182,269.858781 L 448.888889,265.205893 L 455.959596,260.553005 L 463.030303,255.900117 L 470.10101,251.247229 L 477.171717,246.594341 L 484.242424,241.941453 L 491.313131,237.288565 L 498.383838,232.635677 L 505.454545,227.982789 L 512.525253,223.329901 L 519.59596,218.677013 L 526.666667,214.024125 L 533.737374,209.371237 L 540.808081,204.718349 L 547.878788,200.065461 L 554.949495,195.412573 L 562.020202,190.759685 L 569.090909,186.106797 L 576.161616,181.453908 L 583.232323,176.80102 L 590.30303,172.148132 L 597.373737,167.495244 L 604.444444,162.842356 L 611.515152,158.189468 L 618.585859,153.53658 L 625.656566,148.883692 L 632.727273,144.230804 L 639.79798,139.577916 L 646.868687,134.925028 L 653.939394,130.27214 L 661.010101,125.619252 L 668.080808,120.966364 L 675.151515,116.313476 L 682.222222,111.660588 L 689.292929,107.0077 L 696.363636,102.354812 L 703.434343,97.701924 L 710.505051,93.049035 L 717.575758,88.396147 L 724.646465,83.743259 L 731.717172,79.090371 L 738.787879,74.437483 L 745.858586,69.784595 L 752.929293,65.131707 L 760,60.478819" class="series-1 regression-line" />
+  <style>:where(.svgplot-regplot-4) .plot-background { fill: #ffffff; }
+:where(.svgplot-regplot-4) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-regplot-4) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-regplot-4) .tick-line { stroke: #333333; }
+:where(.svgplot-regplot-4) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-regplot-4) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-regplot-4) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }</style>
+  <title>scatter=False 는 점을 빼고 적합만 남긴다</title>
+  <desc>Regression plot, fitted over 60 points, x 6.6 to 94.9, y 20.473778 to 206.31094, with a 95% confidence band.</desc>
+</svg>
     </figure>
     <pre><code>sp.regplot(SPEND, x=&quot;광고비&quot;, y=&quot;문의수&quot;, scatter=False)</code></pre>
     <h2>메모</h2>
