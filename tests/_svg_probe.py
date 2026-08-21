@@ -111,9 +111,10 @@ def blank_style_bodies(markup: str) -> str:
     to make a parser cut a fragment out of the wrong place. Two test modules had each grown
     their own copy of this regex, which is the shape this module exists to stop.
 
-    ``<style[^>]*>`` rather than ``<style>``: the bare form matches what this package emits
-    today, so a style element that gained an attribute would stop matching and the test would
-    fail on CSS content rather than on markup.
+    The tag pattern allows attributes (``<style[^>]*>``) even though this package emits none
+    on a ``<style>`` today. Matching the bare form would work right up until one appeared, and
+    then it would stop blanking that block -- and the test would fail on CSS content, reported
+    as a markup error somewhere else in the file.
     """
     return re.sub(r"(<style[^>]*>).*?(</style>)", r"\1\2", markup, flags=re.S)
 

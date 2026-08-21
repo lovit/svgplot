@@ -1,10 +1,15 @@
 """Controls a gallery page puts *around* an inlined chart, and the CSS that wires them up.
 
-Nothing here reaches into the package. The charts are svgplot's ordinary output, unchanged;
-what this module adds is markup in the host page and rules in the host page's ``<style>``.
-That is the whole point of #185 having inlined the SVG: an ``<img>`` is a separate document
-and a page's rules stop at its boundary, so none of this was possible against a referenced
-file. There is still no JavaScript anywhere in the gallery.
+Nothing here changes a chart. The charts are svgplot's ordinary output, unmodified; what this
+module adds is markup in the host page and rules in the host page's ``<style>``. That is the
+whole point of #185 having inlined the SVG: an ``<img>`` is a separate document and a page's
+rules stop at its boundary, so none of this was possible against a referenced file. There is
+still no JavaScript anywhere in the gallery.
+
+The one thing it borrows from the package is ``scope.validate_css_class_name`` -- an internal
+module, reached for deliberately. This file writes a caller-supplied name into a CSS selector,
+which is the same question ``Chart.set_scope`` already answers, and a second pattern here
+would be a second answer to it.
 
 **Read the picture, do not describe it.** The series a chart drew, the classes each one
 carries and the label the legend gave it are all *extracted from the rendered SVG*. An example
@@ -31,6 +36,7 @@ without ``!important``.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from html import escape
 from xml.sax.saxutils import unescape
@@ -144,6 +150,28 @@ def legend_labels(svg: str) -> dict[int, str]:
     return labels
 
 
+def _has_visible_text(label: str) -> bool:
+    """Whether ``label`` puts anything on screen for a reader to read.
+
+    Not ``str.strip()``. That covers the separators (Unicode ``Z*``) and the ASCII controls, so
+    it refuses ``""``, ``"   "`` and even U+00A0 -- but it passes U+200B ZERO WIDTH SPACE and
+    U+2060 WORD JOINER, which render as nothing and leave exactly the empty accessible name
+    this check exists to refuse. There is no principle under which a no-break space is not a
+    name and a zero-width space is. ``C*`` is control and formatting characters, ``Z*`` is
+    every kind of space, and between them they are that principle.
+
+    **It does not catch every invisible label, and cannot.** U+3164 HANGUL FILLER renders as
+    nothing too, but Unicode classifies it ``Lo`` -- a letter, alongside every Korean and CJK
+    character. Separating the letters that draw nothing from the letters that draw something
+    needs the ``Default_Ignorable_Code_Point`` property, which the standard library does not
+    expose, or a hand-kept list of them, which would be wrong the first time somebody found a
+    character not on it. What is refused here is a label made only of things that are *not
+    characters of a word*; a label made of a word that happens to be invisible is somebody
+    deliberately writing an invisible label, and this is not the place that catches it.
+    """
+    return any(not unicodedata.category(character).startswith(("C", "Z")) for character in label)
+
+
 def resolve(figure: str, kind: str, svg: str) -> Controls:
     """Work out the controls ``figure`` should carry, from the chart it holds.
 
@@ -174,12 +202,13 @@ def resolve(figure: str, kind: str, svg: str) -> Controls:
 
     classes = series_classes(svg)
     labels = legend_labels(svg)
-    # A blank label counts as missing, not as a name. An empty <label> gives the checkbox an
-    # empty accessible name, which is worse than an unlabelled one: assistive technology stops
-    # looking for a fallback. An empty hue value is an ordinary thing to find in real data.
     if not classes:
         raise ValueError(f"{figure}: the chart drew no series, so there is nothing to control")
-    named = {index for index, label in labels.items() if label.strip()}
+    # A label with nothing visible in it counts as missing, not as a name. An empty <label>
+    # gives the checkbox an empty accessible name, which is worse than an unlabelled one:
+    # assistive technology stops looking for a fallback. An empty hue value is an ordinary
+    # thing to find in real data.
+    named = {index for index, label in labels.items() if _has_visible_text(label)}
     missing = sorted(set(classes) - named)
     if missing:
         raise ValueError(
