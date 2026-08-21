@@ -27,6 +27,7 @@ import xml.etree.ElementTree as ET
 from html import escape
 from pathlib import Path
 
+import cssselect2
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -336,6 +337,45 @@ def test_a_series_whose_legend_name_is_blank_is_refused() -> None:
         _one_example(setup, 'sp.barplot(D, x="x", y="y", hue="g")')
 
 
+@pytest.mark.parametrize(
+    "label",
+    [
+        pytest.param("", id="empty"),
+        pytest.param("   ", id="spaces"),
+        pytest.param("\u00a0", id="no-break-space"),
+        pytest.param("\u200b", id="zero-width-space"),
+        pytest.param("\u2060", id="word-joiner"),
+        pytest.param("\u200b \u2060", id="a-mix-of-them"),
+    ],
+)
+def test_a_name_made_only_of_invisible_characters_is_refused(label: str) -> None:
+    """``str.strip()`` was the first fix and it stopped one character short. It refuses
+    U+00A0 -- a *space* -- and passes U+200B, which draws exactly as much: nothing. There is no
+    principle under which one of those is a name and the other is not, and the outcome for a
+    reader is the same empty accessible name either way.
+
+    U+3164 HANGUL FILLER is deliberately not in this list. It renders as nothing too, but
+    Unicode calls it a letter, and telling the letters that draw nothing from the letters that
+    draw something needs a property the standard library does not expose. Named here so the
+    gap is a recorded limit rather than something rediscovered.
+    """
+    setup = f'import svgplot as sp\nD = {{"x": ["a", "b"], "y": [1.0, 2.0], "g": [{label!r}, "zzz"]}}\n'
+
+    with pytest.raises(ValueError, match="no legend entry"):
+        _one_example(setup, 'sp.barplot(D, x="x", y="y", hue="g")')
+
+
+def test_a_name_that_is_only_punctuation_is_still_a_name() -> None:
+    """The other side of the rule, which a wider one would have broken: ``.`` and ``-`` are
+    ordinary category values and draw ink. A check that asked for a *letter* would refuse
+    them."""
+    setup = 'import svgplot as sp\nD = {"x": ["a", "b"], "y": [1.0, 2.0], "g": [".", "zzz"]}\n'
+
+    assert {
+        series.label for series in _one_example(setup, 'sp.barplot(D, x="x", y="y", hue="g")').examples[0].controls.series
+    } == {".", "zzz"}
+
+
 def test_a_series_with_no_legend_row_of_its_own_is_refused() -> None:
     """The other half of the refusal, which no test reached: a chart with *some* legend rows
     and a series that has none. Removing the ``missing`` term from ``resolve`` left all 47
@@ -387,54 +427,26 @@ def test_a_size_legend_does_not_become_a_series(monkeypatch: pytest.MonkeyPatch)
 
 
 def _specificity(selector: str) -> tuple[int, int, int]:
-    """(ids, classes, elements) for the selector shapes this gallery emits.
+    """(ids, classes, elements), from a real CSS engine.
 
-    Hand-counted rather than taken from a CSS engine because the only one available here,
-    ``cssselect2``, arrives with the ``png`` extra and CI installs only ``numpy-parity`` -- a
-    test that needs it would skip in the one place it has to run. Cross-checked against
-    ``cssselect2`` 0.8 while writing this: it agrees on every selector below.
+    An earlier version of this counted the tokens by hand, on the grounds that ``cssselect2``
+    arrives with the ``png`` extra and CI installs only ``numpy-parity`` -- so a check that
+    needed it would skip in the one place it has to run. That reasoning was right and the
+    conclusion was wrong: the answer was to make CI install it, not to write a second CSS
+    engine. The hand-written one disagreed with ``cssselect2`` on ten of twenty-four selector
+    shapes -- attribute selectors, ``::before``, ``:nth-child(2n+1)``, nested ``:not(:where())``,
+    and any selector containing a comma -- and reversed the *verdict* on eight of forty-nine
+    plausible page/chart pairs. It also claimed in its own docstring to raise on anything it
+    could not read, and never raised at all.
 
-    Deliberately narrow. It understands ``#id``, ``.class``, bare element names, ``:where()``
-    (zero, per Selectors 4), and ``:not()``/``:is()`` (their widest argument). Anything else
-    raises rather than being scored as zero, because a selector this cannot read is one whose
-    result must not be trusted.
+    Worse than the bug it was added to catch: the five selectors its cross-check used were the
+    five it happened to get right. Same fixture coincidence as the double-escaping defect,
+    inside the guard written to answer it.
     """
-    ids = classes = elements = 0
-    rest = selector
-    for name, inner in re.findall(r":(where|not|is)\(([^()]*)\)", rest):
-        rest = rest.replace(f":{name}({inner})", " ", 1)
-        if name == "where":
-            continue
-        widest = max((_specificity(part) for part in inner.split(",")), default=(0, 0, 0))
-        ids, classes, elements = ids + widest[0], classes + widest[1], elements + widest[2]
-    for token in re.findall(r"[#.:]?[\w-]+|[*>+~]", rest):
-        if token in ("*", ">", "+", "~"):
-            continue
-        if token.startswith("#"):
-            ids += 1
-        elif token.startswith((".", ":")):
-            classes += 1
-        else:
-            elements += 1
-    return ids, classes, elements
+    compiled = list(cssselect2.compile_selector_list(selector))
 
-
-def test_the_specificity_counter_agrees_with_a_css_engine() -> None:
-    """The oracle needs its own oracle. ``cssselect2`` is not installed in CI, so this skips
-    there -- but it runs wherever the ``png`` extra is, and it is the reason the hand-written
-    counter above can be trusted at all."""
-    cssselect2 = pytest.importorskip("cssselect2")
-
-    for selector in (
-        "#a:not(:checked) ~ svg :is(.series-1, .series-1-marker)",
-        "#a:not(:checked) + label",
-        ":where(.svgplot-f1234abcd) .series-1",
-        ".series-1",
-        "figure > svg",
-    ):
-        compiled = list(cssselect2.compile_selector_list(selector))
-
-        assert [_specificity(selector)] == [rule.specificity for rule in compiled], selector
+    assert len(compiled) == 1, f"{selector!r} is a selector list, not one selector"
+    return compiled[0].specificity
 
 
 def test_a_page_rule_outranks_the_chart_rule_it_has_to_override() -> None:
