@@ -337,3 +337,55 @@ def test_barplot_stacked_skips_categories_absent_from_a_hue_group() -> None:
 
     segment_counts = sorted(len(segments) for segments in by_category.values())
     assert segment_counts == [1, 2]  # "b" only appears in group x
+
+
+# --------------------------------------------------------------------------- what colour means
+#
+# The docstring and the gallery page both used to say that this chart rotates its palette per
+# category without ``hue=``, and that ``categories=`` gives a rowless category "its place in
+# the palette". Neither is true here, and both sentences were copied verbatim from ``boxplot``
+# and ``violinplot``, where they *are* true. Executed rather than asserted in prose, because
+# reading the sentence next to the code is exactly how it survived.
+
+
+def _series_classes(svg: str) -> set[str]:
+    return {
+        name for attribute in re.findall(r'\bclass="([^"]*)"', svg) for name in attribute.split() if name.startswith("series-")
+    }
+
+
+def test_without_hue_every_bar_is_one_series_however_many_categories() -> None:
+    """Colour follows ``hue=`` and nothing else. Four categories, one colour.
+
+    Not "the palette happens to have one entry": the point is that a reader cannot take the
+    bars' colours to mean anything, because there is only ever one.
+    """
+    svg = barplot({"category": ["a", "b", "c", "d"], "value": [1.0, 2.0, 3.0, 4.0]}, x="category", y="value").to_string()
+
+    assert _series_classes(svg) == {"series-1"}
+
+
+def test_with_hue_the_palette_follows_the_hue_values() -> None:
+    """One entry per group, and a group keeps its entry across every category -- which is what
+    makes the legend readable."""
+    svg = barplot(HUE_SERIES, x="category", y="value", hue="group").to_string()
+
+    assert _series_classes(svg) == {"series-1", "series-2"}
+    assert len(_bars(svg)) == 6, "three categories x two groups"
+
+
+def test_a_rowless_category_gets_a_band_but_not_a_colour() -> None:
+    """``categories=`` lines several charts up on the *axis*. It has nothing to do with colour
+    here, which is the half of the inherited sentence that was false.
+
+    ``boxplot``'s and ``violinplot``'s identically-worded paragraphs describe charts that do
+    rotate per category, so there a rowless category really does consume a palette entry. The
+    difference between the three is #194; this test only pins what ``barplot`` does.
+    """
+    svg = barplot(
+        {"category": ["a", "b"], "value": [1.0, 2.0]}, x="category", y="value", categories=("a", "gap", "b")
+    ).to_string()
+
+    assert "gap" in svg, "the rowless category still gets its tick"
+    assert len(_bars(svg)) == 2, "and no mark of its own"
+    assert _series_classes(svg) == {"series-1"}, "and takes no palette entry with it"
