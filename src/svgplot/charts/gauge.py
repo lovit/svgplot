@@ -33,6 +33,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._polar import label_anchor, polar_point, ring_path
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
 from svgplot.data._columns import column_length, extract_columns
 from svgplot.data._missing import is_missing
 from svgplot.scales import LinearScale, make_ticks
@@ -123,10 +124,32 @@ def _ring_radii(count: int, outer_radius: float) -> list[tuple[float, float]]:
     return [(outer_radius - index * step, outer_radius - index * step - thickness) for index in range(count)]
 
 
+def _arc_tooltip(*, value: str, label: str, magnitude: float, low: float, high: float) -> str:
+    """What one arc's ``<title>`` says: whose it is, what it reads, and **what range it is a
+    fraction of**.
+
+    The range is the part the picture withholds. An arc's sweep is proportional to where its
+    value sits between ``vmin`` and ``vmax``, so a half-full arc means nothing until the reader
+    knows the two ends -- and ``vmin`` defaults to *zero or the smallest value, whichever is
+    lower*, which is a rule nobody guesses from looking. The axis ticks mark the sweep but are
+    unlabelled at the ends, and the legend names the arcs rather than the scale.
+
+    Both bounds go through :func:`format_number` for the reason the value does: a gauge over
+    ``[0, 1e308]`` would otherwise read out 309 digits, twice, per arc.
+    """
+    parts = []
+    if (shown := format_label(label)) is not None:
+        parts.append(shown)
+    parts.append(clause(value, format_number(magnitude)))
+    parts.append(f"of [{format_number(low)}, {format_number(high)}]")
+    return " · ".join(parts)
+
+
 def gaugeplot(
     data: object,
     value: str,
     *,
+    tooltip: bool = False,
     vmin: float | None = None,
     vmax: float | None = None,
     labels: str | None = None,
@@ -146,6 +169,21 @@ def gaugeplot(
     to the largest value. ``labels`` names the legend column; without it, rows are numbered
     from 1, and a single unlabelled row gets no legend at all -- its number is already
     printed in the middle.
+
+    ``tooltip=True`` gives every arc a ``<title>`` naming its row, its value, and **the range
+    the sweep is a fraction of**. That last part is what the picture withholds: a half-full arc
+    means nothing until the reader knows both ends, and ``vmin``'s default -- zero, or the
+    smallest value if that is negative -- is not a rule anyone guesses from looking. The ticks
+    mark the sweep but carry no labels at the ends, and the legend names the arcs rather than
+    the scale.
+
+    **A value at or below ``vmin`` draws no arc, and so gets no tooltip.** A zero-length sweep
+    is an arc whose endpoints coincide, which renderers drop entirely (SVG F.6.2), so this
+    chart omits it rather than emit a path some renderers turn into a full circle. There is
+    nothing to hang an accessible name on, and naming a mark that is not there would be a
+    second way of saying the value is missing rather than zero.
+
+    ``tooltip=False`` is the default; off, the file is what it was.
 
     ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
     call that does not mention them is byte-identical to one written before they existed. The
@@ -226,12 +264,14 @@ def gaugeplot(
             # A zero-length sweep would be an arc whose endpoints coincide, which the
             # renderer drops entirely (SVG spec F.6.2) -- so omit it rather than emit a
             # path that some renderers turn into a full circle.
-            document.add_node(
+            arc = document.add_node(
                 None,
                 "path",
                 attrib={"d": ring_path(cx, cy, ring_outer, ring_inner, _START_ANGLE, end_angle)},
                 classes=[series_class, "gauge-value"],
             )
+            if tooltip:
+                add_tooltip(document, arc, _arc_tooltip(value=value, label=label, magnitude=magnitude, low=low, high=high))
 
     _render_value_text(document, [magnitude for _, magnitude in pairs], cx, cy)
 
@@ -246,7 +286,21 @@ def gaugeplot(
             mark_style="fill",
             font_size=resolved_theme.legend_font_size,
         )
-    render_theme_style(document, resolved_theme, series_classes, mark_style="outlined")
+    render_theme_style(
+        document,
+        resolved_theme,
+        series_classes,
+        mark_style="outlined",
+        # The centre number sits *on top of* the arcs, in the hole they ring. Without this it
+        # takes the pointer at the middle of the chart, where the arc's own ``<title>`` is what
+        # a reader is reaching for -- and the number's own ``<title>`` only exists when its text
+        # had to be shortened, so most of the time the middle answers with nothing at all.
+        #
+        # Only when the arcs have something to say, for ``treemap``'s reason: with tooltips off
+        # there is nothing to put in the label's place, so making it transparent trades
+        # something for nothing.
+        transparent_to_pointer=("gauge-number",) if tooltip else (),
+    )
 
     magnitudes = [magnitude for _, magnitude in pairs]
     description = describe(
