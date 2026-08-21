@@ -82,8 +82,13 @@ def parametric_theme(seed_color: str) -> Theme:
     ``"#3366CC"`` and ``"#3366cc"`` produce an equal ``Theme``); background/foreground stay
     at ``Theme``'s neutral defaults.
 
+    A seed with no hue to rotate — gray, black, white — cannot anchor the palette that way,
+    so one is substituted; ``"#808080"`` yields a red-anchored palette rather than a gray
+    one. The spine and tick colors still take the seed.
+
     Raises:
-        ValueError: (via ``palette.normalize``) if ``seed_color`` is not a ``#rrggbb`` hex
+        ValueError: (via :func:`svgplot.palette._color.normalize_hex_color`) if ``seed_color``
+            is not a ``#rrggbb`` hex
             string. Named colors and three-digit forms are not accepted — the palette math
             and the CSS embedding both want the same one representation.
     """

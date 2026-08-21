@@ -194,6 +194,9 @@ def grid(
     """Arrange charts in a 2D grid. Accepts either a matrix of charts (None = empty cell)
     or a list of (chart, row, col, rowspan, colspan) tuples for span-aware placement.
 
+    ``spacing`` is the gutter in pixels between neighbouring cells, applied both ways in a
+    2D grid; ``0`` is allowed and makes panels touch.
+
     ``titles`` supplies one heading per cell, rendered above it — the static
     replacement for Bokeh's ``Tabs`` adopted as the default idiom in
     docs-research/16-layout-vocabulary.md. For the matrix form, entries are in

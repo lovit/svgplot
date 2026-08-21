@@ -10,6 +10,17 @@ package explains parameters in running prose -- ``Args:`` appears three times in
 ``src/`` -- and mandating a block would put every parameter in two places, one of which
 would go stale. Prose that names the parameter is what a reader can actually find.
 
+The name has to appear as a *word*. A plain substring made short names unfalsifiable --
+``x`` was satisfied by "pixels", ``ci`` by "reproducible", ``bins`` by "histogram_bins".
+Measured, that change closes nothing today (every parameter that appears, appears whole),
+which is the point: it costs nothing and removes a way to pass without meaning to.
+
+**Known limit, tracked rather than hidden.** A parameter named only inside ``Raises:`` --
+"if ``bins`` isn't a recognized spec" -- satisfies this check while telling a reader nothing
+about what the parameter does. Requiring the name in the prose too would fail 15 functions on
+29 parameters right now, most of them ``theme=`` and ``data``. That is a real gap and a real
+piece of work, sized well past the issue this file arrived with, so it has its own -- issue #189, which also covers the classes this file's filter drops.
+
 There is deliberately no allowlist. ``tests/test_gallery.py`` already recorded why: an empty
 escape hatch is one somebody widens later without anyone deciding to.
 """
@@ -17,6 +28,7 @@ escape hatch is one somebody widens later without anyone deciding to.
 from __future__ import annotations
 
 import inspect
+import re
 
 import pytest
 
@@ -27,6 +39,11 @@ _PUBLIC = sorted(
     for name in sp.__all__
     if callable(getattr(sp, name)) and not isinstance(getattr(sp, name), type) and not name.startswith("_")
 )
+
+
+def _names(prose: str, parameter: str) -> bool:
+    """Whether ``prose`` names ``parameter`` as a word rather than inside a longer one."""
+    return re.search(rf"(?<![\w-]){re.escape(parameter)}(?![\w-])", prose) is not None
 
 
 def _signature(name: str) -> inspect.Signature | None:
@@ -49,7 +66,7 @@ def test_every_public_parameter_is_named_in_its_docstring(name: str) -> None:
         pytest.skip(f"{name} has no introspectable signature")
     doc = getattr(sp, name).__doc__ or ""
 
-    missing = [parameter for parameter in signature.parameters if parameter not in doc]
+    missing = [parameter for parameter in signature.parameters if not _names(doc, parameter)]
 
     assert doc.strip(), f"{name} has no docstring"
     assert not missing, f"{name} never names {missing} in its docstring"
