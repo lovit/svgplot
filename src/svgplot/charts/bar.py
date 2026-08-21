@@ -83,11 +83,18 @@ def _bar_tooltip(*, x: str, y: str, hue: str | None, category: str, value: float
     The category goes through :func:`format_label` even though it is already a string, because
     it is the first tooltip *value* in the package that comes straight out of somebody's file
     rather than out of :func:`format_number`. Passed through raw, a three-bar chart with a
-    5,000-character category name went from 17,959 bytes to 33,081, and one ``<title>`` held
-    5,011 characters -- which the column names, the ``hue=`` labels and the axis ticks are all
-    already capped against. A category too long to read is dropped from the tooltip rather than
-    truncated, and so is one that draws nothing: ``"category:  · value: 1"`` names a bar with a
-    label that is not there.
+    5,000-character category name went from 17,959 bytes to 33,114, and one ``<title>`` held
+    5,022 characters; through the cap it is 18,100. A category too long to read is dropped from
+    the tooltip rather than truncated, and so is one that draws nothing:
+    ``"category:  · value: 1"`` names a bar with a label that is not there.
+
+    The bound is :data:`~svgplot.charts._tooltip.MAX_TOOLTIP_CHARS`, 120 -- not ``_describe``'s
+    60, which is a share of one ``<desc>`` sentence and drops two 62-character depot names,
+    leaving both bars named ``"value: 10"``. The column names and the ``hue=`` labels are capped
+    the same way. **The axis tick is not**: its drawn text is shortened but its own ``<title>``
+    still holds the category in full, so the 5,000 characters above are in the file either way
+    -- 15,000 of those 17,959 baseline bytes. That sink predates this argument and closing it
+    would change the output of charts that never asked for a tooltip.
     """
     parts: list[str] = []
     if (shown := format_label(category)) is not None:
@@ -149,6 +156,10 @@ def barplot(
     ``hue=`` group where there is one. The value is the bar's own: a segment in a stacked
     chart, and the folded number where ``estimator=`` folded several rows -- what the rectangle
     actually is. A browser shows it on hover, and it is also the bar's accessible name.
+
+    A clause naming something the caller supplied -- the column names, the category, the
+    ``hue=`` label -- is left out when it is over 120 characters or would draw nothing, because
+    it is written once per bar. The bar still says its value.
 
     ``tooltip=False`` is the default. A ``<title>`` per bar is an element per bar, so turning
     it on changes the bytes of every existing caller's output for a feature they did not ask
