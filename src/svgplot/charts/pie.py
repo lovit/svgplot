@@ -26,6 +26,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._polar import FULL_CIRCLE_TOLERANCE, full_ring_path, polar_point, ring_path
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
 from svgplot.data._columns import column_length, extract_columns
 from svgplot.data._missing import is_missing
 from svgplot.labels._source import collect_label_data
@@ -36,11 +37,35 @@ from svgplot.theme.css import render_theme_style
 _LABEL_RADIUS_FRACTION = 0.65  # value-label distance from center, as a fraction between inner/outer radius
 
 
+def _slice_tooltip(*, values: str, label: str, value: float, cumulative: float, total: float) -> str:
+    """What one slice's ``<title>`` says: its name, its value, its share, and the share of
+    everything up to and including it.
+
+    **The running share is in the picture and written nowhere.** A pie is read clockwise from
+    twelve o'clock, so where a slice *ends* is already a statement about the whole -- "these
+    four together are most of it" is the question a pie is usually asked, and answering it by
+    eye means adding the slices back up. The chart draws each slice's value in the middle of it
+    and the legend names them; neither says how far round the reader has got.
+
+    Rounded to one decimal like ``treemap``'s share: a proportion of a total the reader can also
+    see is not a measurement, and seventeen digits of one would be the longest clause here.
+    The *value* beside it is spelled exactly, because that one came out of somebody's file.
+    """
+    parts = []
+    if (shown := format_label(label)) is not None:
+        parts.append(shown)
+    parts.append(clause(values, format_number(value)))
+    parts.append(f"{value / total * 100:.1f}%")
+    parts.append(f"{cumulative / total * 100:.1f}% cumulative")
+    return " · ".join(parts)
+
+
 def pieplot(
     data: object,
     values: str,
     labels: str | None = None,
     *,
+    tooltip: bool = False,
     inner_radius: float = 0.0,
     info: LabelSpec | list[tuple[str, str]] | None = None,
     width: float | None = None,
@@ -49,6 +74,21 @@ def pieplot(
 ) -> Chart:
     """Draw a pie chart from ``values`` (slice angle) and, optionally, ``labels``
     (legend text; defaults to 1-based slice position when omitted).
+
+    ``tooltip=True`` gives every slice a ``<title>`` naming it, its value, its share, and the
+    share of **everything up to and including it**. That last part is in the picture and written
+    nowhere: a pie is read clockwise from twelve o'clock, so where a slice ends is already a
+    statement about the whole -- "these four together are most of it" is the question a pie is
+    usually asked, and answering it by eye means adding the slices back up. The chart draws each
+    slice's value in the middle of it and the legend names them; neither says how far round the
+    reader has got.
+
+    Turning it on also gives the value labels ``pointer-events: none``. A label sits *on top of*
+    its own slice, so without that it takes the pointer at the one place the reader aims for.
+    With ``tooltip=False`` there is nothing to put in its place, which is why the rule is
+    conditional.
+
+    ``tooltip=False`` is the default; off, the file is what it was.
 
     ``inner_radius`` is a fraction of the outer radius in ``[0, 1)`` (not an
     absolute pixel length) -- ``0.0`` (the default) draws a full pie, any value
@@ -152,7 +192,13 @@ def pieplot(
         attrib: dict[str, str | int | float] = {"d": path_data}
         if inner_radius_px > 0:
             attrib["fill-rule"] = "evenodd"
-        document.add_node(None, "path", attrib=attrib, classes=[series_class])
+        wedge = document.add_node(None, "path", attrib=attrib, classes=[series_class])
+        if tooltip:
+            add_tooltip(
+                document,
+                wedge,
+                _slice_tooltip(values=values, label=label, value=value, cumulative=cumulative, total=total),
+            )
 
         mid_angle = (start_angle + end_angle) / 2
         label_x, label_y = polar_point(cx, cy, label_radius, mid_angle)
@@ -181,7 +227,16 @@ def pieplot(
         mark_style="fill",
         font_size=resolved_theme.legend_font_size,
     )
-    render_theme_style(document, resolved_theme, series_classes, mark_style="fill")
+    render_theme_style(
+        document,
+        resolved_theme,
+        series_classes,
+        mark_style="fill",
+        # A value label sits *on top of* its own slice, so it takes the pointer at the one place
+        # the reader aims for. Only when the slices have something to say, for ``treemap``'s
+        # reason: with tooltips off there is nothing to put in the label's place.
+        transparent_to_pointer=("pie-value",) if tooltip else (),
+    )
 
     magnitudes = [value for _, value in pairs]
     description = describe(
