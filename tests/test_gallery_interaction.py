@@ -457,6 +457,56 @@ def test_a_cell_page_gets_no_control_chrome_and_no_note() -> None:
     assert ":hover" in page, "and the rule itself is still there"
 
 
+@pytest.mark.parametrize("html", [pytest.param(html, id=name) for name, html in _PAGES])
+def test_hover_is_only_declared_where_the_pointer_can_reach_the_mark(html: str) -> None:
+    """A ``:hover`` rule on a mark the pointer cannot land on is an affordance drawn for
+    something that does not respond. The chart's own CSS is what decides: a series styled
+    ``fill: none`` leaves the 2px stroke as its whole hit region, while a filled one answers
+    anywhere inside it.
+
+    ``radarplot`` and ``kdeplot`` each draw the *same* curves both ways, so on those pages the
+    difference is one argument. That makes "put hover on the filled figure and not the unfilled
+    one" an editorial judgement no emitter can check -- ``resolve`` sees series either way --
+    which is why this is asserted against the **chart's own output** rather than against the
+    page's declaration.
+
+    One direction only. The converse is not a rule: a filled figure without hover is a page that
+    demonstrated the contrast once instead of everywhere it could.
+
+    The ``fill`` is read from the *series rule*, not from the figure's whole stylesheet: every
+    chart emits a ``fill: none`` somewhere (the grid, a marker twin), so searching the figure
+    finds one either way and every page reads as unfilled.
+    """
+    hovered = {figure for figure, kind, _selector in _page_rules(html) if kind == "hover"}
+    if not hovered:
+        pytest.skip("this page declares no hover")
+
+    for markup in re.findall(r"<figure>.*?</figure>", html, re.S):
+        scope = re.search(r'class="(svgplot-[\w-]+)"', markup)
+        if scope is None or scope.group(1) not in hovered:
+            continue
+        rule = re.search(r"\.series-1 \{[^}]*\}", markup)
+        assert rule, f"{scope.group(1)} carries a hover rule and no series rule"
+        assert "fill: none" not in rule.group(0), f"{scope.group(1)}: hover on a mark with no fill -- {rule.group(0)}"
+
+
+def test_some_committed_page_actually_declares_hover() -> None:
+    """The check above skips a page with no hover, which is most of them -- so without this, the
+    day the gallery loses its hover rules is the day it reports nineteen skips and no failures.
+
+    Counted over the **committed** pages only. ``_PAGES`` also holds the stubs this file builds,
+    one of which is hover-only, so a bar counted over all of them is met by fixtures the test
+    made itself -- the same trap that hid a broken emitter once already.
+    """
+    with_hover = {
+        name
+        for name, html in _PAGES
+        if not name.startswith("built-") and any(kind == "hover" for _f, kind, _s in _page_rules(html))
+    }
+
+    assert len(with_hover) >= 3, sorted(with_hover)
+
+
 def test_a_page_with_only_hover_gets_no_control_chrome() -> None:
     """The chrome styles ``<input>``/``<label>`` pairs, and a hover page has none. Its own half
     of the same claim -- the note -- is checked by
