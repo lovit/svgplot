@@ -452,8 +452,8 @@ def test_the_band_says_which_interval_it_is_and_how_it_was_estimated() -> None:
 
 
 def test_the_band_says_the_level_it_was_given() -> None:
-    """Read back from the file for three levels, one of which needs the decimal and one of
-    which must not have it -- ``0.95`` reads ``95%``, not ``95.0%``."""
+    """Read back from the file. ``0.95`` reads ``95%``, not ``95.0%``, and a level that needs
+    its digits keeps them."""
     data = {"area": [10.0, 20.0, 30.0, 40.0, 50.0], "sales": [12.0, 19.0, 33.0, 38.0, 52.0]}
     said = [
         _titled(regplot(data, x="area", y="sales", ci=level, n_boot=boot, tooltip=True).to_string(), "regression-band")[0]
@@ -462,9 +462,49 @@ def test_the_band_says_the_level_it_was_given() -> None:
 
     assert said == [
         "95% confidence band · 1000 bootstrap resamples",
-        "99.7% confidence band · 200 bootstrap resamples",
-        "33.3% confidence band · 1 bootstrap resample",
+        "99.73% confidence band · 200 bootstrap resamples",
+        "33.333333% confidence band · 1 bootstrap resample",
     ]
+
+
+def test_the_band_never_names_a_level_the_package_refuses_to_draw() -> None:
+    """Rounding to one decimal saturated at both ends: ``ci=0.999999`` read ``100% confidence
+    band`` while ``ci=1.0`` is refused outright, so the mark's *accessible name* asserted a
+    certainty the package will not draw. ``ci=1e-07`` read ``0%`` the same way."""
+    data = {"area": [10.0, 20.0, 30.0], "sales": [12.0, 19.0, 33.0]}
+
+    with pytest.raises(ValueError, match="strictly between 0 and 1"):
+        regplot(data, x="area", y="sales", ci=1.0)
+    for level, refused in ((0.999999, "100%"), (1e-07, "0%")):
+        said = _titled(regplot(data, x="area", y="sales", ci=level, tooltip=True).to_string(), "regression-band")[0]
+        assert not said.startswith(refused + " "), said
+
+
+def test_the_band_and_the_description_spell_the_level_the_same_way() -> None:
+    """They are two halves of one claim -- the ``<desc>`` says it once for the picture and the
+    ``<title>`` says it to a reader pointing at the band. Formatted two ways they disagreed:
+    ``ci=0.9501`` read ``95.01%`` in one and ``95%`` in the other, and ``0.95`` and ``0.9501``
+    produced *identical* tooltips for two charts that draw different bands."""
+    data = {"area": [10.0, 20.0, 30.0], "sales": [12.0, 19.0, 33.0]}
+
+    for level in (0.95, 0.9501, 0.999999, 1 / 3):
+        svg = regplot(data, x="area", y="sales", ci=level, tooltip=True).to_string()
+        described = re.search(r"with a (\S+) confidence band", svg).group(1)
+        assert _titled(svg, "regression-band")[0].startswith(described + " confidence band"), (described, svg[:0])
+
+    both = [regplot(data, x="area", y="sales", ci=level, tooltip=True).to_string() for level in (0.95, 0.9501)]
+    assert both[0] != both[1], "the fixture stopped drawing two different bands"
+    assert _titled(both[0], "regression-band") != _titled(both[1], "regression-band")
+
+
+def test_a_level_the_band_accepts_as_a_string_does_not_break_the_tooltip() -> None:
+    """``confidence_band`` coerces, so ``ci="0.95"`` renders with tooltips off. The clause that
+    describes the band should not be the thing that turns a chart that draws into a
+    ``TypeError``."""
+    data = {"area": [10.0, 20.0, 30.0], "sales": [12.0, 19.0, 33.0]}
+    svg = regplot(data, x="area", y="sales", ci="0.95", tooltip=True).to_string()  # type: ignore[arg-type]
+
+    assert _titled(svg, "regression-band") == ["95% confidence band · 1000 bootstrap resamples"]
 
 
 def test_a_point_reads_its_own_row_back() -> None:
@@ -481,16 +521,18 @@ def test_a_mark_that_is_not_drawn_gets_no_accessible_name() -> None:
     no_band = regplot(data, x="area", y="sales", ci=None, tooltip=True).to_string()
     no_points = regplot(data, x="area", y="sales", scatter=False, tooltip=True).to_string()
 
+    # The lists, not their lengths: ``_titled`` yields ``None`` for an untitled element, so
+    # ``len([None]) == 1`` passed while the band's tooltip was dropped on this exact path.
     assert _titled(no_band, "regression-band") == []
-    assert len(_titled(no_band, "scatter-point")) == 3, "the points are still there"
+    assert _titled(no_band, "scatter-point") == ["area: 10 · sales: 12", "area: 20 · sales: 19", "area: 30 · sales: 33"]
     assert _titled(no_points, "scatter-point") == []
-    assert len(_titled(no_points, "regression-band")) == 1, "the band is still there"
+    assert _titled(no_points, "regression-band") == ["95% confidence band · 1000 bootstrap resamples"]
 
 
 def test_the_fit_line_is_left_unnamed_because_the_desc_already_names_it() -> None:
-    """A line through a cloud of points is the one mark whose meaning the picture already
-    carries. Giving it a ``<title>`` would add an element per chart to say what the reader can
-    see, and would take the pointer over the band where the two overlap."""
+    """A line through a cloud of points is the one mark whose meaning the ``<desc>`` already
+    carries -- giving it a ``<title>`` would add an element per chart to say what the reader can
+    already see."""
     data = {"area": [10.0, 20.0, 30.0], "sales": [12.0, 19.0, 33.0]}
     svg = regplot(data, x="area", y="sales", tooltip=True).to_string()
 

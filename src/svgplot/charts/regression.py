@@ -70,7 +70,9 @@ def _line_path_data(band: RegressionBand, x_scale: LinearScale, y_scale: LinearS
 def _band_tooltip(*, ci: float, n_boot: int) -> str:
     """What the band's ``<title>`` says: which interval it is, and how it was estimated.
 
-    **The band is the one mark in this package that is not a datum and has no label.** The line
+    **The band is a mark that is neither a datum nor labelled, and this chart is the first to
+    give one a name.** (``kdeplot``'s outline and ``violinplot``'s body are the same shape of
+    thing; neither took ``tooltip=`` when this was written.) The line
     is obviously the fit and a point is obviously an observation, but a translucent region
     around a line reads as decoration until something names it -- and the ``<desc>`` names it
     once for the whole chart, which a reader pointing at the band is not being read.
@@ -80,10 +82,28 @@ def _band_tooltip(*, ci: float, n_boot: int) -> str:
     of the same data with different ``n_boot`` draw different bands.
 
     Spelled as a percentage because ``ci=`` is a level rather than a measurement -- ``0.95``
-    reads ``95%`` -- and rounded to one decimal for the same reason the share in ``treemap`` is:
-    ``ci=1/3`` would otherwise put sixteen digits on the largest mark in the chart.
+    reads ``95%``. Through :func:`~svgplot.charts._describe.number`, **the same function the
+    chart's own ``<desc>`` uses for this number**, because the two are halves of one claim: the
+    ``<desc>`` says it once for the picture and this says it to the reader pointing at the band.
+    Formatted two ways they disagreed -- ``ci=0.9501`` read ``95.01%`` in one and ``95%`` in the
+    other, and ``ci=0.95`` and ``ci=0.9501`` produced *identical* tooltips for two charts that
+    draw different bands.
+
+    **Rounding to one decimal was worse than long.** It saturated at both ends: ``ci=0.999999``
+    read ``100% confidence band`` while ``ci=1.0`` is refused outright by
+    :func:`~svgplot.stats.regression.confidence_band` (``level must be strictly between 0 and
+    1``), so the mark's *accessible name* asserted a certainty the package will not draw.
+    ``ci=1e-07`` read ``0%`` the same way.
+
+    ``seed=`` also changes the band and is deliberately not said. It changes *which* resamples
+    were drawn, not what the interval estimates or how precisely -- ``n_boot`` is the one that
+    sets the estimate's own precision, which is why it is here and the seed is not.
+
+    ``float(ci)`` because the chart itself is more permissive than its type hint:
+    ``confidence_band`` coerces, so ``ci="0.95"`` renders today, and this clause should not be
+    the thing that turns a chart that draws into a ``TypeError``.
     """
-    return f"{format_number(round(ci * 100, 1))}% confidence band · {plural(n_boot, 'bootstrap resample')}"
+    return f"{number(float(ci) * 100)}% confidence band · {plural(n_boot, 'bootstrap resample')}"
 
 
 def _point_tooltip(*, x: str, y: str, xv: float, yv: float) -> str:
