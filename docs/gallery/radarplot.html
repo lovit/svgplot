@@ -87,6 +87,26 @@
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+      /* Controls sit inside the figure element, before the chart, as its direct children:
+         the sibling combinator in the generated rules depends on that, and a wrapper would
+         quietly break every one of them. Left as native checkboxes -- a real control is
+         reachable with Tab and operated with Space without anything here arranging it. */
+      figure > .series-toggle { margin: 0 0.3rem 0.75rem 0; vertical-align: -0.1em; }
+      figure > .series-toggle + label { margin-right: 1.1rem; font-size: 0.9rem; color: var(--muted); }
+      .interaction-note { margin: 0 0 1.75rem; color: var(--muted); font-size: 0.9rem; }
+      /* svgplot-radarplot-2 · toggle */
+      #svgplot-radarplot-2-toggle-1:not(:checked) ~ svg :is(.series-1) { opacity: 0.15; pointer-events: none; }
+      #svgplot-radarplot-2-toggle-1:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      #svgplot-radarplot-2-toggle-2:not(:checked) ~ svg :is(.series-2) { opacity: 0.15; pointer-events: none; }
+      #svgplot-radarplot-2-toggle-2:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      /* svgplot-radarplot-2 · hover */
+      #svgplot-radarplot-2-toggle-1:checked ~ svg :is(.series-1:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
+      #svgplot-radarplot-2-toggle-2:checked ~ svg :is(.series-2:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
+      /* svgplot-radarplot-3 · toggle */
+      #svgplot-radarplot-3-toggle-1:not(:checked) ~ svg :is(.series-1) { opacity: 0.15; pointer-events: none; }
+      #svgplot-radarplot-3-toggle-1:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
+      #svgplot-radarplot-3-toggle-2:not(:checked) ~ svg :is(.series-2) { opacity: 0.15; pointer-events: none; }
+      #svgplot-radarplot-3-toggle-2:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
     </style>
   </head>
   <body>
@@ -107,6 +127,7 @@ SPEC = {
     &quot;모델&quot;: [&quot;A형&quot;] * 6 + [&quot;B형&quot;] * 6,
 }</code></pre>
     <h2>예시</h2>
+    <p class="interaction-note">체크를 끄면 시리즈가 사라지지 않고 흐려진다. 축·눈금·카테고리 밴드는 그릴 때 한 번 정해지고 다시 계산되지 않으므로, 감추면 남은 그림이 자기보다 넓은 축 위에 서게 된다. 흐리게 하는 것은 &quot;이건 지금 보지 말라&quot;는 말이고, 감추는 것은 &quot;이 값은 없다&quot;는 말이다 — 뒤쪽은 사실이 아니다.</p>
     <h3>기본 — 시리즈 하나</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-radarplot-1" role="img" aria-label="기본 — 시리즈 하나">
@@ -143,6 +164,10 @@ SPEC = {
 sp.radarplot(ONE, x=&quot;항목&quot;, y=&quot;점수&quot;)</code></pre>
     <h3>hue= 는 시리즈마다 다각형을 하나씩 그린다</h3>
     <figure>
+      <input type="checkbox" class="series-toggle" id="svgplot-radarplot-2-toggle-1" checked="checked" />
+      <label for="svgplot-radarplot-2-toggle-1">A형</label>
+      <input type="checkbox" class="series-toggle" id="svgplot-radarplot-2-toggle-2" checked="checked" />
+      <label for="svgplot-radarplot-2-toggle-2">B형</label>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-radarplot-2" role="img" aria-label="hue= 는 시리즈마다 다각형을 하나씩 그린다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <path d="M 330,245 L 377.631397,272.5 L 377.631397,327.5 L 330,355 L 282.368603,327.5 L 282.368603,272.5 Z" class="grid-line" />
@@ -182,6 +207,10 @@ sp.radarplot(ONE, x=&quot;항목&quot;, y=&quot;점수&quot;)</code></pre>
     <pre><code>sp.radarplot(SPEC, x=&quot;항목&quot;, y=&quot;점수&quot;, hue=&quot;모델&quot;)</code></pre>
     <h3>fill=False 는 윤곽만 남긴다 — 겹치는 시리즈가 서로를 가리지 않는다</h3>
     <figure>
+      <input type="checkbox" class="series-toggle" id="svgplot-radarplot-3-toggle-1" checked="checked" />
+      <label for="svgplot-radarplot-3-toggle-1">A형</label>
+      <input type="checkbox" class="series-toggle" id="svgplot-radarplot-3-toggle-2" checked="checked" />
+      <label for="svgplot-radarplot-3-toggle-2">B형</label>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-radarplot-3" role="img" aria-label="fill=False 는 윤곽만 남긴다 — 겹치는 시리즈가 서로를 가리지 않는다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <path d="M 330,245 L 377.631397,272.5 L 377.631397,327.5 L 330,355 L 282.368603,327.5 L 282.368603,272.5 Z" class="grid-line" />
@@ -223,6 +252,11 @@ sp.radarplot(ONE, x=&quot;항목&quot;, y=&quot;점수&quot;)</code></pre>
     <pre><code>sp.radarplot(SPEC, x=&quot;항목&quot;, y=&quot;점수&quot;, hue=&quot;모델&quot;, fill=False)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
+      <li>두 번째와 세 번째 그림에 체크박스가 붙어 있다. 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.</li>
+      <li>두 번째와 세 번째는 같은 데이터를 fill= 만 바꿔 그린 것이다. 체크박스는 둘 다 있지만 마우스오버 강조는 두 번째에만 있다 — kdeplot 이 직교좌표에서 보여주는 대비를 극좌표에서 다시 본다.</li>
+      <li>fill=True 면 다각형 안쪽이 채워진 도형이라 커서가 그 안 아무 데나 있어도 잡힌다. fill=False 면 차트가 fill: none 을 내므로 커서가 닿는 면적이 선 굵기 2px 뿐이다 — 게다가 여기서는 그 선이 닫힌 다각형이라 가운데가 가장 넓은데도 거기에 아무것도 없다. :hover 를 달 수는 있지만 안 잡히므로 안 단다.</li>
+      <li>세 번째가 fill=False 를 쓰는 이유 자체가 겹치는 시리즈가 서로를 가리지 않게 하려는 것이다. 그 선택이 가리킬 수 있는 것까지 바꾼다는 것이 이 페이지가 말하는 대가다.</li>
+      <li>툴팁은 없다. 시리즈당 닫힌 &lt;path&gt; 가 하나라 걸 수 있는 것은 시리즈 이름뿐인데, 그건 범례가 이미 말한다. 꼭짓점마다 값을 말하려면 마커를 그려야 하는데 그건 상호작용이 아니라 차트 기능이다.</li>
       <li>카테고리가 3개 미만이면 거부한다. 스포크 둘로는 면적이 생기지 않는다.</li>
       <li>모든 시리즈가 모든 스포크에 값을 가져야 한다. 하나라도 빠지면 다각형에 구멍이 생기므로 거부한다.</li>
       <li>음수를 거부한다. 반지름이 음수면 점이 반대쪽 스포크로 반사돼 데이터가 뜻하지 않은 자리에 놓인다.</li>

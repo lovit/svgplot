@@ -457,6 +457,114 @@ def test_a_cell_page_gets_no_control_chrome_and_no_note() -> None:
     assert ":hover" in page, "and the rule itself is still there"
 
 
+_HOVER_PAGES = frozenset({"areaplot", "gaugeplot", "radarplot", "scatterplot"})
+"""The committed pages that declare ``hover``, by name rather than by count.
+
+A count decays. The bar was ``>= 3`` while ``areaplot`` and ``scatterplot`` were the only two,
+so it made ``radarplot``'s hover load-bearing -- and then ``gaugeplot`` merged and made three
+without it, at which point deleting the hover this page exists to demonstrate left the whole
+suite green. Named, a page cannot lose its hover behind a sibling gaining one.
+"""
+
+_TWINS = [pytest.param("radarplot", 2, 3, id="radarplot")]
+"""Pages that draw the *same* curves twice, differing only in ``fill=``: ``(page, filled,
+unfilled)``, 1-based. ``kdeplot`` joins this list when its own page lands."""
+
+
+def _series_fill(markup: str, number: int) -> str | None:
+    """The fill of series ``number``, read from the rules its *drawn* classes actually carry.
+
+    Not ``.series-1`` alone. ``boxplot`` draws one series as two classes -- the whisker is
+    ``series-N`` with ``fill: none`` and the box is ``series-N-marker`` with a real fill -- so
+    reading the first rule calls a boxplot unhittable, when its box is the easiest mark on the
+    page to land on. That is this file's own ``mark_style`` lesson, committed one test lower
+    down.
+
+    Intersected with the classes the figure *draws*, not with the rules it emits: ``kdeplot``
+    and ``radarplot`` under ``fill=False`` emit a ``.series-N-marker`` rule with a fill and then
+    draw no marker element at all, so "any rule with a fill" calls them filled. Both directions
+    have a trap and only the intersection avoids both.
+    """
+    drawn = {name for name in interaction.series_classes(markup).get(number, ()) if name}
+    for css_class in drawn:
+        rule = re.search(rf"\.{re.escape(css_class)} \{{[^}}]*\}}", markup)
+        if rule and "fill: none" not in rule.group(0):
+            return rule.group(0)
+    return None
+
+
+@pytest.mark.parametrize("html", [pytest.param(html, id=name) for name, html in _PAGES])
+def test_hover_is_only_declared_where_the_pointer_can_reach_the_mark(html: str) -> None:
+    """A ``:hover`` rule on a mark the pointer cannot land on is an affordance drawn for
+    something that does not respond. The chart's own CSS decides: a series whose every drawn
+    class is ``fill: none`` leaves the 2px stroke as its whole hit region, while a filled one
+    answers anywhere inside it.
+
+    ``radarplot`` and ``kdeplot`` each draw the *same* curves both ways, so on those pages the
+    difference is one argument. That makes "put hover on the filled figure and not the unfilled
+    one" an editorial judgement no emitter can check -- ``resolve`` sees series either way --
+    which is why this is asserted against the **chart's own output** rather than against the
+    page's declaration.
+
+    One direction only. The converse is not a rule: a filled figure without hover is a page that
+    demonstrated the contrast once instead of everywhere it could.
+
+    ``cell`` is deliberately out of scope. Its target is a chart's mark hook rather than a
+    series, and a hook carries no fill of its own -- ``heatmap-cell``'s colour comes from the
+    nine ``level-N`` rules -- so there is no rule here to read. The hook exists on filled rects
+    by construction.
+    """
+    hovered = {figure for figure, kind, _selector in _page_rules(html) if kind == "hover"}
+    if not hovered:
+        pytest.skip("this page declares no hover")
+
+    for markup in re.findall(r"<figure>.*?</figure>", html, re.S):
+        scope = re.search(r'class="(?:[^"]* )?(svgplot-[\w-]+)(?: [^"]*)?"', markup)
+        assert scope, f"a figure carries no readable scope class:\n{markup[:200]}"
+        if scope.group(1) not in hovered:
+            continue
+        for number in interaction.series_classes(markup):
+            fill = _series_fill(markup, number)
+            assert fill, f"{scope.group(1)}: hover on series {number}, whose every drawn class is fill: none"
+
+
+@pytest.mark.parametrize(("page", "filled", "unfilled"), _TWINS)
+def test_the_fill_twins_differ_in_hover_and_not_in_toggle(page: str, filled: int, unfilled: int) -> None:
+    """The claim these pages exist to make, pinned per page rather than counted.
+
+    Both twins carry a toggle -- that is the contrast; without it the pair degrades to "one has
+    controls and one does not", which is a weaker statement that looks the same in a screenshot.
+    Only the filled one carries hover.
+
+    Named here rather than left to the parametrized guard above, which checks one direction on
+    every page and structurally cannot say "this page still declares hover at all".
+    """
+    html = next(markup for name, markup in _PAGES if name == page)
+    rules = _page_rules(html)
+    hovered = {figure for figure, kind, _selector in rules if kind == "hover"}
+    toggled = {figure for figure, kind, _selector in rules if kind == "toggle"}
+
+    assert hovered == {f"svgplot-{page}-{filled}"}, hovered
+    assert {f"svgplot-{page}-{filled}", f"svgplot-{page}-{unfilled}"} <= toggled, toggled
+
+
+def test_the_pages_that_declare_hover_are_the_ones_that_should() -> None:
+    """The set, not a count. ``>= 3`` was true of ``areaplot``/``gaugeplot``/``scatterplot``
+    alone, so it stopped protecting the page it was written for the moment a sibling PR added a
+    hover page -- and one did, between this being written and being reviewed.
+
+    Committed pages only: ``_PAGES`` also holds the stubs this file builds, one of which is
+    hover-only, so a bar counted over all of them is met by fixtures the test made itself.
+    """
+    with_hover = {
+        name
+        for name, html in _PAGES
+        if not name.startswith("built-") and any(kind == "hover" for _f, kind, _s in _page_rules(html))
+    }
+
+    assert with_hover == _HOVER_PAGES, f"{sorted(with_hover ^ _HOVER_PAGES)} changed"
+
+
 def test_a_page_with_only_hover_gets_no_control_chrome() -> None:
     """The chrome styles ``<input>``/``<label>`` pairs, and a hover page has none. Its own half
     of the same claim -- the note -- is checked by
