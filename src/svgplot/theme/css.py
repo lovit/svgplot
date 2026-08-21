@@ -73,6 +73,7 @@ def render_theme_style(
     mark_style: str = "stroke",
     level_colors: dict[str, str] | None = None,
     ink_colors: dict[str, str] | None = None,
+    transparent_to_pointer: tuple[str, ...] = (),
 ) -> None:
     """Emit one ``<style>`` element (child of ``document``'s root) with CSS rules for
     the shared static chart elements (background/grid/spine/tick/tick-label/legend-text)
@@ -136,6 +137,18 @@ def render_theme_style(
     added (order doesn't matter for correctness — CSS class rules apply regardless of
     where in the document the matching elements sit — but calling it last keeps a
     reader's mental model of "structure first, styling last" simple).
+
+    ``transparent_to_pointer`` names classes that must not intercept the pointer:
+    ``pointer-events: none``, one rule per class. It is a *behaviour* rather than a colour and
+    it is here rather than in a caller-written ``<style>`` because this function owns the
+    document's only stylesheet -- a second one would be a second place to look. Deliberately a
+    list of class names rather than an escape hatch for arbitrary CSS: each name goes through
+    the same validation ``series_classes`` does, so nothing can be interpolated into a selector.
+
+    It exists for text drawn *on top of* a mark that has something to say. A ``treemap`` tile's
+    label sits inside the tile and takes the pointer, so the tile's own ``<title>`` is
+    unreachable exactly where the reader is looking. Empty by default, so a chart that does not
+    ask for it emits the stylesheet it emitted before this argument existed.
 
     Raises:
         ValueError: if any theme color isn't a strict ``#rrggbb`` hex string, if
@@ -230,5 +243,9 @@ def render_theme_style(
         # below WCAG AA. Text is not a tiling mark either, so it never had the occlusion
         # problem theme.opacity and theme.fill_opacity exist to solve.
         rules.append(f".{class_name} {{ fill: {color}; }}")
+
+    for class_name in transparent_to_pointer:
+        _validate_css_class_name(class_name, kind="pointer")
+        rules.append(f".{class_name} {{ pointer-events: none; }}")
 
     document.add_text(None, "\n".join(rules), tag="style")

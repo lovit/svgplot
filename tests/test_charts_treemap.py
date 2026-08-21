@@ -221,3 +221,184 @@ def test_treemap_raises_keyerror_for_unknown_theme_preset() -> None:
 def test_treemap_raises_typeerror_for_bad_theme_type() -> None:
     with pytest.raises(TypeError):
         treemap(DATA, values="value", labels="label", theme=123)  # type: ignore[arg-type]
+
+
+# --------------------------------------------------------------------------------- tooltips
+
+
+def _tile_titles(svg: str) -> list[str]:
+    """The ``<title>`` that is a tile ``<rect>``'s first child, in document order.
+
+    Matched through the mark: this file's other ``<title>`` elements are the chart's own and a
+    *label*'s, the one holding the full name when the drawn text had to be shortened. Taking
+    every title and dropping the last would count those labels as tiles.
+    """
+    return re.findall(r'<rect\b[^>]*\bclass="series-\d+"[^>]*(?<!/)>\s*<title>([^<]*)</title>', svg)
+
+
+def test_a_tile_tooltip_names_it_gives_its_value_and_its_share() -> None:
+    """The share is a reading of the picture rather than an extra fact: a treemap encodes value
+    as area, so "40.0%" is what the tile's size means."""
+    data = {"label": ["alpha", "beta", "gamma", "delta"], "value": [40.0, 30.0, 20.0, 10.0]}
+    svg = treemap(data, values="value", labels="label", tooltip=True).to_string()
+
+    assert _tile_titles(svg) == [
+        "alpha · value: 40 · 40.0%",
+        "beta · value: 30 · 30.0%",
+        "gamma · value: 20 · 20.0%",
+        "delta · value: 10 · 10.0%",
+    ]
+
+
+def test_a_tile_too_small_for_a_label_still_says_its_name() -> None:
+    """The point of the feature. A tile draws its label only at 40x16 px or larger, so the
+    smallest tiles -- the ones a reader actually has to look up -- are anonymous rectangles.
+    The legend names them, but matching a legend row to a tile in a squarified layout means
+    hunting by colour."""
+    lopsided = {"label": ["big", "tiny"], "value": [3200.0, 1.0]}
+    svg = treemap(lopsided, values="value", labels="label", tooltip=True).to_string()
+    drawn = re.findall(r'class="treemap-label legend-text">([^<]*)<', svg)
+
+    assert drawn == ["big"], "the fixture stopped being the unlabelled case"
+    assert any(title.startswith("tiny · ") for title in _tile_titles(svg))
+
+
+def test_the_label_stops_taking_the_pointer_when_the_tile_has_something_to_say() -> None:
+    """A label sits *inside* its tile, so it intercepts the pointer exactly where the reader is
+    looking -- without the rule the tile's ``<title>`` is unreachable there and the label's own
+    truncation ``<title>`` comes up instead.
+
+    The rule is emitted only with ``tooltip=True``, and the reason is narrower than an earlier
+    version of this docstring claimed: it is not that the label's ``<title>`` is the *only* way
+    to read the full name (the legend always carries it), but that with tooltips off there is
+    nothing to put in its place -- the tile has no ``<title>`` at all, so making the label
+    transparent would trade something for nothing."""
+    data = {"label": ["alpha", "beta"], "value": [60.0, 40.0]}
+
+    assert (
+        ".treemap-label { pointer-events: none; }" in treemap(data, values="value", labels="label", tooltip=True).to_string()
+    )
+    assert "pointer-events" not in treemap(data, values="value", labels="label").to_string()
+
+
+def test_a_label_too_long_to_read_is_left_out_of_the_tooltip() -> None:
+    """The name is written once per tile. Dropped rather than truncated -- half a name is a
+    different name -- and the tile still says its value and its share.
+
+    Where the reader recovers it is the **legend**, which always carries the full text: visibly
+    when it fits, in its own ``<title>`` when it does not, and never made pointer-transparent.
+    The *label*'s ``<title>`` holds it too, but with ``tooltip=True`` that one is out of the
+    pointer's reach -- see
+    :func:`test_a_name_too_long_for_the_tooltip_is_still_reachable_in_the_legend`."""
+    long_name = "면" * 5000
+    data = {"label": [long_name, "b"], "value": [60.0, 40.0]}
+    svg = treemap(data, values="value", labels="label", tooltip=True).to_string()
+
+    assert _tile_titles(svg) == ["value: 60 · 60.0%", "b · value: 40 · 40.0%"]
+    assert svg.count(long_name) == 2, "the name is repeated beyond its label and its legend row"
+
+
+def test_the_default_draws_no_tooltip_and_saying_so_changes_nothing() -> None:
+    """What this can check is that ``tooltip=False`` is the same call as not writing it, and
+    that neither titles a tile. It is deliberately not named for byte-identity with the version
+    before ``tooltip=`` existed, which it cannot see -- both sides are this branch's code.
+    ``docs/gallery/*.html`` holds those bytes."""
+    omitted = treemap(DATA, values="value", labels="label").to_string()
+    explicit = treemap(DATA, values="value", labels="label", tooltip=False).to_string()
+
+    assert omitted == explicit
+    assert _tile_titles(omitted) == []
+
+
+def test_every_tile_gets_exactly_one_tooltip() -> None:
+    svg = treemap(DATA, values="value", labels="label", tooltip=True).to_string()
+
+    assert len(_tile_titles(svg)) == len(DATA["value"])
+
+
+def test_the_share_is_rounded_where_the_value_is_not() -> None:
+    """A share is a proportion of a total the reader can also see, not a measurement, so one
+    decimal is the whole of it. Full precision puts ``33.33333333333333%`` in a tooltip whose
+    longest clause would then be the least informative one -- while the *value* beside it is
+    spelled exactly, because that one is a number out of somebody's file."""
+    thirds = {"label": ["a", "b", "c"], "value": [1.0, 1.0, 1.0]}
+    uneven = {"label": ["a", "b"], "value": [1.0, 2.0]}
+
+    assert _tile_titles(treemap(thirds, values="value", labels="label", tooltip=True).to_string()) == [
+        "a · value: 1 · 33.3%",
+        "b · value: 1 · 33.3%",
+        "c · value: 1 · 33.3%",
+    ]
+    assert _tile_titles(treemap(uneven, values="value", labels="label", tooltip=True).to_string()) == [
+        "b · value: 2 · 66.7%",
+        "a · value: 1 · 33.3%",
+    ]
+
+
+def test_two_tiles_with_the_same_name_say_their_own_values() -> None:
+    """Repeated labels are legal -- nothing dedupes them and the legend draws a row per repeat.
+    Looking a tile's value up by name collapses them last-wins, and then the tile drawn at 10%
+    of the plot area claims ``value: 30 · 30.0%`` while the three shares sum to 120%. That is
+    the one thing this tooltip cannot survive: it is documented as a reading of the picture, and
+    there it contradicts the picture it sits on.
+
+    The pixel widths are read back so the check is against the drawn area, not against the
+    fixture."""
+    data = {"label": ["dup", "dup", "other"], "value": [10.0, 30.0, 60.0]}
+    svg = treemap(data, values="value", labels="label", tooltip=True).to_string()
+    areas = [width * height for _x, _y, width, height in _tiles(svg)]
+
+    assert _tile_titles(svg) == ["other · value: 60 · 60.0%", "dup · value: 30 · 30.0%", "dup · value: 10 · 10.0%"]
+    assert [round(area / _PLOT_PIXELS * 100, 1) for area in areas] == [60.0, 30.0, 10.0], "the shares match the areas"
+
+
+def test_two_labels_that_stringify_the_same_are_still_two_tiles() -> None:
+    """``1`` and ``"1"`` are one key in any map of labels and two rows in the data."""
+    data = {"label": [1, "1"], "value": [10.0, 90.0]}
+    svg = treemap(data, values="value", labels="label", tooltip=True).to_string()
+
+    assert _tile_titles(svg) == ["1 · value: 90 · 90.0%", "1 · value: 10 · 10.0%"]
+
+
+def test_the_share_comes_from_the_value_not_from_the_tile_s_pixels() -> None:
+    """The two agree on every ordinary fixture -- pixel area *is* value-proportional -- so a
+    guard built from one of them cannot tell which one the code used. Zero-area tiles are where
+    they come apart: an entry the layout ran out of room for is drawn 0x0 and still holds its
+    share of the total."""
+    crowded = {"label": [f"t{index}" for index in range(3)], "value": [1e18, 1.0, 1.0]}
+    svg = treemap(crowded, values="value", labels="label", tooltip=True).to_string()
+    zero_area = [tile for tile in _tiles(svg) if tile[2] * tile[3] == 0.0]
+
+    assert zero_area, "the fixture stopped producing a zero-area tile"
+    assert any(title.startswith("t1 · value: 1 ·") for title in _tile_titles(svg)), _tile_titles(svg)
+
+
+def test_a_name_too_long_for_the_tooltip_is_still_reachable_in_the_legend() -> None:
+    """The hole ``pointer-events: none`` opens, named rather than left to be found: a name over
+    ``MAX_TOOLTIP_CHARS`` is dropped from the tile's ``<title>`` *and* the label that holds it
+    is taken out of the pointer's way, so at the one spot the reader hovers there is no name.
+
+    It is a narrow regression rather than information loss, and this is why: the legend row
+    carries the full text either way, and legend rows are never made transparent -- the rule is
+    keyed on ``treemap-label``, which the legend deliberately does not carry."""
+    long_name = "면" * 122
+    data = {"label": [long_name, "b"], "value": [60.0, 40.0]}
+    svg = treemap(data, values="value", labels="label", tooltip=True).to_string()
+
+    assert _tile_titles(svg)[0] == "value: 60 · 60.0%", "too long for the tooltip"
+    assert svg.count(long_name) == 2, "the label's own <title> and the legend's, both full"
+    assert ".treemap-label { pointer-events: none; }" in svg
+    assert "legend-text { pointer-events" not in svg, "the legend keeps the pointer"
+
+
+def test_the_pointer_rule_only_names_classes_the_stylesheet_validates() -> None:
+    """``transparent_to_pointer`` is the one argument that puts a caller-supplied token straight
+    into a selector, and nothing exercised the validator it goes through -- deleting that line
+    left the whole suite green."""
+    from svgplot._svg import SvgDocument
+    from svgplot.theme.base import Theme
+    from svgplot.theme.css import render_theme_style
+
+    for hostile in ("a} body{background:red} .b", "a; }", "a{}", "*", "series-1, *", "1abc", "a b", ""):
+        with pytest.raises(ValueError):
+            render_theme_style(SvgDocument(width=100, height=100), Theme(), [], transparent_to_pointer=(hostile,))
