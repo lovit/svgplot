@@ -238,6 +238,18 @@ def _marks(chart: Chart) -> list[tuple[str, str | None]]:
     return marks
 
 
+# Two categories, different quartiles, and *different outlier counts* -- one and two. Every
+# assertion below compares the whole set of sentences, so a box that named the other box's
+# category or the other box's stats has nowhere to hide. On a one-category fixture six separate
+# wrong-attribution mutations were green in this file: naming ``drawn_categories[0]``, swapping
+# the two boxes' stats, and four more on the outliers. And with one outlier per box,
+# ``plural(len(outliers))`` and a hard-coded ``plural(1)`` agree.
+TWO_CATEGORIES_WITH_OUTLIERS = {
+    "group": ["a"] * 5 + ["b"] * 10,
+    "value": [1.0, 2.0, 3.0, 4.0, 100.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 200.0, 300.0],
+}
+
+
 def test_a_box_tooltip_names_its_quartiles_whiskers_and_outlier_count() -> None:
     chart = boxplot(WITH_OUTLIER_DATA, x="group", y="value", tooltip=True)
     said = {title for _, title in _marks(chart) if title and not title.endswith(" · outlier")}
@@ -245,13 +257,42 @@ def test_a_box_tooltip_names_its_quartiles_whiskers_and_outlier_count() -> None:
     assert said == {"group: a · value: Q1 2 · median 3 · Q3 4 · whiskers: [1, 4] · 1 outlier"}
 
 
+def test_each_box_says_its_own_category_and_its_own_numbers() -> None:
+    """The set of sentences, on a fixture where the two boxes differ in every clause. Asserting
+    "two distinct sentences" or "each starts with ``group:``" instead lets a box name the other
+    box's category, or the two swap their stats wholesale, with nothing in this file noticing --
+    only the committed gallery, whose failure message says to regenerate the file."""
+    chart = boxplot(TWO_CATEGORIES_WITH_OUTLIERS, x="group", y="value", tooltip=True)
+    summaries = {title for _, title in _marks(chart) if title and not title.endswith(" · outlier")}
+
+    assert summaries == {
+        "group: a · value: Q1 2 · median 3 · Q3 4 · whiskers: [1, 4] · 1 outlier",
+        "group: b · value: Q1 12.25 · median 14.5 · Q3 16.75 · whiskers: [10, 17] · 2 outliers",
+    }
+
+
+def test_each_outlier_says_its_own_category_group_and_value() -> None:
+    """Same shape for the circles, and the reason is the same: with one outlier in one category
+    a tooltip naming ``outliers[0]``'s value, or ``drawn_categories[0]``, or ``hue_values[0]``,
+    is indistinguishable from the right answer."""
+    chart = boxplot(TWO_CATEGORIES_WITH_OUTLIERS, x="group", y="value", tooltip=True)
+    circles = {title for _, title in _marks(chart) if title and title.endswith(" · outlier")}
+
+    assert circles == {
+        "group: a · value: 100 · outlier",
+        "group: b · value: 200 · outlier",
+        "group: b · value: 300 · outlier",
+    }
+
+
 def test_every_mark_of_a_box_says_the_same_thing_and_none_is_left_silent() -> None:
     """The pointer stops at the topmost element under it, so a mark with no ``<title>`` is a
     hole in the glyph -- an untitled median line reads as a dead stripe across a box that
     otherwise responds. Six marks per box: body, median, two stems, two caps.
 
-    Asserted as "every mark has one and the box's are all equal" rather than against the
-    number six, so it stays true if a box ever grows a seventh mark."""
+    "Every mark has one, and each box's are all equal" is the part that survives a box growing
+    a seventh mark. The count below does not, and it is here on purpose: a seventh mark is a
+    change somebody should have to look at, and this is where they find out."""
     marks = _marks(boxplot(NO_OUTLIER_DATA, x="group", y="value", tooltip=True))
 
     assert marks, "the fixture stopped drawing anything"
@@ -291,6 +332,27 @@ def test_a_hued_box_names_its_group_as_well_as_its_category() -> None:
     assert said, "the fixture stopped drawing boxes"
     assert all(title.startswith("group: ") and " · side: " in title for title in said)
     assert {title.split(" · ")[1] for title in said} == {"side: left", "side: right"}
+
+
+def test_a_hued_outlier_names_its_own_group() -> None:
+    """The circle has to carry the hue clause itself. With one group having outliers, naming
+    ``hue_values[0]`` for every circle is indistinguishable from the right answer -- so both
+    groups get one, and they are different values."""
+    data = {
+        "group": ["a"] * 10,
+        "value": [1.0, 2.0, 3.0, 4.0, 50.0, 10.0, 11.0, 12.0, 13.0, 500.0],
+        "side": ["left"] * 5 + ["right"] * 5,
+    }
+    circles = {
+        title
+        for _, title in _marks(boxplot(data, x="group", y="value", hue="side", tooltip=True))
+        if title and title.endswith(" · outlier")
+    }
+
+    assert circles == {
+        "group: a · side: left · value: 50 · outlier",
+        "group: a · side: right · value: 500 · outlier",
+    }
 
 
 def test_the_default_draws_no_tooltip_and_saying_so_changes_nothing() -> None:
