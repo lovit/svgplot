@@ -55,7 +55,7 @@ def _run(code: str, namespace: dict) -> object:
     return eval(compile(ast.Expression(body[-1].value), "<example>", "eval"), namespace)
 
 
-def _kinds(declared: object) -> tuple[str, ...]:
+def _kinds(declared: object, figure: str = "INTERACTIONS") -> tuple[str, ...]:
     """The control kinds one figure asked for: nothing, one, or several.
 
     A bare string stays legal because most figures want one thing, and a sequence exists
@@ -70,6 +70,10 @@ def _kinds(declared: object) -> tuple[str, ...]:
     which no page-level check sees until such a page is committed, because
     ``test_every_control_reference_resolves_on_its_own_page`` compares sets.
 
+    Every message leads with ``figure`` -- ``svgplot-areaplot-2`` -- the way
+    ``interaction.resolve``'s does. Sixteen pages declare this, and a message naming only the
+    bad value leaves the author grepping for a bare ``()``.
+
     Raises:
         TypeError: if the value is neither a string nor a sequence of them, which is how a
             typo like ``{2: True}`` says so at build time rather than by silently emitting
@@ -83,11 +87,11 @@ def _kinds(declared: object) -> tuple[str, ...]:
     elif isinstance(declared, list | tuple) and all(isinstance(kind, str) for kind in declared):
         kinds = tuple(declared)
     else:
-        raise TypeError(f"INTERACTIONS values must be a kind or a sequence of kinds, got {declared!r}")
+        raise TypeError(f"{figure}: INTERACTIONS values must be a kind or a sequence of kinds, got {declared!r}")
     if not kinds:
-        raise ValueError("an INTERACTIONS entry asks for a control; write no entry at all to ask for none")
+        raise ValueError(f"{figure}: an INTERACTIONS entry asks for a control; write no entry at all to ask for none")
     if len(set(kinds)) != len(kinds):
-        raise ValueError(f"INTERACTIONS names a kind twice, which would repeat an element id: {declared!r}")
+        raise ValueError(f"{figure}: INTERACTIONS names a kind twice, so this figure would emit it twice: {declared!r}")
     return kinds
 
 
@@ -152,7 +156,7 @@ def load(module: ModuleType, name: str) -> Page:
                 code=code.strip(),
                 svg=svg,
                 table=chart.to_html_table() if chart.table_id else None,
-                controls=tuple(resolve(figure, kind, svg) for kind in _kinds(interactions.get(index))),
+                controls=tuple(resolve(figure, kind, svg) for kind in _kinds(interactions.get(index), figure)),
             )
         )
 
