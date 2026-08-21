@@ -48,9 +48,17 @@ from xml.sax.saxutils import unescape
 from svgplot.scope import validate_css_class_name
 
 TOGGLE = "toggle"
-"""The only control kind so far: one checkbox per series, all on to begin with."""
+"""One checkbox per series, all on to begin with. Needs a name per series, so it needs a legend."""
 
-KINDS = (TOGGLE,)
+HOVER = "hover"
+"""Emphasise the mark under the pointer. No markup at all -- one rule and nothing to operate.
+
+It needs no name, so unlike :data:`TOGGLE` it works on a chart with no legend. What it does
+*not* do is say anything: it is an affordance telling the reader "this one", and the value it
+points at has to come from the mark's own ``<title>``.
+"""
+
+KINDS = (TOGGLE, HOVER)
 
 DIM_OPACITY = "0.15"
 """What a switched-off series fades to. Not ``display: none`` -- see :data:`NOTE`."""
@@ -212,7 +220,9 @@ def _has_visible_text(label: str) -> bool:
 def resolve(figure: str, kind: str, svg: str) -> Controls:
     """Work out the controls ``figure`` should carry, from the chart it holds.
 
-    What this refuses is a figure with no names to put on its controls -- a chart with no
+    A ``hover`` figure needs no names, so only a ``toggle`` is checked against the legend.
+
+    What a toggle refuses is a figure with no names to put on its controls -- a chart with no
     legend at all (a single series, or ``boxplot``'s per-category palette, which is not a
     legend). What it deliberately does **not** refuse is a chart whose legend names rows
     rather than groups: ``pieplot`` emits a swatch and a label per slice, exactly as a
@@ -245,16 +255,17 @@ def resolve(figure: str, kind: str, svg: str) -> Controls:
     # gives the checkbox an empty accessible name, which is worse than an unlabelled one:
     # assistive technology stops looking for a fallback. An empty hue value is an ordinary
     # thing to find in real data.
-    named = {index for index, label in labels.items() if _has_visible_text(label)}
-    missing = sorted(set(classes) - named)
-    if missing:
-        raise ValueError(
-            f"{figure}: the chart has no legend entry for series {missing}, " f"so a control for it would have no name"
-        )
+    if kind == TOGGLE:
+        named = {index for index, label in labels.items() if _has_visible_text(label)}
+        missing = sorted(set(classes) - named)
+        if missing:
+            raise ValueError(
+                f"{figure}: the chart has no legend entry for series {missing}, so a control for it would have no name"
+            )
     return Controls(
         figure=figure,
         kind=kind,
-        series=tuple(Series(index=index, label=labels[index], classes=classes[index]) for index in sorted(classes)),
+        series=tuple(Series(index=index, label=labels.get(index, ""), classes=classes[index]) for index in sorted(classes)),
     )
 
 
@@ -263,7 +274,11 @@ def markup(controls: Controls) -> str:
 
     Real form controls rather than anything styled to look like one: a checkbox is reachable
     with Tab and operated with Space for free, and an element pretending to be one is not.
+
+    Empty for a ``hover`` figure: there is nothing to operate, only a rule.
     """
+    if controls.kind != TOGGLE:
+        return ""
     lines = []
     for series in controls.series:
         identifier = escape(controls.input_id(series), quote=True)
@@ -277,6 +292,19 @@ def markup(controls: Controls) -> str:
 def css(controls: Controls) -> str:
     """The rules those controls drive: one per series, plus the matching label state."""
     rules = [f"      /* {controls.figure} */\n"]
+    if controls.kind == HOVER:
+        for series in controls.series:
+            targets = ", ".join(f".{name}:hover" for name in series.classes)
+            # Keyed on the chart's scope class, which ``apply_scope`` puts on the root <svg>,
+            # so this reaches one figure and not the next one down the page.
+            #
+            # ``opacity`` because the theme draws these marks at 0.75 and full opacity is a
+            # change the reader sees without this file having to know a colour. The stroke is
+            # a fixed near-black rather than ``var(--fg)``: the figure's own background stays
+            # light in both themes (``--figure-bg`` is #ffffff / #f7f8fa), so the page's
+            # foreground would be light-on-light in dark mode.
+            rules.append(f"      .{controls.figure} :is({targets}) {{ opacity: 1; stroke: #16181d; stroke-width: 1.5; }}\n")
+        return "".join(rules)
     for series in controls.series:
         selector = f"#{controls.input_id(series)}:not(:checked)"
         targets = ", ".join(f".{name}" for name in series.classes)
@@ -310,7 +338,13 @@ def stylesheet(controls: list[Controls]) -> str:
     Empty when the page has no controls, and that matters more than it looks: ``page.STYLE``
     ends in a newline, so appending nothing to it is byte-identical to what the gallery
     already commits.
+
+    The ``.interaction-note`` rule sits in :data:`CHROME` with the control chrome, so a page
+    with only ``hover`` figures gets neither -- it has no note and no ``<input>`` to style.
     """
     if not controls:
         return ""
-    return CHROME + "".join(css(control) for control in controls)
+    # The chrome styles ``<input>``/``<label>`` pairs, which only a toggle emits. A page whose
+    # figures are all hover would otherwise carry rules for elements it does not have.
+    chrome = CHROME if any(control.kind == TOGGLE for control in controls) else ""
+    return chrome + "".join(css(control) for control in controls)

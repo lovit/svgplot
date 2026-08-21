@@ -14,7 +14,7 @@ from __future__ import annotations
 from html import escape
 
 from gallery.example import Page
-from gallery.interaction import NOTE, markup, stylesheet
+from gallery.interaction import NOTE, TOGGLE, markup, stylesheet
 
 STYLE = """\
       :root {
@@ -142,7 +142,10 @@ def chart_page(page: Page) -> str:
         "    <h2>예시</h2>\n",
     ]
     controls = [example.controls for example in page.examples if example.controls]
-    if controls:
+    # Only a toggle needs the note. A hover-only page dims nothing, so telling its reader that
+    # switching a series off fades it rather than hiding it describes a control that is not
+    # there -- and ``test_a_page_with_controls_carries_the_note`` reads it the same way.
+    if any(control.kind == TOGGLE for control in controls):
         # Once per page and above *every* figure on it, not beside the one that has controls:
         # it is a statement about the mechanism, and a reader who meets it before the first
         # chart is not surprised by the third. The text lives in interaction.py so sixteen
