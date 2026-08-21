@@ -11,7 +11,7 @@ import pytest
 # ``gallery`` is repo-root source, not part of the installed package.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from gallery import interaction
+from gallery import interaction, page
 from gallery.example import load
 from gallery.interaction import resolve
 from gallery.page import chart_page
@@ -218,6 +218,41 @@ def test_sparkline_rejects_an_unknown_theme_preset() -> None:
 # gives, and a reason nobody can check is a reason that quietly stops being true.
 
 
+def _titled_marks(html: str) -> list[str]:
+    """The tags of every element in ``html`` that has a ``<title>`` child and is not the root.
+
+    Parsed rather than pattern-matched. The first version of this looked for ``"</title></"``,
+    which never matches anything this package emits -- the serializer pretty-prints, so a
+    titled mark is ``</title>\n  </text>``. Checked against ``docs/gallery/heatmap.html``,
+    which really does carry one: the string form found 0, this finds it.
+    """
+    found = []
+    for figure in re.findall(r"<svg\b.*?</svg>", html, re.S):
+        root = ET.fromstring(figure)
+        for parent in root.iter():
+            if parent is root:
+                continue
+            if any(child.tag == f"{SVG_NS}title" for child in parent):
+                found.append(parent.tag.removeprefix(SVG_NS))
+    return found
+
+
+def test_the_mark_tooltip_detector_sees_one_when_there_is_one() -> None:
+    """The detector above is the whole of ``no mark tooltip``, so it gets its own case.
+
+    A check that answers "none" whatever it is given is not evidence of none.
+    """
+    from svgplot.charts._tooltip import add_tooltip
+
+    chart = sparkline(DATA, y="v")
+    # Reaching past the public API on purpose: the point is to build the case the detector has
+    # to see, and no chart offers a mark tooltip yet.
+    document = chart._svg_document
+    add_tooltip(document, next(node for node in document.root if node.tag.endswith("path")), "a value")
+
+    assert _titled_marks(chart.to_string()) == ["path"]
+
+
 def test_the_gallery_emitter_refuses_a_toggle_for_a_sparkline() -> None:
     """Not a judgement the page makes -- the machinery will not build one.
 
@@ -238,13 +273,11 @@ def test_the_sparkline_page_carries_no_control_no_hover_and_no_mark_tooltip() ->
     -- reading the committed file measures whether it is stale, which the byte-diff already
     does, instead of measuring the generator.
     """
-    page = load(importlib.import_module("gallery.examples.sparkline"), "sparkline")
-    html = chart_page(page)
-    marks_with_a_title = [figure for figure in re.findall(r"<svg\b.*?</svg>", html, re.S) if "</title></" in figure]
+    html = chart_page(load(importlib.import_module("gallery.examples.sparkline"), "sparkline"))
 
     assert 'class="series-toggle"' not in html
     assert ":hover" not in html
-    assert not marks_with_a_title, "a mark grew a <title>, which is the browser's own tooltip"
+    assert _titled_marks(html) == [], "a mark grew a <title>, which is the browser's own tooltip"
 
 
 def test_the_charts_own_title_is_not_the_first_child() -> None:
@@ -261,19 +294,26 @@ def test_the_charts_own_title_is_not_the_first_child() -> None:
 
 
 def test_the_control_row_is_taller_than_the_default_canvas() -> None:
-    """The page argues from two CSS values, so the two values are read out of the CSS.
+    """The page argues from two CSS values, so both are read out of the CSS rather than typed
+    into the assertion.
 
-    The arithmetic it does with them -- ``0.9rem`` label in a ``line-height: 1.7`` page, plus
-    the checkbox's ``0.75rem`` bottom margin -- is only as good as its assumption that the root
-    is 16px, which the gallery's stylesheet does not set. Both numbers are asserted; the
-    conclusion holds for any root size, because both terms scale with it and the canvas does
-    not.
+    The label's own rule, not ``CHROME`` as a whole: ``.interaction-note`` carries the same
+    ``font-size: 0.9rem``, so a substring check over the whole block passes with the label's
+    size deleted -- measured, and the same failure this file's ``stroke-width`` case was
+    written to close.
+
+    Only the line box is compared. An earlier version added the checkbox's ``0.75rem`` bottom
+    margin on top, which is not how inline layout works: the checkbox is inline-level, so its
+    margin box sits *inside* the line box rather than stacking below it. The line box alone is
+    24.48px at a 16px root, which already clears the 24px canvas -- and no browser was run to
+    get either number, so the claim is kept to the part that is arithmetic on the stylesheet.
     """
-    chrome = interaction.CHROME
+    label_rule = next(line for line in interaction.CHROME.splitlines() if "+ label {" in line)
+    body_rule = page.STYLE[page.STYLE.index("body {") : page.STYLE.index("a {")]
+    label_size = float(re.search(r"font-size: ([\d.]+)rem;", label_rule).group(1))
+    line_height = float(re.search(r"line-height: ([\d.]+);", body_rule).group(1))
 
-    assert "margin: 0 0.3rem 0.75rem 0;" in chrome, "the checkbox's bottom margin moved"
-    assert "font-size: 0.9rem;" in chrome, "the label's size moved"
-    assert SPARKLINE_HEIGHT < (0.9 * 1.7 + 0.75) * 16
+    assert label_size * line_height * 16 > SPARKLINE_HEIGHT
 
 
 def test_the_line_is_two_pixels_of_a_twenty_four_pixel_picture() -> None:
