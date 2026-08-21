@@ -85,7 +85,7 @@ sp.lineplot(data, x="day", y="sales", hue="region").save("sales.svg")
 
 일부:
 
-- **`tooltip=`** — `scatterplot` · `barplot` · `boxplot` · `violinplot` · `histplot` · `heatmap` · `treemap`. 마크마다 `<title>` 을 붙여 브라우저의 마우스오버 툴팁으로 만든다. 같은 것이 그 마크의 접근 가능한 이름이 되므로 점 무더기 하나가 아니라 이름 있는 마크 여러 개가 된다. 기본은 `False` 다 — 마크마다 요소가 하나씩 늘고, 켜면 기존 출력의 바이트가 바뀐다
+- **`tooltip=`** — `scatterplot` · `barplot` · `boxplot` · `violinplot` · `histplot` · `heatmap` · `treemap` · `regplot`. 마크마다 `<title>` 을 붙여 브라우저의 마우스오버 툴팁으로 만든다. 같은 것이 그 마크의 접근 가능한 이름이 되므로 점 무더기 하나가 아니라 이름 있는 마크 여러 개가 된다. 기본은 `False` 다 — 마크마다 요소가 하나씩 늘고, 켜면 기존 출력의 바이트가 바뀐다
 - **`xscale=`** — `lineplot` · `scatterplot` · `areaplot`. **`yscale=`** — `lineplot` · `scatterplot`. `"linear"` / `"log"` 이고, 날짜 축에 `log` 는 거부된다
 - **`estimator=`** — `lineplot` · `barplot` · `areaplot`. 같은 x 에 여러 행이 있을 때 `"mean"`/`"sum"`/`"median"` 등으로 접는다. 지정하지 않으면 차트별 기본 규칙이 적용되는데, 행을 버리면서 그 사실을 알리는 것은 `barplot` 뿐이다 — `AggregationWarning` 이 몇 행이 남았는지 말해준다(`areaplot` 은 합산하고 `lineplot` 은 둘 다 그리므로 잃는 것이 없다. `radarplot` 은 `estimator=` 를 받지 않으면서 `barplot` 과 같은 규칙으로 접는데 경고하지 않는다)
 - **`info=`** — `lineplot` · `scatterplot` · `pieplot`. 차트가 실제로 그린 행만 담은 표를 함께 내보낸다. 한 페이지에 `info=` 차트가 둘 이상이면 `Chart.set_table_id()` 로 표 `id` 를 나눠야 한다
