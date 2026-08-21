@@ -133,29 +133,47 @@ def _violin_path(ys: list[float], densities: list[float], centre: float, half_wi
     return " ".join(commands)
 
 
-def _violin_tooltip(*, x: str, y: str, hue: str | None, category: str, hue_value: str, values: list[float]) -> str:
-    """What one violin's ``<title>`` says: which group it is, and the three numbers a reader
-    cannot get any other way.
+def _violin_tooltip(
+    *, x: str, y: str, hue: str | None, category: str, hue_value: str, values: list[float], quartiles: tuple[float, ...]
+) -> str:
+    """What one violin's ``<title>`` says: which group it is, and what the outline is made of.
 
-    **A density outline has no scale to read values off.** The y axis gives the value range,
-    but the *width* is a density scaled against the chart's shared peak, so nothing on screen
-    says where the middle half of the data sits. That is what this is for, and it is why the
-    quartiles are said even when ``inner=None`` draws no box: the numbers describe the values
-    the outline was computed from, not the annotation that happens to be switched off.
+    **What it adds depends on ``inner=``, and only one of the two is "the numbers do not
+    exist".** Under the default ``inner="box"`` the quartiles *are* on screen -- the inner box
+    is drawn against the same labelled y axis the reader can measure against, which is why this
+    branch's own test decodes ``box["y"]`` back into Q3 -- so the tooltip adds precision, not
+    existence. Under ``inner=None`` there is nothing: the width is a density scaled against the
+    chart's shared peak, so it says how the values pile up and not where they sit. The numbers
+    are said in both cases because they describe the values the outline was computed from,
+    which are there whether or not the annotation is.
 
-    The same sentence goes on all three marks of a violin -- body, inner box, median tick --
-    for the reason ``boxplot`` repeats its own: the pointer stops at the topmost element under
-    it, so an untitled inner box is a hole in the middle of a violin that otherwise responds.
+    The same sentence goes on all three marks of a violin -- body, inner box, median tick.
+    ``violinplot`` is the first chart here to repeat one, so this is a decision rather than a
+    convention: the pointer stops at the topmost element under it, and the box and the tick are
+    added after the body, so leaving either untitled puts a hole in the middle of a violin that
+    otherwise responds. Giving them *different* sentences would be worse, since which one the
+    reader gets would depend on the pixel.
 
-    Quartiles from :func:`~svgplot.stats.quantile.quantiles`, the same call the inner box is
-    drawn from, so the tooltip cannot disagree with the picture.
+    ``quartiles`` is computed by the caller and shared with the inner box, so the two cannot
+    describe the same shape differently -- and the values are sorted once rather than twice.
+
+    A quartile is *interpolated*, so it can carry representation noise no input value had: the
+    gallery's own data is ``round(gauss(...), 2)`` and one violin reads ``Q1
+    3.1224999999999996``. It is spelled exactly anyway, under the rule
+    :func:`~svgplot.charts._tooltip.format_number` states -- a tooltip that rewrites the number
+    it names is worse than a long one -- and because rounding it would move it off the box the
+    reader can measure. Every fixture in the test file uses integral floats where interpolation
+    lands clean (2.25 / 3.5 / 4.75), which is why nothing there sees this.
     """
     parts = []
     if (shown := format_label(category)) is not None:
         parts.append(clause(x, shown))
+    # ``hue is not None`` is redundant with ``NO_HUE`` being the empty string, which
+    # ``format_label`` already returns ``None`` for. Kept because it says which case this is;
+    # no mutation can make it fail, and that is worth knowing rather than hiding.
     if hue is not None and (group_name := format_label(hue_value)) is not None:
         parts.append(clause(hue, group_name))
-    q1, median, q3 = quantiles(values, (0.25, 0.5, 0.75))
+    q1, median, q3 = quartiles
     parts.append(clause(y, f"Q1 {format_number(q1)} · median {format_number(median)} · Q3 {format_number(q3)}"))
     parts.append(plural(len(values), "observation"))
     return " · ".join(parts)
@@ -187,17 +205,16 @@ def violinplot(
     would draw for the same data.
 
     ``tooltip=True`` gives every mark a ``<title>`` naming the category, the ``hue=`` group
-    where there is one, Q1/median/Q3, and how many values the outline was computed from. **A
-    density outline is the one shape in this package with no scale to read values off**: the y
-    axis gives the range, but the width is a density scaled against the chart's shared peak, so
-    nothing drawn says where the middle half of the data sits. The numbers are said even under
-    ``inner=None`` -- they describe the values, not the annotation. A browser shows them as
-    ordinary hover tooltips, and they are also the marks' accessible names; it works only where
-    the SVG is *inlined* into the page.
+    where there is one, Q1/median/Q3, and how many values the outline was computed from. Under
+    the default ``inner="box"`` that is added *precision* -- the box is already drawn against a
+    labelled axis. Under ``inner=None`` it is the only reading available: the width is a density
+    scaled against the chart's shared peak, so the outline says how the values pile up and not
+    where they sit. A browser shows them as ordinary hover tooltips, and they are also the
+    marks' accessible names; it works only where the SVG is *inlined* into the page.
 
-    All three marks of a violin carry the same sentence, for the reason ``boxplot`` repeats its
-    own: the pointer stops at the topmost element under it, so an untitled inner box is a hole
-    in the middle of a violin that otherwise responds.
+    All three marks of a violin carry the same sentence. The pointer stops at the topmost
+    element under it and the inner box and median tick are drawn over the body, so leaving
+    either untitled puts a hole in the middle of a violin that otherwise responds.
 
     ``tooltip=False`` is the default, and not as a matter of taste: every existing caller's
     output would otherwise change bytes for a feature they did not ask for.
@@ -318,10 +335,15 @@ def violinplot(
                 continue
             series_class = series_classes[slot if hue is not None else index]
             centre = x_scale(category) + (slot + 0.5) * slot_width
+            values = groups[(category, hue_value)]
+            # One call, shared by the tooltip and the inner box below. Two calls agree today and
+            # the docstring said they could not disagree, which was a claim about a structure
+            # that was not there -- and it doubled the sort the comment at that call site exists
+            # to avoid. ``quantiles`` is asked for the three probabilities together for the same
+            # reason: it sorts once.
+            quartiles = quantiles(values, (0.25, 0.5, 0.75)) if tooltip or inner == "box" else None
             said = (
-                _violin_tooltip(
-                    x=x, y=y, hue=hue, category=category, hue_value=hue_value, values=groups[(category, hue_value)]
-                )
+                _violin_tooltip(x=x, y=y, hue=hue, category=category, hue_value=hue_value, values=values, quartiles=quartiles)
                 if tooltip
                 else None
             )
@@ -341,9 +363,12 @@ def violinplot(
                 # its default "1.5IQR" mode -- so this annotation lands exactly where a default
                 # boxplot would put the same box. (boxplot's mode="tukey" uses different
                 # hinges; violinplot has no mode= of its own.)
-                # quantiles(), not three quantile() calls: it sorts once, which is exactly what
-                # its docstring asks callers with several probabilities to do (stats.box too).
-                q1, median, q3 = quantiles(groups[(category, hue_value)], (0.25, 0.5, 0.75))
+                # Computed once above and shared with the tooltip, so the two cannot describe
+                # the same box differently. ``quantiles()`` rather than three ``quantile()``
+                # calls: it sorts once, which is what its docstring asks of a caller with
+                # several probabilities (stats.box too).
+                assert quartiles is not None
+                q1, median, q3 = quartiles
                 box_half = abs(band) * _INNER_BOX_FRACTION / 2
                 top, bottom = y_scale(q3), y_scale(q1)
                 marks.append(
