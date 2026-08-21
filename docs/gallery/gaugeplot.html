@@ -87,6 +87,10 @@
       ul.index strong { display: block; margin-top: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: var(--accent); }
       ul.index span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
       footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+      /* svgplot-gaugeplot-4 · hover */
+      .svgplot-gaugeplot-4 :is(.series-1:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
+      .svgplot-gaugeplot-4 :is(.series-2:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
+      .svgplot-gaugeplot-4 :is(.series-3:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
     </style>
   </head>
   <body>
@@ -227,8 +231,66 @@ sp.gaugeplot(ONE, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vm
 </svg>
     </figure>
     <pre><code>sp.gaugeplot(KPI, value=&quot;값&quot;, labels=&quot;지표&quot;)</code></pre>
+    <h3>tooltip=True — 아크마다 자기 값과 *어떤 범위에 대고* 그려졌는지를 말한다</h3>
+    <figure>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-4" role="img" aria-label="tooltip=True — 아크마다 자기 값과 *어떤 범위에 대고* 그려졌는지를 말한다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="115.421852" y1="421" x2="111.957751" y2="423" class="tick-line" />
+  <text x="103.297497" y="428" text-anchor="end" dominant-baseline="middle" class="tick-label">0</text>
+  <line x1="94.844323" y1="225.217887" x2="91.040097" y2="223.981819" class="tick-line" />
+  <text x="81.529532" y="220.891649" text-anchor="end" dominant-baseline="middle" class="tick-label">20</text>
+  <line x1="226.569732" y1="78.921999" x2="224.942786" y2="75.267817" class="tick-line" />
+  <text x="220.875419" y="66.132363" text-anchor="end" dominant-baseline="middle" class="tick-label">40</text>
+  <line x1="423.430268" y1="78.921999" x2="425.057214" y2="75.267817" class="tick-line" />
+  <text x="429.124581" y="66.132363" text-anchor="start" dominant-baseline="middle" class="tick-label">60</text>
+  <line x1="555.155677" y1="225.217887" x2="558.959903" y2="223.981819" class="tick-line" />
+  <text x="568.470468" y="220.891649" text-anchor="start" dominant-baseline="middle" class="tick-label">80</text>
+  <line x1="534.578148" y1="421" x2="538.042249" y2="423" class="tick-line" />
+  <text x="546.702503" y="428" text-anchor="start" dominant-baseline="middle" class="tick-label">100</text>
+  <path d="M 115.421852,421 A 242,242 0 1 1 534.578148,421 L 491.47895,396.116667 A 192.233333,192.233333 0 1 0 158.52105,396.116667 Z" class="gauge-track spine" />
+  <path d="M 115.421852,421 A 242,242 0 0 1 517.76024,153.687014 L 478.119601,183.775897 A 192.233333,192.233333 0 0 0 158.52105,396.116667 Z" class="series-1 gauge-value">
+    <title>가동률 · 값: 72 · of [0, 100]</title>
+  </path>
+  <path d="M 161.985151,394.116667 A 188.233333,188.233333 0 1 1 488.014849,394.116667 L 444.915651,369.233333 A 138.466667,138.466667 0 1 0 205.084349,369.233333 Z" class="gauge-track spine" />
+  <path d="M 161.985151,394.116667 A 188.233333,188.233333 0 1 1 511.214029,327.497695 L 461.981242,320.22763 A 138.466667,138.466667 0 1 0 205.084349,369.233333 Z" class="series-2 gauge-value">
+    <title>적중률 · 값: 91 · of [0, 100]</title>
+  </path>
+  <path d="M 208.548451,367.233333 A 134.466667,134.466667 0 1 1 441.451549,367.233333 L 398.352352,342.35 A 84.7,84.7 0 1 0 251.647648,342.35 Z" class="gauge-track spine" />
+  <path d="M 208.548451,367.233333 A 134.466667,134.466667 0 0 1 260.220189,182.165962 L 284.195464,225.776824 A 84.7,84.7 0 0 0 251.647648,342.35 Z" class="series-3 gauge-value">
+    <title>재구매율 · 값: 38 · of [0, 100]</title>
+  </path>
+  <text x="325" y="282" text-anchor="middle" dominant-baseline="middle" class="gauge-number legend-text">72</text>
+  <text x="325" y="300" text-anchor="middle" dominant-baseline="middle" class="gauge-number legend-text">91</text>
+  <text x="325" y="318" text-anchor="middle" dominant-baseline="middle" class="gauge-number legend-text">38</text>
+  <rect x="640" y="25" width="16" height="10" class="series-1" />
+  <text x="662" y="34" class="legend-text">가동률</text>
+  <rect x="640" y="45" width="16" height="10" class="series-2" />
+  <text x="662" y="54" class="legend-text">적중률</text>
+  <rect x="640" y="65" width="16" height="10" class="series-3" />
+  <text x="662" y="74" class="legend-text">재구매율</text>
+  <style>:where(.svgplot-gaugeplot-4) .plot-background { fill: #ffffff; }
+:where(.svgplot-gaugeplot-4) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-gaugeplot-4) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-gaugeplot-4) .tick-line { stroke: #333333; }
+:where(.svgplot-gaugeplot-4) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-gaugeplot-4) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-gaugeplot-4) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }
+:where(.svgplot-gaugeplot-4) .series-2 { stroke: #56B4E9; stroke-width: 2; fill: #56B4E9; fill-opacity: 0.75; opacity: 1; }
+:where(.svgplot-gaugeplot-4) .series-3 { stroke: #009E73; stroke-width: 2; fill: #009E73; fill-opacity: 0.75; opacity: 1; }</style>
+  <title>tooltip=True — 아크마다 자기 값과 *어떤 범위에 대고* 그려졌는지를 말한다</title>
+  <desc>Gauge, 3 arcs (가동률, 적중률, 재구매율), values 38 to 91, range 0 to 100.</desc>
+</svg>
+    </figure>
+    <pre><code>sp.gaugeplot(KPI, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0, tooltip=True)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
+      <li>네 번째 그림에는 체크박스가 없다. 한 행이 아크 하나라서 토글은 범례가 아니라 데이터 편집이 된다. 대신 커서가 얹힌 아크의 테두리가 진해진다 — 아크는 원래 자기 색 테두리를 갖고 있고, hover 규칙이 그걸 거의 검정으로 바꾼다. 이 페이지의 CSS 이고 JavaScript 는 0줄이다.</li>
+      <li>tooltip=True 가 아크마다 &lt;title&gt; 에 이름·값·범위를 담는다. 반쯤 찬 아크는 양 끝을 모르면 아무 뜻이 없고, vmin 의 기본값(0, 또는 최솟값이 음수면 그 값)은 보고 알아낼 수 있는 규칙이 아니다.</li>
+      <li>눈금은 대개 *낮은* 쪽 끝에 라벨을 붙인다 — vmin 이 0 이 기본이고 0 은 늘 좋은 눈금이라서다. 빠지는 것은 높은 쪽이다. vmax 를 데이터에서 잡으면 좋은 수가 되는 일이 드물어서, 세 번째 그림은 [0, 91] 인데 눈금이 80 까지만 찍히고 91 은 어디에도 안 적힌다. 네 번째는 vmax=100.0 이라 눈금이 100 을 찍는다.</li>
+      <li>그래서 세 번째와 네 번째는 같은 데이터인데 아크 길이가 다르고, 눈금 링을 읽으면 네 번째의 상한은 알 수 있지만 세 번째의 91 은 알 수 없다. 차트의 &lt;desc&gt; 는 예전부터 범위를 말해 왔다 — 새로 생긴 것은 *아크 하나*에게 무엇의 몫이냐고 물을 수 있다는 것이다.</li>
+      <li>vmin 이하 값은 아크가 아예 안 그려지므로 툴팁도 없다. 길이 0인 스윕은 양끝이 겹친 아크라 렌더러가 통째로 버리므로(SVG F.6.2), 이 차트는 그걸 아예 안 낸다. 걸 요소가 없으면 이름을 걸 수 없고, 없는 마크에 이름을 붙이면 값이 0이라는 것과 값이 없다는 것을 같은 말로 만든다.</li>
+      <li>가운데 숫자는 포인터를 그대로 갖는다. 숫자가 아크 위에 있으니 치워야 한다고 처음에 썼는데 사실이 아니었다 — 아크는 고리 조각이고 그 채움은 가운데 구멍에서 끝나므로, 행이 열 개 이하면 어떤 숫자 밑에도 아크가 없다. 치우면 밑에서 나오는 것은 &lt;title&gt; 없는 배경 사각형이고, 대신 숫자를 마우스로 선택할 수 없게 된다.</li>
+      <li>범위 밖 값은 스윕이 클램핑되지만 툴팁은 그 행이 든 수를 말한다. 클램핑된 수를 말하면 툴팁이 데이터를 읽어주는 게 아니라 두 번째 그림이 되고, 옆에 적힌 범위가 꽉 찬 아크를 설명해 준다.</li>
       <li>한 행이 아크 하나이고 바깥쪽부터 그린다. 모든 아크가 같은 범위를 쓰므로 길이끼리 견줘진다.</li>
       <li>범위 밖 값은 양 끝으로 클램핑된다. 감아 돌게 두면 vmax 를 넘은 큰 값이 더 작은 아크로 그려져 데이터를 뒤집어 보이게 된다.</li>
       <li>링이 3px 보다 얇아질 만큼 행이 많으면 거부한다. 그보다 얇은 링은 서로 구별되지 않는다.</li>

@@ -33,6 +33,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._polar import label_anchor, polar_point, ring_path
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
 from svgplot.data._columns import column_length, extract_columns
 from svgplot.data._missing import is_missing
 from svgplot.scales import LinearScale, make_ticks
@@ -123,10 +124,63 @@ def _ring_radii(count: int, outer_radius: float) -> list[tuple[float, float]]:
     return [(outer_radius - index * step, outer_radius - index * step - thickness) for index in range(count)]
 
 
+def _draws_something(cx: float, cy: float, radius: float, start_angle: float, end_angle: float) -> bool:
+    """Whether an arc from ``start_angle`` to ``end_angle`` puts anything on screen.
+
+    Not ``end_angle > start_angle``. That is the *float* angle, and the path is written through
+    ``format_coord``, which rounds to six decimals -- so there is a band of values just above
+    ``vmin`` where the angle grows but both endpoints round to the same coordinate pair. A
+    single ``A`` whose endpoints coincide is dropped entirely by renderers (SVG F.6.2), so the
+    chart was emitting a ``<path>`` that draws nothing, and this branch then hung an accessible
+    name on it -- naming a mark that is not there, which is the one thing the tooltip must not
+    do.
+
+    Measured on the default canvas over ``[0, 100]``: values in ``(5.3e-15, 5.7e-08]`` are
+    coordinate-degenerate, and the band scales with the range -- on ``[0, 1e12]`` a value of
+    500 lands in it. It is wider on the inner rings, which have the same angle over a smaller
+    radius: in that example the outermost ring degenerates at 500 while 900 does not, which is
+    why the radius is an argument here rather than a constant.
+
+    Compared on the *outer* radius, where the two points are furthest apart: if they coincide
+    there they coincide on the inner one too, so this is the weakest test that is still
+    sufficient.
+    """
+    if end_angle <= start_angle:
+        return False
+    start = polar_point(cx, cy, radius, start_angle)
+    end = polar_point(cx, cy, radius, end_angle)
+    return tuple(format_coord(value) for value in start) != tuple(format_coord(value) for value in end)
+
+
+def _arc_tooltip(*, value: str, label: str, magnitude: float, low: float, high: float) -> str:
+    """What one arc's ``<title>`` says: whose it is, what it reads, and **what range it is a
+    fraction of**.
+
+    The range is the part the picture withholds. An arc's sweep is proportional to where its
+    value sits between ``vmin`` and ``vmax``, so a half-full arc means nothing until the reader
+    knows the two ends -- and ``vmin`` defaults to *zero or the smallest value, whichever is
+    lower*, which is a rule nobody guesses from looking. The ticks usually label the *low* end
+    (``vmin`` defaults to 0 and 0 is always a nice tick); the high end is the one that goes
+    missing, because a data maximum rarely is -- ``[0, 91]`` prints up to 80 and never says 91.
+    The legend names the arcs rather than the scale, and the chart's ``<desc>`` says the range
+    once for the whole picture; this says it for the arc under the pointer.
+
+    Both bounds go through :func:`format_number` for the reason the value does: a gauge over
+    ``[0, 1e308]`` would otherwise read out 309 digits, twice, per arc.
+    """
+    parts = []
+    if (shown := format_label(label)) is not None:
+        parts.append(shown)
+    parts.append(clause(value, format_number(magnitude)))
+    parts.append(f"of [{format_number(low)}, {format_number(high)}]")
+    return " · ".join(parts)
+
+
 def gaugeplot(
     data: object,
     value: str,
     *,
+    tooltip: bool = False,
     vmin: float | None = None,
     vmax: float | None = None,
     labels: str | None = None,
@@ -146,6 +200,22 @@ def gaugeplot(
     to the largest value. ``labels`` names the legend column; without it, rows are numbered
     from 1, and a single unlabelled row gets no legend at all -- its number is already
     printed in the middle.
+
+    ``tooltip=True`` gives every arc a ``<title>`` naming its row, its value, and **the range
+    the sweep is a fraction of**. That last part is what the picture withholds: a half-full arc
+    means nothing until the reader knows both ends, and ``vmin``'s default -- zero, or the
+    smallest value if that is negative -- is not a rule anyone guesses from looking. The ticks
+    usually label the low end; the *high* end is the one that goes missing, because ``vmax``
+    taken from the data is rarely a nice number.
+
+    **A value that draws no arc gets no tooltip.** That is anything at or below ``vmin``, and
+    also anything close enough above it that both ends of the sweep round to the same
+    coordinate -- an arc whose endpoints coincide is dropped entirely by renderers (SVG F.6.2),
+    so this chart omits the path rather than emit one that draws nothing. There is nothing to
+    hang an accessible name on, and naming a mark that is not there would be a second way of
+    saying the value is missing rather than zero.
+
+    ``tooltip=False`` is the default; off, the file is what it was.
 
     ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
     call that does not mention them is byte-identical to one written before they existed. The
@@ -222,16 +292,18 @@ def gaugeplot(
         # because the guard is what happens to enforce the documented lower clamp, not the
         # clamp itself -- relaxing that guard to >= would make this line load-bearing again.
         end_angle = angle_of(min(max(magnitude, low), high))
-        if end_angle > _START_ANGLE:
+        if _draws_something(cx, cy, ring_outer, _START_ANGLE, end_angle):
             # A zero-length sweep would be an arc whose endpoints coincide, which the
             # renderer drops entirely (SVG spec F.6.2) -- so omit it rather than emit a
             # path that some renderers turn into a full circle.
-            document.add_node(
+            arc = document.add_node(
                 None,
                 "path",
                 attrib={"d": ring_path(cx, cy, ring_outer, ring_inner, _START_ANGLE, end_angle)},
                 classes=[series_class, "gauge-value"],
             )
+            if tooltip:
+                add_tooltip(document, arc, _arc_tooltip(value=value, label=label, magnitude=magnitude, low=low, high=high))
 
     _render_value_text(document, [magnitude for _, magnitude in pairs], cx, cy)
 
@@ -246,6 +318,16 @@ def gaugeplot(
             mark_style="fill",
             font_size=resolved_theme.legend_font_size,
         )
+    # No ``transparent_to_pointer`` here, and that is a decision rather than an omission. An
+    # earlier version made the centre number pointer-transparent on the grounds that it "sits on
+    # top of the arcs" -- it does not. The arcs are annulus sectors whose fill stops at the hole
+    # (84.7px on the default canvas), and the number stack spans +/-(rows - 1) * 9 px about the
+    # centre, so for ten rows or fewer *no arc is beneath any number*: measured by point-in-
+    # sector containment, 0 numbers over a value arc at 1, 3 and 10 rows, first overlap at 11,
+    # and ``_ring_radii`` refuses past 23. The rule revealed the ``plot-background`` rect, which
+    # has no ``<title>`` -- exactly what the reader already had, at the cost of making the
+    # printed value unselectable. (The second reason given was that the number carries its own
+    # truncation ``<title>``; ``_render_value_text`` never emits one.)
     render_theme_style(document, resolved_theme, series_classes, mark_style="outlined")
 
     magnitudes = [magnitude for _, magnitude in pairs]
