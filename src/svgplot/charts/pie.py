@@ -161,8 +161,11 @@ def pieplot(
             format_value_label(value),
             tag="text",
             attrib={"x": format_coord(label_x), "y": format_coord(label_y), "text-anchor": "middle"},
-            # ``legend-text`` is what styles it -- kept, so no new CSS rule is needed and every
-            # chart's <style> stays byte-identical. ``pie-value`` is a hook for the page around
+            # ``legend-text`` is what styles it -- kept, so no new rule is needed in
+            # ``theme/css.py``, whose rule list every chart emits. (The three charts touched
+            # here do get a different <style> anyway: the scope token is a hash of the whole
+            # document, so adding a class rewrites it. What is avoided is the *other thirteen*
+            # changing too.) ``pie-value`` is a hook for the page around
             # the chart: a value label sits on top of its slice, so a reader hovering the number
             # gets no tooltip from the slice underneath unless the page can say
             # ``pointer-events: none`` about this element and not about every legend label.

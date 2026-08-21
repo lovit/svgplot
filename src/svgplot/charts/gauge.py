@@ -313,8 +313,10 @@ def _render_value_text(document: SvgDocument, magnitudes: list[float], cx: float
                 "text-anchor": "middle",
                 "dominant-baseline": "middle",
             },
-            # See ``pie-value`` in charts/pie.py. The dial's numbers sit in the hole at the
-            # centre, over nothing -- but the arcs reach the hole's edge, so the outermost line
-            # of numbers overlaps them.
-            classes=["gauge-value", "legend-text"],
+            # See ``pie-value`` in charts/pie.py. Named ``gauge-number`` and not
+            # ``gauge-value``: that one is already on the arcs (see ``_render_arcs`` above), so
+            # reusing it would put the page's ``pointer-events: none`` on the marks as well --
+            # the exact failure this hook exists to prevent, aimed at the arcs instead of the
+            # legend.
+            classes=["gauge-number", "legend-text"],
         )
