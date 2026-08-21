@@ -113,16 +113,25 @@ _BYTES_PER_TOOLTIP = 70
 """What ``tooltip=True`` adds per *drawn* cell -- fitted the same way as :data:`_BYTES_PER_CELL`.
 
 A term rather than a footnote because this is the chart where the size warning is load-bearing.
-A 200x200 dense grid with tooltips serializes to 6,345.6 KB: with this term the warning says
-6,037, without it 3,385 -- **46.7% low**. A warning that understates a 6 MB file by half is
-worse than none, because the reader acts on it.
+A 200x200 dense grid with tooltips serializes to **6,345.6 KB** (bytes, not characters -- the
+``\u00b7`` separators are two bytes each, which is 117 KB of the total). With this term the
+warning says 6,119, **-3.6%**; without it 3,385, **-46.7%**. A warning that understates a 6 MB
+file by half is worse than none, because the reader acts on it.
 
 Fitted over the same four points :data:`_BYTES_PER_TICK` cites, worst error **2.27%**: 50x50
 dense 396 vs 404.1 KB (-2.01%), 100x100 dense 1,547 vs 1,555.5 KB (-0.54%), 100x100 diagonal 49
-vs 50.1 KB (-2.27%), 200x200 diagonal 95 vs 94.0 KB (+1.05%). Those fixtures label their axes
-``x0``..``x199`` and hold values ``0.0``..``39999.0``, and a cell's ``<title>`` repeats both
-labels, both column names and the value -- so like every other term here it is a fit against
-ordinary labels, not a bound. Long ones cost more, up to ``_tooltip.MAX_TOOLTIP_CHARS``.
+vs 50.1 KB (-2.27%), 200x200 diagonal 95 vs 94.0 KB (+1.05%). Those four label their axes
+``x0``..``x199`` and hold values up to ``9999.0``; the 200x200 *dense* grid quoted above is not
+one of them, which is why its error is larger than the fit's worst.
+
+**It is a fit against ordinary labels, not a ceiling.** A cell's ``<title>`` repeats two column
+names, two labels and a value, and each of those is capped independently at
+``_tooltip.MAX_TOOLTIP_CHARS`` -- so the real worst case is around four times that, not 120.
+Measured with 120-character names *and* 120-character labels on a 60x60 grid: a 512-character
+``<title>`` and **1,494.7 bytes per cell** (Hangul is three bytes in UTF-8), against the 70
+modelled here. Neither is ``annot=True`` modelled, and the two-term model
+does not absorb it either: 100x100 dense with ``annot=True`` is 2,265.0 KB against an 863 KB
+estimate, **-61.9%**. That one predates this argument.
 
 Scaled by the *drawn* count, not the grid count, for :func:`_warn_if_large`'s reason: an undrawn
 cell has no rect and so no ``<title>``.
@@ -213,9 +222,14 @@ def _cell_tooltip(*, x: str, y: str, values: str, column: object, row: object, m
     the number -- ``annot=True`` draws it, but only where the cells are big enough to hold text,
     and the legend labels the steps rather than the cells.
 
-    The level is said too, and 1-based, because it is what the legend is keyed on: a reader
-    comparing a cell to the scale beside it is asking which of the nine entries this is. Saying
-    the value alone would leave them counting shades.
+    The level is said too, and it answers a different question from the value: *how far apart
+    are these two cells on the scale*. Two cells reading 51 and 49 may be one shade apart or
+    the same shade, and the colour cannot be compared by eye across a grid -- an ordinal can.
+
+    **It is not what the legend is keyed on**, and an earlier version of this paragraph said it
+    was. The legend labels each swatch with the *value that level starts at* (``_level_label``),
+    so a reader holding "level 5 of 9" still counts swatches to find it. 1-based anyway, because
+    "level 0 of 9" is not a thing a reader counts.
     """
     parts = []
     if (shown := format_label(column)) is not None:
@@ -256,8 +270,9 @@ def heatmap(
     only -- this package has no font metrics, so a label is centred on the rect rather than
     fitted to it.
 
-    ``tooltip=True`` gives every cell a ``<title>`` naming its row, its column, its exact value
-    and which of the :data:`LEVELS` shades that is. **It is the only way to recover the value.**
+    ``tooltip=True`` gives every cell a ``<title>`` naming its column, its row, its exact value
+    and which of the :data:`LEVELS` shades that is -- in that order, the order the arguments are
+    written in. **It is the only way to recover the value.**
     The colour is a bucket, so two cells one shade apart can differ by almost nothing and two
     cells the same shade by almost a whole step; ``annot=True`` draws the number but only where
     the cells are big enough to hold text, and the legend labels the steps rather than the
