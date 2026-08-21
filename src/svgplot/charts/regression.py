@@ -102,6 +102,15 @@ def regplot(
     refused rather than clamped, and a chart may refuse a larger one if its own legend does
     not fit.
 
+    ``scatter=False`` draws the fit and its band without the underlying points -- for the case
+    where the points are already shown by another chart beside this one, or where there are
+    enough of them to hide the line. The fit is computed from every point either way.
+
+    It does move the line, though, which is worth knowing before comparing two such charts: the
+    y domain is taken from the band plus the observations *when they are on screen*, so hiding
+    them can shrink the axis and redraw the same fit at slightly different coordinates. Pin
+    ``ylim`` and the two are identical.
+
     Raises:
         KeyError: if ``x``/``y`` isn't a column in ``data``, or if ``theme`` is a string
             that isn't a registered preset name.

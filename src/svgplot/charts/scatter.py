@@ -187,6 +187,15 @@ def scatterplot(
     column name** rather than masked or clipped: a logarithm is undefined there, and both of
     the alternatives silently draw a different chart than the data describes.
 
+    ``info=`` publishes a footnote table beside the chart -- ``[("label", "@column")]``, or a
+    :class:`~svgplot.labels.spec.LabelSpec`. Available here because one input row is one point,
+    so a table row and a mark correspond; the charts that fold rows into a mark do not take it.
+    The table lists the rows this chart actually drew: a row missing ``x``, ``y``, ``hue`` or
+    ``size`` is dropped from both. ``chart.to_html_table()`` renders it, ``chart.save("x.md")``
+    writes it beneath the figure, and the SVG points at it with ``aria-describedby`` -- so two
+    ``info=`` charts on one page need :meth:`~svgplot.chart.base.Chart.set_table_id` to tell
+    their tables apart.
+
     Raises:
         KeyError: if ``x``/``y``/``hue``/``size`` isn't a column in ``data``, or if
             ``theme`` is a string that isn't a registered preset name.

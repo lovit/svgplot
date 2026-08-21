@@ -171,13 +171,26 @@ def violinplot(
     refused rather than clamped, and a chart may refuse a larger one if its own legend does
     not fit.
 
+    ``hue=`` splits each category once more, drawing one violin per group side by side inside
+    the category's band -- the same dodge :func:`~svgplot.charts.box.boxplot` does, and the two
+    take the same positional arguments so a reader can swap one for the other.
+
+    ``bandwidth`` is passed to :func:`svgplot.stats.kde.kde` untouched, so its rules and its
+    validation are that function's: ``"scott"``/``"silverman"`` or a positive number. A
+    category whose values are all equal is refused *while a named rule is in use* -- there is
+    no spread for the rule to scale -- but a number is accepted for it, which is the escape
+    hatch the error message points at. A bandwidth chosen here applies to every violin, since
+    they share one grid.
+
     Raises:
         KeyError: if ``x``/``y`` isn't a column in ``data``, or if ``theme`` is a string
             that isn't a registered preset name.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
         ValueError: if ``inner`` isn't one of :data:`INNER_STYLES`, if ``data`` has no
             rows, if no rows have both channels, or (via ``stats.kde``) if a category has
-            too few values or no spread -- reported with the category's name.
+            too few values, or no spread while a named ``bandwidth`` rule is in use --
+            reported with the category's name. No spread with an explicit numeric
+            ``bandwidth`` is drawn rather than refused.
     """
     if inner not in INNER_STYLES:
         raise ValueError(f"inner must be one of {INNER_STYLES}, got {inner!r}")
