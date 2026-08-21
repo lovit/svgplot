@@ -296,6 +296,22 @@ def heatmap(
     refused rather than clamped, and a chart may refuse a larger one if its own legend does
     not fit.
 
+    ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
+    (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
+    for the default theme. Fonts, line widths, opacities, the grid/spine/tick colours and --
+    where a chart has series -- the palette all come from it. No render reads or writes global
+    style state, so two charts given the same ``Theme`` are styled alike no matter what was
+    drawn in between.
+
+    This chart has no series, so it takes no palette from the theme: a cell's colour comes
+    from ``cmap=``, and ``annot=True`` writes its numbers in black or white chosen for
+    contrast against the cell beneath rather than in any themed ink.
+
+    ``values`` names the numeric column a cell's colour comes from, with ``x`` and ``y``
+    naming the two columns whose pairs address the cells. Those two are read as categories --
+    a numeric column is accepted and its distinct values become labels, so the axis spaces
+    them evenly rather than by their magnitude.
+
     Raises:
         KeyError: if ``x``/``y``/``values`` isn't a column in ``data``, if ``theme`` is a
             string that isn't a registered preset name, or (via ``palette``) if ``cmap`` is

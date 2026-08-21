@@ -135,6 +135,16 @@ def pieplot(
     the figure, and the SVG points at it with ``aria-describedby`` -- so two ``info=`` charts on
     one page need :meth:`~svgplot.chart.base.Chart.set_table_id` to tell their tables apart.
 
+    ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
+    (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
+    for the default theme. Fonts, line widths, opacities, the grid/spine/tick colours and --
+    where a chart has series -- the palette all come from it. No render reads or writes global
+    style state, so two charts given the same ``Theme`` are styled alike no matter what was
+    drawn in between.
+
+    ``data`` is long-form -- one row per slice -- and is read by column name, so a column the
+    chart does not draw is still available to ``info=``.
+
     Raises:
         KeyError: if ``values``/``labels`` isn't a column in ``data``, or if
             ``theme`` is a string that isn't a registered preset name.

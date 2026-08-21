@@ -197,6 +197,12 @@ def grid(
     ``spacing`` is the gutter in pixels between neighbouring cells, applied both ways in a
     2D grid; ``0`` is allowed and makes panels touch.
 
+    ``ncols`` fixes the grid's width rather than capping it: it pads every short row with
+    empty cells so the columns line up, and a grid of one chart with ``ncols=4`` is four
+    columns wide, three of them blank. A row already wider than ``ncols`` is refused rather
+    than wrapped -- padding cannot narrow a row, and letting one overflow silently would make
+    the number mean nothing. ``None`` (the default) takes the width from the widest row.
+
     ``titles`` supplies one heading per cell, rendered above it — the static
     replacement for Bokeh's ``Tabs`` adopted as the default idiom in
     docs-research/16-layout-vocabulary.md. For the matrix form, entries are in

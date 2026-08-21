@@ -122,6 +122,16 @@ def ecdfplot(
     refused rather than clamped, and a chart may refuse a larger one if its own legend does
     not fit.
 
+    ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
+    (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
+    for the default theme. Fonts, line widths, opacities, the grid/spine/tick colours and --
+    where a chart has series -- the palette all come from it. No render reads or writes global
+    style state, so two charts given the same ``Theme`` are styled alike no matter what was
+    drawn in between.
+
+    ``x`` names the numeric column the distribution is taken over -- the only data column
+    this chart needs, since the y axis is computed from the values rather than read.
+
     Raises:
         KeyError: if ``x``/``hue`` isn't a column in ``data``, or if ``theme`` is a
             string that isn't a registered preset name.

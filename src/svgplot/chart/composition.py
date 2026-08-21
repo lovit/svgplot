@@ -276,7 +276,7 @@ class Composition:
         self._title: str | None = None
 
     def set_title(self, title: str) -> Composition:
-        """Set the composition's accessible name. Returns self for chaining.
+        """Set the composition's accessible name to ``title``. Returns self for chaining.
 
         Mirrors :meth:`svgplot.chart.base.Chart.set_title`. ``layout.add_caption`` also
         sets this when it isn't already set, since a caption *is* the figure's name —
@@ -357,7 +357,14 @@ class Composition:
         """Serialize to an SVG string. See svgplot.output.svg.
 
         ``declaration=False`` drops the ``<?xml …?>`` prolog, for inlining into an HTML
-        document. Same contract as :meth:`svgplot.chart.base.Chart.to_string`.
+        document, and ``pretty=False`` drops the indentation. Same contract as
+        :meth:`svgplot.chart.base.Chart.to_string`.
+
+        Raises:
+            ValueError: if the title set by ``set_title`` holds a character XML 1.0 forbids.
+                ``set_title`` itself accepts anything -- the title is read at serialization
+                time so a later ``set_title`` still takes effect -- which means the refusal
+                surfaces here rather than at the call that caused it.
         """
         return to_string(self._accessible_document(), pretty=pretty, declaration=declaration)
 
@@ -369,6 +376,16 @@ class Composition:
         table or N?). The format is supported here regardless, because this class promises
         the same serialization surface as :class:`~svgplot.chart.base.Chart` and supporting
         markdown on only one of them would break that documented invariant.
+
+        Raises:
+            ValueError: if the serialized SVG contains a blank line (see
+                ``svgplot.output.markdown``, whose own docstring records that no chart can
+                reach it any more -- it is named here because ``Chart.to_markdown`` and
+                :meth:`save` name it, and three siblings disagreeing about one guard is worse
+                than one of them over-documenting it), or if the title set by ``set_title``
+                holds a character XML 1.0 forbids. ``set_title`` accepts it -- the title is
+                read at serialization time so a later ``set_title`` still takes effect --
+                which means that refusal surfaces here rather than at the call that caused it.
         """
         return to_markdown(self._accessible_document())
 

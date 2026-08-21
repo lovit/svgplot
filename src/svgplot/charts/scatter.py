@@ -255,6 +255,13 @@ def scatterplot(
     the table with the same words, and pairing is by input row -- not by counting marks, which
     would go wrong the moment ``hue=`` groups the points into an order the table doesn't share.
 
+    ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
+    (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
+    for the default theme. Fonts, line widths, opacities, the grid/spine/tick colours and --
+    where a chart has series -- the palette all come from it. No render reads or writes global
+    style state, so two charts given the same ``Theme`` are styled alike no matter what was
+    drawn in between.
+
     Raises:
         KeyError: if ``x``/``y``/``hue``/``size`` isn't a column in ``data``, or if
             ``theme`` is a string that isn't a registered preset name.

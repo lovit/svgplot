@@ -234,6 +234,16 @@ def lineplot(
     column name** rather than masked or clipped: a logarithm is undefined there, and both of
     the alternatives silently draw a different chart than the data describes.
 
+    ``x`` and ``y`` name the two columns the line is drawn through: ``x`` its position along
+    the horizontal axis (numeric, date or datetime), ``y`` the numeric column it plots.
+
+    ``theme=`` takes a :class:`~svgplot.theme.base.Theme`, the name of a preset
+    (``"light"``, ``"dark"``, ``"minimal"``, ``"high_contrast"``, ``"print"``), or ``None``
+    for the default theme. Fonts, line widths, opacities, the grid/spine/tick colours and --
+    where a chart has series -- the palette all come from it. No render reads or writes global
+    style state, so two charts given the same ``Theme`` are styled alike no matter what was
+    drawn in between.
+
     Raises:
         ValueError: if ``x`` holds a type with no position on an axis (``datetime.time`` is
             a time of day with no day, so two values a week apart are the same point), if it
