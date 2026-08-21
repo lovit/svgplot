@@ -145,8 +145,10 @@ class LabelSpec:
 
     ``fields`` is the same ``[("label", "@field{format}"), ...]`` list :meth:`parse` takes --
     each entry pairs the heading a reader sees with the column it reads and how to format it.
-    Parsing happens here, so an unusable spec is refused where the caller wrote it rather
-    than at render time.
+    Parsing happens here, so a badly *shaped* spec is refused where the caller wrote it. Only
+    the shape: ``@z{zzz}`` parses -- it is a well-formed field with a numeral spec -- and is
+    refused when a table is asked for, because whether ``zzz`` formats anything is a question
+    about the column it will meet.
 
     Raises:
         ValueError: if ``fields`` isn't a non-empty list, or any entry doesn't parse (see
@@ -211,14 +213,18 @@ def _format_plain(value: object) -> str:
     """A bare ``@field``: the value as it is, with this package's own number spelling.
 
     ``format_value_label`` rather than ``str`` so a float column reads ``30`` and not ``30.0``
-    -- the same rule the axes already apply to the same numbers, so a value does not change
-    spelling depending on whether the reader met it on an axis or in a footnote. ``bool`` is
-    excluded from that on purpose: ``True`` is not ``1`` to a reader.
+    -- the same rule the axes already apply to the same *floats*, so a float does not change
+    spelling depending on whether the reader met it on an axis or in a footnote. Ints take the
+    branch above instead and are spelled exactly at any size, which is a deliberate divergence
+    from the axes: a coordinate is a position and a footnote cell is the caller's own datum.
+    ``bool`` is excluded from both on purpose: ``True`` is not ``1`` to a reader.
     """
     # Imported here, not at module scope: ``charts`` imports ``chart.base``, which imports
     # this package, so a top-level import closes a cycle. Sharing the rule still beats copying
-    # its two lines -- a value should not change spelling depending on whether the reader met
-    # it on an axis or in a footnote.
+    # its two lines -- a float should not change spelling depending on whether the reader met
+    # it on an axis or in a footnote. Ints no longer share it: an axis spells 2**53+1 as
+    # ...992 because it is a coordinate, and a footnote spells it exactly because it is the
+    # caller's datum.
     from svgplot.charts._layout import format_value_label
 
     if isinstance(value, bool):

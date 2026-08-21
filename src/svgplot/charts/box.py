@@ -190,8 +190,9 @@ def boxplot(
     hinges (the median of each half, excluding the overall median for odd counts) while
     ``"1.5IQR"`` interpolates percentiles. Over 20,000 random samples of 4 - 12 values drawn from
     a continuous distribution the quartiles differed every time and the outlier set about one
-    time in six; on integer data, where ties are common, the quartiles still differed in 97% of
-    samples. So choosing between them is a choice about the body of the box first and about
+    time in six; on integer data the rate depends on how much room the values have to
+    avoid ties -- 99.8% over ``randint(0, 100)``, 97% over ``randint(0, 20)``, but only 74% on
+    a Likert 1 - 5 column and 27% on a 0/1 one, where the two often land on the same quartile. So choosing between them is a choice about the body of the box first and about
     which points are called outliers second. ``"extremes"`` reaches the minimum and maximum, so
     nothing is an outlier. ``"stdev"``/``"pstdev"`` reach one standard deviation either side
     of the mean (sample and population), which need not be observations at all.

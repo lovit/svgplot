@@ -167,9 +167,12 @@ class Chart:
         Raises:
             ValueError: if an ``info=`` value cannot be rendered by the format spec it was
                 given — the same deferral :meth:`to_markdown` documents, and for the same
-                reason. Validating every row at plot time would make ``info=`` cost a pass
-                over the data whether or not a table is ever asked for, so the refusal waits
-                until one is.
+                reason: validating every row at plot time would make ``info=`` cost a pass
+                over the data whether or not a table is ever asked for. ``tooltip=True`` pays
+                that pass anyway, rendering each row to fill a ``<title>``, so the cost
+                argument now holds only for the default — the *behaviour* is the same either
+                way, because a row the spec cannot format leaves its mark on that mark's own
+                clauses instead of raising.
         """
         if self._labels is None:
             return None
