@@ -24,7 +24,7 @@ class Example:
     code: str
     svg: str
     table: str | None
-    controls: Controls | None = None
+    controls: tuple[Controls, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -55,6 +55,27 @@ def _run(code: str, namespace: dict) -> object:
     return eval(compile(ast.Expression(body[-1].value), "<example>", "eval"), namespace)
 
 
+def _kinds(declared: object) -> tuple[str, ...]:
+    """The control kinds one figure asked for: nothing, one, or several.
+
+    A bare string stays legal because most figures want one thing, and a sequence exists
+    because several want a toggle *and* hover -- those are different mechanisms (an ``<input>``
+    the reader operates, versus a rule that responds to the pointer) rather than alternatives.
+
+    Raises:
+        TypeError: if the value is neither a string nor a sequence of them, which is how a
+            typo like ``{2: True}`` says so at build time rather than by silently emitting
+            nothing.
+    """
+    if declared is None:
+        return ()
+    if isinstance(declared, str):
+        return (declared,)
+    if isinstance(declared, list | tuple) and all(isinstance(kind, str) for kind in declared):
+        return tuple(declared)
+    raise TypeError(f"INTERACTIONS values must be a kind or a sequence of kinds, got {declared!r}")
+
+
 def load(module: ModuleType, name: str) -> Page:
     """Run every example in ``module`` and collect the page it describes.
 
@@ -74,7 +95,7 @@ def load(module: ModuleType, name: str) -> Page:
     page self-contained: setup plus any one example is a complete script.
 
     An optional ``INTERACTIONS`` maps an example's 1-based number to the kind of control that
-    figure should carry (``gallery.interaction.KINDS``). It is read with ``getattr`` rather
+    figure should carry, or to a sequence of kinds (``gallery.interaction.KINDS``). It is read with ``getattr`` rather
     than added to ``REQUIRED``, the same way ``NOTES`` is: sixteen pages will end up declaring
     it and several will deliberately not. What each control *is* -- which series exist, what
     they are called, which classes they carry -- is read back out of the rendered SVG rather
@@ -116,7 +137,7 @@ def load(module: ModuleType, name: str) -> Page:
                 code=code.strip(),
                 svg=svg,
                 table=chart.to_html_table() if chart.table_id else None,
-                controls=resolve(figure, interactions[index], svg) if index in interactions else None,
+                controls=tuple(resolve(figure, kind, svg) for kind in _kinds(interactions.get(index))),
             )
         )
 

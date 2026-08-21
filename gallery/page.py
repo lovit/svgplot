@@ -141,7 +141,7 @@ def chart_page(page: Page) -> str:
         f"    <pre><code>{escape(page.setup)}</code></pre>\n",
         "    <h2>예시</h2>\n",
     ]
-    controls = [example.controls for example in page.examples if example.controls]
+    controls = [control for example in page.examples for control in example.controls]
     # Only a toggle needs the note. A hover-only page dims nothing, so telling its reader that
     # switching a series off fades it rather than hiding it describes a control that is not
     # there -- and ``test_a_page_with_controls_carries_the_note`` reads it the same way.
@@ -157,7 +157,7 @@ def chart_page(page: Page) -> str:
             "    <figure>\n",
             # The controls come before the SVG and are its direct siblings: the rules in
             # interaction.py reach the chart with ``~``, which only sees following siblings.
-            *([markup(example.controls)] if example.controls else []),
+            *[markup(control) for control in example.controls],
             # The SVG goes in as the serializer produced it. Re-indenting to match the
             # surrounding HTML would put spaces inside the <style> element's text, which is
             # real content -- prettier markup at the cost of changing what the file says.
