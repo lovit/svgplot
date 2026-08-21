@@ -82,10 +82,18 @@ def test_a_chart_that_takes_tooltip_takes_it_the_agreed_way(name: str) -> None:
     assert parameter.default is False, f"{name}: tooltip must default to False, got {parameter.default!r}"
 
 
-def test_tooltip_off_is_byte_for_byte_what_it_was() -> None:
-    """The promise to everyone who never asks for this. Checked against a rendering with the
-    argument omitted *and* one passing ``False`` explicitly, so the default and the value
-    cannot drift apart."""
+def test_the_default_draws_no_tooltip_and_saying_so_changes_nothing() -> None:
+    """The promise to everyone who never asks for this, as far as a test inside the branch can
+    state it: the argument omitted and ``False`` passed explicitly are the same call, and
+    neither titles a mark.
+
+    Renamed from ``..._is_byte_for_byte_what_it_was``, which is not what it does -- both sides
+    are this branch's code, so any change that hits every mark unconditionally passes. The bytes
+    from *before* ``tooltip=`` existed are held by ``docs/gallery/*.html``, which
+    ``test_gallery.py::test_the_committed_gallery_is_what_a_fresh_build_produces`` rebuilds and
+    compares; adding an unconditional attribute to every bar rect leaves all 42 tests in
+    ``test_charts_bar.py`` green and turns that one red, and only that one.
+    """
     omitted = sp.scatterplot(_POINTS, x="면적", y="매출", hue="지역", size="직원수").to_string()
     explicit = sp.scatterplot(_POINTS, x="면적", y="매출", hue="지역", size="직원수", tooltip=False).to_string()
 
@@ -198,11 +206,18 @@ def test_a_column_name_that_draws_nothing_is_dropped_like_one_too_long() -> None
 
 
 def test_a_column_name_too_long_to_read_is_dropped_rather_than_repeated() -> None:
-    """The same cap ``_size_clause`` applies to the ``<desc>``, for a sharper reason: this name
-    is repeated once *per point*, so an unreadable one would be the largest thing in the file.
+    """The same *idea* as the cap ``scatter._size_clause`` applies to the ``<desc>``, for a
+    sharper reason: this name is repeated once *per point*, so an unreadable one would be the
+    largest thing in the file. The number is not the same -- :data:`_tooltip.MAX_TOOLTIP_CHARS`
+    is 120 where ``_describe``'s is 60, because that one is a share of a six-name sentence and
+    this one is a string announced by itself.
 
     Dropped rather than truncated -- half a column name is a different column name. The value
     stays, because the value is the thing the reader came for.
+
+    ``long_name not in svg`` is available here and not in the ``barplot`` equivalent: a column
+    name appears nowhere else in the file, while a *category* is also drawn on the axis, whose
+    tick keeps its own uncapped ``<title>``.
     """
     long_name = "면" * 5000
     data = {long_name: [1.0, 2.0], "매출": [3.0, 4.0]}
