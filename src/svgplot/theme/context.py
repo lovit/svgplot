@@ -76,11 +76,16 @@ def _rotate_hue_palette(seed_color: str, count: int = 6) -> tuple[str, ...]:
 def parametric_theme(seed_color: str) -> Theme:
     """Derive a full Theme from a single brand seed color (pygal parametric-style precedent).
 
-    The seed color anchors the palette (used to generate a hue-rotated qualitative
-    palette) and the spine/tick color (normalized to lowercase ``#rrggbb`` — the same
-    form the palette colors are always encoded in — so e.g. ``"#3366CC"`` and
-    ``"#3366cc"`` produce an equal ``Theme``); background/foreground stay at
-    ``Theme``'s neutral defaults.
+    ``seed_color`` is a ``#rrggbb`` string. It anchors the palette (used to generate a
+    hue-rotated qualitative palette) and the spine/tick color (normalized to lowercase
+    ``#rrggbb`` — the same form the palette colors are always encoded in — so e.g.
+    ``"#3366CC"`` and ``"#3366cc"`` produce an equal ``Theme``); background/foreground stay
+    at ``Theme``'s neutral defaults.
+
+    Raises:
+        ValueError: (via ``palette.normalize``) if ``seed_color`` is not a ``#rrggbb`` hex
+            string. Named colors and three-digit forms are not accepted — the palette math
+            and the CSS embedding both want the same one representation.
     """
     normalized_seed = normalize_hex_color(seed_color)
     return Theme(palette=_rotate_hue_palette(seed_color), spine_color=normalized_seed, tick_color=normalized_seed)

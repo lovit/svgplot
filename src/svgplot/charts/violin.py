@@ -171,6 +171,16 @@ def violinplot(
     refused rather than clamped, and a chart may refuse a larger one if its own legend does
     not fit.
 
+    ``hue=`` splits each category once more, drawing one violin per group side by side inside
+    the category's band -- the same dodge :func:`~svgplot.charts.box.boxplot` does, and the two
+    take the same positional arguments so a reader can swap one for the other.
+
+    ``bandwidth`` is passed to :func:`svgplot.stats.kde.kde` untouched, so its rules and its
+    validation are that function's: ``"scott"``/``"silverman"`` or a positive number, and a
+    zero-variance sample is refused rather than given an arbitrary width. Every violin in a
+    chart shares one y domain and one peak width, which is what makes their widths comparable,
+    so a bandwidth chosen here applies to all of them.
+
     Raises:
         KeyError: if ``x``/``y`` isn't a column in ``data``, or if ``theme`` is a string
             that isn't a registered preset name.

@@ -102,6 +102,11 @@ def regplot(
     refused rather than clamped, and a chart may refuse a larger one if its own legend does
     not fit.
 
+    ``scatter=False`` draws the fit and its band without the underlying points -- for the case
+    where the points are already shown by another chart beside this one, or where there are
+    enough of them to hide the line. The fit is computed from every point either way, so
+    turning them off changes what is drawn and not what is measured.
+
     Raises:
         KeyError: if ``x``/``y`` isn't a column in ``data``, or if ``theme`` is a string
             that isn't a registered preset name.
