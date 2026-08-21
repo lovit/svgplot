@@ -51,11 +51,15 @@ TOGGLE = "toggle"
 """One checkbox per series, all on to begin with. Needs a name per series, so it needs a legend."""
 
 HOVER = "hover"
-"""Emphasise the mark under the pointer. No markup at all -- one rule and nothing to operate.
+"""Emphasise the mark under the pointer. No markup at all -- rules only, nothing to operate.
 
-It needs no name, so unlike :data:`TOGGLE` it works on a chart with no legend. What it does
-*not* do is say anything: it is an affordance telling the reader "this one", and the value it
-points at has to come from the mark's own ``<title>``.
+One rule per series, the same as a toggle; what it does not have is an ``<input>``. It needs no
+name, so unlike :data:`TOGGLE` it works on a chart with no legend -- ``boxplot`` without
+``hue=`` draws three series and emits no legend for them, and this is the kind that can still
+be pointed at.
+
+What it does *not* do is say anything: it is an affordance telling the reader "this one", and
+the value it points at has to come from the mark's own ``<title>``.
 """
 
 KINDS = (TOGGLE, HOVER)
@@ -299,10 +303,15 @@ def css(controls: Controls) -> str:
             # so this reaches one figure and not the next one down the page.
             #
             # ``opacity`` because the theme draws these marks at 0.75 and full opacity is a
-            # change the reader sees without this file having to know a colour. The stroke is
-            # a fixed near-black rather than ``var(--fg)``: the figure's own background stays
-            # light in both themes (``--figure-bg`` is #ffffff / #f7f8fa), so the page's
-            # foreground would be light-on-light in dark mode.
+            # change the reader sees without this file having to know a colour.
+            #
+            # The stroke is a fixed near-black rather than ``var(--fg)``, and what it has to
+            # read against is the chart's own ``.plot-background`` -- an opaque rect the chart
+            # paints over the whole canvas, so the page's ``--figure-bg`` never shows through.
+            # That fill is ``#ffffff`` under every preset the gallery uses (none of the
+            # examples pass ``theme=``). Under ``theme="dark"`` it is ``#1e1e1e`` and this
+            # stroke would be invisible; a page wanting hover on a dark-preset chart needs its
+            # own colour, and this rule does not try to guess one.
             rules.append(f"      .{controls.figure} :is({targets}) {{ opacity: 1; stroke: #16181d; stroke-width: 1.5; }}\n")
         return "".join(rules)
     for series in controls.series:
