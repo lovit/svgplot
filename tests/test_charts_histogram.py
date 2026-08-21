@@ -278,9 +278,16 @@ def _titles(svg: str) -> list[str]:
     builds.
 
     The reason is that a positional rule is a claim about the whole document while this one is a
-    claim about the mark. ``[:-1]`` stops working the moment anything else in the file grows a
-    ``<title>``, and it stops working *silently* -- a spare title cancels a missing one and the
-    count still matches.
+    claim about the mark -- and this file already builds a chart where the positional rule
+    breaks: ``test_a_hue_label_too_long_to_read_is_dropped_from_the_tooltip`` gives the *legend*
+    a ``<title>`` of its own holding the full group name, so ``findall(...)[:-1]`` returns three
+    entries where two are bars. It fails loudly there, but the general shape does not: a spare
+    title cancels a missing one and the count still matches.
+
+    Legend swatches carry a ``series-N`` class too and are not filtered out here, which is safe
+    for the reason it is *checked* rather than assumed: the pattern requires a ``<title>`` child
+    and a swatch has none. ``_series_bars`` above filters them by geometry because it matches on
+    the opening tag alone and cannot.
 
     ``(?<!/)`` so a self-closing rect followed by an unrelated ``<title>`` sibling is not read
     as a titled bar. Unreachable in today's output, and it is the shape that would let
@@ -445,11 +452,17 @@ def test_a_hue_label_too_long_to_read_is_dropped_from_the_tooltip() -> None:
 
 def test_a_bin_edge_is_spelled_exactly_not_at_pixel_precision() -> None:
     """``format_value_label`` is the axis's spelling and expands scientific notation back into
-    digits: with ``1e308`` in the data the three tooltips below become 332, 639 and 640
-    characters *each, per bar*. ``format_number`` picks the shorter of two exact spellings, so
-    neither rounds and the edge costs at most 24 characters."""
+    digits: with ``1e308`` in the data the two tooltips below become 332 and 640 characters
+    *each, per bar* -- the middle bin is empty and draws nothing. ``format_number`` picks the
+    shorter of two exact spellings, so neither rounds and an edge costs at most 24 characters.
+
+    The bound is on this fixture, not on the format: ``repr`` of a float runs to 24 characters
+    and two of them plus the clauses reach 68 on ``[1.2345678901234567e-308,
+    3.292181152633744e-301)``. Asserting a number ``format_number`` guarantees would mean
+    asserting about 71, which no fixture here reaches and which would pass on the mutation."""
     svg = histplot({"v": [1.0, 1e308]}, x="v", bins=3, tooltip=True).to_string()
 
+    assert len(_titles(svg)) == 2, "three bins, the middle one empty"
     assert max(len(title) for title in _titles(svg)) < 60, _titles(svg)
     assert "e+" in "".join(_titles(svg)), "the fixture stopped needing scientific notation"
 
