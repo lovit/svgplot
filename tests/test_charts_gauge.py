@@ -669,21 +669,52 @@ def test_the_range_is_spelled_exactly_not_at_pixel_precision() -> None:
     Borrowing it for the bounds would rewrite the one thing the reader cannot get from the
     picture: ``1e-07`` becomes ``0``, which turns "of [1e-07, 1.23456789]" into a range that
     starts where the arc does not."""
-    data = {"name": ["a"], "score": [1.0]}
+    data = {"name": ["a"], "score": [0.123456789]}
     svg = _svg(data, labels="name", vmin=1e-07, vmax=1.23456789, tooltip=True)
 
-    assert _arc_titles(svg) == ["a · score: 1 · of [1e-07, 1.23456789]"]
+    # The *value* as well as the bounds. Pinning only the bounds left the value's own spelling
+    # unguarded, and the fixture's value was 1.0, where both spellings agree -- swapping
+    # ``format_number`` for ``format_coord`` there was green across the whole suite.
+    assert _arc_titles(svg) == ["a · score: 0.123456789 · of [1e-07, 1.23456789]"]
 
 
-def test_the_centre_number_stops_taking_the_pointer_when_the_arcs_have_something_to_say() -> None:
-    """The number sits *on top of* the arcs, in the hole they ring, so it takes the pointer at
-    the middle of the chart -- where the arc's own ``<title>`` is what a reader is reaching for.
-    Its own ``<title>`` only exists when its text had to be shortened, so most of the time the
-    middle answers with nothing at all.
+def test_the_centre_number_keeps_the_pointer_because_nothing_is_under_it() -> None:
+    """The number does *not* sit on top of the arcs, which an earlier version of this branch
+    assumed. The arcs are annulus sectors whose fill stops at the hole, and the number stack is
+    inside it: measured by point-in-sector containment, no number is over a value arc at ten
+    rows or fewer, and ``_ring_radii`` refuses past 23.
 
-    Conditional for ``treemap``'s reason: with tooltips off there is nothing to put in its
-    place."""
-    data = {"name": ["a"], "score": [30.0]}
+    So making it pointer-transparent revealed the ``plot-background`` rect -- which has no
+    ``<title>`` -- at the cost of making the printed value unselectable. The rule is gone, and
+    this pins its absence so it is not re-added on the same false premise."""
+    data = {"name": ["a", "b", "c"], "score": [30.0, 60.0, 90.0]}
 
-    assert ".gauge-number { pointer-events: none; }" in _svg(data, labels="name", tooltip=True)
+    assert "pointer-events" not in _svg(data, labels="name", tooltip=True)
     assert "pointer-events" not in _svg(data, labels="name")
+
+
+def test_a_value_whose_arc_would_round_to_nothing_gets_no_tooltip() -> None:
+    """The guard is on the *rendered* geometry, not on the float angle. Coordinates go through
+    ``format_coord``, which rounds to six decimals, so there is a band just above ``vmin`` where
+    the angle grows but both ends of the sweep land on the same point -- an arc whose endpoints
+    coincide is dropped entirely by renderers (SVG F.6.2).
+
+    Before this the chart emitted that path *and* hung an accessible name on it: naming a mark
+    that is not there, which is the one thing the tooltip must not do. The band scales with the
+    range, which is why the fixture uses a wide one -- 500 out of 1e12 lands in it."""
+    data = {"name": ["tiny", "big"], "score": [500.0, 8e11]}
+    svg = _svg(data, labels="name", vmin=0.0, vmax=1e12, tooltip=True)
+
+    assert len(_paths(svg, "gauge-value")) == 1, "the degenerate sweep draws no path"
+    assert _arc_titles(svg) == ["big · score: 800000000000 · of [0, 1000000000000]"]
+    assert len(_paths(svg, "gauge-track")) == 2, "and the row still gets its track"
+
+
+def test_a_value_whose_arc_rounds_to_something_keeps_its_tooltip() -> None:
+    """The other side of that boundary -- the guard has to be about *drawing nothing*, not about
+    being small."""
+    data = {"name": ["small", "big"], "score": [9e5, 8e11]}
+    svg = _svg(data, labels="name", vmin=0.0, vmax=1e12, tooltip=True)
+
+    assert len(_paths(svg, "gauge-value")) == 2
+    assert _arc_titles(svg)[0] == "small · score: 900000 · of [0, 1000000000000]"
