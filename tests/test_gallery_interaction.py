@@ -1,0 +1,300 @@
+"""The gallery's no-JavaScript controls: what they are wired to, and what they must not do.
+
+Every check here was watched failing before it was kept. Three are shaped specifically against
+ways this file could pass while asserting nothing:
+
+* The page-level checks run over pages **rendered here**, never over the committed files. A
+  disk-reading version stayed green when the note was made unconditional, because the files on
+  disk had not changed -- it was measuring staleness, which ``test_gallery.py`` already does.
+* Two of those pages are built by :func:`_stub` and always carry controls. No example module
+  declares ``INTERACTIONS`` yet, so over the real gallery alone every "a page with controls
+  must ..." check would hold over an empty set -- the shape of the ``<img src>`` check that
+  survived the gallery losing every ``<img>`` (#185).
+* ``test_a_rule_names_every_class_its_series_actually_has`` uses ``boxplot``, the one chart
+  whose series is two classes. Against any other chart a rule that dropped ``-marker`` would
+  look correct.
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+import types
+import xml.etree.ElementTree as ET
+from html import escape
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parent.parent
+
+# ``gallery`` is repo-root source, not part of the installed package.
+sys.path.insert(0, str(ROOT))
+
+from gallery import interaction  # noqa: E402
+from gallery.example import Page, load  # noqa: E402
+from gallery.page import chart_page, index_page  # noqa: E402
+
+_SETUP = """
+import svgplot as sp
+
+QUARTERS = {
+    "분기": ["1분기", "2분기", "3분기", "4분기"] * 2,
+    "매출": [120.0, 145.0, 98.0, 176.0, 84.0, 92.0, 110.0, 131.0],
+    "채널": ["온라인"] * 4 + ["오프라인"] * 4,
+}
+"""
+
+_BAR = 'sp.barplot(QUARTERS, x="분기", y="매출", hue="채널")'
+_BOX = 'sp.boxplot(QUARTERS, x="분기", y="매출", hue="채널")'
+
+
+def _stub(examples: list[tuple[str, str]], interactions: dict[int, str] | None = None, name: str = "stub") -> Page:
+    """A gallery page built here rather than committed.
+
+    The controls have to be exercised somewhere, and they cannot be exercised against the
+    committed gallery: this PR's completion condition is that rebuilding ``docs/`` produces no
+    diff, so nothing under ``gallery/examples/`` declares ``INTERACTIONS``. Building a page
+    means these checks measure the emitter itself instead of waiting for a chart PR to make
+    them meaningful.
+    """
+    module = types.ModuleType(name)
+    module.TITLE = name
+    module.SUMMARY = "a page built by the tests"
+    module.REQUIRES = "x · y · hue"
+    module.SETUP = _SETUP
+    module.EXAMPLES = examples
+    if interactions is not None:
+        module.INTERACTIONS = interactions
+    return load(module, name)
+
+
+def _parseable(markup: str) -> str:
+    """``markup`` with its ``<style>`` bodies blanked, so an XML parser can read it.
+
+    CSS is not markup: a rule holding ``>`` is valid CSS and invalid XML. Same reason
+    ``test_gallery.py`` does this before parsing a page.
+    """
+    return re.sub(r"(<style[^>]*>).*?(</style>)", r"\1\2", markup, flags=re.S)
+
+
+def _rendered() -> list[tuple[str, str]]:
+    """Every gallery page as the generator would write it *now*, plus two built here.
+
+    Generated rather than read off disk. Reading the committed files would make these checks
+    measure whether ``docs/`` is stale -- which ``test_gallery.py`` already does, byte for
+    byte -- instead of measuring the generator. Watched: making the note unconditional left
+    the disk-reading version green, because the committed pages on disk had not changed.
+
+    The two built pages are what stops the whole file being vacuous. No example module
+    declares ``INTERACTIONS`` yet, so every real page has zero controls and every "a page with
+    controls must ..." check would hold over an empty set -- the shape of the ``<img src>``
+    check that survived the gallery losing every ``<img>`` (#185).
+    """
+    from gallery.build import discover  # imported here so a collection error names this file
+
+    pages = [(page.name, chart_page(page)) for page in discover()]
+    pages.append(("built-with-controls", chart_page(_stub([("bars", _BAR)], {1: "toggle"}))))
+    pages.append(("built-with-two", chart_page(_stub([("bars", _BAR), ("boxes", _BOX)], {1: "toggle", 2: "toggle"}))))
+    return pages
+
+
+_PAGES = _rendered()
+
+
+# ------------------------------------------------------------------ reading the picture
+
+
+def test_the_series_a_control_gets_are_the_series_the_chart_drew() -> None:
+    """The list of series is extracted, never declared. An example module says only *which*
+    figure gets controls; a hand-written list would be a second copy of what the chart already
+    decided, and the copy is the one that goes stale."""
+    page = _stub([("bars", _BAR)], {1: "toggle"})
+    controls = page.examples[0].controls
+
+    assert controls is not None
+    assert [series.index for series in controls.series] == [1, 2]
+    assert {series.label for series in controls.series} == {"온라인", "오프라인"}
+
+
+def test_a_rule_names_every_class_its_series_actually_has() -> None:
+    """``boxplot`` draws one series as two classes: the whisker is ``series-N`` and the box and
+    outliers are ``series-N-marker`` -- the documented ``mark_style`` pairing in
+    ``theme/css.py``, not a defect. A rule written against ``.series-N`` alone dims the whisker
+    and leaves the box lit, which looks like a rendering bug rather than a selector that was
+    told half the truth.
+
+    Asserted against the chart's own output rather than against the number two, so it stays
+    true if a chart ever draws a series as three.
+    """
+    page = _stub([("boxes", _BOX)], {1: "toggle"})
+    example = page.examples[0]
+    drawn = interaction.series_classes(example.svg)
+    rules = interaction.css(example.controls)
+
+    assert drawn[1] == ("series-1", "series-1-marker"), "the fixture stopped being the two-class case"
+    for classes in drawn.values():
+        for name in classes:
+            assert f".{name}" in rules, f"{name} is drawn but no rule dims it"
+
+
+def test_a_control_is_named_by_the_legend_even_when_the_legend_shortened_it() -> None:
+    """A label too long for the gutter is drawn with an ellipsis and keeps its full text in a
+    ``<title>`` (``charts/_legend.py``). Taking the drawn text would put the ellipsis on the
+    checkbox, where there is no width problem to solve and nothing to recover the rest from."""
+    long_name = "온라인 채널 " * 6
+    setup = f'import svgplot as sp\nD = {{"x": ["a", "b"], "y": [1.0, 2.0], "g": ["{long_name}", "오프라인"]}}\n'
+    module = types.ModuleType("long")
+    module.TITLE, module.SUMMARY, module.REQUIRES = "long", "s", "r"
+    module.SETUP = setup
+    module.EXAMPLES = [("long labels", 'sp.barplot(D, x="x", y="y", hue="g")')]
+    module.INTERACTIONS = {1: "toggle"}
+    page = load(module, "long")
+
+    labels = {series.label for series in page.examples[0].controls.series}
+
+    assert "…" in page.examples[0].svg, "the fixture stopped being the truncated case"
+    assert long_name in labels, f"the control was named by the shortened text: {labels}"
+
+
+def test_a_chart_with_no_legend_is_refused() -> None:
+    """A control needs a name, and the legend is the only place one comes from.
+
+    ``boxplot`` without ``hue=`` is the case worth naming: it rotates the palette per category,
+    so it really does draw ``series-1``..``series-3`` -- but those are categories, and it emits
+    no legend for them. Left unrefused, the page would get three checkboxes labelled nothing.
+    """
+    module = types.ModuleType("nolegend")
+    module.TITLE, module.SUMMARY, module.REQUIRES = "nolegend", "s", "r"
+    module.SETUP = _SETUP
+    module.EXAMPLES = [("no hue", 'sp.boxplot(QUARTERS, x="분기", y="매출")')]
+    module.INTERACTIONS = {1: "toggle"}
+
+    with pytest.raises(ValueError, match="no legend entry"):
+        load(module, "nolegend")
+
+
+def test_a_legend_over_rows_is_not_refused_and_that_is_a_judgement_not_a_check() -> None:
+    """``pieplot`` emits a swatch and a label per *slice*, which in the rendered file is
+    indistinguishable from a ``hue=`` chart's swatch and label per group. So the rule "a toggle
+    belongs only where ``hue=`` produced the series" cannot be enforced here, and pretending it
+    could would be worse than saying so: a check that cannot fire reads as protection.
+
+    Written down as a test rather than only as a comment because it is a limit somebody will
+    otherwise rediscover by adding controls to a pie chart and finding nothing stopped them.
+    """
+    module = types.ModuleType("pie")
+    module.TITLE, module.SUMMARY, module.REQUIRES = "pie", "s", "r"
+    module.SETUP = 'import svgplot as sp\nD = {"이름": ["가", "나", "다"], "값": [3.0, 4.0, 5.0]}\n'
+    module.EXAMPLES = [("slices", 'sp.pieplot(D, values="값", labels="이름")')]
+    module.INTERACTIONS = {1: "toggle"}
+
+    controls = load(module, "pie").examples[0].controls
+
+    assert [series.label for series in controls.series] == ["가", "나", "다"]
+
+
+def test_an_interaction_for_an_example_that_does_not_exist_is_refused() -> None:
+    """A typo'd index would otherwise mean a figure silently gets no controls -- and a missing
+    control is invisible, because the page still renders."""
+    with pytest.raises(ValueError, match="INTERACTIONS names example"):
+        _stub([("bars", _BAR)], {2: "toggle"})
+
+
+def test_an_unknown_control_kind_is_refused() -> None:
+    with pytest.raises(ValueError, match="unknown control kind"):
+        _stub([("bars", _BAR)], {1: "raio"})
+
+
+# ------------------------------------------------------------------ what the rules may do
+
+
+def test_no_rule_hides_anything() -> None:
+    """The decision this whole milestone rests on, kept as a rule rather than as prose.
+
+    No chart recomputes its ticks, its category bands or its domain when a series is switched
+    off -- the geometry was decided when the file was written. ``display: none`` would leave
+    the survivors on an axis scaled for data that is no longer drawn, and would remove the
+    element from the accessibility tree while the ``<desc>`` still says "2 series". Dimming
+    claims neither.
+    """
+    stylesheet = interaction.stylesheet([example.controls for example in _stub([("b", _BAR)], {1: "toggle"}).examples])
+
+    assert "opacity" in stylesheet
+    for forbidden in ("display:", "visibility:"):
+        assert forbidden not in stylesheet.replace(" ", ""), f"a rule uses {forbidden}"
+
+
+def test_a_page_with_no_controls_adds_no_css_at_all() -> None:
+    """Why the committed gallery is unchanged by this PR. ``page.STYLE`` ends in a newline, so
+    appending the empty string to it is byte-for-byte what the pages already hold."""
+    assert interaction.stylesheet([]) == ""
+
+
+# ------------------------------------------------------------------ the rendered page
+
+
+def test_the_controls_are_siblings_before_the_chart() -> None:
+    """The load-bearing structural fact, and the reason there is no ``:has()`` anywhere here.
+
+    The rules reach the chart with ``~``, which sees only *following siblings of the same
+    parent*. An ``<input>`` after the SVG reaches nothing; an ``<input>`` inside a ``<div>`` or
+    a ``<fieldset>`` reaches nothing either, and that one is the trap -- the page still looks
+    right, the controls still render, and every rule silently stops matching.
+
+    Parsed into direct children rather than scanned for tag order in the text, because a
+    wrapper preserves the order. Watched: wrapping the controls in a ``<div>`` left the
+    text-scanning version of this green.
+    """
+    html = chart_page(_stub([("bars", _BAR)], {1: "toggle"}))
+    # Style bodies blanked *before* the figure is cut out: the page stylesheet is inside a
+    # <style> and CSS may mention a tag name, so cutting first can cut from a comment.
+    figure = ET.fromstring(re.search(r"<figure>.*?</figure>", _parseable(html), re.S).group(0))
+    children = [child.tag.rsplit("}", 1)[-1] for child in figure]
+
+    assert children == ["input", "label", "input", "label", "svg"], f"not flat siblings: {children}"
+
+
+@pytest.mark.parametrize("html", [pytest.param(html, id=name) for name, html in _PAGES])
+def test_a_page_with_controls_carries_the_note(html: str) -> None:
+    """Stated both ways, so it catches the note going missing *and* the note appearing on a
+    page with nothing to explain. Both directions were watched failing."""
+    # Escaped, because the note is prose with quotation marks in it and the page escapes
+    # every value it renders. Comparing against the raw constant would never match, and a
+    # test that never matches is one somebody deletes the interesting half of.
+    has_controls = 'class="series-toggle"' in html
+
+    assert has_controls == (
+        escape(interaction.NOTE) in html
+    ), "a page with controls must explain that they dim rather than hide, and a page without them must not"
+
+
+@pytest.mark.parametrize("html", [pytest.param(html, id=name) for name, html in _PAGES])
+def test_every_control_reference_resolves_on_its_own_page(html: str) -> None:
+    """``for=`` pointing at nothing gives a label that does not toggle anything, and a rule
+    keyed on an id that is not there simply never fires. Both fail silently in a browser."""
+    present = set(re.findall(r'\bid="([^"]*)"', html))
+    labelled = set(re.findall(r'<label for="([^"]*)"', html))
+    keyed = set(re.findall(r"#([\w-]+):not\(:checked\)", html))
+
+    assert labelled <= present, f"label for= names {sorted(labelled - present)}, which is not on the page"
+    assert keyed <= present, f"a rule is keyed on {sorted(keyed - present)}, which is not on the page"
+    assert keyed == labelled, "every control must have both a rule and a label"
+
+
+def test_the_index_carries_no_controls() -> None:
+    """The index inlines each page's first figure as a thumbnail inside a link. A checkbox in
+    there would be a control with no explanation beside it, inside something the reader clicks
+    to go elsewhere -- and it is ``aria-hidden``, so it would be a focusable stop announcing
+    nothing.
+
+    Built with a page that *does* have controls on its first figure, because otherwise this
+    passes on a gallery where no page has any -- which is today's gallery. Watched: moving the
+    control emission into the index left the version without this stub green.
+    """
+    from gallery.build import discover
+
+    pages = [*discover(), _stub([("bars", _BAR)], {1: "toggle"})]
+
+    assert pages[-1].examples[0].controls is not None, "the fixture stopped having controls to leak"
+    assert 'class="series-toggle"' not in index_page(pages)
