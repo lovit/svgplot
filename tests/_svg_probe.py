@@ -103,6 +103,21 @@ def strip_document_scope(rule: str) -> str:
     return _DOCUMENT_SCOPE_RE.sub("", rule)
 
 
+def blank_style_bodies(markup: str) -> str:
+    """``markup`` with the contents of every ``<style>`` emptied, leaving the tags.
+
+    For the tests that hand a document to an XML parser. CSS is not markup: a rule holding
+    ``>`` or ``&`` is valid CSS and invalid XML, and a comment mentioning a tag name is enough
+    to make a parser cut a fragment out of the wrong place. Two test modules had each grown
+    their own copy of this regex, which is the shape this module exists to stop.
+
+    ``<style[^>]*>`` rather than ``<style>``: the bare form matches what this package emits
+    today, so a style element that gained an attribute would stop matching and the test would
+    fail on CSS content rather than on markup.
+    """
+    return re.sub(r"(<style[^>]*>).*?(</style>)", r"\1\2", markup, flags=re.S)
+
+
 def style_rules(svg: str) -> list[str]:
     """Every CSS rule in ``svg``'s ``<style>`` blocks, with the document scope stripped.
 

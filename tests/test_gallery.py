@@ -32,6 +32,8 @@ sys.path.insert(0, str(ROOT))
 from gallery.build import discover, write  # noqa: E402
 from gallery.example import REQUIRED  # noqa: E402
 
+from _svg_probe import blank_style_bodies  # noqa: E402
+
 
 def _chart_names() -> set[str]:
     """Every public chart function, taken from the package rather than from a list here."""
@@ -164,11 +166,10 @@ def test_the_index_links_every_page_it_should() -> None:
 def _parseable(markup: str) -> str:
     """The page with its doctype dropped and its ``<style>`` bodies blanked.
 
-    CSS is not markup: a rule holding ``>`` or ``&`` is valid CSS and invalid XML, so the
-    bodies come out before parsing.
+    The blanking is ``_svg_probe.blank_style_bodies``; only the doctype step is local, because
+    only a whole page has one.
     """
-    without_doctype = re.sub(r"^<!doctype html>\n", "", markup, flags=re.I)
-    return re.sub(r"(<style[^>]*>).*?(</style>)", r"\1\2", without_doctype, flags=re.S)
+    return blank_style_bodies(re.sub(r"^<!doctype html>\n", "", markup, flags=re.I))
 
 
 def _chart_style_bodies(markup: str) -> list[str]:
