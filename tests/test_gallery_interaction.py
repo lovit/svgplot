@@ -588,11 +588,21 @@ def test_a_focus_group_dims_the_others_rather_than_lighting_the_one() -> None:
     Same ``opacity`` and the same ``pointer-events`` as a toggle, so the page's one note about
     dimming covers both kinds."""
     page = _stub([("lines", _LINES)], {1: "focus"})
-    rules = [selector for _figure, kind, selector in _page_rules(chart_page(page)) if kind == "focus"]
+    (controls,) = page.examples[0].controls
+    # Straight from the emitter: ``_page_rules`` keeps only rules that name a series class, and
+    # the label half deliberately names none.
+    selectors = [line.split("{")[0].strip() for line in interaction.css(controls).splitlines() if "{" in line]
 
-    assert len(rules) == 2, rules
-    assert "#svgplot-stub-1-focus-1:checked ~ svg :is(.series-2)" in rules[0]
-    assert "#svgplot-stub-1-focus-2:checked ~ svg :is(.series-1)" in rules[1]
+    dim = [selector for selector in selectors if "~ svg" in selector]
+    marked = [selector for selector in selectors if "+ label" in selector]
+
+    assert dim == [
+        "#svgplot-stub-1-focus-1:checked ~ svg :is(.series-2)",
+        "#svgplot-stub-1-focus-2:checked ~ svg :is(.series-1)",
+    ]
+    # ``+``, not ``~``: a radio's own label is the element directly after it, and ``~`` would
+    # reach every later label in the group -- so picking the first would mark all of them.
+    assert marked == ["#svgplot-stub-1-focus-1:checked + label", "#svgplot-stub-1-focus-2:checked + label"]
 
 
 def test_the_all_radio_is_checked_and_has_no_rule() -> None:
@@ -621,9 +631,25 @@ def test_two_focus_figures_on_one_page_are_separate_groups() -> None:
 
 def test_a_focus_control_is_named_by_the_legend_like_a_toggle() -> None:
     """The same refusal a toggle gets: a chart with no legend entry for a series it drew would
-    give that radio an empty accessible name."""
+    give that radio an empty accessible name.
+
+    Two series, one of them named with a tab -- a single-series chart is refused a step earlier
+    for a different reason, so it cannot reach this check."""
+    blank = 'sp.lineplot({"주": [1, 2, 1, 2], "매출": [1.0, 2.0, 3.0, 4.0], "채널": ["\t", "\t", "b", "b"]},'
     with pytest.raises(ValueError, match="no legend entry"):
-        _stub([("one", 'sp.lineplot(SERIES, x="주", y="매출")')], {1: "focus"})
+        _stub([("blank", blank + ' x="주", y="매출", hue="채널")')], {1: "focus"})
+
+
+def test_a_focus_group_needs_two_series_to_choose_between() -> None:
+    """One series makes two radios that do the same thing: picking the line dims nothing, and
+    the page still gets the note about dimming. An earlier version emitted that and called it
+    the page's business -- but ``test_every_control_reference_resolves_on_its_own_page`` refuses
+    it, because the series radio ends up labelled and unruled. The module was documenting as
+    allowed what the suite rejects."""
+    one = 'sp.lineplot({"주": [1, 2, 3], "매출": [1.0, 2.0, 3.0], "채널": ["a", "a", "a"]}, x="주", y="매출", hue="채널")'
+
+    with pytest.raises(ValueError, match="needs two series to choose between"):
+        _stub([("one", one)], {1: "focus"})
 
 
 def test_a_focus_page_gets_the_radio_chrome_and_not_the_checkbox_chrome() -> None:
