@@ -565,3 +565,125 @@ def test_tick_labels_survive_a_domain_smaller_than_six_decimal_places(vmax: floa
     this small every tick label collapses to "0" and the whole ring stops naming anything.
     Every other tick assertion in this file uses whole numbers, where the two agree."""
     assert _texts(_svg({"score": [vmax]}, vmin=0, vmax=vmax), "text", "tick-label") == labels
+
+
+# --------------------------------------------------------------------------------- tooltips
+
+
+def _arc_titles(svg: str) -> list[str]:
+    """The ``<title>`` that is a value arc's first child, in document order.
+
+    Matched through the mark: the chart's own ``<title>`` is here too, and so is the centre
+    number's when its text had to be shortened. The track paths carry no series class.
+    """
+    return re.findall(r'<path\b[^>]*\bclass="series-\d+ gauge-value"[^>]*>\s*<title>([^<]*)</title>', svg)
+
+
+def test_an_arc_says_its_row_its_value_and_the_range_it_is_a_fraction_of() -> None:
+    """The range is the part the picture withholds. A half-full arc means nothing until the
+    reader knows both ends, and ``vmin``'s default is not a rule anyone guesses from looking."""
+    svg = _svg(labels="name", tooltip=True)
+
+    assert _arc_titles(svg) == [
+        "a · score: 30 · of [0, 90]",
+        "b · score: 60 · of [0, 90]",
+        "c · score: 90 · of [0, 90]",
+    ]
+
+
+def test_the_range_said_is_the_range_the_sweep_was_measured_against() -> None:
+    """Not the data's own extent: ``vmin``/``vmax`` replace it, and the whole point of saying
+    the range is that the reader cannot see which one was used. Two charts of the same data
+    with different bounds draw different arcs and must say different things."""
+    default = _arc_titles(_svg(labels="name", tooltip=True))
+    widened = _arc_titles(_svg(labels="name", vmin=-50.0, vmax=200.0, tooltip=True))
+
+    one_row = {"name": ["a"], "score": [30.0]}
+
+    assert default[0].endswith("of [0, 90]")
+    assert widened[0].endswith("of [-50, 200]")
+    assert _value_sweep(_svg(one_row, labels="name")) != _value_sweep(
+        _svg(one_row, labels="name", vmin=-50.0, vmax=200.0)
+    ), "the bounds move the arc, so the tooltip has to say which ones were used"
+
+
+def test_a_value_that_draws_no_arc_gets_no_tooltip() -> None:
+    """A value at or below ``vmin`` produces a zero-length sweep, which this chart omits rather
+    than emit a path some renderers turn into a full circle. There is nothing to hang a name
+    on, and naming a mark that is not there would say the value is missing rather than zero."""
+    data = {"name": ["zero", "some"], "score": [0.0, 50.0]}
+    svg = _svg(data, labels="name", vmin=0.0, vmax=100.0, tooltip=True)
+
+    assert _arc_titles(svg) == ["some · score: 50 · of [0, 100]"], "the zero row draws no arc"
+    assert len(_paths(svg, "gauge-track")) == 2, "but it still gets its track"
+
+
+def test_an_over_range_value_says_its_own_number_not_the_clamped_one() -> None:
+    """The sweep is clamped to the range -- an over-range value reads as a full arc -- but the
+    tooltip says what the row holds. Saying the clamped number would make the tooltip a second
+    picture rather than a reading of the data, and the range beside it is what explains the
+    full arc."""
+    data = {"name": ["over"], "score": [150.0]}
+    svg = _svg(data, labels="name", vmin=0.0, vmax=100.0, tooltip=True)
+
+    assert _arc_titles(svg) == ["over · score: 150 · of [0, 100]"]
+
+
+def test_the_default_draws_no_tooltip_and_saying_so_changes_nothing() -> None:
+    """What this can check is that ``tooltip=False`` is the same call as not writing it, and
+    that no arc is titled. It is deliberately not named for byte-identity with the version
+    before ``tooltip=`` existed, which it cannot see -- both sides are this branch's code.
+    ``docs/gallery/*.html`` holds those bytes."""
+    omitted = _svg(labels="name")
+    explicit = _svg(labels="name", tooltip=False)
+
+    assert omitted == explicit
+    assert _arc_titles(omitted) == []
+
+
+def test_a_label_too_long_to_read_is_left_out_of_the_tooltip() -> None:
+    """The name is written once per arc. Dropped rather than truncated -- half a name is a
+    different name -- and the arc still says its value and its range."""
+    long_name = "면" * 5000
+    data = {"name": [long_name, "b"], "score": [30.0, 60.0]}
+    svg = _svg(data, labels="name", tooltip=True)
+
+    assert _arc_titles(svg) == ["score: 30 · of [0, 60]", "b · score: 60 · of [0, 60]"]
+
+
+def test_every_drawn_arc_gets_exactly_one_tooltip() -> None:
+    """Counted against the arcs the chart drew rather than against a number written here: a
+    value at or below ``vmin`` draws none, so how many marks exist is the data's answer.
+
+    Without this, dropping one arc's tooltip is caught only by the committed gallery golden,
+    whose failure message says to regenerate the file."""
+    data = {"name": ["a", "b", "c", "zero"], "score": [30.0, 60.0, 90.0, 0.0]}
+    svg = _svg(data, labels="name", vmin=0.0, vmax=100.0, tooltip=True)
+
+    assert len(_paths(svg, "gauge-value")) == 3, "the zero row draws no arc"
+    assert len(_arc_titles(svg)) == len(_paths(svg, "gauge-value"))
+
+
+def test_the_range_is_spelled_exactly_not_at_pixel_precision() -> None:
+    """``format_coord`` is next door and rounds to six decimals, because it writes *pixels*.
+    Borrowing it for the bounds would rewrite the one thing the reader cannot get from the
+    picture: ``1e-07`` becomes ``0``, which turns "of [1e-07, 1.23456789]" into a range that
+    starts where the arc does not."""
+    data = {"name": ["a"], "score": [1.0]}
+    svg = _svg(data, labels="name", vmin=1e-07, vmax=1.23456789, tooltip=True)
+
+    assert _arc_titles(svg) == ["a · score: 1 · of [1e-07, 1.23456789]"]
+
+
+def test_the_centre_number_stops_taking_the_pointer_when_the_arcs_have_something_to_say() -> None:
+    """The number sits *on top of* the arcs, in the hole they ring, so it takes the pointer at
+    the middle of the chart -- where the arc's own ``<title>`` is what a reader is reaching for.
+    Its own ``<title>`` only exists when its text had to be shortened, so most of the time the
+    middle answers with nothing at all.
+
+    Conditional for ``treemap``'s reason: with tooltips off there is nothing to put in its
+    place."""
+    data = {"name": ["a"], "score": [30.0]}
+
+    assert ".gauge-number { pointer-events: none; }" in _svg(data, labels="name", tooltip=True)
+    assert "pointer-events" not in _svg(data, labels="name")
