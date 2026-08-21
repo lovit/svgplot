@@ -214,3 +214,114 @@ def test_boxplot_corner_radius_produces_rx_attribute() -> None:
     chart = boxplot(NO_OUTLIER_DATA, x="group", y="value", theme=Theme(corner_radius=4.0))
     svg = chart.to_string()
     assert 'rx="4"' in svg
+
+
+# --------------------------------------------------------------------------------- tooltips
+
+
+def _marks(chart: Chart) -> list[tuple[str, str | None]]:
+    """Every drawn mark as ``(class, its <title> text or None)``, in document order.
+
+    Through the parsed tree rather than a regex, so a mark that lost its ``<title>`` shows up
+    as ``None`` rather than disappearing from the list -- the whole question here is which
+    marks *have* one. The chart's own ``<title>`` is a child of the root ``<svg>``, which
+    carries no ``series`` class, so it is excluded by the filter rather than by position.
+    """
+    root = ET.fromstring(chart.to_string(pretty=False))
+    marks = []
+    for element in root.iter():
+        classes = (element.get("class") or "").split()
+        if not any(name.startswith("series-") for name in classes):
+            continue
+        title = element.find("{http://www.w3.org/2000/svg}title")
+        marks.append((classes[0], None if title is None else title.text))
+    return marks
+
+
+def test_a_box_tooltip_names_its_quartiles_whiskers_and_outlier_count() -> None:
+    chart = boxplot(WITH_OUTLIER_DATA, x="group", y="value", tooltip=True)
+    said = {title for _, title in _marks(chart) if title and not title.endswith(" · outlier")}
+
+    assert said == {"group: a · value: Q1 2 · median 3 · Q3 4 · whiskers: [1, 4] · 1 outlier"}
+
+
+def test_every_mark_of_a_box_says_the_same_thing_and_none_is_left_silent() -> None:
+    """The pointer stops at the topmost element under it, so a mark with no ``<title>`` is a
+    hole in the glyph -- an untitled median line reads as a dead stripe across a box that
+    otherwise responds. Six marks per box: body, median, two stems, two caps.
+
+    Asserted as "every mark has one and the box's are all equal" rather than against the
+    number six, so it stays true if a box ever grows a seventh mark."""
+    marks = _marks(boxplot(NO_OUTLIER_DATA, x="group", y="value", tooltip=True))
+
+    assert marks, "the fixture stopped drawing anything"
+    assert all(title is not None for _, title in marks), "a mark was left without a tooltip"
+    assert len({title for _, title in marks}) == 2, "two boxes, two sentences, repeated across their marks"
+    assert len(marks) == 12, "and each box is six marks"
+
+
+def test_an_outlier_names_its_own_value_because_it_is_one_observation() -> None:
+    """The box is a summary of many rows and cannot name one of them. An outlier circle is a
+    single value, and it repeats the category rather than leaning on the box behind it: the
+    circle is drawn on top and usually outside the box entirely."""
+    marks = _marks(boxplot(WITH_OUTLIER_DATA, x="group", y="value", tooltip=True))
+    circles = [title for _, title in marks if title and title.endswith(" · outlier")]
+
+    assert circles == ["group: a · value: 100 · outlier"]
+
+
+def test_a_box_with_no_outliers_says_nothing_about_outliers() -> None:
+    """``plural(0, "outlier")`` would read "0 outliers", which is a sentence about something
+    that is not on screen. The clause is left out instead."""
+    marks = _marks(boxplot(NO_OUTLIER_DATA, x="group", y="value", tooltip=True))
+
+    assert all(title and "outlier" not in title for _, title in marks)
+
+
+def test_a_hued_box_names_its_group_as_well_as_its_category() -> None:
+    data = {
+        "group": ["a", "a", "a", "b", "b", "b"],
+        "value": [1.0, 2.0, 3.0, 10.0, 12.0, 14.0],
+        "side": ["left", "right", "left", "right", "left", "right"],
+    }
+    # ``if title`` drops the legend swatches, which carry a series class and no tooltip -- the
+    # legend already names the group in text beside them.
+    said = {title for _, title in _marks(boxplot(data, x="group", y="value", hue="side", tooltip=True)) if title}
+
+    assert said, "the fixture stopped drawing boxes"
+    assert all(title.startswith("group: ") and " · side: " in title for title in said)
+    assert {title.split(" · ")[1] for title in said} == {"side: left", "side: right"}
+
+
+def test_the_default_draws_no_tooltip_and_saying_so_changes_nothing() -> None:
+    """What this can check is that ``tooltip=False`` is the same call as not writing it, and
+    that neither titles a mark. It is deliberately not named for byte-identity with the version
+    before ``tooltip=`` existed, which it cannot see -- both sides are this branch's code.
+    ``docs/gallery/*.html`` holds those bytes, and
+    ``test_gallery.py::test_the_committed_gallery_is_what_a_fresh_build_produces`` compares
+    them."""
+    omitted = boxplot(WITH_OUTLIER_DATA, x="group", y="value")
+    explicit = boxplot(WITH_OUTLIER_DATA, x="group", y="value", tooltip=False)
+
+    assert omitted.to_string() == explicit.to_string()
+    assert all(title is None for _, title in _marks(omitted))
+
+
+def test_a_category_too_long_or_too_blank_to_read_is_left_out_of_the_tooltip() -> None:
+    """The category is a string out of the data and it is written once per mark -- six times
+    per box, plus once per outlier, where ``barplot`` writes it once. Uncapped, the two boxes
+    below took the file from 18,345 bytes to 109,479, with seven ``<title>`` elements over
+    4,000 characters and the longest at 5,062. The axis tick showing the same category is
+    already shortened, and so are the column names.
+
+    A category of one tab goes for the other reason: ``"group:  · value: …"`` names the box
+    with a label that is not on screen."""
+    data = {"group": ["면" * 5000] * 3 + ["\t"] * 3, "value": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]}
+    chart = boxplot(data, x="group", y="value", tooltip=True)
+    said = {title for _, title in _marks(chart) if title}
+
+    assert len(chart.to_string().encode()) < 25_000, "the unreadable category was written into the file anyway"
+    assert said == {
+        "value: Q1 1.5 · median 2 · Q3 2.5 · whiskers: [1, 3]",
+        "value: Q1 4.5 · median 5 · Q3 5.5 · whiskers: [4, 6]",
+    }
