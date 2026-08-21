@@ -6,10 +6,11 @@ are shaped specifically against ways this file could pass while asserting nothin
 * The page-level checks run over pages **rendered here**, never over the committed files. A
   disk-reading version stayed green when the note was made unconditional, because the files on
   disk had not changed -- it was measuring staleness, which ``test_gallery.py`` already does.
-* Two of those pages are built by :func:`_stub` and always carry controls. No example module
-  declares ``INTERACTIONS`` yet, so over the real gallery alone every "a page with controls
-  must ..." check would hold over an empty set -- the shape of the ``<img src>`` check that
-  survived the gallery losing every ``<img>`` (#185).
+* Several of the pages here are built by :func:`_stub`. ``ecdfplot`` became the first real
+  page to declare ``INTERACTIONS`` (#207), so the "a page with controls must ..." checks are
+  no longer vacuous on their own -- but one page cannot cover the shapes that matter: a page
+  with *no* controls, a hover-only page, and a chart whose series carries a ``-marker`` class.
+  The stubs are those shapes.
 * ``test_a_rule_names_every_class_its_series_actually_has`` uses ``boxplot``, the one chart
   whose series is two classes. Against any other chart a rule that dropped ``-marker`` would
   look correct.
@@ -57,11 +58,11 @@ _BOX = 'sp.boxplot(QUARTERS, x="분기", y="매출", hue="채널")'
 def _stub(examples: list[tuple[str, str]], interactions: dict[int, str] | None = None, name: str = "stub") -> Page:
     """A gallery page built here rather than committed.
 
-    The controls have to be exercised somewhere, and they cannot be exercised against the
-    committed gallery: this PR's completion condition is that rebuilding ``docs/`` produces no
-    diff, so nothing under ``gallery/examples/`` declares ``INTERACTIONS``. Building a page
-    means these checks measure the emitter itself instead of waiting for a chart PR to make
-    them meaningful.
+    Real pages declare ``INTERACTIONS`` now (``ecdfplot`` was the first, in #207), but only in
+    the combinations those pages happen to want. Building one here is how a check reaches a
+    shape no committed page has -- a hover-only figure, a chart whose series is two classes, a
+    label with characters that have to be escaped -- without waiting for a chart PR that wants
+    exactly that.
     """
     module = types.ModuleType(name)
     module.TITLE = name
@@ -82,10 +83,10 @@ def _rendered() -> list[tuple[str, str]]:
     byte -- instead of measuring the generator. Watched: making the note unconditional left
     the disk-reading version green, because the committed pages on disk had not changed.
 
-    The two built pages are what stops the whole file being vacuous. No example module
-    declares ``INTERACTIONS`` yet, so every real page has zero controls and every "a page with
-    controls must ..." check would hold over an empty set -- the shape of the ``<img src>``
-    check that survived the gallery losing every ``<img>`` (#185).
+    The built pages are what keeps the coverage from depending on which figures the real pages
+    happen to want. Before ``ecdfplot`` declared ``INTERACTIONS`` (#207) they were the *only*
+    thing standing between this file and passing over an empty set -- the shape of the
+    ``<img src>`` check that survived the gallery losing every ``<img>`` (#185).
     """
     from gallery.build import discover  # imported here so a collection error names this file
 
@@ -284,9 +285,11 @@ def test_the_index_carries_no_controls() -> None:
     to go elsewhere -- and it is ``aria-hidden``, so it would be a focusable stop announcing
     nothing.
 
-    Built with a page that *does* have controls on its first figure, because otherwise this
-    passes on a gallery where no page has any -- which is today's gallery. Watched: moving the
-    control emission into the index left the version without this stub green.
+    Built with a page that *does* have controls on its **first** figure, which no real page
+    has: the sixteen chart pages keep example 1 untouched so the index thumbnails do not
+    change, so without this stub the check would pass over a gallery whose first figures are
+    all bare. Watched: moving the control emission into the index left the version without this
+    stub green.
     """
     from gallery.build import discover
 
