@@ -38,6 +38,76 @@ def _elements(chart: Chart, tag: str, class_prefix: str = "") -> list[dict[str, 
     ]
 
 
+def _boxes(chart: Chart) -> list[dict[str, str]]:
+    """Every line a box is drawn with, for a chart that draws no legend.
+
+    A legend swatch is a ``<line>`` carrying the same ``series-N`` class as the marks it
+    stands for, and structurally it is indistinguishable from a whisker cap -- same tag, same
+    class, same zero height. Only its position tells them apart, and a test that filtered on
+    the plot area's right edge would be asserting a layout constant to answer a question about
+    marks.
+
+    So the case is refused rather than guessed at. Every caller here draws without ``hue=``,
+    which is the configuration these tests are about; a legend appears only with ``hue=``, and
+    left unchecked it would arrive as a phantom sixth "box" of one element -- a wrong answer
+    that looks like a real one.
+    """
+    assert not _elements(
+        chart, "text", "legend-text"
+    ), "this chart has a legend, whose swatch is indistinguishable from a whisker cap"
+    return _elements(chart, "line", "series-1")
+
+
+def _by_category(elements: list[dict[str, str]]) -> list[list[dict[str, str]]]:
+    """``elements`` grouped into one list per box, left to right.
+
+    Selecting on ``series-N`` used to do this, back when a box's palette slot was its
+    category. Colour now comes from ``hue=`` and nothing else, so every box without a hue
+    carries ``series-1`` and the class no longer says which category a mark belongs to --
+    which is the point of the change, and a reason to group by something that still does.
+
+    Grouped on the mark's centre, within a tolerance, and the tolerance is measured rather
+    than picked. Every line in one box -- the median across the full width, the two caps at
+    60% of it, the two stems at zero width -- is drawn symmetrically about the same centre, so
+    in exact arithmetic their centres are equal. The *emitted* coordinates are not: each end is
+    rounded to six decimals independently, so a centre recovered from two ends can be off by
+    half of that. Measured across 1 - 20 categories at six canvas widths, the worst spread
+    inside one box is 5e-7px and the smallest gap between two boxes is 7px -- seven orders of
+    magnitude apart, so ``_SAME_BOX`` can sit anywhere in between without being tuned to a
+    fixture.
+
+    Two earlier versions of this got it wrong in opposite ways, and both are worth recording.
+    The first clustered on ``x1`` with a 40px threshold whose docstring claimed the within-box
+    spread was under 30px; it was 105px, a number taken from the fixture. The second claimed
+    the centres were *exact* and used equality -- which passes on this file's two-category
+    fixture, where every coordinate lands integral, and splits a box in two at six categories
+    and in three at eleven. Three is the ceiling, not a measurement: a box emits exactly three
+    distinct x-pairs -- the median across the full width, the two caps, the two zero-width
+    stems -- so equality can separate it into at most three. Nor is it monotonic; seven, eight,
+    ten and twelve categories do not split at all. Neither ``Decimal`` nor rounding to the emitted precision rescues equality,
+    because the two ends are rounded independently and their errors do not cancel.
+    """
+    ordered = sorted(elements, key=_centre)
+    groups: list[list[dict[str, str]]] = []
+    for attributes in ordered:
+        if not groups or _centre(attributes) - _centre(groups[-1][-1]) > _SAME_BOX:
+            groups.append([])
+        groups[-1].append(attributes)
+    return groups
+
+
+def _centre(attributes: dict[str, str]) -> float:
+    return (float(attributes["x1"]) + float(attributes["x2"])) / 2
+
+
+_SAME_BOX = 0.001
+"""How far two marks' centres may differ and still belong to one box.
+
+Two thousand times the worst rounding error and seven thousand times below the smallest gap
+between boxes -- see :func:`_by_category` for both measurements.
+"""
+
+
 def _y_scale(stats_by_category: list[BoxStats]) -> LinearScale:
     """Rebuild the y scale boxplot() derives from the rendered stats — the domain
     spans every whisker *and* every outlier, which is what keeps outliers on-canvas.
@@ -55,11 +125,16 @@ def test_boxplot_renders_for_every_mode(mode: str) -> None:
 
 
 def test_boxplot_draws_one_box_per_distinct_x_category() -> None:
+    """Counted as box bodies, not as palette classes.
+
+    Two categories used to mean ``series-1`` and ``series-2``, so the class count was the box
+    count. Colour follows ``hue=`` alone now, so both boxes are ``series-1`` and the rects are
+    what has to be counted -- which is what the test was ever about.
+    """
     chart = boxplot(NO_OUTLIER_DATA, x="group", y="value")
-    svg = chart.to_string()
-    assert "series-1" in svg
-    assert "series-2" in svg
-    assert "series-3" not in svg
+
+    assert len(_elements(chart, "rect", "series-1-marker")) == 2
+    assert "series-2" not in chart.to_string(), "a category took a palette slot of its own"
 
 
 def test_boxplot_box_spans_exactly_q1_to_q3_in_pixels() -> None:
@@ -107,8 +182,8 @@ def test_boxplot_draws_exactly_five_series_lines_per_category() -> None:
     elements would not catch a missing box: the axes alone emit 12 of them.
     """
     chart = boxplot(NO_OUTLIER_DATA, x="group", y="value")
-    assert len(_elements(chart, "line", "series-1")) == 5
-    assert len(_elements(chart, "line", "series-2")) == 5
+
+    assert [len(category) for category in _by_category(_boxes(chart))] == [5, 5]
 
 
 def test_boxplot_whisker_caps_sit_at_the_whisker_ends() -> None:
@@ -116,7 +191,8 @@ def test_boxplot_whisker_caps_sit_at_the_whisker_ends() -> None:
     chart = boxplot(NO_OUTLIER_DATA, x="group", y="value")
     y_scale = _y_scale([stats, box_stats(NO_OUTLIER_DATA["value"][5:], mode="1.5IQR")])
 
-    _median, _upper_stem, upper_cap, _lower_stem, lower_cap = _elements(chart, "line", "series-1")
+    first_category, _second = _by_category(_boxes(chart))
+    _median, _upper_stem, upper_cap, _lower_stem, lower_cap = first_category
     for cap, whisker in ((upper_cap, stats.whisker_high), (lower_cap, stats.whisker_low)):
         assert float(cap["y1"]) == float(cap["y2"]) == pytest.approx(y_scale(whisker))  # horizontal, at the whisker end
         assert float(cap["x1"]) < float(cap["x2"])  # non-zero width

@@ -56,9 +56,11 @@ HOVER = "hover"
 
 One rule per series -- a toggle emits two, one to dim the marks and one to strike through the
 label, and this has no label to strike. It needs no name either, so unlike :data:`TOGGLE` it
-works on a chart with no legend: ``boxplot`` without ``hue=`` draws one series per category
-(four categories, four series) and emits no legend for any of them, and that is a chart whose
-marks can still be pointed at.
+works on a chart with no legend: ``boxplot`` without ``hue=`` draws every category in one
+unnamed series and emits no legend at all, and that is still a chart whose marks can be
+pointed at. It used to draw one series *per category*, which is where the "four categories,
+four series" this paragraph carried came from; colour follows ``hue=`` now and the count is
+one, but nothing about hover depended on the number.
 
 What it does *not* do is say anything: it is an affordance telling the reader "this one", and
 the value it points at has to come from the mark's own ``<title>``.
@@ -299,8 +301,10 @@ def resolve(figure: str, kind: str, svg: str) -> Controls:
     legend. ``hover`` and ``cell`` need no names, only rules.
 
     What a toggle refuses is a figure with no names to put on its controls -- a chart with no
-    legend at all (a single series, or ``boxplot``'s per-category palette, which is not a
-    legend). What it deliberately does **not** refuse is a chart whose legend names rows
+    legend at all, which is any chart drawing a single series, and since colour stopped
+    following categories that now includes ``boxplot`` and ``violinplot`` without ``hue=``.
+    Having a legend is not the same as having a ``hue=``: ``pieplot``, ``treemap`` and
+    ``heatmap`` all draw one without. What it deliberately does **not** refuse is a chart whose legend names rows
     rather than groups: ``pieplot`` emits a swatch and a label per slice, exactly as a
     ``hue=`` chart does per group, so nothing in the rendered file distinguishes them. That
     "a toggle belongs only where ``hue=`` produced the series" is therefore an editorial

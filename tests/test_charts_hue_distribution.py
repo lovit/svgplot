@@ -81,12 +81,33 @@ def test_a_hue_group_keeps_one_colour_across_every_category(plot) -> None:
 
 
 @pytest.mark.parametrize("plot", PLOTS)
-def test_without_a_hue_the_palette_still_cycles_per_category(plot) -> None:
-    """The other half of the same rule: with nothing else grouping, colour is the only thing
-    telling two categories apart, so it must not collapse to one."""
+def test_without_a_hue_every_category_is_one_colour(plot) -> None:
+    """The other half of the same rule, and the half that changed.
+
+    These charts used to cycle the palette per category, on the grounds that colour was then
+    the only thing telling two of them apart. It is not: a category is named by its axis label
+    and placed by its position, so a rotating palette spends a colour claiming a distinction
+    the colour does not carry -- and it made ``barplot``, which never did this, the odd one
+    out among three charts of the same shape. Colour means ``hue=`` now, in all three.
+    """
     svg = plot(_data(), x="day", y="bill").to_string()
 
-    assert len(_series_classes(svg)) == len(CATEGORIES)
+    assert len(_series_classes(svg)) == 1
+
+
+@pytest.mark.parametrize("plot", PLOTS)
+def test_the_three_category_charts_agree_about_colour(plot) -> None:
+    """Stated across the three rather than inside each, because the defect was the disagreement.
+
+    ``barplot`` drew one colour, ``boxplot`` and ``violinplot`` drew one per category, and
+    nothing compared them -- each had its own test asserting its own behaviour, and both
+    passed. A rule that is meant to hold across a family needs an assertion that spans it.
+    """
+    from svgplot import barplot
+
+    categories = len(_series_classes(barplot(_data(), x="day", y="bill", estimator="mean").to_string()))
+
+    assert len(_series_classes(plot(_data(), x="day", y="bill").to_string())) == categories == 1
 
 
 @pytest.mark.parametrize("plot", PLOTS)

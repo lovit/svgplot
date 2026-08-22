@@ -141,10 +141,13 @@ def boxplot(
     ``hue=`` decides what is compared inside each of those. seaborn's
     ``boxplot(x="day", y="total_bill", hue="smoker")`` is the shape this exists for.
 
-    Colour follows whichever is doing the grouping. Without ``hue=`` the palette cycles per
-    **category**, because colour is then the only thing telling two boxes apart. With it the
-    palette cycles per **hue value**, so the same group is the same colour in every category
-    -- which is the comparison the argument is for -- and a legend names them.
+    Colour follows ``hue=`` and nothing else. Without it every box is one series and one
+    colour: a category is already named by its axis label and placed by its position, and a
+    palette rotating under the boxes would say that the colour means something it does not.
+    With ``hue=`` the palette cycles per **hue value**, so the same group is the same colour in
+    every category -- which is the comparison the argument is for -- and a legend names them.
+    ``barplot`` has always drawn it this way; ``boxplot`` and ``violinplot`` used to cycle per
+    category, and the three now agree.
 
     ``tooltip=True`` gives every mark a ``<title>``. A box's six marks -- body, median line,
     two whisker stems, two caps -- all carry the same sentence: the category, the ``hue=``
@@ -164,11 +167,13 @@ def boxplot(
 
     ``categories=`` replaces the category list this chart would take from its own data, and
     ``ylim=`` its value domain. They exist so several charts can be made to agree -- see
-    :func:`~svgplot.layout.facet.facet`. A category with no rows still gets its band **and
-    its place in the palette**, so the same category is the same colour in every chart
-    sharing the list; it simply has no mark drawn in it. Minting the class for an undrawn
-    category is the point: skipping it would shift every later category's colour, and two
-    panels would disagree about what blue means.
+    :func:`~svgplot.layout.facet.facet`. A category with no rows still gets its band; it simply
+    has no mark drawn in it, so the bands line up across panels. It no longer holds a palette
+    slot, because categories no longer have any -- and that is the whole of what the palette
+    lost here. It does **not** transfer to hue values: nothing shares those between panels, so the
+    same group *can* come out a different colour in each -- it does when a group one panel
+    lacks sorts ahead of a group they share, pushing the shared one down a slot.
+    :func:`~svgplot.layout.facet.facet` documents that as its own open limit.
 
     ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
     call that does not mention them is byte-identical to one written before they existed. The
@@ -276,21 +281,26 @@ def boxplot(
     cap_half_width = slot_width * _WHISKER_CAP_FRACTION / 2
 
     series_classes: list[str] = []
-    # One class per *hue* when there is a hue, one per category when there is not. The two
-    # cannot be merged: with ``hue=`` the same group has to be the same colour in every
-    # category, which is the comparison the argument exists to make; without it, colour is the
-    # only thing telling two categories apart.
-    for _name in hue_values if hue is not None else drawn_categories:
-        # Minted even when this panel has no rows for it, so a shared list keeps one colour
-        # per name across every chart using it.
+    # One class per *hue value*, or a single class for the whole chart when there is no
+    # ``hue=``. Colour means one thing in this package and that thing is ``hue=``: a category
+    # is already told apart by its position and its axis label, so rotating the palette under
+    # the categories would spend the reader's attention claiming a distinction the colour is
+    # not carrying. See ``barplot``, which has always drawn it this way.
+    for _name in hue_values if hue is not None else (None,):
+        # One per hue value this panel actually holds. Nothing is minted for a hue value that
+        # is absent -- `hue_values` comes from this panel's own rows and `facet` does not share
+        # it -- so two panels can colour the same group differently. Not always: the slots only
+        # shift when the group a panel is missing sorts ahead of one they share. A known limit,
+        # recorded in `layout/facet.py`, and it predates this loop: the minting that *was*
+        # shared belonged to `categories=`, which no longer takes colour.
         series_classes.append(document.semantic_class("series"))
 
     for slot, hue_value in enumerate(hue_values):
-        for index, category in enumerate(drawn_categories):
+        for category in drawn_categories:
             stats = stats_by_category.get((category, hue_value))
             if stats is None:
                 continue
-            series_class = series_classes[slot if hue is not None else index]
+            series_class = series_classes[slot if hue is not None else 0]
             marker_class = f"{series_class}-marker"
             center = x_scale(category) + (slot + 0.5) * slot_width
             _render_box(

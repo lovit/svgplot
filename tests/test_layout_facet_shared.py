@@ -170,15 +170,106 @@ def test_a_category_with_no_rows_keeps_its_band_but_draws_no_mark() -> None:
         assert len(bars) == 2, "a bar was drawn for a category with no rows"
 
 
-def test_a_shared_category_keeps_one_colour_across_panels() -> None:
-    """``boxplot`` mints a palette class per category. Skipping the categories a panel has
-    no data for would shift every later one, and 'b' would be a different colour on each
-    side -- the exact confusion sharing the axis was meant to remove."""
+def test_panels_assign_hue_colours_independently() -> None:
+    """The limit this file used to hide behind a per-category invariant, now stated outright.
+
+    ``boxplot`` minted a palette class per category, and a panel skipping an empty category
+    would shift every later colour -- so a shared ``categories=`` list was what kept two panels
+    agreeing. Categories no longer take colour, and it is worth being exact about what that
+    did and did not move: **nothing replaced the sharing.** ``hue_values`` comes from each
+    panel's own rows, and ``facet`` shares ``xlim``/``ylim``/``bins``/``categories`` but not
+    hue values, so a group can take a different palette slot in each. Only *can*: the slots
+    shift when the group one panel lacks sorts ahead of a group they share, and not when it
+    sorts after -- which is why this fixture names them ``Z`` and ``A`` rather than ``L`` and
+    ``R``.
+
+    ``layout/facet.py`` records this as an open limit. Nothing executed it. The first version
+    of this test claimed the opposite -- "the same hue is the same colour in both panels" --
+    and passed, because its fixture named the hues ``L`` and ``R``: sorted, the shared one came
+    first in both panels and landed on slot 1 either way. Renaming them ``Z`` and ``A`` leaves
+    every assertion in that version identical and the property violated.
+    """
+    sparse = {
+        "cat": ["a", "a", "b", "b"] * 2,
+        "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+        "g": ["left"] * 4 + ["right"] * 4,
+        # "Z" is in both panels; "A" only in the right one, and sorts before it.
+        "h": ["Z", "Z", "Z", "Z", "Z", "Z", "A", "A"],
+    }
+    svg = sp.facet(sp.boxplot, sparse, col="g", x="cat", y="v", hue="h").to_string()
+    colour_of_class = dict(re.findall(r"\.(c\d+-series-\d+) \{ stroke: (#[0-9A-Fa-f]{6})", svg))
+    # Read through the *legend*, so the assertion is about which hue got which colour rather
+    # than about which class did. Asserting ``c1-series-2 == "#56B4E9"`` says nothing: the
+    # classes take the palette in order whatever the hues are, so reversing the hue order
+    # leaves every such assertion true and the property under test reversed. That is the flaw
+    # this test was rewritten to remove, and the first rewrite still had it.
+    panels = [
+        {
+            label: colour_of_class[class_name]
+            for class_name, label in re.findall(
+                r'class="(c\d+-series-\d+)"[^>]*/>\s*<text[^>]*class="c\d+-legend-text">([^<]*)<', panel
+            )
+        }
+        for panel in _panels(svg)
+    ]
+
+    assert panels[0] == {"Z": "#E69F00"}, "the left panel holds only Z, which takes the first slot"
+    assert panels[1] == {"A": "#E69F00", "Z": "#56B4E9"}, "the right panel sorts A first, pushing Z to the second"
+    assert panels[0]["Z"] != panels[1]["Z"], "so Z is two different colours — the known limit"
+
+
+@pytest.mark.parametrize("factory", [sp.boxplot, sp.violinplot], ids=["boxplot", "violinplot"])
+def test_a_legend_swatch_names_the_colour_its_own_marks_are_drawn_in(factory: object) -> None:
+    """The half a legend-only reading cannot see.
+
+    ``render_legend`` pairs ``hue_values[i]`` with ``series_classes[i]``, and the marks index
+    the same list. Repaint the marks -- give slot *i* the class of slot ``n - 1 - i`` -- and
+    every legend-based assertion stays true while the swatches name colours the marks do not
+    use. Across the whole suite that mutation was caught by exactly one test: the gallery byte
+    comparison, whose failure message tells you to regenerate the file.
+
+    Checked through *order*, which is what ties the two together: within one category band the
+    marks are drawn in ``hue_values`` order, and the legend lists them in that same order. So a
+    band's marks left to right must carry the legend's classes top to bottom. The fixture gives
+    the right panel a band holding both hues, because a band with one mark per hue value cannot
+    distinguish an ordering from its reverse.
+
+    Both charts, not just ``boxplot``: ``violin.py:357`` has the identical
+    ``series_classes[slot …]`` indexing and the identical ``render_legend`` pairing, so a
+    ``boxplot``-only version would leave the symptom that motivated this test alive in the
+    other half of the pair. It is *not* a general hue-ordering guard -- reversing the sort
+    reverses the legend and the marks together, so the order relation still holds and this test
+    correctly does not fire; ``test_panels_assign_hue_colours_independently`` is what covers
+    that.
+    """
+    both = {
+        "cat": ["a"] * 6 + ["b"] * 6 + ["a"] * 6 + ["b"] * 6,
+        "v": [float(index % 5 + 1) for index in range(24)],
+        "g": ["left"] * 12 + ["right"] * 12,
+        # The right panel's bands hold Z and A; A sorts first, so it takes the left slot.
+        "h": ["Z"] * 12 + ["A"] * 3 + ["Z"] * 3 + ["A"] * 3 + ["Z"] * 3,
+    }
+    right = _panels(sp.facet(factory, both, col="g", x="cat", y="v", hue="h").to_string())[1]  # type: ignore[arg-type]
+    legend = [name for name, _ in re.findall(r'class="(c\d+-series-\d+)"[^>]*/>\s*<text[^>]*>([^<]*)<', right)]
+    band = sorted((float(x), name) for x, name in re.findall(r'<rect x="([\d.]+)"[^>]*class="(c\d+-series-\d+)[^"]*"', right))
+
+    assert len(legend) == 2, f"expected two hue values in the right panel, got {legend}"
+    assert [name for _, name in band][
+        : len(legend)
+    ] == legend, "the leftmost marks do not carry the classes the legend names first"
+
+
+def test_a_category_takes_no_colour_of_its_own_in_any_panel() -> None:
+    """The rule the change above installed, checked where a panel-shaped bug would show.
+
+    Every panel draws its categories in one colour, so no panel's palette can depend on which
+    categories it happens to hold -- which is what the per-category version had to work to
+    guarantee, and now gets by construction.
+    """
     panels = _panels(sp.facet(sp.boxplot, CATEGORIES, col="g", x="cat", y="v").to_string())
     classes = [sorted(set(re.findall(r"series-(\d+)", panel))) for panel in panels]
-    assert classes[0], "no series classes found — the pattern is not matching"
 
-    assert classes[0] == classes[1] == ["1", "2", "3"]
+    assert classes[0] == classes[1] == ["1"]
 
 
 # ---------------------------------------------------------------------------
@@ -287,10 +378,16 @@ def test_a_categorical_chart_shares_its_value_axis_too(factory: object) -> None:
 
 
 @pytest.mark.parametrize("factory", [sp.boxplot, sp.violinplot], ids=["boxplot", "violinplot"])
-def test_a_shared_category_keeps_one_colour_across_panels_everywhere(factory: object) -> None:
+def test_every_panel_colours_its_categories_the_same_way(factory: object) -> None:
     """``violinplot`` was left out of the original version of this check, so the issue's
     "bar/box/violin" criterion was two thirds met. It needs at least two values per category
-    to estimate a density, which is why this fixture is richer than ``CATEGORIES``."""
+    to estimate a density, which is why this fixture is richer than ``CATEGORIES``.
+
+    One class per panel now, not three: a category no longer takes a palette slot, so the
+    thing this used to guard -- a skipped category shifting every later colour -- cannot
+    arise. What is left worth pinning is that both panels agree, which they do trivially and
+    would stop doing if one of the two charts drifted back.
+    """
     data = {
         "cat": ["a", "a", "b", "b", "b", "b", "c", "c"],
         "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
@@ -299,7 +396,7 @@ def test_a_shared_category_keeps_one_colour_across_panels_everywhere(factory: ob
     panels = _panels(sp.facet(factory, data, col="g", x="cat", y="v").to_string())  # type: ignore[arg-type]
     classes = [sorted(set(re.findall(r"series-(\d+)", panel))) for panel in panels]
 
-    assert classes[0] == classes[1] == ["1", "2", "3"]
+    assert classes[0] == classes[1] == ["1"]
 
 
 @pytest.mark.parametrize("orient", ["v", "h"])
