@@ -176,9 +176,6 @@ def placed_panels(svg: str) -> list[str]:
     read as yet another. Panels are the composition root's own children; a clip is a
     grandchild inside one of them.
     """
-    import xml.etree.ElementTree as ET
-
-    ET.register_namespace("", _SVG_NS)
     root = ET.fromstring(svg)
     return [
         ET.tostring(child, encoding="unicode")
