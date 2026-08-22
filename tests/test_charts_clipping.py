@@ -5,7 +5,9 @@ the view" (``chart/_domain.py``). Nothing clipped it. Every one of the ten chart
 its marks at whatever pixel the replaced domain mapped them to -- over the axis, through the
 tick labels, off the canvas -- and each chart's own tests stayed green because none of them
 asked where the ink landed. ``layout/facet.py`` had already recorded the symptom from the
-other side: a bar 57.8px above the plot area "with nothing clipping it and no warning".
+other side: a bar drawn 57.8px above the plot area, which nothing cut and nothing warned about.
+(That note is in this diff too -- the half of its sentence describing the absence of a clip is
+no longer true and had to go.)
 
 The two tests here are halves of one statement: with a limit, no mark outside the plot area;
 without one, the same bytes as before any of this existed.
@@ -156,7 +158,9 @@ def _mark_extent(svg: str) -> tuple[float, float]:
 @pytest.mark.parametrize("name", sorted(CHARTS))
 def test_a_narrowing_limit_leaves_no_mark_outside_the_plot_area(name: str) -> None:
     """The bug, as a measurement. Before the clip existed every one of these ten drew ink past
-    the plot area -- ``violinplot`` reached 1770px on a 600px canvas, ``areaplot`` 1330px."""
+    the plot area: on the fixture below, with ``marks_viewport`` returning ``None``,
+    ``violinplot`` spans -2071..1819 and ``areaplot`` -4910..1330 on a 600px canvas whose plot
+    area is 30..550."""
     svg = CHARTS[name](ylim=_window(name)).to_string()
     root = ET.fromstring(svg)
     clips = [element for element in root.iter(f"{{{_SVG_NS}}}svg") if CLIP_CLASS in (element.get("class") or "").split()]
@@ -238,12 +242,12 @@ VARIANTS: dict[str, tuple[dict[str, object], ...]] = {
 """Per chart, the option combinations that change *which marks exist* -- not how they look.
 
 A defaults-only sweep leaves whole code paths unvisited, and an escaped mark on one of them is
-invisible: reparenting one mark at a time to the document root, thirteen of twenty-two
+invisible: reparenting one mark at a time to the document root, thirteen of the twenty-one
 mutations survived the entire suite before this table existed -- every ``boxplot`` mark, all
 three ``regplot`` marks, both ``violinplot`` inner marks, and ``areaplot``'s stacked band.
 
 So: ``regplot`` without its band and without its points, ``violinplot`` without its inner box
-and median tick, ``scatterplot`` with the size legend that ``render_size_legend`` draws as
+and median tick, ``scatterplot`` with the size legend that ``_render_size_legend`` draws as
 circles at the document root, stacked bands and bars, and ``hue=`` everywhere it is taken
 (which is what puts a legend beside the marks). ``boxplot``'s outliers need no variant -- the
 fixture draws one. Options that only restyle an existing mark (``interpolate=``, ``bins=``,
@@ -327,3 +331,24 @@ def test_a_lone_chart_has_no_placed_panels() -> None:
 
     assert CLIP_CLASS in lone, "this fixture is meant to carry a clip"
     assert placed_panels(lone) == []
+
+
+def test_a_limit_a_chart_discards_draws_no_clip() -> None:
+    """``barplot`` reads its value limit off the axis the values run along: ``xlim=`` when
+    ``orient="h"``, ``ylim=`` otherwise. The other one names the *category* axis and is thrown
+    away by ``apply_limit`` -- so clipping on it would wrap the bars in a viewport because of an
+    argument that changed nothing, and the output would stop being byte-identical to the same
+    call without it.
+
+    Its own variant in ``VARIANTS`` passes the limit the chart uses, so it cannot see this. The
+    predicate before the fix (``xlim is not None or ylim is not None``) survived all 3,828 tests.
+    """
+    horizontal = {"orient": "h"}
+    for options, used, discarded in ((horizontal, "xlim", "ylim"), ({}, "ylim", "xlim")):
+        plain = CHARTS["barplot"](**options).to_string()
+        with_discarded = CHARTS["barplot"](**options, **{discarded: DEFAULT_WINDOW}).to_string()
+        with_used = CHARTS["barplot"](**options, **{used: DEFAULT_WINDOW}).to_string()
+
+        assert with_discarded == plain, f"{options}: {discarded}= is discarded but changed the output"
+        assert CLIP_CLASS not in with_discarded, f"{options}: {discarded}= is discarded but drew a clip"
+        assert CLIP_CLASS in with_used, f"{options}: {used}= is the limit this chart applies and drew no clip"
