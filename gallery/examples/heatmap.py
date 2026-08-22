@@ -27,7 +27,7 @@ EXAMPLES = [
     ('기본 — cmap= 기본값은 순차 컬러맵 "blues" 다', 'sp.heatmap(TRAFFIC, x="시각", y="요일", values="요청")'),
     ("annot=True 는 셀 안에 값을 쓴다", 'sp.heatmap(TRAFFIC, x="시각", y="요일", values="요청", annot=True)'),
     (
-        "cmap= 을 발산으로 바꾸고 center= 로 가운데 단계를 정한다 — annot= 도 함께 켠 그림",
+        "cmap= 을 발산으로 바꾸고 center= 로 가운데 단계를 정한다 — annot= 도 함께 켰다",
         """DIFF = {
     "시각": TRAFFIC["시각"],
     "요일": TRAFFIC["요일"],
