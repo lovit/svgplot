@@ -152,7 +152,9 @@ def areaplot(
     undefined there, and both alternatives silently draw a different chart than the data.
 
     There is no ``yscale=``. An area chart's filled region *is* the quantity, measured from
-    zero -- which is why ``0.0`` is forced into the y domain a few lines below. A log axis has
+    zero -- which is why ``0.0`` is put into the y domain a few lines below. (``ylim=`` replaces
+    that domain rather than widening it, so a window excluding zero drops it; the fill then runs
+    past the plot area, which is a defect of its own and not an argument for a log axis.) A log axis has
     no zero to measure from, so the fill would have to start somewhere arbitrary and its area
     would stop being proportional to anything. That is not an area chart with a log axis; it
     is a different chart, and offering the argument would only let a caller ask for it and get
@@ -167,9 +169,10 @@ def areaplot(
 
     **There is no ``tooltip=``.** Ten charts have one; these six do not, and the reason is the
     same for all six: a series is drawn as **one** mark, so the only thing a ``<title>`` on it
-    could say is the series name -- which the legend already says, in the same colour, without
-    the reader having to find and hold the pointer. A tooltip earns its element when a mark is
-    one row or one bin; here it would repeat the legend once per series.
+    could say is the series name. With ``hue=`` the legend already says that, in the same
+    colour, without the reader having to find and hold the pointer; without ``hue=`` there is
+    no legend and no name to say. A tooltip earns its element when a mark is one row or one
+    bin -- here it would repeat the legend, or repeat nothing.
 
     A stacked area is the case where a per-row tooltip would be worth most -- a band's thickness
     at one x is a number the picture does not print -- and it is also where one ``<path>`` per

@@ -247,25 +247,32 @@ reason lives in their docstrings now, and this is what keeps it there.
 """
 
 
-@pytest.mark.parametrize("name", _WITHOUT_TOOLTIP)
-def test_a_chart_without_a_tooltip_says_why(name: str) -> None:
+@pytest.mark.parametrize("name", sorted(_charts()))
+def test_the_marker_sentence_appears_exactly_where_it_belongs(name: str) -> None:
     """Not having the argument is a position; an unexplained absence is not.
 
-    The gallery had the reasoning all along -- a ``fill: none`` line's hit area is its 2px
-    stroke, one ``<path>`` per series means the only thing to say is the series name -- but a
-    reader working from ``help()`` never sees the gallery.
+    The gallery had the reasoning all along -- one ``<path>`` per series means the only thing to
+    say is the series name -- but a reader working from ``help()`` never sees the gallery.
 
-    Matched on :data:`_DECLINES_TOOLTIP`, a fixed sentence, **not on the word "tooltip"**. The
-    word was tried and is too weak: these paragraphs use it more than once, so deleting the
-    sentence that states the position leaves the word behind in the explanation and the check
-    passes. A fixed phrase is the same device ``test_theme_fields`` uses for its dead fields,
-    and for the same reason -- the marker has to be the proposition, not a topic.
+    **A biconditional over all sixteen, not an implication over six.** The first version
+    parametrized only :data:`_WITHOUT_TOOLTIP` and asserted presence, which left the other half
+    unwatched: pasting the marker into ``barplot`` -- a chart that *takes* ``tooltip=`` -- ran
+    the whole suite green. ``test_theme_fields`` is cited as the precedent for the fixed-phrase
+    device, and that file gets this right (``reaches_the_output != denies_it`` over every
+    field); this had copied the phrase and dropped the shape.
+
+    Matched on :data:`_DECLINES_TOOLTIP` rather than on the word "tooltip". The word is too
+    weak: these paragraphs use it more than once, so deleting the sentence that states the
+    position leaves the word behind in the explanation and the check passes.
     """
     import svgplot as sp
 
     prose = (getattr(sp, name).__doc__ or "").split("Raises:")[0]
+    takes_one = "tooltip" in inspect.signature(getattr(sp, name)).parameters
 
-    assert _DECLINES_TOOLTIP in prose, f"{name} takes no tooltip= and does not say why"
+    assert (
+        _DECLINES_TOOLTIP in prose
+    ) is not takes_one, f"{name} takes tooltip={takes_one} but its docstring says the opposite"
 
 
 def test_the_two_lists_together_are_every_chart() -> None:

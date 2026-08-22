@@ -246,13 +246,16 @@ def lineplot(
 
     **There is no ``tooltip=``.** Ten charts have one; these six do not, and the reason is the
     same for all six: a series is drawn as **one** mark, so the only thing a ``<title>`` on it
-    could say is the series name -- which the legend already says, in the same colour, without
-    the reader having to find and hold the pointer. A tooltip earns its element when a mark is
-    one row or one bin; here it would repeat the legend once per series.
+    could say is the series name. With ``hue=`` the legend already says that, in the same
+    colour, without the reader having to find and hold the pointer; without ``hue=`` there is
+    no legend and no name to say. A tooltip earns its element when a mark is one row or one
+    bin -- here it would repeat the legend, or repeat nothing.
 
-    ``lineplot`` has the sharper version of the problem: it emits ``fill: none``, so a series'
-    hit area is the stroke itself -- 2px under the default theme, 2.5px under ``print``. The
-    ``<title>`` would attach fine and be almost unreachable.
+    A second reason applies to five of the six, this one included: they emit ``fill: none``, so
+    a series' hit area is the stroke itself -- 2px under the default theme, 2.5px under
+    ``print``, 3.2px under the ``poster`` context. The ``<title>`` would attach fine and be
+    almost unreachable. ``areaplot`` is the exception; its fill is a real target, and only the
+    one-mark reason above applies there.
 
     Raises:
         ValueError: if ``x`` holds a type with no position on an axis (``datetime.time`` is

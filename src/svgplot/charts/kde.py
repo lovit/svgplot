@@ -144,9 +144,10 @@ def kdeplot(
 
     **There is no ``tooltip=``.** Ten charts have one; these six do not, and the reason is the
     same for all six: a series is drawn as **one** mark, so the only thing a ``<title>`` on it
-    could say is the series name -- which the legend already says, in the same colour, without
-    the reader having to find and hold the pointer. A tooltip earns its element when a mark is
-    one row or one bin; here it would repeat the legend once per series.
+    could say is the series name. With ``hue=`` the legend already says that, in the same
+    colour, without the reader having to find and hold the pointer; without ``hue=`` there is
+    no legend and no name to say. A tooltip earns its element when a mark is one row or one
+    bin -- here it would repeat the legend, or repeat nothing.
 
     ``fill=True`` gives the curve an interior and so a real hit area, but not a second thing to
     say: the mark is still the whole series.
