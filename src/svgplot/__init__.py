@@ -24,6 +24,12 @@ from svgplot.charts import (
     treemap,
     violinplot,
 )
+
+# ``Estimator`` comes from the private module rather than through ``svgplot.charts``: that
+# package's ``__all__`` means "the sixteen chart functions", and two test registries derive
+# themselves from it (``test_markdown_embedding``, ``test_charts_describe``). Re-exporting a
+# type alias there made both of them believe a seventeenth chart had shipped.
+from svgplot.charts._aggregate import Estimator
 from svgplot.labels import LabelSpec
 from svgplot.layout import add_caption, apply_size, column, facet, grid, row
 from svgplot.theme import PRESETS, Theme, apply_context, parametric_theme
@@ -36,6 +42,7 @@ __all__ = [
     "AggregationWarning",
     "Chart",
     "Composition",
+    "Estimator",
     "HeatmapSizeWarning",
     "LabelSpec",
     "SvgplotWarning",
