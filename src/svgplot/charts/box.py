@@ -6,6 +6,7 @@ from svgplot._svg import SvgDocument
 from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, fit_rotated_labels, render_x_axis, render_y_axis
+from svgplot.charts._categorical import NO_HUE, group_by_category
 from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
@@ -22,7 +23,6 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
-from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import CategoricalScale, LinearScale
 from svgplot.stats.box import BoxStats, box_stats
@@ -31,39 +31,6 @@ from svgplot.theme.css import render_theme_style
 
 _BOX_WIDTH_FRACTION = 0.6  # of the category band
 _WHISKER_CAP_FRACTION = 0.3  # of the category band, centered
-
-
-NO_HUE = ""
-"""The single hue slot a chart drawn without ``hue=`` has.
-
-A sentinel rather than a branch: one code path that draws N boxes per band, where N is 1
-unless a hue says otherwise, is what keeps the no-hue geometry exactly what it was.
-"""
-
-
-def group_by_category(columns: dict[str, list], x: str, y: str, hue: str | None = None) -> dict[tuple[str, str], list[float]]:
-    """Drop rows with a missing x or y value, then bucket y values by (category, hue).
-
-    Preserves first-seen order on both axes, so categories render left-to-right and hue
-    groups slot within a band in the order they first appear in the data rather than an
-    arbitrary sort -- the rule every other chart here already follows.
-    """
-    groups: dict[tuple[str, str], list[float]] = {}
-    # ``columns[hue]`` rather than a guarded lookup: a hue naming no column is a ``KeyError``,
-    # which is what this function's callers document and what every other chart raises.
-    hues = columns[hue] if hue is not None else None
-    for index, (xv, yv) in enumerate(zip(columns[x], columns[y], strict=True)):
-        # ``is_missing`` rather than ``is None``: a NaN category label is not a category, and
-        # letting it through buckets those rows under the string "nan". ``violinplot`` already
-        # filtered this way and ``boxplot`` did not, which is exactly the kind of disagreement
-        # sharing this function is meant to end.
-        if is_missing(xv) or is_missing(yv):
-            continue
-        hue_value = NO_HUE if hues is None else hues[index]
-        if is_missing(hue_value):
-            continue
-        groups.setdefault((str(xv), str(hue_value)), []).append(float(yv))
-    return groups
 
 
 def _where(x: str, category: str, hue: str | None, hue_value: str) -> list[str]:

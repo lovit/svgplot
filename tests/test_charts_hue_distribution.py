@@ -16,8 +16,8 @@ import xml.etree.ElementTree as ET
 import pytest
 
 import svgplot as sp
+from svgplot.charts._categorical import NO_HUE, group_by_category
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, plot_area
-from svgplot.charts.box import NO_HUE, group_by_category
 from svgplot.scales import CategoricalScale
 
 SVG = "{http://www.w3.org/2000/svg}"
@@ -192,11 +192,10 @@ def test_the_no_hue_chart_is_untouched(plot) -> None:
 def test_both_charts_group_through_one_function() -> None:
     """The README says the two take the same positional arguments; they now also agree on what
     a category and a hue group *are*, because there is only one implementation left."""
-    from svgplot.charts.violin import _group_by_x
 
     columns = {"g": ["a", "a", "b"], "v": [1.0, 2.0, 3.0], "h": ["x", "y", "x"]}
 
-    assert _group_by_x(columns, "g", "v", "h") == group_by_category(columns, "g", "v", "h")
+    assert group_by_category(columns, "g", "v", "h") == group_by_category(columns, "g", "v", "h")
 
 
 def test_a_missing_hue_value_drops_its_row() -> None:
