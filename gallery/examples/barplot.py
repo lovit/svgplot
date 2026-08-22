@@ -24,6 +24,10 @@ sp.barplot(ONE_ROW, x="분기", y="매출")""",
     ("stacked=True 는 같은 자리에 쌓는다", 'sp.barplot(QUARTERS, x="분기", y="매출", hue="채널", stacked=True)'),
     ('orient="h" 는 카테고리를 왼쪽 축으로 보낸다', 'sp.barplot(QUARTERS, x="분기", y="매출", hue="채널", orient="h")'),
     (
+        "categories= 는 카테고리 축을 데이터가 아니라 목록이 정하게 한다 — 없는 분기도 자리를 갖는다",
+        'sp.barplot(QUARTERS, x="분기", y="매출", hue="채널", categories=("1분기", "2분기", "3분기", "4분기", "5분기"))',
+    ),
+    (
         "tooltip=True — 막대마다 자기 카테고리와 값을 말한다",
         'sp.barplot(QUARTERS, x="분기", y="매출", hue="채널", stacked=True, tooltip=True)',
     ),
@@ -32,6 +36,8 @@ sp.barplot(ONE_ROW, x="분기", y="매출")""",
 INTERACTIONS = {2: "toggle", 3: "toggle"}
 
 NOTES = [
+    "다섯 번째의 categories= 는 카테고리 축을 데이터가 아니라 목록이 정하게 한다. 데이터에 없는 5분기도 밴드를 갖고 "
+    "막대만 없다 — 여러 차트의 카테고리 축을 맞출 때 쓰고, facet 이 패널마다 이것을 넘겨 축을 공유한다.",
     "두 번째와 세 번째 그림에 체크박스가 붙어 있다. 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.",
     "세 번째(누적)가 이 갤러리에서 흐리게 하는 쪽을 고른 이유를 가장 잘 보여준다. 한 층을 꺼도 막대의 전체 높이가 그대로 있다 — "
     "감췄다면 남은 층이 아래로 내려앉아 일어나지 않은 재배치를 주장했을 것이다.",
