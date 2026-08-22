@@ -38,7 +38,7 @@ _CHANNELS = ("data", "x", "y", "hue", "size", "values", "labels")
 """Positional-or-keyword parameters: what the chart is drawn *from*.
 
 ``value`` is deliberately absent. It was here while ``gaugeplot`` took the singular, and leaving
-it would contradict :data:`_SYNONYMS` four constants below, which forbids that spelling -- and
+it would contradict :data:`_SYNONYMS`, further down this file, which forbids that spelling -- and
 it would cost a guard. Measured, reverting ``gaugeplot`` to the singular:
 
 * with ``value`` in this tuple -- one failure, the synonym test alone;
@@ -217,12 +217,12 @@ def test_a_chart_uses_the_shared_vocabulary_or_declares_its_own(name: str) -> No
     """
     kwargs = {parameter for parameter, spec in _parameters(name).items() if spec.kind is inspect.Parameter.KEYWORD_ONLY}
     # Channels are deliberately *not* blanket-exempt here. Adding ``_CHANNELS`` to this set was
-    # tried, to let ``gaugeplot``'s keyword-only ``labels`` through, and it opened the hole this
-    # check exists to close: ``barplot`` renaming ``categories`` to ``labels`` -- near-synonyms,
-    # and ``pieplot``/``treemap`` already use ``labels`` for the human concept -- then passed
-    # every test in this file while silently losing category sharing under ``facet``. The
-    # exemption belongs to the one chart that needs it, where it is a table entry somebody has
-    # to justify, not an eight-word blanket.
+    # tried once, so that ``gaugeplot`` could keep a keyword-only ``labels``, and it opened the
+    # hole this check exists to close: ``barplot`` renaming ``categories`` to ``labels`` --
+    # near-synonyms, and ``pieplot``/``treemap`` already use ``labels`` for the human concept --
+    # then passed every test in this file while silently losing category sharing under
+    # ``facet``. Nothing needs the blanket now: ``gaugeplot`` takes ``labels`` positionally like
+    # its two siblings, so it is a channel and never reaches this check at all.
     shared = set(_CROSS_CUTTING) | set(_UNIVERSAL) | set(_DOMAIN)
 
     unknown = kwargs - shared - _CHART_OPTIONS[name]
@@ -316,8 +316,11 @@ def test_a_chart_never_invents_a_second_word_for_a_shared_concept(name: str) -> 
     :func:`test_a_chart_uses_the_shared_vocabulary_or_declares_its_own`, which is what a first
     version of this docstring claimed. That check filters to keyword-only parameters, and the
     defect this file was written for -- ``gaugeplot``'s singular ``value`` -- was
-    positional-or-keyword, so it sailed past. Measured: revert the rename and this is the only
-    assertion in the file that fires.
+    positional-or-keyword, so it sailed past. Measured: revert the rename and two assertions
+    fire, this one and :func:`test_everything_but_the_channels_is_keyword_only`; this is the
+    only one that names the *spelling* rather than reporting a positional parameter that is not
+    a channel. (An earlier draft said "the only assertion", which was true before ``value`` was
+    dropped from :data:`_CHANNELS` four paragraphs up -- the same edit that made it false.)
 
     The distinction matters for the same reason the vocabulary check has a chart-options table:
     a name is either a channel, where the vocabulary check does not look, or an option, where
