@@ -54,7 +54,7 @@ three for ``info`` -- so it sits closest to the universal block.
 _DOMAIN = ("categories", "xlim", "ylim", "xscale", "yscale")
 """What the axes span, after ``theme``.
 
-**A new domain parameter goes here**, not into a chart's own options. ``layout/facet.py:31-33``
+**A new domain parameter goes here**, not into a chart's own options. ``layout/facet.py:31-32``
 already names three that are waiting -- ``heatmap``'s value-to-colour scale, and the radial
 extent of ``radarplot``/``gaugeplot``. Landing one as, say, ``rlim=`` in the usual place fails
 :func:`test_every_chart_orders_its_keyword_block_the_same_way` with a message naming the
@@ -168,7 +168,10 @@ _CHART_OPTIONS = {
     "barplot": {"orient", "stacked", "estimator"},
     "boxplot": {"mode"},
     "ecdfplot": {"stat", "complementary"},
-    "gaugeplot": {"vmin", "vmax"},
+    # ``labels`` is this chart's own option today: ``pieplot``/``treemap`` take it positionally
+    # as a channel and ``gaugeplot`` declares it keyword-only. That disagreement is real and has
+    # its own issue; until it is settled this is where the name lives.
+    "gaugeplot": {"vmin", "vmax", "labels"},
     "heatmap": {"cmap", "center", "annot"},
     "histplot": {"bins"},
     "kdeplot": {"bandwidth", "fill"},
@@ -206,11 +209,14 @@ def test_a_chart_uses_the_shared_vocabulary_or_declares_its_own(name: str) -> No
     Partitioning against a vocabulary catches that, because ``x_range`` belongs to no bucket.
     """
     kwargs = {parameter for parameter, spec in _parameters(name).items() if spec.kind is inspect.Parameter.KEYWORD_ONLY}
-    # ``_CHANNELS`` too: a channel is shared vocabulary wherever it sits, and ``gaugeplot``
-    # currently declares ``labels`` keyword-only where ``pieplot``/``treemap`` take it
-    # positionally. That disagreement is real and has its own issue; it is not this check's
-    # business, which is only whether the *word* is one the package already uses.
-    shared = set(_CROSS_CUTTING) | set(_UNIVERSAL) | set(_DOMAIN) | set(_CHANNELS)
+    # Channels are deliberately *not* blanket-exempt here. Adding ``_CHANNELS`` to this set was
+    # tried, to let ``gaugeplot``'s keyword-only ``labels`` through, and it opened the hole this
+    # check exists to close: ``barplot`` renaming ``categories`` to ``labels`` -- near-synonyms,
+    # and ``pieplot``/``treemap`` already use ``labels`` for the human concept -- then passed
+    # every test in this file while silently losing category sharing under ``facet``. The
+    # exemption belongs to the one chart that needs it, where it is a table entry somebody has
+    # to justify, not an eight-word blanket.
+    shared = set(_CROSS_CUTTING) | set(_UNIVERSAL) | set(_DOMAIN)
 
     unknown = kwargs - shared - _CHART_OPTIONS[name]
 
@@ -245,8 +251,13 @@ def test_facet_passes_only_names_this_file_pins() -> None:
 
     A first version read only ``_HORIZONTAL`` and claimed in its own docstring to catch "a fifth
     override added there". It did not: ``ylim`` is built at ``facet.py:189``, outside that
-    tuple, and a sixth line inserted next to it left this file green. The assignments are where
-    a new override has to appear, so that is what gets read.
+    tuple, and a sixth line inserted next to it left this file green.
+
+    **Literal-key subscript assignments only**, which is narrower than "the assignments":
+    ``overrides.update({...})`` and a computed key both escape this walk. That is a real gap and
+    the honest bound on what this asserts -- every override in ``facet`` today is written as a
+    literal subscript, and a future one written another way would need this widened. Naming the
+    limit is worth more than a walk that pretends to cover shapes it does not.
 
     ``import_module``, not ``import svgplot.layout.facet``: ``layout/__init__.py`` re-exports
     the *function* under that name, so the dotted form binds the callable and the module is
