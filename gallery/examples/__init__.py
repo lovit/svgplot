@@ -30,7 +30,7 @@ Conventions for the prose, which is the half nothing executes:
 default shows>``: bare ``기본`` tells a reader nothing, and the caption is the figure's
 ``aria-label``, so it is the only description a screen reader gets. After that a caption names
 the argument it is demonstrating, spelled the way it is passed (``stat="count"``, ``fill=True``,
-``hue=``), and says what that does to the picture. Two shapes are allowed to end in a noun, and seven
+``hue=``), and says what that does to the picture. Two shapes are allowed to end in a noun, and six
 captions use them: one naming the value or size the figure was given (``기본 — 120x24``,
 ``기본 — mode="1.5IQR"``, ``theme= 는 … 받는다 — 여기서는 "dark"``) and one naming the
 condition the figure is for (``xscale="log" — x 가 자릿수로 벌어질 때``). Nothing else may end in a noun phrase, and no

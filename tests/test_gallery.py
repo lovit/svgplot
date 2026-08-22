@@ -13,6 +13,7 @@ an example file, and every page is well-formed with its figures present.
 from __future__ import annotations
 
 import ast
+import importlib
 import re
 import sys
 import tempfile
@@ -363,11 +364,11 @@ _ORDINALS = {"첫": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "
 
 _ORDINAL = re.compile(rf"(?<![가-힣])({'|'.join(_ORDINALS)})\s*번째")
 
-_NOT_A_FIGURE = ("다섯 번째 슬롯", "그 두 번째다")
+_NOT_A_FIGURE = {("histplot", "다섯 번째 슬롯"), ("regplot", "그 두 번째다")}
 """Ordinals in NOTES that count something other than figures.
 
 An exclusion list rather than a pattern for what a reference *looks* like, because the first
-attempt at the latter went the wrong way: it matched ``번째 그림`` and four particles, and
+attempt at the latter went the wrong way: it matched ``번째 그림``, five particles and three punctuation marks, and
 quietly dropped five real references written some other way -- ``다섯 번째가``, ``세 번째가``,
 ``(네 번째)은``, ``(다섯 번째)는``, ``네 번째와 다섯 번째 모두``. One of them was the only
 pointer to ``lineplot``'s fifth figure, and losing it turned the guard below off for that page
@@ -380,14 +381,15 @@ another; both sit in range today only because their pages happen to be long enou
 """
 
 
-def _without_exceptions(note: str) -> str:
-    for phrase in _NOT_A_FIGURE:
-        note = note.replace(phrase, "")
+def _without_exceptions(note: str, page: str) -> str:
+    for owner, phrase in _NOT_A_FIGURE:
+        if owner == page:
+            note = note.replace(phrase, "")
     return note
 
 
-def _cited_figures(notes: list[str]) -> set[int]:
-    return {_ORDINALS[match[1]] for note in notes for match in _ORDINAL.finditer(_without_exceptions(note))}
+def _cited_figures(notes: list[str], page: str) -> set[int]:
+    return {_ORDINALS[match[1]] for note in notes for match in _ORDINAL.finditer(_without_exceptions(note, page))}
 
 
 def test_no_note_points_past_the_last_figure() -> None:
@@ -399,7 +401,7 @@ def test_no_note_points_past_the_last_figure() -> None:
     page declares the answer in ``INTERACTIONS`` and the sentence can be checked against it.
     """
     overflowing = [
-        (page.name, sorted(number for number in _cited_figures(page.notes) if number > len(page.examples)))
+        (page.name, sorted(number for number in _cited_figures(page.notes, page.name) if number > len(page.examples)))
         for page in discover()
     ]
 
@@ -409,11 +411,20 @@ def test_no_note_points_past_the_last_figure() -> None:
 def test_every_exception_to_the_ordinal_audit_is_still_in_use() -> None:
     """An exclusion list is only safe while every entry earns its place. One left behind after
     its sentence is rewritten silently exempts whatever text drifts into the same shape."""
-    notes = " ".join(note for page in discover() for note in page.notes)
+    by_page = {page.name: " ".join(page.notes) for page in discover()}
+    unused = [(owner, phrase) for owner, phrase in _NOT_A_FIGURE if phrase not in by_page.get(owner, "")]
 
-    assert all(
-        phrase in notes for phrase in _NOT_A_FIGURE
-    ), f"unused exceptions: {[phrase for phrase in _NOT_A_FIGURE if phrase not in notes]}"
+    assert not unused, f"exceptions no longer on the page that justifies them: {unused}"
+
+    # And each must be the *whole* phrase that makes it a non-reference: an ordinal followed by
+    # the noun it counts (``다섯 번째 슬롯``) or closed off as a predicate (``그 두 번째다``).
+    # An entry ending at a particle -- ``다섯 번째가`` -- is a real reference, and adding one
+    # would re-create the regression this list exists to avoid, from the other direction.
+    unjustified = [
+        (owner, phrase) for owner, phrase in _NOT_A_FIGURE if not (phrase.endswith("다") or re.search(r"번째\s+\S", phrase))
+    ]
+
+    assert not unjustified, f"exceptions that are ordinary figure references: {unjustified}"
 
 
 def test_every_ordinal_in_the_gallery_is_classified() -> None:
@@ -423,9 +434,13 @@ def test_every_ordinal_in_the_gallery_is_classified() -> None:
     say: it silently ignored anything it did not recognise."""
     for page in discover():
         for note in page.notes:
-            seen = len(_ORDINAL.findall(_without_exceptions(note)))
-            total = len(_ORDINAL.findall(note))
-            excepted = sum(note.count(phrase) for phrase in _NOT_A_FIGURE)
+            seen = len(_ORDINAL.findall(_without_exceptions(note, page.name)))
+            # Bare ``번째``, not ``_ORDINAL`` again: counting both sides with the same pattern
+            # makes this vacuous -- anything the pattern does not recognise is missing from
+            # *both* and the equality holds. ``열두 번째``, ``12번째`` and an ordinal glued to a
+            # preceding syllable all slipped through that way.
+            total = len(re.findall("번째", note))
+            excepted = sum(note.count(phrase) for owner, phrase in _NOT_A_FIGURE if owner == page.name)
 
             assert seen + excepted == total, f"{page.name}: {total - seen - excepted} ordinals fell through: {note[:70]}"
 
@@ -455,11 +470,15 @@ def test_the_interaction_note_names_the_figures_that_have_controls() -> None:
 
         assert len(notes) == 1, f"{page.name} has controls on {sorted(controlled)} and {len(notes)} notes saying so"
         assert (
-            _cited_figures(notes) == controlled
-        ), f"{page.name}: the note names {sorted(_cited_figures(notes))}, the controls are on {sorted(controlled)}"
+            _cited_figures(notes, page.name) == controlled
+        ), f"{page.name}: the note names {sorted(_cited_figures(notes, page.name))}, the controls are on {sorted(controlled)}"
 
 
-_VERB_FINAL = re.compile(r"(다|었다|한다|된다)$")
+_VERB_FINAL = re.compile(r"다$")
+"""A caption ends in a verb. In Korean that is the syllable ``다`` and nothing else -- an earlier
+version listed ``었다``/``한다``/``된다`` beside it, every one of which already ends in ``다``."""
+
+_NUMBER_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
 
 _ENDS_IN_A_NOUN = {
     ("areaplot", 4),
@@ -467,7 +486,6 @@ _ENDS_IN_A_NOUN = {
     ("lineplot", 5),
     ("scatterplot", 4),
     ("sparkline", 1),
-    ("sparkline", 2),
     ("sparkline", 3),
 }
 """The captions the conventions let end in a noun, listed rather than described.
@@ -475,8 +493,8 @@ _ENDS_IN_A_NOUN = {
 Two shapes qualify -- the value or size the figure was given, and the condition the figure is
 for -- and no pattern tells either from an ordinary noun phrase, so the exemption is a list and
 this is what keeps the list honest. It was written after the rule claimed "two captions" while
-nine ended in a noun, two of the nine fitted neither shape, and the two the rule named as its
-examples were both the same shape.
+nine ended in a noun and two of the nine -- ``heatmap``'s third and ``pieplot``'s third -- fitted
+neither shape it allowed.
 """
 
 
@@ -491,6 +509,13 @@ def test_only_the_listed_captions_end_in_a_noun() -> None:
     }
 
     assert ending_in_a_noun == _ENDS_IN_A_NOUN
+    # The conventions state the number in prose, and a number in prose drifts -- this rule once
+    # said "two" while nine captions ended in a noun. Without this, adding a caption *and*
+    # listing it here is green while the sentence goes on saying six.
+    conventions = importlib.import_module("gallery.examples").__doc__ or ""
+    assert (
+        f"and {_NUMBER_WORDS[len(_ENDS_IN_A_NOUN)]}\ncaptions use them" in conventions
+    ), f"the conventions do not say {_NUMBER_WORDS[len(_ENDS_IN_A_NOUN)]} captions end in a noun"
 
 
 def test_every_page_answers_the_hue_question() -> None:
@@ -502,10 +527,13 @@ def test_every_page_answers_the_hue_question() -> None:
 
     for page in discover():
         takes_hue = "hue" in inspect.signature(getattr(sp, page.name)).parameters
-        mentions_hue = "hue" in page.requires
+        # ``hue`` appearing somewhere is not an answer -- a field reading ``· hue`` and stopping
+        # names the channel and says nothing. The two forms below are the two answers.
+        declares_hue = "hue(선택):" in page.requires
         refuses_hue = "hue 는 받지 않는다" in page.requires
 
-        assert mentions_hue, f"{page.name}: REQUIRES says nothing about hue="
+        assert declares_hue or refuses_hue, f"{page.name}: REQUIRES names no hue= field and no refusal"
+        assert not (declares_hue and refuses_hue), f"{page.name}: REQUIRES both declares and refuses hue="
         assert (
-            refuses_hue is not takes_hue
+            declares_hue is takes_hue
         ), f"{page.name}: takes hue={takes_hue} but REQUIRES says {'it does not' if refuses_hue else 'it does'}"
