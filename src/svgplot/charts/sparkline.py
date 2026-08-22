@@ -71,8 +71,9 @@ def sparkline(
     **There is no ``tooltip=``.** Ten charts have one; these six do not, and the reason is the
     same for all six: a series is drawn as **one** mark, so the only thing a ``<title>`` on it
     could say is the series name. A tooltip earns its element when a mark is one row or one
-    bin; on the other five it would repeat the legend, and here there is not even a legend --
-    ``sparkline`` takes no ``hue=`` and draws one series.
+    bin; on the other five it would repeat the legend where there is one and repeat nothing
+    where there is not, and here there is never one -- ``sparkline`` takes no ``hue=`` and
+    draws a single series.
 
     For a sparkline this compounds: at 120x24 with one series and no legend, there is neither a
     second mark to distinguish nor a name to repeat. The chart's own ``<title>`` -- its

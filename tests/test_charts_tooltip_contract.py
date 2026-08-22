@@ -273,16 +273,24 @@ def test_the_marker_sentence_appears_exactly_where_it_belongs(name: str) -> None
 def test_the_two_lists_together_are_every_chart() -> None:
     """Every chart is on exactly one side of the split, and the split covers all sixteen.
 
-    The check above is per-chart, so it says nothing about a chart that never reaches it -- one
-    dropped from ``svgplot.charts.__all__``, or a seventeenth added there and to neither list
-    here. This is the coverage half. (Two earlier versions of this docstring overclaimed: one
-    said this was what caught a new chart with no ``tooltip=`` and no explanation -- the
-    biconditional above catches that directly -- and one said it caught a chart "that exists but
-    is not exported", which it could not while both sides derived from ``svgplot.__all__``.)
+    The check above is per-chart, so it says nothing about a chart that never reaches it. This
+    is the coverage half. (Three earlier versions of this docstring overclaimed, which is why
+    the assertions below are spelled out: one said this was what caught a new chart with no
+    ``tooltip=`` and no explanation -- the biconditional above catches that directly; one said
+    it caught a chart "that exists but is not exported", which it could not while both sides
+    derived from ``svgplot.__all__``; and one said "the split covers all sixteen" while the
+    only assertion was a union of two sets that shrink together.)
     """
     import svgplot as sp
 
     with_tooltip = {name for name in _charts() if "tooltip" in inspect.signature(getattr(sp, name)).parameters}
+
+    # Both sides of the union derive from ``_charts()``, so they shrink together: dropping a
+    # chart that *takes* ``tooltip=`` leaves this equality true. These two do not derive from
+    # it. The count is the package's own "sixteen charts", and a seventeenth is meant to fail
+    # here -- deciding its tooltip question is the point of this file.
+    assert len(_charts()) == 16, f"the package now ships {len(_charts())} charts; put the new one on a side"
+    assert set(_WITHOUT_TOOLTIP) <= set(_charts()), f"{sorted(set(_WITHOUT_TOOLTIP) - set(_charts()))} left the registry"
 
     assert with_tooltip | set(_WITHOUT_TOOLTIP) == set(_charts())
     assert not with_tooltip & set(_WITHOUT_TOOLTIP)
