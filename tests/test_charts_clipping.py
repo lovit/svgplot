@@ -26,8 +26,9 @@ _SVG_NS = "http://www.w3.org/2000/svg"
 DATA = {
     # Ten rows per group, not two: ``boxplot`` computes no outliers from a pair, and an outlier
     # is a mark drawn by a code path of its own. ``CHARTS["boxplot"]`` splits on ``group``, and
-    # 46.0 sits 9px past group a's upper fence (q1 14.5, q3 23.5, fence 37.0), so group a draws
-    # exactly one outlier and group b none.
+    # 46.0 sits nine units past group a's upper fence (q1 14.5, q3 23.5, fence 37.0) -- units on
+    # ``y``, not pixels; nothing here is rendered yet -- so group a draws exactly one outlier
+    # and group b none.
     "x": [1.0, 2.0, 3.0, 4.0] * 5,
     "y": [
         10.0,
@@ -67,8 +68,10 @@ WINDOWS = {
 Everything else measures ``y`` (9..46) and takes ``(15, 25)``: inside the data on both sides,
 so there is ink to lose above *and* below. ``barplot`` aggregates, so what it draws is four
 category means -- 18.4, 24.0, 18.6, 16.6 -- rather than the twenty rows, and ``(15, 25)``
-contains every one of them, so only the baseline would escape. ``ecdfplot``'s y is a proportion and ``kdeplot``'s a
-density, and a window outside *their* range would leave the whole curve on one side of the clip
+contains every one of them, so only the baseline would escape.
+
+``ecdfplot``'s y is a proportion and ``kdeplot``'s a density, and a window outside *their*
+range would leave the whole curve on one side of the clip
 -- which still clips, and would still pass a test that only asked whether anything was cut.
 Every window is checked for biting rather than trusted -- in both directions except for
 ``histplot``, which draws each bar from its top down to ``area.bottom`` literally rather than

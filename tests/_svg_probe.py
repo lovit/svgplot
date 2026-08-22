@@ -158,7 +158,7 @@ def style_rule(svg: str, selector: str) -> str:
 _SVG_NS = "http://www.w3.org/2000/svg"
 ET.register_namespace("", _SVG_NS)
 """At import, not per call: ``register_namespace`` writes to a module-level table in
-``ElementTree``, and doing that from inside a helper three test modules call would mutate
+``ElementTree``, and doing that from inside a helper four test modules call would mutate
 process-global state on every use. It is here so ``placed_panels`` can hand back markup with
 the default namespace rather than ``ns0:`` prefixes."""
 
