@@ -273,7 +273,7 @@ def marks_viewport(document: SvgDocument, area: PlotArea, *, clipped: bool) -> E
     ``overflow="hidden"`` is the initial value for a nested viewport and is written anyway: it
     is the one attribute that says what this element is for, in a file this package intends to
     be read and hand-edited. The ``plot-clip`` class is the other half of that: a composition
-    positions each panel with a nested ``<svg x= y=>`` too, and three test helpers were reading
+    positions each panel with a nested ``<svg x= y=>`` too, and four test helpers were reading
     exactly that shape to count panels. Position is what separates the two *inside* a
     composition -- a panel is the sheet's own child and a clip is a grandchild, and the class
     is namespaced to ``c0-plot-clip`` there anyway -- but a chart on its own has its clip as a
