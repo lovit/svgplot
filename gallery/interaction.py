@@ -56,9 +56,11 @@ HOVER = "hover"
 
 One rule per series -- a toggle emits two, one to dim the marks and one to strike through the
 label, and this has no label to strike. It needs no name either, so unlike :data:`TOGGLE` it
-works on a chart with no legend: ``boxplot`` without ``hue=`` draws one series per category
-(four categories, four series) and emits no legend for any of them, and that is a chart whose
-marks can still be pointed at.
+works on a chart with no legend: ``boxplot`` without ``hue=`` draws every category in one
+unnamed series and emits no legend at all, and that is still a chart whose marks can be
+pointed at. It used to draw one series *per category*, which is where the "four categories,
+four series" this paragraph carried came from; colour follows ``hue=`` now and the count is
+one, but nothing about hover depended on the number.
 
 What it does *not* do is say anything: it is an affordance telling the reader "this one", and
 the value it points at has to come from the mark's own ``<title>``.

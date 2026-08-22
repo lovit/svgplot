@@ -218,36 +218,45 @@ def test_panels_assign_hue_colours_independently() -> None:
     assert panels[0]["Z"] != panels[1]["Z"], "so Z is two different colours — the known limit"
 
 
-def test_a_legend_swatch_names_the_colour_its_own_boxes_are_drawn_in() -> None:
+@pytest.mark.parametrize("factory", [sp.boxplot, sp.violinplot], ids=["boxplot", "violinplot"])
+def test_a_legend_swatch_names_the_colour_its_own_marks_are_drawn_in(factory: object) -> None:
     """The half a legend-only reading cannot see.
 
     ``render_legend`` pairs ``hue_values[i]`` with ``series_classes[i]``, and the marks index
     the same list. Repaint the marks -- give slot *i* the class of slot ``n - 1 - i`` -- and
-    every legend-based assertion stays true while the swatches name colours the boxes do not
+    every legend-based assertion stays true while the swatches name colours the marks do not
     use. Across the whole suite that mutation was caught by exactly one test: the gallery byte
     comparison, whose failure message tells you to regenerate the file.
 
     Checked through *order*, which is what ties the two together: within one category band the
-    boxes are drawn in ``hue_values`` order, and the legend lists them in that same order. So
-    the band's boxes left to right must carry the legend's classes top to bottom. The fixture
-    gives the right panel a band holding both hues, because a band with one box per hue-value
-    cannot distinguish an ordering from its reverse.
+    marks are drawn in ``hue_values`` order, and the legend lists them in that same order. So a
+    band's marks left to right must carry the legend's classes top to bottom. The fixture gives
+    the right panel a band holding both hues, because a band with one mark per hue value cannot
+    distinguish an ordering from its reverse.
+
+    Both charts, not just ``boxplot``: ``violin.py:357`` has the identical
+    ``series_classes[slot …]`` indexing and the identical ``render_legend`` pairing, so a
+    ``boxplot``-only version would leave the symptom that motivated this test alive in the
+    other half of the pair. It is *not* a general hue-ordering guard -- reversing the sort
+    reverses the legend and the marks together, so the order relation still holds and this test
+    correctly does not fire; ``test_panels_assign_hue_colours_independently`` is what covers
+    that.
     """
     both = {
-        "cat": ["a", "a", "b", "b", "a", "a", "a", "a", "b", "b"],
-        "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
-        "g": ["left"] * 4 + ["right"] * 6,
-        # The right panel's "a" band holds Z and A; A sorts first, so it takes the left slot.
-        "h": ["Z", "Z", "Z", "Z", "Z", "Z", "A", "A", "Z", "Z"],
+        "cat": ["a"] * 6 + ["b"] * 6 + ["a"] * 6 + ["b"] * 6,
+        "v": [float(index % 5 + 1) for index in range(24)],
+        "g": ["left"] * 12 + ["right"] * 12,
+        # The right panel's bands hold Z and A; A sorts first, so it takes the left slot.
+        "h": ["Z"] * 12 + ["A"] * 3 + ["Z"] * 3 + ["A"] * 3 + ["Z"] * 3,
     }
-    right = _panels(sp.facet(sp.boxplot, both, col="g", x="cat", y="v", hue="h").to_string())[1]
+    right = _panels(sp.facet(factory, both, col="g", x="cat", y="v", hue="h").to_string())[1]  # type: ignore[arg-type]
     legend = [name for name, _ in re.findall(r'class="(c\d+-series-\d+)"[^>]*/>\s*<text[^>]*>([^<]*)<', right)]
-    band = [(float(x), name) for x, name in re.findall(r'<rect x="([\d.]+)"[^>]*class="(c\d+-series-\d+)-marker"', right)]
+    band = sorted((float(x), name) for x, name in re.findall(r'<rect x="([\d.]+)"[^>]*class="(c\d+-series-\d+)[^"]*"', right))
 
     assert len(legend) == 2, f"expected two hue values in the right panel, got {legend}"
-    assert [name for _, name in sorted(band)][
+    assert [name for _, name in band][
         : len(legend)
-    ] == legend, "the leftmost boxes do not carry the classes the legend names first"
+    ] == legend, "the leftmost marks do not carry the classes the legend names first"
 
 
 def test_a_category_takes_no_colour_of_its_own_in_any_panel() -> None:
