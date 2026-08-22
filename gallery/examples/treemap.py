@@ -2,7 +2,7 @@ TITLE = "treemap"
 
 SUMMARY = "값을 면적에 비례하는 타일로 캔버스를 채운다. squarified 배치(Bruls 2000)를 쓰고 단일 레벨만 다룬다."
 
-REQUIRES = "values: 수치(음수 불가, 합 0 불가) · labels(선택): 타일 이름"
+REQUIRES = "values: 수치(음수 불가, 합 0 불가) · labels(선택): 타일 이름 · hue 는 받지 않는다(타일 하나가 행 하나다)"
 
 SETUP = """
 import svgplot as sp

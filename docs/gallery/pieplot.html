@@ -95,7 +95,7 @@
     <p class="summary">값 하나짜리 컬럼을 원의 조각으로 나눈다. 조각의 각도가 전체 합에 대한 비율이다.</p>
     <dl class="meta">
       <dt>데이터</dt>
-      <dd>values: 수치(음수 불가, 전부 0 이면 거부) · labels(선택): 조각 이름</dd>
+      <dd>values: 수치(음수 불가, 전부 0 이면 거부) · labels(선택): 조각 이름 · hue 는 받지 않는다(조각 하나가 행 하나다)</dd>
     </dl>
     <h2>데이터</h2>
     <pre><code>import svgplot as sp
@@ -185,9 +185,9 @@ BUDGET = {
 </svg>
     </figure>
     <pre><code>sp.pieplot(BUDGET, values=&quot;금액&quot;, labels=&quot;항목&quot;)</code></pre>
-    <h3>inner_radius= 는 가운데를 비운다(도넛)</h3>
+    <h3>inner_radius= 는 가운데를 비워 도넛으로 만든다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-pieplot-3" role="img" aria-label="inner_radius= 는 가운데를 비운다(도넛)">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-pieplot-3" role="img" aria-label="inner_radius= 는 가운데를 비워 도넛으로 만든다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <path d="M 325,30 A 270,270 0 0 1 381.136157,564.099852 L 350.26127,418.844933 A 121.5,121.5 0 0 0 325,178.5 Z" fill-rule="evenodd" class="series-1" />
   <text x="541.830636" y="277.210182" text-anchor="middle" class="pie-value legend-text">4200</text>
@@ -220,7 +220,7 @@ BUDGET = {
 :where(.svgplot-pieplot-3) .series-3 { fill: #009E73; stroke: none; opacity: 0.75; }
 :where(.svgplot-pieplot-3) .series-4 { fill: #F0E442; stroke: none; opacity: 0.75; }
 :where(.svgplot-pieplot-3) .series-5 { fill: #0072B2; stroke: none; opacity: 0.75; }</style>
-  <title>inner_radius= 는 가운데를 비운다(도넛)</title>
+  <title>inner_radius= 는 가운데를 비워 도넛으로 만든다</title>
   <desc>Donut chart, 5 slices (인건비, 임대료, 마케팅, 장비, 기타), values 600 to 4200, total 9000.</desc>
 </svg>
     </figure>

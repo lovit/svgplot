@@ -2,7 +2,7 @@ TITLE = "sparkline"
 
 SUMMARY = "축도 범례도 라벨도 없는 120x24 미니 선. 문장 안이나 표의 셀에 넣으라고 있는 것이다."
 
-REQUIRES = "y: 수치 · x 는 받지 않는다(위치는 행 순서)"
+REQUIRES = "y: 수치 · x 는 받지 않는다(위치는 행 순서) · hue 는 받지 않는다(선 하나뿐이다)"
 
 SETUP = """
 import svgplot as sp

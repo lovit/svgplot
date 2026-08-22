@@ -2,9 +2,7 @@ TITLE = "gaugeplot"
 
 SUMMARY = "값 하나가 범위 안에서 어디쯤인지를 240도 아크의 채운 길이로 나타낸다."
 
-REQUIRES = (
-    "values: 수치(무한대 거부, 결측은 버린다) · labels(선택): 아크 이름 · vmin(선택): 범위의 아래끝 · vmax(선택): 범위의 위끝"
-)
+REQUIRES = "values: 수치(무한대 거부, 결측은 버린다) · hue 는 받지 않는다(아크 하나가 행 하나다) · labels(선택): 아크 이름 · vmin(선택): 범위의 아래끝 · vmax(선택): 범위의 위끝"
 
 SETUP = """
 import svgplot as sp

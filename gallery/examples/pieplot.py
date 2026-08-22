@@ -2,7 +2,7 @@ TITLE = "pieplot"
 
 SUMMARY = "값 하나짜리 컬럼을 원의 조각으로 나눈다. 조각의 각도가 전체 합에 대한 비율이다."
 
-REQUIRES = "values: 수치(음수 불가, 전부 0 이면 거부) · labels(선택): 조각 이름"
+REQUIRES = "values: 수치(음수 불가, 전부 0 이면 거부) · labels(선택): 조각 이름 · hue 는 받지 않는다(조각 하나가 행 하나다)"
 
 SETUP = """
 import svgplot as sp
@@ -17,7 +17,7 @@ EXAMPLES = [
     ("기본 — labels= 를 주지 않으면 조각 번호가 이름이 된다", 'sp.pieplot(BUDGET, values="금액")'),
     ("labels= 로 조각에 이름을 붙인다", 'sp.pieplot(BUDGET, values="금액", labels="항목")'),
     (
-        "inner_radius= 는 가운데를 비운다(도넛)",
+        "inner_radius= 는 가운데를 비워 도넛으로 만든다",
         'sp.pieplot(BUDGET, values="금액", labels="항목", inner_radius=0.45)',
     ),
     (

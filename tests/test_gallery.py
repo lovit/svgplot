@@ -361,19 +361,33 @@ def test_the_audit_would_notice_a_channel_going_missing() -> None:
 
 _ORDINALS = {"첫": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9, "열": 10}
 
-_A_FIGURE = re.compile(
-    # ``N 번째`` only where what follows makes it a reference to a figure: the word 그림 itself,
-    # or a particle that attaches the ordinal to the sentence (``다섯 번째의 categories=``,
-    # ``세 번째(누적)``, ``네 번째는 vmax=``). Not every ordinal in a NOTE is one: ``다섯 번째
-    # 슬롯`` counts x slots and ``그 두 번째다`` counts *things this chart adds*, and reading
-    # either as a figure number is a coincidence away from a false failure -- both are in range
-    # today only because their pages happen to be long enough.
-    rf"(?<![가-힣])({'|'.join(_ORDINALS)})\s*번째(?=\s*그림|[의는와과에(,.])"
-)
+_ORDINAL = re.compile(rf"(?<![가-힣])({'|'.join(_ORDINALS)})\s*번째")
+
+_NOT_A_FIGURE = ("다섯 번째 슬롯", "그 두 번째다")
+"""Ordinals in NOTES that count something other than figures.
+
+An exclusion list rather than a pattern for what a reference *looks* like, because the first
+attempt at the latter went the wrong way: it matched ``번째 그림`` and four particles, and
+quietly dropped five real references written some other way -- ``다섯 번째가``, ``세 번째가``,
+``(네 번째)은``, ``(다섯 번째)는``, ``네 번째와 다섯 번째 모두``. One of them was the only
+pointer to ``lineplot``'s fifth figure, and losing it turned the guard below off for that page
+with nothing to show for it.
+
+Matching every ordinal and naming the exceptions fails in the safe direction: a reference
+written a new way is audited by default, and an ordinal that counts something else fails loudly
+until someone decides which it is. The two here count x slots and the things this chart adds to
+another; both sit in range today only because their pages happen to be long enough.
+"""
+
+
+def _without_exceptions(note: str) -> str:
+    for phrase in _NOT_A_FIGURE:
+        note = note.replace(phrase, "")
+    return note
 
 
 def _cited_figures(notes: list[str]) -> set[int]:
-    return {_ORDINALS[match[1]] for note in notes for match in _A_FIGURE.finditer(note)}
+    return {_ORDINALS[match[1]] for note in notes for match in _ORDINAL.finditer(_without_exceptions(note))}
 
 
 def test_no_note_points_past_the_last_figure() -> None:
@@ -392,17 +406,28 @@ def test_no_note_points_past_the_last_figure() -> None:
     assert not [row for row in overflowing if row[1]], f"notes citing figures that do not exist: {overflowing}"
 
 
-def test_the_ordinal_pattern_still_sees_the_references_it_is_meant_to() -> None:
-    """The pattern above is narrow enough to miss a real reference if a page words one a new way.
-    These are the forms in use; a page that stops matching any of them silently leaves the audit.
-    """
-    assert _cited_figures(["두 번째와 세 번째 그림에 체크박스가 붙어 있다"]) == {2, 3}
-    assert _cited_figures(["다섯 번째의 categories= 는"]) == {5}
-    assert _cited_figures(["세 번째(누적)가"]) == {3}
-    assert _cited_figures(["네 번째는 vmax=100.0 이라"]) == {4}
-    assert _cited_figures(["여섯 번째 그림처럼 inner=None 이면"]) == {6}
-    assert _cited_figures(["다섯 번째 슬롯은 반대다"]) == set(), "an x slot is not a figure"
-    assert _cited_figures(["더하는 것이 그 두 번째다"]) == set(), "the second *thing* is not a figure"
+def test_every_exception_to_the_ordinal_audit_is_still_in_use() -> None:
+    """An exclusion list is only safe while every entry earns its place. One left behind after
+    its sentence is rewritten silently exempts whatever text drifts into the same shape."""
+    notes = " ".join(note for page in discover() for note in page.notes)
+
+    assert all(
+        phrase in notes for phrase in _NOT_A_FIGURE
+    ), f"unused exceptions: {[phrase for phrase in _NOT_A_FIGURE if phrase not in notes]}"
+
+
+def test_every_ordinal_in_the_gallery_is_classified() -> None:
+    """The audit above is worth only as much as the set of ordinals it sees. Every ``N 번째`` on
+    every page is either a figure reference it counts or a listed exception -- there is no third
+    category that quietly leaves. This is what the previous, pattern-based version could not
+    say: it silently ignored anything it did not recognise."""
+    for page in discover():
+        for note in page.notes:
+            seen = len(_ORDINAL.findall(_without_exceptions(note)))
+            total = len(_ORDINAL.findall(note))
+            excepted = sum(note.count(phrase) for phrase in _NOT_A_FIGURE)
+
+            assert seen + excepted == total, f"{page.name}: {total - seen - excepted} ordinals fell through: {note[:70]}"
 
 
 _JAVASCRIPT_CLAUSE = "JavaScript 는 0줄이다"
@@ -432,3 +457,55 @@ def test_the_interaction_note_names_the_figures_that_have_controls() -> None:
         assert (
             _cited_figures(notes) == controlled
         ), f"{page.name}: the note names {sorted(_cited_figures(notes))}, the controls are on {sorted(controlled)}"
+
+
+_VERB_FINAL = re.compile(r"(다|었다|한다|된다)$")
+
+_ENDS_IN_A_NOUN = {
+    ("areaplot", 4),
+    ("boxplot", 1),
+    ("lineplot", 5),
+    ("scatterplot", 4),
+    ("sparkline", 1),
+    ("sparkline", 2),
+    ("sparkline", 3),
+}
+"""The captions the conventions let end in a noun, listed rather than described.
+
+Two shapes qualify -- the value or size the figure was given, and the condition the figure is
+for -- and no pattern tells either from an ordinary noun phrase, so the exemption is a list and
+this is what keeps the list honest. It was written after the rule claimed "two captions" while
+nine ended in a noun, two of the nine fitted neither shape, and the two the rule named as its
+examples were both the same shape.
+"""
+
+
+def test_only_the_listed_captions_end_in_a_noun() -> None:
+    """Both directions, so the list cannot grow to cover a caption nobody reconsidered, and
+    cannot keep an entry whose caption has since been rewritten."""
+    ending_in_a_noun = {
+        (page.name, index)
+        for page in discover()
+        for index, example in enumerate(page.examples, 1)
+        if not _VERB_FINAL.search(example.caption)
+    }
+
+    assert ending_in_a_noun == _ENDS_IN_A_NOUN
+
+
+def test_every_page_answers_the_hue_question() -> None:
+    """``hue=`` decides what colour means, so a page that says nothing about it leaves a reader
+    to guess from silence. Either a field describing what the channel takes, or a field saying
+    the chart does not take one -- sixteen out of sixteen, matched against the signature so a
+    page cannot answer wrongly either."""
+    import inspect
+
+    for page in discover():
+        takes_hue = "hue" in inspect.signature(getattr(sp, page.name)).parameters
+        mentions_hue = "hue" in page.requires
+        refuses_hue = "hue 는 받지 않는다" in page.requires
+
+        assert mentions_hue, f"{page.name}: REQUIRES says nothing about hue="
+        assert (
+            refuses_hue is not takes_hue
+        ), f"{page.name}: takes hue={takes_hue} but REQUIRES says {'it does not' if refuses_hue else 'it does'}"

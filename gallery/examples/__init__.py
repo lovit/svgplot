@@ -30,9 +30,10 @@ Conventions for the prose, which is the half nothing executes:
 default shows>``: bare ``기본`` tells a reader nothing, and the caption is the figure's
 ``aria-label``, so it is the only description a screen reader gets. After that a caption names
 the argument it is demonstrating, spelled the way it is passed (``stat="count"``, ``fill=True``,
-``hue=``), and says what that does to the picture. Two shapes are allowed to end in a noun: one
-naming a size or a value (``기본 — 120x24``) and one contrasting with the figure above it
-(``xscale="log" — x 가 자릿수로 벌어질 때``). Nothing else may end in a noun phrase, and no
+``hue=``), and says what that does to the picture. Two shapes are allowed to end in a noun, and seven
+captions use them: one naming the value or size the figure was given (``기본 — 120x24``,
+``기본 — mode="1.5IQR"``, ``theme= 는 … 받는다 — 여기서는 "dark"``) and one naming the
+condition the figure is for (``xscale="log" — x 가 자릿수로 벌어질 때``). Nothing else may end in a noun phrase, and no
 caption may refer to another figure by its position -- insert one above and the reference is
 silently wrong.
 
@@ -48,11 +49,18 @@ gauge had no legend while the figure it named drew one.
 declaration, and stay bare. No page uses backticks -- sixteen out of sixteen, so it is a
 convention rather than an accident.
 
-**``REQUIRES`` is ``name: what it must be``, joined by ``·``.** A channel a chart does not take
-gets its own field saying so (``hue 는 받지 않는다``), because a reader looking for ``hue=``
-needs to find the answer, not the silence. The word for an unrestricted channel is
-``아무 타입``; a channel that subdivides a category is ``카테고리 안에서 한 번 더 나눌 값``.
-Constraints that are not about one channel come last, after the channels they constrain.
+**``REQUIRES`` is ``name: what it must be``, joined by ``·``.** The word for an unrestricted
+channel is ``아무 타입``; a channel that subdivides a category is
+``카테고리 안에서 한 번 더 나눌 값``. Constraints that are not about one channel come last,
+after the channels they constrain.
+
+**Every page answers the ``hue=`` question**, either with a field or with
+``hue 는 받지 않는다(왜)`` -- sixteen out of sixteen, and ``test_gallery`` keeps it that way.
+``hue=`` is the argument a reader arrives looking for, because it is the one that decides what
+colour means, so silence about it is the one silence worth forbidding outright. Other absent
+channels get a field only where the omission would otherwise puzzle: a chart that draws a y
+axis it does not take ``y=`` for (``histplot``, ``ecdfplot``, ``kdeplot``), or one whose
+positions come from row order rather than an ``x=`` (``sparkline``).
 
 **The interaction note is one sentence with a fixed shape**: which figures carry a control,
 then ``이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다``. A page with no controls drops the
