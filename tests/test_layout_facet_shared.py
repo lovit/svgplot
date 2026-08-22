@@ -170,27 +170,49 @@ def test_a_category_with_no_rows_keeps_its_band_but_draws_no_mark() -> None:
         assert len(bars) == 2, "a bar was drawn for a category with no rows"
 
 
-def test_a_shared_hue_keeps_one_colour_across_panels() -> None:
-    """A panel missing a hue value must not shift the colours of the ones it does have.
+def test_panels_assign_hue_colours_independently() -> None:
+    """The limit this file used to hide behind a per-category invariant, now stated outright.
 
-    This used to be asserted about *categories*, because ``boxplot`` minted a palette class
-    per category and a panel that skipped an empty one would shift every later colour. Colour
-    follows ``hue=`` and nothing else now, so categories have no slots left to shift -- but
-    hue values do, and that is where the original confusion could still happen: 'R' must be
-    the same colour in both panels even though the left one has no rows for it.
+    ``boxplot`` minted a palette class per category, and a panel skipping an empty category
+    would shift every later colour -- so a shared ``categories=`` list was what kept two panels
+    agreeing. Categories no longer take colour, and it is worth being exact about what that
+    did and did not move: **nothing replaced the sharing.** ``hue_values`` comes from each
+    panel's own rows, and ``facet`` shares ``xlim``/``ylim``/``bins``/``categories`` but not
+    hue values, so a group absent from one panel takes a different palette slot in the other.
+
+    ``layout/facet.py`` records this as an open limit. Nothing executed it. The first version
+    of this test claimed the opposite -- "the same hue is the same colour in both panels" --
+    and passed, because its fixture named the hues ``L`` and ``R``: sorted, the shared one came
+    first in both panels and landed on slot 1 either way. Renaming them ``Z`` and ``A`` leaves
+    every assertion in that version identical and the property violated.
     """
     sparse = {
-        "cat": ["a", "a", "b", "b", "a", "a", "b", "b"],
+        "cat": ["a", "a", "b", "b"] * 2,
         "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
-        "g": ["left", "left", "left", "left", "right", "right", "right", "right"],
-        "h": ["L", "L", "L", "L", "L", "L", "R", "R"],
+        "g": ["left"] * 4 + ["right"] * 4,
+        # "Z" is in both panels; "A" only in the right one, and sorts before it.
+        "h": ["Z", "Z", "Z", "Z", "Z", "Z", "A", "A"],
     }
-    panels = _panels(sp.facet(sp.boxplot, sparse, col="g", x="cat", y="v", hue="h").to_string())
-    classes = [sorted(set(re.findall(r"series-(\d+)", panel))) for panel in panels]
+    svg = sp.facet(sp.boxplot, sparse, col="g", x="cat", y="v", hue="h").to_string()
+    colour_of_class = dict(re.findall(r"\.(c\d+-series-\d+) \{ stroke: (#[0-9A-Fa-f]{6})", svg))
+    # Read through the *legend*, so the assertion is about which hue got which colour rather
+    # than about which class did. Asserting ``c1-series-2 == "#56B4E9"`` says nothing: the
+    # classes take the palette in order whatever the hues are, so reversing the hue order
+    # leaves every such assertion true and the property under test reversed. That is the flaw
+    # this test was rewritten to remove, and the first rewrite still had it.
+    panels = [
+        {
+            label: colour_of_class[class_name]
+            for class_name, label in re.findall(
+                r'class="(c\d+-series-\d+)"[^>]*/>\s*<text[^>]*class="c\d+-legend-text">([^<]*)<', panel
+            )
+        }
+        for panel in _panels(svg)
+    ]
 
-    assert classes[0], "no series classes found — the pattern is not matching"
-    assert classes[0] == ["1"], "the left panel has only L, so only L's colour"
-    assert classes[1] == ["1", "2"], "the right panel adds R without renumbering L"
+    assert panels[0] == {"Z": "#E69F00"}, "the left panel holds only Z, which takes the first slot"
+    assert panels[1] == {"A": "#E69F00", "Z": "#56B4E9"}, "the right panel sorts A first, pushing Z to the second"
+    assert panels[0]["Z"] != panels[1]["Z"], "so Z is two different colours — the known limit"
 
 
 def test_a_category_takes_no_colour_of_its_own_in_any_panel() -> None:

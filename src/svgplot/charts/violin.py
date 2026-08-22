@@ -229,9 +229,10 @@ def violinplot(
     ``ylim=`` its value domain. They exist so several charts can be made to agree -- see
     :func:`~svgplot.layout.facet.facet`. A category with no rows still gets its band; it simply
     has no mark drawn in it, so the bands line up across panels. It no longer holds a palette
-    slot, because categories no longer have any: what a panel missing a value must not disturb
-    is the *hue* colours, and an absent hue value still mints its class for exactly that
-    reason.
+    slot, because categories no longer have any -- and that is the whole of what the palette
+    lost here. It does **not** transfer to hue values: nothing shares those between panels, so
+    two panels whose hue values differ still colour the same group differently, which
+    :func:`~svgplot.layout.facet.facet` documents as its own open limit.
 
     ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
     call that does not mention them is byte-identical to one written before they existed. The
@@ -343,8 +344,11 @@ def violinplot(
     # the categories would spend the reader's attention claiming a distinction the colour is
     # not carrying. See ``barplot``, which has always drawn it this way.
     for _name in hue_values if hue is not None else (None,):
-        # Minted even when this panel has no rows for it, so a shared list keeps one colour
-        # per hue value across every chart using it.
+        # One per hue value this panel actually holds. Nothing is minted for a hue value that
+        # is absent -- `hue_values` comes from this panel's own rows and `facet` does not share
+        # it -- so two panels with different hue values colour the same group differently. That
+        # is a known limit, recorded in `layout/facet.py`, and it predates this loop: the
+        # minting that *was* shared belonged to `categories=`, which no longer takes colour.
         series_classes.append(document.semantic_class("series"))
     for slot, hue_value in enumerate(hue_values):
         for category in drawn_categories:

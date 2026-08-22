@@ -299,8 +299,8 @@ def resolve(figure: str, kind: str, svg: str) -> Controls:
     legend. ``hover`` and ``cell`` need no names, only rules.
 
     What a toggle refuses is a figure with no names to put on its controls -- a chart with no
-    legend at all (a single series, or ``boxplot``'s per-category palette, which is not a
-    legend). What it deliberately does **not** refuse is a chart whose legend names rows
+    legend at all, which since colour stopped following categories is every one of these
+    charts drawn without ``hue=``. What it deliberately does **not** refuse is a chart whose legend names rows
     rather than groups: ``pieplot`` emits a swatch and a label per slice, exactly as a
     ``hue=`` chart does per group, so nothing in the rendered file distinguishes them. That
     "a toggle belongs only where ``hue=`` produced the series" is therefore an editorial
