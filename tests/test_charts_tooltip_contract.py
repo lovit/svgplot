@@ -315,7 +315,8 @@ def test_a_chart_that_declines_a_tooltip_really_draws_one_mark_per_series(name: 
 
     Counted in the plot body, excluding the legend: a swatch carries the same ``series-N`` class
     as the mark it stands for, so selecting on the class alone finds one extra element per
-    series and would make every chart look like it draws two.
+    series and would make every chart *that draws a legend* look like it draws two. ``sparkline``
+    draws none -- it is the one fixture below where the cut is a no-op.
 
     The cut is at the **first swatch**, not at the first ``legend-text``. Splitting on the label
     was tried and let exactly one swatch through -- the legend emits swatch then label, so
@@ -356,4 +357,7 @@ _WITHOUT_TOOLTIP_FIXTURES = {
     "sparkline": lambda: __import__("svgplot").sparkline(_SPREAD, y="v"),
 }
 """One call per chart, with ``hue=`` wherever the chart takes it, so more than one series is
-drawn and "one *per series*" is a real claim rather than a count of one."""
+drawn and "one *per series*" is a real claim rather than a count of one -- on five of the six.
+``sparkline`` takes no ``hue=`` and draws a single series by construction, so for that one the
+measurement really is a count of one; what it still catches there is the same thing it catches
+everywhere else, a chart that grows a second element per series."""
