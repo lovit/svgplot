@@ -170,9 +170,10 @@ def boxplot(
     :func:`~svgplot.layout.facet.facet`. A category with no rows still gets its band; it simply
     has no mark drawn in it, so the bands line up across panels. It no longer holds a palette
     slot, because categories no longer have any -- and that is the whole of what the palette
-    lost here. It does **not** transfer to hue values: nothing shares those between panels, so
-    two panels whose hue values differ still colour the same group differently, which
-    :func:`~svgplot.layout.facet.facet` documents as its own open limit.
+    lost here. It does **not** transfer to hue values: nothing shares those between panels, so the
+    same group *can* come out a different colour in each -- it does when a group one panel
+    lacks sorts ahead of a group they share, pushing the shared one down a slot.
+    :func:`~svgplot.layout.facet.facet` documents that as its own open limit.
 
     ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
     call that does not mention them is byte-identical to one written before they existed. The
@@ -288,9 +289,10 @@ def boxplot(
     for _name in hue_values if hue is not None else (None,):
         # One per hue value this panel actually holds. Nothing is minted for a hue value that
         # is absent -- `hue_values` comes from this panel's own rows and `facet` does not share
-        # it -- so two panels with different hue values colour the same group differently. That
-        # is a known limit, recorded in `layout/facet.py`, and it predates this loop: the
-        # minting that *was* shared belonged to `categories=`, which no longer takes colour.
+        # it -- so two panels can colour the same group differently. Not always: the slots only
+        # shift when the group a panel is missing sorts ahead of one they share. A known limit,
+        # recorded in `layout/facet.py`, and it predates this loop: the minting that *was*
+        # shared belonged to `categories=`, which no longer takes colour.
         series_classes.append(document.semantic_class("series"))
 
     for slot, hue_value in enumerate(hue_values):

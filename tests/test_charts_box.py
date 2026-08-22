@@ -80,8 +80,8 @@ def _by_category(elements: list[dict[str, str]]) -> list[list[dict[str, str]]]:
     The first clustered on ``x1`` with a 40px threshold whose docstring claimed the within-box
     spread was under 30px; it was 105px, a number taken from the fixture. The second claimed
     the centres were *exact* and used equality -- which passes on this file's two-category
-    fixture, where every coordinate lands integral, and splits one box into three at nine
-    categories. Neither ``Decimal`` nor rounding to the emitted precision rescues equality,
+    fixture, where every coordinate lands integral, and splits boxes in two from six categories
+    and into five at eleven. Neither ``Decimal`` nor rounding to the emitted precision rescues equality,
     because the two ends are rounded independently and their errors do not cancel.
     """
     ordered = sorted(elements, key=_centre)

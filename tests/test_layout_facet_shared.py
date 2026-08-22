@@ -178,7 +178,10 @@ def test_panels_assign_hue_colours_independently() -> None:
     agreeing. Categories no longer take colour, and it is worth being exact about what that
     did and did not move: **nothing replaced the sharing.** ``hue_values`` comes from each
     panel's own rows, and ``facet`` shares ``xlim``/``ylim``/``bins``/``categories`` but not
-    hue values, so a group absent from one panel takes a different palette slot in the other.
+    hue values, so a group can take a different palette slot in each. Only *can*: the slots
+    shift when the group one panel lacks sorts ahead of a group they share, and not when it
+    sorts after -- which is why this fixture names them ``Z`` and ``A`` rather than ``L`` and
+    ``R``.
 
     ``layout/facet.py`` records this as an open limit. Nothing executed it. The first version
     of this test claimed the opposite -- "the same hue is the same colour in both panels" --
@@ -213,6 +216,38 @@ def test_panels_assign_hue_colours_independently() -> None:
     assert panels[0] == {"Z": "#E69F00"}, "the left panel holds only Z, which takes the first slot"
     assert panels[1] == {"A": "#E69F00", "Z": "#56B4E9"}, "the right panel sorts A first, pushing Z to the second"
     assert panels[0]["Z"] != panels[1]["Z"], "so Z is two different colours — the known limit"
+
+
+def test_a_legend_swatch_names_the_colour_its_own_boxes_are_drawn_in() -> None:
+    """The half a legend-only reading cannot see.
+
+    ``render_legend`` pairs ``hue_values[i]`` with ``series_classes[i]``, and the marks index
+    the same list. Repaint the marks -- give slot *i* the class of slot ``n - 1 - i`` -- and
+    every legend-based assertion stays true while the swatches name colours the boxes do not
+    use. Across the whole suite that mutation was caught by exactly one test: the gallery byte
+    comparison, whose failure message tells you to regenerate the file.
+
+    Checked through *order*, which is what ties the two together: within one category band the
+    boxes are drawn in ``hue_values`` order, and the legend lists them in that same order. So
+    the band's boxes left to right must carry the legend's classes top to bottom. The fixture
+    gives the right panel a band holding both hues, because a band with one box per hue-value
+    cannot distinguish an ordering from its reverse.
+    """
+    both = {
+        "cat": ["a", "a", "b", "b", "a", "a", "a", "a", "b", "b"],
+        "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+        "g": ["left"] * 4 + ["right"] * 6,
+        # The right panel's "a" band holds Z and A; A sorts first, so it takes the left slot.
+        "h": ["Z", "Z", "Z", "Z", "Z", "Z", "A", "A", "Z", "Z"],
+    }
+    right = _panels(sp.facet(sp.boxplot, both, col="g", x="cat", y="v", hue="h").to_string())[1]
+    legend = [name for name, _ in re.findall(r'class="(c\d+-series-\d+)"[^>]*/>\s*<text[^>]*>([^<]*)<', right)]
+    band = [(float(x), name) for x, name in re.findall(r'<rect x="([\d.]+)"[^>]*class="(c\d+-series-\d+)-marker"', right)]
+
+    assert len(legend) == 2, f"expected two hue values in the right panel, got {legend}"
+    assert [name for _, name in sorted(band)][
+        : len(legend)
+    ] == legend, "the leftmost boxes do not carry the classes the legend names first"
 
 
 def test_a_category_takes_no_colour_of_its_own_in_any_panel() -> None:
