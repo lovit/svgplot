@@ -71,7 +71,7 @@ def test_a_chart_that_takes_tooltip_takes_it_the_agreed_way(name: str) -> None:
     parameter = inspect.signature(getattr(sp, name)).parameters.get("tooltip")
     if parameter is None:
         # "does not take one", not "does not take one yet": the six are a decision, and each
-        # says so in its own docstring -- see ``test_a_chart_without_a_tooltip_says_why``.
+        # says so in its own docstring -- see ``test_the_marker_sentence_appears_exactly_where_it_belongs``.
         pytest.skip(f"{name} takes no tooltip=, by design")
 
     assert parameter.kind is inspect.Parameter.KEYWORD_ONLY, f"{name}: tooltip must be keyword-only"
@@ -276,10 +276,13 @@ def test_the_marker_sentence_appears_exactly_where_it_belongs(name: str) -> None
 
 
 def test_the_two_lists_together_are_every_chart() -> None:
-    """So a new chart lands in one list or the other rather than in neither.
+    """Every chart is on exactly one side of the split, and the split covers all sixteen.
 
-    Without this, adding a seventeenth chart with no ``tooltip=`` and no explanation would pass
-    both halves -- it is not in :data:`_WITHOUT_TOOLTIP`, so nothing asks it for a reason.
+    The check above is per-chart, so it says nothing about a chart that never reaches it -- one
+    dropped from ``svgplot.__all__``, or a seventeenth that exists but is not exported. This is
+    the coverage half. (An earlier version of this docstring claimed it was what caught a new
+    chart with no ``tooltip=`` and no explanation; the biconditional above catches that
+    directly, and this claim was left behind when that check was widened.)
     """
     import svgplot as sp
 
@@ -287,3 +290,59 @@ def test_the_two_lists_together_are_every_chart() -> None:
 
     assert with_tooltip | set(_WITHOUT_TOOLTIP) == set(_charts())
     assert not with_tooltip & set(_WITHOUT_TOOLTIP)
+
+
+@pytest.mark.parametrize("name", _WITHOUT_TOOLTIP)
+def test_a_chart_that_declines_a_tooltip_really_draws_one_mark_per_series(name: str) -> None:
+    """The proposition all six paragraphs rest on, measured.
+
+    Every one of them says a series is drawn as **one** mark, and therefore that a ``<title>``
+    on it could only repeat the series name. Nothing in the tree checked that. The phrase guard
+    above matches a sentence; ``test_theme_fields``, which those docstrings cite as the
+    precedent, matches a sentence *against a render-and-compare measurement* -- so its phrase
+    cannot outlive its proposition and this one could. This is the missing half.
+
+    Counted in the plot body, excluding the legend: a swatch carries the same ``series-N`` class
+    as the mark it stands for, so selecting on the class alone finds one extra element per
+    series and would make every chart look like it draws two.
+
+    The cut is at the **first swatch**, not at the first ``legend-text``. Splitting on the label
+    was tried and let exactly one swatch through -- the legend emits swatch then label, so
+    series 1's swatch precedes the first label and series 1 alone appeared to draw twice. That
+    reads as a real defect in one chart rather than a mistake in the counting, which is the
+    worst way for a measurement to be wrong.
+
+    If a chart ever grows a second mark per series -- point markers on a line, say -- this fails,
+    and it should: at that point the paragraph's reason is gone and the chart has become a
+    candidate for ``tooltip=``.
+    """
+
+    chart = _WITHOUT_TOOLTIP_FIXTURES[name]()
+    drawn = re.sub(r"<style>.*?</style>", "", chart.to_string(), flags=re.S)
+    legend = re.search(r'<(?:line|rect)[^>]*class="series-\d+"[^>]*/>\s*<text[^>]*legend-text', drawn)
+    body = drawn[: legend.start()] if legend else drawn
+    per_series: dict[str, int] = {}
+    for series in re.findall(r'<(?:path|polyline|line|rect|circle|ellipse)[^>]*class="(series-\d+)[^"]*"', body):
+        per_series[series] = per_series.get(series, 0) + 1
+
+    assert per_series, f"{name}: no series marks found — the pattern is not matching"
+    assert set(per_series.values()) == {1}, f"{name} draws {per_series}, not one mark per series"
+
+
+_SPREAD = {
+    "v": [float(index % 9 + 1) for index in range(40)],
+    "x": [float(index) for index in range(40)],
+    "g": ["a", "b"] * 20,
+}
+_SPOKES = {"cat": ["a", "b", "c"] * 2, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], "g": ["x"] * 3 + ["y"] * 3}
+
+_WITHOUT_TOOLTIP_FIXTURES = {
+    "areaplot": lambda: __import__("svgplot").areaplot(_SPREAD, x="x", y="v", hue="g"),
+    "ecdfplot": lambda: __import__("svgplot").ecdfplot(_SPREAD, x="v", hue="g"),
+    "kdeplot": lambda: __import__("svgplot").kdeplot(_SPREAD, x="v", hue="g"),
+    "lineplot": lambda: __import__("svgplot").lineplot(_SPREAD, x="x", y="v", hue="g"),
+    "radarplot": lambda: __import__("svgplot").radarplot(_SPOKES, x="cat", y="v", hue="g"),
+    "sparkline": lambda: __import__("svgplot").sparkline(_SPREAD, y="v"),
+}
+"""One call per chart, with ``hue=`` wherever the chart takes it, so more than one series is
+drawn and "one *per series*" is a real claim rather than a count of one."""

@@ -16,7 +16,7 @@
 
 - **`Estimator` 가 export 된다.** `barplot`·`areaplot`·`lineplot` 의 공개 시그니처가 `estimator: Estimator | None` 인데 그 타입이 `charts/_aggregate.py` — 사설 모듈 — 에 있어서, 이 인자에 맞춰 자기 함수를 타입하려는 사용자가 import 할 것이 없었다. `svgplot.charts.__all__` 이 아니라 최상위에서만 내보낸다: 그 목록은 "16개 차트 함수" 라는 뜻이고 테스트 레지스트리 둘이 거기서 자기를 유도한다.
 
-- **`tooltip=` 을 안 받는 여섯 차트가 이유를 적는다.** `areaplot`·`ecdfplot`·`kdeplot`·`lineplot`·`radarplot`·`sparkline` 의 소스에 "tooltip" 이라는 낱말이 **0회** 나와서, 읽는 사람이 결정과 누락을 구분할 수 없었다. 이유는 여섯이 같다 — **시리즈 하나가 마크 하나로 그려지므로** 거기 붙일 `<title>` 이 말할 수 있는 것은 시리즈 이름뿐이고, 그건 범례가 이미 같은 색으로 말한다. 여섯 중 **다섯**은 여기에 `fill: none` 이라 히트 영역이 2px 선 자체라는 문제가 겹친다 — `areaplot` 만 채움이 있어 겨냥할 면적을 갖는다. 동작은 안 바뀐다.
+- **`tooltip=` 을 안 받는 여섯 차트가 이유를 적는다.** `areaplot`·`ecdfplot`·`kdeplot`·`lineplot`·`radarplot`·`sparkline` 의 소스에 "tooltip" 이라는 낱말이 **0회** 나와서, 읽는 사람이 결정과 누락을 구분할 수 없었다. 이유는 여섯이 같다 — **시리즈 하나가 마크 하나로 그려지므로** 거기 붙일 `<title>` 이 말할 수 있는 것은 시리즈 이름뿐이고, 그건 범례가 이미 같은 색으로 말한다. 기본 호출에서 여섯 중 **넷**은 여기에 `fill: none` 이라 히트 영역이 2px 선 자체라는 문제가 겹친다. `radarplot` 은 `fill=True` 가 기본이라 `fill=False` 일 때만 합류하고, `areaplot` 은 늘 채워져 있어 겨냥할 면적을 갖는다. 동작은 안 바뀐다.
 
 - **키워드 전용 인자 순서가 16종에서 같아진다.** `gaugeplot`·`pieplot`·`regplot` 이 관례에서 벗어나 있었다 — 특히 `regplot` 은 `tooltip=` 이 통계 인자 둘 사이에 끼어 있었다. 순서는 `차트별 옵션 → info → tooltip → width, height, theme → 도메인` 이고 나머지 13종은 이미 그랬다. **키워드 전용 인자는 이름으로만 넘길 수 있으므로 호출 호환성이 100% 유지되고 출력 바이트도 안 바뀐다** — `help()` 와 IDE 자동완성에서 보이는 순서만 달라진다.
 

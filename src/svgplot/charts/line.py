@@ -251,11 +251,12 @@ def lineplot(
     no legend and no name to say. A tooltip earns its element when a mark is one row or one
     bin -- here it would repeat the legend, or repeat nothing.
 
-    A second reason applies to five of the six, this one included: they emit ``fill: none``, so
-    a series' hit area is the stroke itself -- 2px under the default theme, 2.5px under
-    ``print``, 3.2px under the ``poster`` context. The ``<title>`` would attach fine and be
-    almost unreachable. ``areaplot`` is the exception; its fill is a real target, and only the
-    one-mark reason above applies there.
+    A second reason applies to four of the six as they are called by default, this one
+    included: they emit ``fill: none``, so a series' hit area is the stroke itself -- 2px under
+    the default theme, 2.5px under ``print``, 3.2px under the ``poster`` context. The
+    ``<title>`` would attach fine and be almost unreachable. ``radarplot`` joins them only with
+    ``fill=False``, since its ``fill`` defaults to ``True``; ``areaplot`` never does, and there
+    the one-mark reason above stands alone.
 
     Raises:
         ValueError: if ``x`` holds a type with no position on an axis (``datetime.time`` is

@@ -71,8 +71,10 @@ def _closed_path_data(xs: list[float], ys: list[float], baseline_y: float) -> st
     """A single unstacked series' filled area: the point path, then closed down
     to the baseline and back to the start — the baseline is data-space y=0,
     mapped through the y scale (so it sits at the plot area's bottom only when
-    0 is also the y domain's minimum, which ``areaplot`` always ensures by
-    including 0 in the domain).
+    0 is also the y domain's minimum, which ``areaplot`` arranges by putting
+    0 into the domain -- except under ``ylim=``, which replaces the domain
+    rather than widening it, and then this baseline maps outside the plot
+    area. See #247; the belief that 0 is *always* there is what produced it.)
     """
     if not xs:
         return ""
