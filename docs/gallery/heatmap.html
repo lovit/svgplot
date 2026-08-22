@@ -97,7 +97,7 @@
     <p class="summary">행·열 카테고리가 만드는 격자에서 값을 색으로 나타낸다. 색은 9단계로 양자화된다.</p>
     <dl class="meta">
       <dt>데이터</dt>
-      <dd>x: 열 카테고리 · y: 행 카테고리 · values: 수치 · 셀 하나에 행 하나(중복 거부)</dd>
+      <dd>x: 열 카테고리 · y: 행 카테고리 · values: 수치 · hue 는 받지 않는다(색은 values 가 정한다) · 셀 하나에 행 하나(중복 거부)</dd>
     </dl>
     <h2>데이터</h2>
     <pre><code>import svgplot as sp
@@ -115,9 +115,9 @@ TRAFFIC = {
     &quot;요청&quot;: [value for row in _load for value in row],
 }</code></pre>
     <h2>예시</h2>
-    <h3>기본 — sequential 컬러맵</h3>
+    <h3>기본 — cmap= 기본값은 순차 컬러맵 &quot;blues&quot; 다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-1" role="img" aria-label="기본 — sequential 컬러맵">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-1" role="img" aria-label="기본 — cmap= 기본값은 순차 컬러맵 &quot;blues&quot; 다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
   <line x1="118" y1="30" x2="118" y2="550" class="grid-line" />
@@ -193,7 +193,7 @@ TRAFFIC = {
 :where(.svgplot-heatmap-1) .level-7 { fill: #0c79e8; stroke: none; opacity: 1; }
 :where(.svgplot-heatmap-1) .level-8 { fill: #0a65c2; stroke: none; opacity: 1; }
 :where(.svgplot-heatmap-1) .level-9 { fill: #08519c; stroke: none; opacity: 1; }</style>
-  <title>기본 — sequential 컬러맵</title>
+  <title>기본 — cmap= 기본값은 순차 컬러맵 "blues" 다</title>
   <desc>Heatmap, 5 columns (09시, 12시, 15시, 18시, 21시), 3 rows (월, 수, 금), 15 of 15 cells filled, values 12 to 82, quantised into 9 levels.</desc>
 </svg>
     </figure>

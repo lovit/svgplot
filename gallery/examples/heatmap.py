@@ -2,7 +2,9 @@ TITLE = "heatmap"
 
 SUMMARY = "행·열 카테고리가 만드는 격자에서 값을 색으로 나타낸다. 색은 9단계로 양자화된다."
 
-REQUIRES = "x: 열 카테고리 · y: 행 카테고리 · values: 수치 · 셀 하나에 행 하나(중복 거부)"
+REQUIRES = (
+    "x: 열 카테고리 · y: 행 카테고리 · values: 수치 · hue 는 받지 않는다(색은 values 가 정한다) · 셀 하나에 행 하나(중복 거부)"
+)
 
 SETUP = """
 import svgplot as sp
@@ -22,7 +24,7 @@ TRAFFIC = {
 """
 
 EXAMPLES = [
-    ("기본 — sequential 컬러맵", 'sp.heatmap(TRAFFIC, x="시각", y="요일", values="요청")'),
+    ('기본 — cmap= 기본값은 순차 컬러맵 "blues" 다', 'sp.heatmap(TRAFFIC, x="시각", y="요일", values="요청")'),
     ("annot=True 는 셀 안에 값을 쓴다", 'sp.heatmap(TRAFFIC, x="시각", y="요일", values="요청", annot=True)'),
     (
         "cmap= 을 발산으로 바꾸고 center= 로 가운데 단계를 정한다 — annot= 도 함께 켠 그림",

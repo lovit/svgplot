@@ -2,7 +2,7 @@ TITLE = "kdeplot"
 
 SUMMARY = "수치 한 컬럼의 분포를 곡선 하나로 추정해 그린다. 히스토그램과 달리 구간 경계가 없다."
 
-REQUIRES = "x: 수치(그룹마다 2개 이상, 분산 0 불가) · hue(선택): 아무 타입"
+REQUIRES = "x: 수치(그룹마다 2개 이상, 분산 0 불가) · hue(선택): 아무 타입 · y 는 받지 않는다(높이는 밀도다)"
 
 SETUP = """
 import random

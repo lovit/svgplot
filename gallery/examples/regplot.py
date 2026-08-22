@@ -18,7 +18,7 @@ SPEND = {
 """
 
 EXAMPLES = [
-    ("기본 — 95% 신뢰대역과 산점도", 'sp.regplot(SPEND, x="광고비", y="문의수")'),
+    ("기본 — ci= 기본값 0.95 의 대역과 관측 점을 함께 그린다", 'sp.regplot(SPEND, x="광고비", y="문의수")'),
     ("ci=None 은 대역 없이 선만 그린다", 'sp.regplot(SPEND, x="광고비", y="문의수", ci=None)'),
     ("ci=0.99 는 대역을 넓힌다", 'sp.regplot(SPEND, x="광고비", y="문의수", ci=0.99)'),
     ("scatter=False 는 점을 빼고 적합만 남긴다", 'sp.regplot(SPEND, x="광고비", y="문의수", scatter=False)'),

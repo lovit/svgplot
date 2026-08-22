@@ -55,7 +55,10 @@ needs to find the answer, not the silence. The word for an unrestricted channel 
 Constraints that are not about one channel come last, after the channels they constrain.
 
 **The interaction note is one sentence with a fixed shape**: which figures carry a control,
-then ``이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다``. A page with no controls says
-which figure would have had one and why it does not, and drops the JavaScript clause -- there
-is no CSS to disclaim.
+then ``이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다``. A page with no controls drops the
+JavaScript clause -- there is no CSS to disclaim -- and says why: usually by naming the one
+figure that would have carried a control (``pieplot``, ``regplot``, ``treemap``), or, where no
+figure is even a candidate, by saying that (``sparkline``). ``test_gallery`` holds the first
+half of this to the page: the clause appears exactly on the pages that draw a control, and the
+figures it names are exactly the ones that carry one.
 """

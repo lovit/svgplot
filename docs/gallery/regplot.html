@@ -109,9 +109,9 @@ SPEND = {
     &quot;문의수&quot;: [round(18 + 1.9 * value + _rng.gauss(0, 22), 1) for value in _ad],
 }</code></pre>
     <h2>예시</h2>
-    <h3>기본 — 95% 신뢰대역과 산점도</h3>
+    <h3>기본 — ci= 기본값 0.95 의 대역과 관측 점을 함께 그린다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-regplot-1" role="img" aria-label="기본 — 95% 신뢰대역과 산점도">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-regplot-1" role="img" aria-label="기본 — ci= 기본값 0.95 의 대역과 관측 점을 함께 그린다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="760" y2="550" class="spine" />
   <line x1="166.228766" y1="30" x2="166.228766" y2="550" class="grid-line" />
@@ -208,7 +208,7 @@ SPEND = {
 :where(.svgplot-regplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
 :where(.svgplot-regplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-regplot-1) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }</style>
-  <title>기본 — 95% 신뢰대역과 산점도</title>
+  <title>기본 — ci= 기본값 0.95 의 대역과 관측 점을 함께 그린다</title>
   <desc>Regression plot, fitted over 60 points, x 6.6 to 94.9, y 7.3 to 229.9, with a 95% confidence band.</desc>
 </svg>
     </figure>

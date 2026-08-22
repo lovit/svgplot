@@ -359,21 +359,50 @@ def test_the_audit_would_notice_a_channel_going_missing() -> None:
 # moment a figure is inserted above it, and the interaction note names the figures that carry a
 # control. Both were wrong at some point on a page that rendered perfectly.
 
-_ORDINALS = {"첫": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8}
+_ORDINALS = {"첫": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9, "열": 10}
+
+_A_FIGURE = re.compile(
+    # ``N 번째`` only where what follows makes it a reference to a figure: the word 그림 itself,
+    # or a particle that attaches the ordinal to the sentence (``다섯 번째의 categories=``,
+    # ``세 번째(누적)``, ``네 번째는 vmax=``). Not every ordinal in a NOTE is one: ``다섯 번째
+    # 슬롯`` counts x slots and ``그 두 번째다`` counts *things this chart adds*, and reading
+    # either as a figure number is a coincidence away from a false failure -- both are in range
+    # today only because their pages happen to be long enough.
+    rf"(?<![가-힣])({'|'.join(_ORDINALS)})\s*번째(?=\s*그림|[의는와과에(,.])"
+)
 
 
 def _cited_figures(notes: list[str]) -> set[int]:
-    return {number for note in notes for word, number in _ORDINALS.items() if re.search(rf"(?<![가-힣]){word} 번째", note)}
+    return {_ORDINALS[match[1]] for note in notes for match in _A_FIGURE.finditer(note)}
 
 
 def test_no_note_points_past_the_last_figure() -> None:
-    """``다섯 번째`` on a four-figure page is a reference to nothing, and the build does not care."""
+    """``다섯 번째`` on a four-figure page is a reference to nothing, and the build does not care.
+
+    Range only. A reference that points at the *wrong* figure while staying in range is not
+    covered here and cannot be, in general -- nothing mechanical knows that ``세 번째(누적)``
+    means the stacked one. The one place it is covered is the interaction note below, where the
+    page declares the answer in ``INTERACTIONS`` and the sentence can be checked against it.
+    """
     overflowing = [
         (page.name, sorted(number for number in _cited_figures(page.notes) if number > len(page.examples)))
         for page in discover()
     ]
 
     assert not [row for row in overflowing if row[1]], f"notes citing figures that do not exist: {overflowing}"
+
+
+def test_the_ordinal_pattern_still_sees_the_references_it_is_meant_to() -> None:
+    """The pattern above is narrow enough to miss a real reference if a page words one a new way.
+    These are the forms in use; a page that stops matching any of them silently leaves the audit.
+    """
+    assert _cited_figures(["두 번째와 세 번째 그림에 체크박스가 붙어 있다"]) == {2, 3}
+    assert _cited_figures(["다섯 번째의 categories= 는"]) == {5}
+    assert _cited_figures(["세 번째(누적)가"]) == {3}
+    assert _cited_figures(["네 번째는 vmax=100.0 이라"]) == {4}
+    assert _cited_figures(["여섯 번째 그림처럼 inner=None 이면"]) == {6}
+    assert _cited_figures(["다섯 번째 슬롯은 반대다"]) == set(), "an x slot is not a figure"
+    assert _cited_figures(["더하는 것이 그 두 번째다"]) == set(), "the second *thing* is not a figure"
 
 
 _JAVASCRIPT_CLAUSE = "JavaScript 는 0줄이다"
