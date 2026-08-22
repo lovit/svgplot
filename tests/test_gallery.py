@@ -371,8 +371,8 @@ An exclusion list rather than a pattern for what a reference *looks* like, becau
 attempt at the latter went the wrong way: it matched ``번째 그림``, five particles and three punctuation marks, and
 quietly dropped five real references written some other way -- ``다섯 번째가``, ``세 번째가``,
 ``(네 번째)은``, ``(다섯 번째)는``, ``네 번째와 다섯 번째 모두``. One of them was the only
-pointer to ``lineplot``'s fifth figure, and losing it turned the guard below off for that page
-with nothing to show for it.
+pointer to ``lineplot``'s fifth figure: the guard below went on auditing that page's other three
+references and simply stopped knowing about figure 5.
 
 Matching every ordinal and naming the exceptions fails in the safe direction: a reference
 written a new way is audited by default, and an ordinal that counts something else fails loudly
@@ -421,14 +421,22 @@ def test_every_exception_to_the_ordinal_audit_is_still_in_use() -> None:
     # An entry ending at a particle -- ``다섯 번째가`` -- is a real reference, and adding one
     # would re-create the regression this list exists to avoid, from the other direction.
     #
-    # ``그림`` disqualifies an entry outright, whichever shape it otherwise fits. Requiring
-    # "some noun after the ordinal" was not enough: ``세 번째 그림`` satisfies it and is the most
-    # ordinary reference there is, so three such entries each switched the audit off for a page
-    # with the whole suite green. ``다섯 번째 그림이다`` slips past the predicate clause the same way.
+    # Three conditions, because each of the first two was defeated on its own.
+    #
+    # ``그림`` disqualifies an entry outright: requiring "some noun after the ordinal" was not
+    # enough, since ``세 번째 그림`` satisfies that and is the most ordinary reference there is --
+    # three such entries each emptied a page's cited set with the whole suite green.
+    #
+    # The word limit is what bounds ``endswith("다")``. Korean declarative sentences end in
+    # ``다``, so *any* whole sentence satisfied that clause: pasting a live note's full sentence
+    # (``다섯 번째가 갤러리에서 theme= 을 보여주는 유일한 자리다``) exempted the only pointer to
+    # ``lineplot``'s fifth figure and left 149 tests green -- the same regression as above, for
+    # the third time, through the one clause still unbounded. A real exception is short: both
+    # entries here are three words.
     unjustified = [
         (owner, phrase)
         for owner, phrase in _NOT_A_FIGURE
-        if "그림" in phrase or not (phrase.endswith("다") or re.search(r"번째\s+\S", phrase))
+        if "그림" in phrase or len(phrase.split()) > 3 or not (phrase.endswith("다") or re.search(r"번째\s+\S", phrase))
     ]
 
     assert not unjustified, f"exceptions that are ordinary figure references: {unjustified}"
@@ -482,8 +490,14 @@ def test_the_interaction_note_names_the_figures_that_have_controls() -> None:
 
 
 _VERB_FINAL = re.compile(r"다$")
-"""A caption ends in a verb. In Korean that is the syllable ``다`` and nothing else -- an earlier
-version listed ``었다``/``한다``/``된다`` beside it, every one of which already ends in ``다``."""
+"""Whether a caption ends in the syllable ``다``.
+
+Not the same question as "does it end in a verb", and the gap is the copula: ``…원이다`` and
+``…marker_size 다`` are noun phrases closed with ``이다``/``다`` and score verb-final here. Four
+live captions are that shape, three of them written by this branch. So what the list below
+really enumerates is the captions ending in something that is not even a clause -- useful, and
+narrower than the conventions' wording. An earlier version listed ``었다``/``한다``/``된다``
+beside ``다``; every one already ends in ``다``, so all three were dead."""
 
 _NUMBER_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
 
@@ -499,9 +513,10 @@ _ENDS_IN_A_NOUN = {
 
 Two shapes qualify -- the value or size the figure was given, and the condition the figure is
 for -- and no pattern tells either from an ordinary noun phrase, so the exemption is a list and
-this is what keeps the list honest. It was written after the rule claimed "two captions" while
-nine ended in a noun and two of the nine -- ``heatmap``'s third and ``pieplot``'s third -- fitted
-neither shape it allowed.
+this is what keeps the list honest. It was written after the rule allowed two *shapes* while nine
+captions ended in a noun and two of the nine -- ``heatmap``'s third and ``pieplot``'s third --
+fitted neither of them. The rule stated no caption count at all then, so nothing could notice;
+the count and this list arrived together, and the check below keeps them together.
 """
 
 
@@ -516,13 +531,15 @@ def test_only_the_listed_captions_end_in_a_noun() -> None:
     }
 
     assert ending_in_a_noun == _ENDS_IN_A_NOUN
-    # The conventions state the number in prose, and a number in prose drifts -- this rule once
-    # said "two" while nine captions ended in a noun. Without this, adding a caption *and*
-    # listing it here is green while the sentence goes on saying six.
-    conventions = importlib.import_module("gallery.examples").__doc__ or ""
-    assert (
-        f"and {_NUMBER_WORDS[len(_ENDS_IN_A_NOUN)]}\ncaptions use them" in conventions
-    ), f"the conventions do not say {_NUMBER_WORDS[len(_ENDS_IN_A_NOUN)]} captions end in a noun"
+    # The conventions state the number in prose, and a number in prose drifts. Without this,
+    # adding a caption *and* listing it here is green while the sentence goes on saying six.
+    # Whitespace folded, and the number spelled with a fallback: matching the hard-wrapped
+    # literal made a correctly worded sentence fail whenever the line break moved, with a
+    # message saying the conventions do not state something they state.
+    conventions = " ".join((importlib.import_module("gallery.examples").__doc__ or "").split())
+    spelled = _NUMBER_WORDS.get(len(_ENDS_IN_A_NOUN), str(len(_ENDS_IN_A_NOUN)))
+
+    assert f"and {spelled} captions use them" in conventions, f"the conventions do not say {spelled} captions end in a noun"
 
 
 def test_every_page_answers_the_hue_question() -> None:
