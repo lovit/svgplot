@@ -2,7 +2,7 @@ TITLE = "ecdfplot"
 
 SUMMARY = '값을 정렬해 "이 값 이하가 전체의 몇 퍼센트인가"를 계단으로 그린다. 구간도 대역폭도 고르지 않는다.'
 
-REQUIRES = "x: 수치 · hue(선택): 아무 타입"
+REQUIRES = "x: 수치 · hue(선택): 아무 타입 · y 는 받지 않는다(높이는 누적 비율이거나 누적 개수다)"
 
 SETUP = """
 import random
