@@ -19,6 +19,7 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
+    marks_viewport,
     new_canvas,
     resolve_size,
     ticks_for,
@@ -202,6 +203,7 @@ def ecdfplot(
         font_size=resolved_theme.tick_label_font_size,
     )
 
+    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
     for label, values in series_values:
@@ -210,7 +212,7 @@ def ecdfplot(
         if values:
             vertices = _step_vertices(_cumulative_steps(values), count=len(values), stat=stat, complementary=complementary)
             pixels = [(pixel_x_scale(vx), pixel_y_scale(vy)) for vx, vy in vertices]
-            document.add_node(None, "path", attrib={"d": _path_data(pixels)}, classes=[series_class, "ecdf-series"])
+            document.add_node(viewport, "path", attrib={"d": _path_data(pixels)}, classes=[series_class, "ecdf-series"])
         if label is not None:
             legend_entries.append((str(label), series_class))
 

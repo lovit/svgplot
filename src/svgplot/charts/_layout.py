@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import math
 import numbers
+import xml.etree.ElementTree as ET
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -238,6 +239,50 @@ def new_canvas(
         classes=["plot-background"],
     )
     return document, area
+
+
+def marks_viewport(document: SvgDocument, area: PlotArea, *, clipped: bool) -> ET.Element | None:
+    """The parent a chart should hang its marks on, given whether the view was narrowed.
+
+    Returns a nested ``<svg>`` covering exactly ``area`` when ``clipped``, and ``None`` -- the
+    document root, where marks have always gone -- otherwise. A nested ``<svg>`` establishes a
+    new viewport and clips to it, so passing it as ``add_node``'s parent is the whole of the
+    mechanism: no ``id``, no ``clipPath`` to reference it by, and no CSS. That matters here
+    because nothing else this package writes into an SVG carries an ``id``, and a page holding
+    two charts would have to be told to keep two of them apart (see ``Chart.set_table_id`` for
+    what that costs). The ``viewBox`` repeats the viewport rect so a child's coordinates mean
+    the same thing inside as out -- charts compute pixels against ``area`` and must not have to
+    know whether they were handed a viewport or the root.
+
+    **Only when the caller narrowed the view.** Without ``xlim=``/``ylim=`` a chart's domain is
+    computed from its own data and therefore covers it, so there is nothing to cut and a chart
+    that could not overflow keeps the bytes it had. With them, ``apply_limit`` *replaces* the
+    domain (``chart/_domain.py``), values outside the window map to pixels outside the plot
+    area, and until this existed they were drawn there -- over the axis, into the margin, off
+    the canvas.
+
+    ``overflow="hidden"`` is the initial value for a nested viewport and is written anyway: it
+    is the one attribute that says what this element is for, in a file this package intends to
+    be read and hand-edited. The ``plot-clip`` class is the other half of that: a composition
+    positions each panel with a nested ``<svg x= y=>`` too, so without a name on this one the
+    only thing telling a panel from a clip would be where it sits in the tree -- and three test
+    helpers were reading exactly that shape to count panels.
+    """
+    if not clipped:
+        return None
+    return document.add_node(
+        None,
+        "svg",
+        attrib={
+            "x": format_coord(area.left),
+            "y": format_coord(area.top),
+            "width": format_coord(area.width),
+            "height": format_coord(area.height),
+            "viewBox": " ".join(format_coord(value) for value in (area.left, area.top, area.width, area.height)),
+            "overflow": "hidden",
+        },
+        classes=["plot-clip"],
+    )
 
 
 def resolve_size(width: float | None, height: float | None) -> tuple[float, float]:

@@ -17,6 +17,7 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
+    marks_viewport,
     new_canvas,
     resolve_size,
     ticks_for,
@@ -319,6 +320,7 @@ def barplot(
             font_size=resolved_theme.tick_label_font_size,
         )
 
+    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
     series_classes = [document.semantic_class("series") for _ in group_items]
     corner_radius = format_coord(resolved_theme.corner_radius) if resolved_theme.corner_radius > 0 else None
 
@@ -365,7 +367,7 @@ def barplot(
             )
             if corner_radius is not None:
                 attrib["rx"] = corner_radius
-            bar = document.add_node(None, "rect", attrib=attrib, classes=[series_class])
+            bar = document.add_node(viewport, "rect", attrib=attrib, classes=[series_class])
             if tooltip:
                 add_tooltip(document, bar, _bar_tooltip(x=x, y=y, hue=hue, category=category, value=value, label=label))
 

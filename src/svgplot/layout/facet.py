@@ -70,9 +70,13 @@ They have to be applied a pass before ``ylim``, because on a binned chart the y 
 *consequence* of them. Sharing both at once takes the y union from the first pass's bin
 counts and then re-divides the x axis underneath it, so a bin can pick up a value the first
 division had split in two -- measured, panels peaking at 9 and 8 drew a bar of 10 against a
-``ylim`` of 9, which put it 57.8px above the plot area with nothing clipping it and no
-warning. Nothing later notices either: a chart handed a ``ylim`` records the ``ylim``, not
-what it drew, so the union cannot see the overflow.
+``ylim`` of 9, which put it 57.8px above the plot area. Nothing later notices: a chart handed
+a ``ylim`` records the ``ylim``, not what it drew, so the union cannot see the overflow. What
+*has* changed since this was written is what a reader sees -- a chart given a limit now clips
+its marks to the plot area (``charts/_layout.marks_viewport``), so the extra 57.8px is cut
+rather than drawn over the axis. That makes the wrong division quieter, not right: the bar is
+still taller than the axis it is measured against, and these three passes are what stops it
+happening.
 
 Three passes, then: measure, fix the x axis and measure again, fix the y axis. The third is
 stable because the division no longer moves."""
