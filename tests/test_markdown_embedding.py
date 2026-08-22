@@ -53,7 +53,7 @@ CHARTS: dict[str, Callable[[], Chart]] = {
     "regplot": lambda: sp.regplot(DATA, x="day", y="value", seed=0).set_title(POISON),
     "heatmap": lambda: sp.heatmap(DATA, x="day", y="group", values="value", annot=True),
     "radarplot": lambda: sp.radarplot(DATA, x="category", y="value", hue="group"),
-    "gaugeplot": lambda: sp.gaugeplot(DATA, value="value", labels="category"),
+    "gaugeplot": lambda: sp.gaugeplot(DATA, values="value", labels="category"),
     "treemap": lambda: sp.treemap(DATA, values="value", labels="category"),
     "sparkline": lambda: sp.sparkline(DATA, y="value").set_title(POISON),
 }

@@ -294,7 +294,7 @@ def test_a_derived_y_domain_is_shared_too(factory: object) -> None:
     [
         pytest.param(sp.pieplot, {"values": "v", "labels": "cat"}, id="pieplot"),
         pytest.param(sp.treemap, {"values": "v", "labels": "cat"}, id="treemap"),
-        pytest.param(sp.gaugeplot, {"value": "v", "labels": "cat"}, id="gaugeplot"),
+        pytest.param(sp.gaugeplot, {"values": "v", "labels": "cat"}, id="gaugeplot"),
         pytest.param(sp.sparkline, {"y": "v"}, id="sparkline"),
     ],
 )

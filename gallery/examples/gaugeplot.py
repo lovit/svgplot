@@ -17,19 +17,19 @@ EXAMPLES = [
     (
         "기본 — 행 하나면 범례도 없다",
         """ONE = {"지표": ["가동률"], "값": [72.0]}
-sp.gaugeplot(ONE, value="값", labels="지표", vmin=0.0, vmax=100.0)""",
+sp.gaugeplot(ONE, values="값", labels="지표", vmin=0.0, vmax=100.0)""",
     ),
     (
         "여러 행은 하나의 범위를 공유하는 동심 아크가 된다",
-        'sp.gaugeplot(KPI, value="값", labels="지표", vmin=0.0, vmax=100.0)',
+        'sp.gaugeplot(KPI, values="값", labels="지표", vmin=0.0, vmax=100.0)',
     ),
     (
         "vmin=/vmax= 를 주지 않으면 데이터에서 범위를 잡는다",
-        'sp.gaugeplot(KPI, value="값", labels="지표")',
+        'sp.gaugeplot(KPI, values="값", labels="지표")',
     ),
     (
         "tooltip=True — 아크마다 자기 값과 *어떤 범위에 대고* 그려졌는지를 말한다",
-        'sp.gaugeplot(KPI, value="값", labels="지표", vmin=0.0, vmax=100.0, tooltip=True)',
+        'sp.gaugeplot(KPI, values="값", labels="지표", vmin=0.0, vmax=100.0, tooltip=True)',
     ),
 ]
 

@@ -142,7 +142,7 @@ KPI = {
 </svg>
     </figure>
     <pre><code>ONE = {&quot;지표&quot;: [&quot;가동률&quot;], &quot;값&quot;: [72.0]}
-sp.gaugeplot(ONE, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0)</code></pre>
+sp.gaugeplot(ONE, values=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0)</code></pre>
     <h3>여러 행은 하나의 범위를 공유하는 동심 아크가 된다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-2" role="img" aria-label="여러 행은 하나의 범위를 공유하는 동심 아크가 된다">
@@ -187,7 +187,7 @@ sp.gaugeplot(ONE, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vm
   <desc>Gauge, 3 arcs (가동률, 적중률, 재구매율), values 38 to 91, range 0 to 100.</desc>
 </svg>
     </figure>
-    <pre><code>sp.gaugeplot(KPI, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0)</code></pre>
+    <pre><code>sp.gaugeplot(KPI, values=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0)</code></pre>
     <h3>vmin=/vmax= 를 주지 않으면 데이터에서 범위를 잡는다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-3" role="img" aria-label="vmin=/vmax= 를 주지 않으면 데이터에서 범위를 잡는다">
@@ -230,7 +230,7 @@ sp.gaugeplot(ONE, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vm
   <desc>Gauge, 3 arcs (가동률, 적중률, 재구매율), values 38 to 91, range 0 to 91.</desc>
 </svg>
     </figure>
-    <pre><code>sp.gaugeplot(KPI, value=&quot;값&quot;, labels=&quot;지표&quot;)</code></pre>
+    <pre><code>sp.gaugeplot(KPI, values=&quot;값&quot;, labels=&quot;지표&quot;)</code></pre>
     <h3>tooltip=True — 아크마다 자기 값과 *어떤 범위에 대고* 그려졌는지를 말한다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-4" role="img" aria-label="tooltip=True — 아크마다 자기 값과 *어떤 범위에 대고* 그려졌는지를 말한다">
@@ -281,7 +281,7 @@ sp.gaugeplot(ONE, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vm
   <desc>Gauge, 3 arcs (가동률, 적중률, 재구매율), values 38 to 91, range 0 to 100.</desc>
 </svg>
     </figure>
-    <pre><code>sp.gaugeplot(KPI, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0, tooltip=True)</code></pre>
+    <pre><code>sp.gaugeplot(KPI, values=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0, tooltip=True)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
       <li>네 번째 그림에는 체크박스가 없다. 한 행이 아크 하나라서 토글은 범례가 아니라 데이터 편집이 된다. 대신 커서가 얹힌 아크의 테두리가 진해진다 — 아크는 원래 자기 색 테두리를 갖고 있고, hover 규칙이 그걸 거의 검정으로 바꾼다. 이 페이지의 CSS 이고 JavaScript 는 0줄이다.</li>

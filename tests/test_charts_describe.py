@@ -132,7 +132,7 @@ EVERY_CHART = [
     ),
     (
         "gaugeplot",
-        lambda: sp.gaugeplot({"v": [3.0, 7.0]}, value="v"),
+        lambda: sp.gaugeplot({"v": [3.0, 7.0]}, values="v"),
         "Gauge, 2 arcs (1, 2), values 3 to 7, range 0 to 7.",
     ),
 ]
@@ -379,7 +379,7 @@ CAPPED_LISTS = [
         40,
     ),
     # 12, not 40: a gauge refuses more rows than it can draw readable rings for.
-    ("gauge arcs", lambda n: sp.gaugeplot({"v": _values(n), "l": _labels(n)}, value="v", labels="l"), 12),
+    ("gauge arcs", lambda n: sp.gaugeplot({"v": _values(n), "l": _labels(n)}, values="v", labels="l"), 12),
     (
         "bar series",
         lambda n: sp.barplot({"x": ["a"] * n, "y": _values(n), "g": _labels(n)}, x="x", y="y", hue="g", height=_TALL_ENOUGH),

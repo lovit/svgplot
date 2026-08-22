@@ -168,10 +168,7 @@ _CHART_OPTIONS = {
     "barplot": {"orient", "stacked", "estimator"},
     "boxplot": {"mode"},
     "ecdfplot": {"stat", "complementary"},
-    # ``labels`` is this chart's own option today: ``pieplot``/``treemap`` take it positionally
-    # as a channel and ``gaugeplot`` declares it keyword-only. That disagreement is real and has
-    # its own issue; until it is settled this is where the name lives.
-    "gaugeplot": {"vmin", "vmax", "labels"},
+    "gaugeplot": {"vmin", "vmax"},
     "heatmap": {"cmap", "center", "annot"},
     "histplot": {"bins"},
     "kdeplot": {"bandwidth", "fill"},
@@ -276,3 +273,37 @@ def test_facet_passes_only_names_this_file_pins() -> None:
 
     assert assigned, "no overrides[...] assignments found — the pattern is not matching"
     assert assigned == set(_FACET_READS), f"facet passes {sorted(assigned)}; this file pins {sorted(_FACET_READS)}"
+
+
+_SYNONYMS = {
+    "value": "values",
+    "label": "labels",
+    "color": "hue",
+    "colour": "hue",
+    "tooltips": "tooltip",
+    "category": "categories",
+}
+"""Singular/spelling variants of names the package already uses, and what it uses instead.
+
+``gaugeplot`` took ``value`` where ``pieplot``, ``treemap`` and ``heatmap`` all take ``values``
+-- and used the plural for ``labels`` in the same signature, so the disagreement was inside one
+function as well as across four. A reader who has met one of these charts should not have to
+check which spelling the next one chose.
+"""
+
+
+@pytest.mark.parametrize("name", _CHARTS)
+def test_a_chart_never_invents_a_second_word_for_a_shared_concept(name: str) -> None:
+    """One concept, one spelling, across sixteen charts.
+
+    Narrower than :func:`test_a_chart_uses_the_shared_vocabulary_or_declares_its_own`, which
+    would already catch ``value`` -- it belongs to no bucket. This one exists to fail with the
+    *right message*: "spells value where the package spells values" rather than "takes an
+    undeclared option". The two are the same defect and a reader given the second has to work
+    out the first.
+    """
+    parameters = _parameters(name)
+
+    wrong = {found: want for found, want in _SYNONYMS.items() if found in parameters}
+
+    assert not wrong, f"{name} spells {wrong}"

@@ -71,7 +71,7 @@ SIZED_CHARTS: list[tuple[str, Callable[..., sp.Chart]]] = [
     # Two rows, not the fixture's eight: a gauge's rings have their own thickness rule,
     # and on a small canvas that rule binds before the canvas minimum does. Its own test
     # below covers what happens when it does.
-    ("gaugeplot", lambda **kw: sp.gaugeplot(GAUGE_DATA, value="value", labels="category", **kw)),
+    ("gaugeplot", lambda **kw: sp.gaugeplot(GAUGE_DATA, values="value", labels="category", **kw)),
 ]
 CHART_IDS = [name for name, _ in SIZED_CHARTS]
 
@@ -354,7 +354,7 @@ MIN_SIZE_CHARTS: list[tuple[str, Callable[..., sp.Chart]]] = [
     ("violinplot", lambda **kw: sp.violinplot(DATA, x="group", y="value", **kw)),
     ("regplot", lambda **kw: sp.regplot(SMALL, x="day", y="value", **kw)),
     ("treemap", lambda **kw: sp.treemap(SMALL, values="value", labels="category", **kw)),
-    ("gaugeplot", lambda **kw: sp.gaugeplot(GAUGE_DATA, value="value", labels="category", **kw)),
+    ("gaugeplot", lambda **kw: sp.gaugeplot(GAUGE_DATA, values="value", labels="category", **kw)),
 ]
 
 
@@ -448,7 +448,7 @@ def test_a_gauge_with_too_many_rows_for_a_small_canvas_names_its_own_limit() -> 
     """A gauge's ring thickness is its own rule, older than this issue, and on a small
     canvas it binds before the canvas minimum does — with a message that names it."""
     with pytest.raises(ValueError, match="below the 3.0px that still reads as an arc"):
-        sp.gaugeplot(DATA, value="value", labels="category", width=MIN_WIDTH, height=MIN_HEIGHT)
+        sp.gaugeplot(DATA, values="value", labels="category", width=MIN_WIDTH, height=MIN_HEIGHT)
 
 
 @pytest.mark.parametrize(("width", "height"), [(MIN_WIDTH, 2000), (2000, MIN_HEIGHT)])
