@@ -13,6 +13,7 @@ import re
 import pytest
 
 import svgplot as sp
+from _svg_probe import placed_panels
 from svgplot.chart._domain import Domains, union
 
 # Two groups whose y ranges do not overlap at all, so an unshared axis is unmistakable.
@@ -29,7 +30,7 @@ def _widths(svg: str) -> list[set[str]]:
 
 
 def _panels(svg: str) -> list[str]:
-    return re.split(r"(?=<svg x=)", svg)[1:]
+    return placed_panels(svg)
 
 
 def _ticks(panel: str) -> list[str]:
@@ -424,7 +425,7 @@ def test_an_all_constant_axis_still_renders() -> None:
     turned a chart that rendered into a ValueError."""
     constant = {"x": [1, 2, 3, 4], "y": [5.0] * 4, "g": ["a", "a", "b", "b"]}
 
-    assert sp.facet(sp.lineplot, constant, col="g", x="x", y="y").to_string().count("<svg") == 3
+    assert len(_panels(sp.facet(sp.lineplot, constant, col="g", x="x", y="y").to_string())) == 2
 
 
 def test_an_explicit_limit_wins_over_the_computed_union() -> None:
