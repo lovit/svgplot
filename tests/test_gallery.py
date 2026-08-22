@@ -350,3 +350,56 @@ def test_the_audit_would_notice_a_channel_going_missing() -> None:
     assert (
         set(_SUBJECT) <= positional
     ), f"{sorted(set(_SUBJECT) - positional)} is exempt from the caption audit but no chart takes it positionally"
+
+
+# --------------------------------------------------------------- prose against the page it sits on
+#
+# The conventions in ``gallery/examples/__init__.py`` are mostly a matter of taste and stay
+# unenforced. Two of them are not: a figure ordinal in a NOTE is a reference that goes wrong the
+# moment a figure is inserted above it, and the interaction note names the figures that carry a
+# control. Both were wrong at some point on a page that rendered perfectly.
+
+_ORDINALS = {"첫": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8}
+
+
+def _cited_figures(notes: list[str]) -> set[int]:
+    return {number for note in notes for word, number in _ORDINALS.items() if re.search(rf"(?<![가-힣]){word} 번째", note)}
+
+
+def test_no_note_points_past_the_last_figure() -> None:
+    """``다섯 번째`` on a four-figure page is a reference to nothing, and the build does not care."""
+    overflowing = [
+        (page.name, sorted(number for number in _cited_figures(page.notes) if number > len(page.examples)))
+        for page in discover()
+    ]
+
+    assert not [row for row in overflowing if row[1]], f"notes citing figures that do not exist: {overflowing}"
+
+
+_JAVASCRIPT_CLAUSE = "JavaScript 는 0줄이다"
+"""The fixed tail of the interaction note. Found by that phrase rather than by the words for a
+control, because the pages do not share those: ``lineplot`` writes ``조작 장치`` where the rest
+write ``체크박스``, since its controls are a checkbox *and* a radio."""
+
+
+def test_the_interaction_note_names_the_figures_that_have_controls() -> None:
+    """A page's controls come from ``INTERACTIONS``; the sentence describing them is written by
+    hand. Reordering ``scatterplot``'s examples moved a control from figure 4 to figure 5 and
+    left the sentence saying 4 -- true of nothing, and invisible to every other test here.
+
+    Both directions: a page with controls has exactly one such note naming exactly the
+    controlled figures, and a page with none does not disclaim JavaScript for a control it
+    never draws.
+    """
+    for page in discover():
+        controlled = {index for index, example in enumerate(page.examples, 1) if example.controls}
+        notes = [note for note in page.notes if _JAVASCRIPT_CLAUSE in note]
+
+        if not controlled:
+            assert not notes, f"{page.name} draws no control but disclaims JavaScript for one"
+            continue
+
+        assert len(notes) == 1, f"{page.name} has controls on {sorted(controlled)} and {len(notes)} notes saying so"
+        assert (
+            _cited_figures(notes) == controlled
+        ), f"{page.name}: the note names {sorted(_cited_figures(notes))}, the controls are on {sorted(controlled)}"

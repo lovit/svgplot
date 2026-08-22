@@ -99,9 +99,9 @@
       #svgplot-scatterplot-2-toggle-1:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
       #svgplot-scatterplot-2-toggle-2:not(:checked) ~ svg :is(.series-2) { opacity: 0.15; pointer-events: none; }
       #svgplot-scatterplot-2-toggle-2:not(:checked) + label { opacity: 0.5; text-decoration: line-through; }
-      /* svgplot-scatterplot-4 · hover */
-      .svgplot-scatterplot-4 :is(.series-1:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
-      .svgplot-scatterplot-4 :is(.series-2:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
+      /* svgplot-scatterplot-5 · hover */
+      .svgplot-scatterplot-5 :is(.series-1:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
+      .svgplot-scatterplot-5 :is(.series-2:hover) { opacity: 1; stroke: #16181d; stroke-width: 1.5; }
     </style>
   </head>
   <body>
@@ -124,9 +124,9 @@ STORES = {
 }</code></pre>
     <h2>예시</h2>
     <p class="interaction-note">체크를 끄면 시리즈가 사라지지 않고 흐려진다. 축·눈금·카테고리 밴드는 그릴 때 한 번 정해지고 다시 계산되지 않으므로, 감추면 남은 그림이 자기보다 넓은 축 위에 서게 된다. 흐리게 하는 것은 &quot;이건 지금 보지 말라&quot;는 말이고, 감추는 것은 &quot;이 값은 없다&quot;는 말이다 — 뒤쪽은 사실이 아니다.</p>
-    <h3>기본</h3>
+    <h3>기본 — 행 하나가 점 하나, 반지름은 테마의 marker_size 다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-1" role="img" aria-label="기본">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-1" role="img" aria-label="기본 — 행 하나가 점 하나, 반지름은 테마의 marker_size 다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="760" y2="550" class="spine" />
   <line x1="151.304348" y1="30" x2="151.304348" y2="550" class="grid-line" />
@@ -183,7 +183,7 @@ STORES = {
 :where(.svgplot-scatterplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
 :where(.svgplot-scatterplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-scatterplot-1) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
-  <title>기본</title>
+  <title>기본 — 행 하나가 점 하나, 반지름은 테마의 marker_size 다</title>
   <desc>Scatter plot, 10 points, x 25 to 140, y 6 to 38.</desc>
 </svg>
     </figure>
@@ -331,9 +331,60 @@ STORES = {
 </svg>
     </figure>
     <pre><code>sp.scatterplot(STORES, x=&quot;면적&quot;, y=&quot;매출&quot;, size=&quot;직원수&quot;)</code></pre>
+    <h3>xscale=&quot;log&quot;, yscale=&quot;log&quot; — 양쪽이 자릿수로 벌어질 때</h3>
+    <figure>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-4" role="img" aria-label="xscale=&quot;log&quot;, yscale=&quot;log&quot; — 양쪽이 자릿수로 벌어질 때">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="760" y2="550" class="spine" />
+  <line x1="60" y1="30" x2="60" y2="550" class="grid-line" />
+  <line x1="60" y1="550" x2="60" y2="554" class="tick-line" />
+  <text x="60" y="572" text-anchor="middle" class="tick-label">10</text>
+  <line x1="235" y1="30" x2="235" y2="550" class="grid-line" />
+  <line x1="235" y1="550" x2="235" y2="554" class="tick-line" />
+  <text x="235" y="572" text-anchor="middle" class="tick-label">100</text>
+  <line x1="410" y1="30" x2="410" y2="550" class="grid-line" />
+  <line x1="410" y1="550" x2="410" y2="554" class="tick-line" />
+  <text x="410" y="572" text-anchor="middle" class="tick-label">1000</text>
+  <line x1="585" y1="30" x2="585" y2="550" class="grid-line" />
+  <line x1="585" y1="550" x2="585" y2="554" class="tick-line" />
+  <text x="585" y="572" text-anchor="middle" class="tick-label">10000</text>
+  <line x1="760" y1="30" x2="760" y2="550" class="grid-line" />
+  <line x1="760" y1="550" x2="760" y2="554" class="tick-line" />
+  <text x="760" y="572" text-anchor="middle" class="tick-label">100000</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="393.875429" x2="760" y2="393.875429" class="grid-line" />
+  <line x1="56" y1="393.875429" x2="60" y2="393.875429" class="tick-line" />
+  <text x="54" y="397.875429" text-anchor="end" class="tick-label">10</text>
+  <line x1="60" y1="224.325699" x2="760" y2="224.325699" class="grid-line" />
+  <line x1="56" y1="224.325699" x2="60" y2="224.325699" class="tick-line" />
+  <text x="54" y="228.325699" text-anchor="end" class="tick-label">100</text>
+  <line x1="60" y1="54.775969" x2="760" y2="54.775969" class="grid-line" />
+  <line x1="56" y1="54.775969" x2="60" y2="54.775969" class="tick-line" />
+  <text x="54" y="58.775969" text-anchor="end" class="tick-label">1000</text>
+  <circle cx="60" cy="550" r="5" class="series-1 scatter-point" />
+  <circle cx="235" cy="482.529379" r="5" class="series-1 scatter-point" />
+  <circle cx="410" cy="369.09946" r="5" class="series-1 scatter-point" />
+  <circle cx="585" cy="205.006634" r="5" class="series-1 scatter-point" />
+  <circle cx="760" cy="30" r="5" class="series-1 scatter-point" />
+  <style>:where(.svgplot-scatterplot-4) .plot-background { fill: #ffffff; }
+:where(.svgplot-scatterplot-4) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-scatterplot-4) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-scatterplot-4) .tick-line { stroke: #333333; }
+:where(.svgplot-scatterplot-4) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-scatterplot-4) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-scatterplot-4) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
+  <title>xscale="log", yscale="log" — 양쪽이 자릿수로 벌어질 때</title>
+  <desc>Scatter plot, 5 points, x 10 to 100000, y 1.2 to 1400.</desc>
+</svg>
+    </figure>
+    <pre><code>LATENCY = {
+    &quot;요청수&quot;: [10.0, 100.0, 1000.0, 10000.0, 100000.0],
+    &quot;지연밀리초&quot;: [1.2, 3.0, 14.0, 130.0, 1400.0],
+}
+sp.scatterplot(LATENCY, x=&quot;요청수&quot;, y=&quot;지연밀리초&quot;, xscale=&quot;log&quot;, yscale=&quot;log&quot;)</code></pre>
     <h3>tooltip=True — 점마다 자기 값을 말한다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-4" role="img" aria-label="tooltip=True — 점마다 자기 값을 말한다">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-5" role="img" aria-label="tooltip=True — 점마다 자기 값을 말한다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
   <line x1="135.652174" y1="30" x2="135.652174" y2="550" class="grid-line" />
@@ -413,14 +464,14 @@ STORES = {
   <text x="691" y="118.5" class="legend-text">6.5</text>
   <circle cx="672.5" cy="142.5" r="12.5" class="series-1" />
   <text x="691" y="146.5" class="legend-text">11</text>
-  <style>:where(.svgplot-scatterplot-4) .plot-background { fill: #ffffff; }
-:where(.svgplot-scatterplot-4) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
-:where(.svgplot-scatterplot-4) .spine { stroke: #333333; stroke-width: 1; fill: none; }
-:where(.svgplot-scatterplot-4) .tick-line { stroke: #333333; }
-:where(.svgplot-scatterplot-4) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
-:where(.svgplot-scatterplot-4) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
-:where(.svgplot-scatterplot-4) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
-:where(.svgplot-scatterplot-4) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
+  <style>:where(.svgplot-scatterplot-5) .plot-background { fill: #ffffff; }
+:where(.svgplot-scatterplot-5) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-scatterplot-5) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-scatterplot-5) .tick-line { stroke: #333333; }
+:where(.svgplot-scatterplot-5) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-scatterplot-5) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-scatterplot-5) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-scatterplot-5) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
   <title>tooltip=True — 점마다 자기 값을 말한다</title>
   <desc>Scatter plot, 2 series (수도권, 지방) over 10 points, x 25 to 140, y 6 to 38, marker size from "직원수".</desc>
 </svg>
@@ -428,7 +479,7 @@ STORES = {
     <pre><code>sp.scatterplot(STORES, x=&quot;면적&quot;, y=&quot;매출&quot;, hue=&quot;지역&quot;, size=&quot;직원수&quot;, tooltip=True)</code></pre>
     <h3>info= 선언 하나가 각주 표와 tooltip=True 의 툴팁을 함께 채운다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-5" role="img" aria-label="info= 선언 하나가 각주 표와 tooltip=True 의 툴팁을 함께 채운다" aria-describedby="svgplot-scatterplot-5-table">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-6" role="img" aria-label="info= 선언 하나가 각주 표와 tooltip=True 의 툴팁을 함께 채운다" aria-describedby="svgplot-scatterplot-6-table">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
   <line x1="135.652174" y1="30" x2="135.652174" y2="550" class="grid-line" />
@@ -502,18 +553,18 @@ STORES = {
   <text x="682" y="34" class="legend-text">수도권</text>
   <rect x="660" y="45" width="16" height="10" class="series-2" />
   <text x="682" y="54" class="legend-text">지방</text>
-  <style>:where(.svgplot-scatterplot-5) .plot-background { fill: #ffffff; }
-:where(.svgplot-scatterplot-5) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
-:where(.svgplot-scatterplot-5) .spine { stroke: #333333; stroke-width: 1; fill: none; }
-:where(.svgplot-scatterplot-5) .tick-line { stroke: #333333; }
-:where(.svgplot-scatterplot-5) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
-:where(.svgplot-scatterplot-5) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
-:where(.svgplot-scatterplot-5) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
-:where(.svgplot-scatterplot-5) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
+  <style>:where(.svgplot-scatterplot-6) .plot-background { fill: #ffffff; }
+:where(.svgplot-scatterplot-6) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-scatterplot-6) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-scatterplot-6) .tick-line { stroke: #333333; }
+:where(.svgplot-scatterplot-6) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-scatterplot-6) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-scatterplot-6) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-scatterplot-6) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
   <title>info= 선언 하나가 각주 표와 tooltip=True 의 툴팁을 함께 채운다</title>
   <desc>Scatter plot, 2 series (수도권, 지방) over 10 points, x 25 to 140, y 6 to 38.</desc>
 </svg>
-      <table id="svgplot-scatterplot-5-table"><thead><tr><th>점포</th><th>면적(㎡)</th><th>매출(억)</th></tr></thead><tbody><tr><td>강남</td><td>30</td><td>8.0</td></tr><tr><td>대전</td><td>45</td><td>14.0</td></tr><tr><td>분당</td><td>60</td><td>17.0</td></tr><tr><td>대구</td><td>85</td><td>26.0</td></tr><tr><td>일산</td><td>120</td><td>31.0</td></tr><tr><td>광주</td><td>25</td><td>6.0</td></tr><tr><td>송도</td><td>50</td><td>15.0</td></tr><tr><td>부산</td><td>70</td><td>21.0</td></tr><tr><td>판교</td><td>95</td><td>27.0</td></tr><tr><td>울산</td><td>140</td><td>38.0</td></tr></tbody></table>
+      <table id="svgplot-scatterplot-6-table"><thead><tr><th>점포</th><th>면적(㎡)</th><th>매출(억)</th></tr></thead><tbody><tr><td>강남</td><td>30</td><td>8.0</td></tr><tr><td>대전</td><td>45</td><td>14.0</td></tr><tr><td>분당</td><td>60</td><td>17.0</td></tr><tr><td>대구</td><td>85</td><td>26.0</td></tr><tr><td>일산</td><td>120</td><td>31.0</td></tr><tr><td>광주</td><td>25</td><td>6.0</td></tr><tr><td>송도</td><td>50</td><td>15.0</td></tr><tr><td>부산</td><td>70</td><td>21.0</td></tr><tr><td>판교</td><td>95</td><td>27.0</td></tr><tr><td>울산</td><td>140</td><td>38.0</td></tr></tbody></table>
     </figure>
     <pre><code>sp.scatterplot(
     STORES,
@@ -523,63 +574,12 @@ STORES = {
     info=[(&quot;점포&quot;, &quot;@점포&quot;), (&quot;면적(㎡)&quot;, &quot;@면적{0,0}&quot;), (&quot;매출(억)&quot;, &quot;@매출{0.0}&quot;)],
     tooltip=True,
 )</code></pre>
-    <h3>xscale=&quot;log&quot;, yscale=&quot;log&quot; — 양쪽이 자릿수로 벌어질 때</h3>
-    <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-6" role="img" aria-label="xscale=&quot;log&quot;, yscale=&quot;log&quot; — 양쪽이 자릿수로 벌어질 때">
-  <rect x="0" y="0" width="800" height="600" class="plot-background" />
-  <line x1="60" y1="550" x2="760" y2="550" class="spine" />
-  <line x1="60" y1="30" x2="60" y2="550" class="grid-line" />
-  <line x1="60" y1="550" x2="60" y2="554" class="tick-line" />
-  <text x="60" y="572" text-anchor="middle" class="tick-label">10</text>
-  <line x1="235" y1="30" x2="235" y2="550" class="grid-line" />
-  <line x1="235" y1="550" x2="235" y2="554" class="tick-line" />
-  <text x="235" y="572" text-anchor="middle" class="tick-label">100</text>
-  <line x1="410" y1="30" x2="410" y2="550" class="grid-line" />
-  <line x1="410" y1="550" x2="410" y2="554" class="tick-line" />
-  <text x="410" y="572" text-anchor="middle" class="tick-label">1000</text>
-  <line x1="585" y1="30" x2="585" y2="550" class="grid-line" />
-  <line x1="585" y1="550" x2="585" y2="554" class="tick-line" />
-  <text x="585" y="572" text-anchor="middle" class="tick-label">10000</text>
-  <line x1="760" y1="30" x2="760" y2="550" class="grid-line" />
-  <line x1="760" y1="550" x2="760" y2="554" class="tick-line" />
-  <text x="760" y="572" text-anchor="middle" class="tick-label">100000</text>
-  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
-  <line x1="60" y1="393.875429" x2="760" y2="393.875429" class="grid-line" />
-  <line x1="56" y1="393.875429" x2="60" y2="393.875429" class="tick-line" />
-  <text x="54" y="397.875429" text-anchor="end" class="tick-label">10</text>
-  <line x1="60" y1="224.325699" x2="760" y2="224.325699" class="grid-line" />
-  <line x1="56" y1="224.325699" x2="60" y2="224.325699" class="tick-line" />
-  <text x="54" y="228.325699" text-anchor="end" class="tick-label">100</text>
-  <line x1="60" y1="54.775969" x2="760" y2="54.775969" class="grid-line" />
-  <line x1="56" y1="54.775969" x2="60" y2="54.775969" class="tick-line" />
-  <text x="54" y="58.775969" text-anchor="end" class="tick-label">1000</text>
-  <circle cx="60" cy="550" r="5" class="series-1 scatter-point" />
-  <circle cx="235" cy="482.529379" r="5" class="series-1 scatter-point" />
-  <circle cx="410" cy="369.09946" r="5" class="series-1 scatter-point" />
-  <circle cx="585" cy="205.006634" r="5" class="series-1 scatter-point" />
-  <circle cx="760" cy="30" r="5" class="series-1 scatter-point" />
-  <style>:where(.svgplot-scatterplot-6) .plot-background { fill: #ffffff; }
-:where(.svgplot-scatterplot-6) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
-:where(.svgplot-scatterplot-6) .spine { stroke: #333333; stroke-width: 1; fill: none; }
-:where(.svgplot-scatterplot-6) .tick-line { stroke: #333333; }
-:where(.svgplot-scatterplot-6) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
-:where(.svgplot-scatterplot-6) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
-:where(.svgplot-scatterplot-6) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
-  <title>xscale="log", yscale="log" — 양쪽이 자릿수로 벌어질 때</title>
-  <desc>Scatter plot, 5 points, x 10 to 100000, y 1.2 to 1400.</desc>
-</svg>
-    </figure>
-    <pre><code>LATENCY = {
-    &quot;요청수&quot;: [10.0, 100.0, 1000.0, 10000.0, 100000.0],
-    &quot;지연밀리초&quot;: [1.2, 3.0, 14.0, 130.0, 1400.0],
-}
-sp.scatterplot(LATENCY, x=&quot;요청수&quot;, y=&quot;지연밀리초&quot;, xscale=&quot;log&quot;, yscale=&quot;log&quot;)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
-      <li>이 페이지의 두 번째 그림에는 체크박스가, 네 번째에는 마우스오버 강조가 붙어 있다. 둘 다 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.</li>
+      <li>두 번째 그림에 체크박스가, 다섯 번째에 마우스오버 강조가 붙어 있다. 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.</li>
       <li>tooltip=True 는 점마다 &lt;title&gt; 을 붙인다. 브라우저가 그걸 마우스오버 툴팁으로 띄우고, 같은 것이 그 점의 접근 가능한 이름이 된다 — 점 무더기 하나가 아니라 이름이 있는 마크 여러 개가 된다. &lt;img&gt; 로 넣은 SVG 에서는 동작하지 않는다: 그건 별개 문서라 브라우저가 상호작용 없이 그린다.</li>
       <li>tooltip=False 가 기본이다. 마크마다 &lt;title&gt; 은 마크마다 요소이므로 점 1000개짜리 차트는 요소 1000개가 늘고, 기존 사용자의 출력 바이트가 요청하지 않은 기능 때문에 전부 바뀐다. 꺼두면 파일은 예전 그대로다.</li>
-      <li>다섯 번째 그림에서 info= 는 한 번만 적혔는데 각주 표와 툴팁을 둘 다 채운다. 점에 마우스를 올리면 표의 그 행이 그대로, 적어둔 열 이름 그대로 떠오른다.</li>
+      <li>여섯 번째 그림에서 info= 는 한 번만 적혔는데 각주 표와 툴팁을 둘 다 채운다. 점에 마우스를 올리면 표의 그 행이 그대로, 적어둔 열 이름 그대로 떠오른다.</li>
       <li>짝은 마크 순번이 아니라 원본 행 번호로 맞춘다. 이 페이지의 데이터는 지역이 번갈아 들어 있어서 그 차이가 실제로 보인다 — 표는 강남·대전·분당… 입력 순서 그대로인데 툴팁은 수도권 다섯 개가 먼저 나오고 지방 다섯 개가 뒤따른다. 순번으로 세면 모든 점이 남의 행을 말하게 되는데, 그건 남의 진짜 데이터라 틀린 티가 나지 않는다.</li>
       <li>info= 만 주면 표만 생기고 툴팁은 생기지 않는다. tooltip=True 가 없으면 마크에는 &lt;title&gt; 이 하나도 붙지 않는다.</li>
       <li>hue= 와 size= 를 함께 주면 범례가 둘 쌓인다. 캔버스가 그 높이를 감당하지 못하면 잘라 그리는 대신 거부한다.</li>
