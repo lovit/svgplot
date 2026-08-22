@@ -412,8 +412,10 @@ def test_a_fractional_value_is_printed_without_being_rounded(value: float, print
 # ---------------------------------------------------------------------------
 
 
-def test_rejects_a_missing_value_column() -> None:
-    with pytest.raises(KeyError, match="value column not found"):
+def test_rejects_a_missing_values_column() -> None:
+    """The message names the parameter, so it moved with the rename from ``value`` to
+    ``values`` -- a caller who mistyped the column looks for the argument they passed."""
+    with pytest.raises(KeyError, match="values column not found"):
         gaugeplot({"other": [1.0]}, "score")
 
 

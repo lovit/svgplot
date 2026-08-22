@@ -395,7 +395,7 @@ def test_lineplot_still_accepts_each_of_them_alone() -> None:
         pytest.param(lambda: sp.radarplot(DUPLICATED, x="x", y="y", estimator="mean"), id="radarplot"),
         pytest.param(lambda: sp.pieplot(DUPLICATED, values="y", labels="x", estimator="mean"), id="pieplot"),
         pytest.param(lambda: sp.treemap(DUPLICATED, values="y", labels="x", estimator="mean"), id="treemap"),
-        pytest.param(lambda: sp.gaugeplot(DUPLICATED, value="y", estimator="mean"), id="gaugeplot"),
+        pytest.param(lambda: sp.gaugeplot(DUPLICATED, values="y", estimator="mean"), id="gaugeplot"),
         pytest.param(lambda: sp.sparkline(DUPLICATED, y="y", estimator="mean"), id="sparkline"),
         pytest.param(lambda: sp.regplot(DUPLICATED, x="y", y="y", estimator="mean"), id="regplot"),
     ],

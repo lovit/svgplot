@@ -1,7 +1,7 @@
 """gaugeplot — a value's position within a fixed range, drawn as an arc (pygal's model).
 
 The one chart here whose data model is a **scalar** rather than a comparison. It has no
-x/y channels, so it takes a single ``value`` column the way ``pieplot`` does rather than
+x/y channels, so it takes a single ``values`` column the way ``pieplot`` does rather than
 going through ``ingest_longform``, and it owns its own margin because there are no
 cartesian axes to hand to ``charts/_axes``.
 
@@ -152,7 +152,7 @@ def _draws_something(cx: float, cy: float, radius: float, start_angle: float, en
     return tuple(format_coord(value) for value in start) != tuple(format_coord(value) for value in end)
 
 
-def _arc_tooltip(*, value: str, label: str, magnitude: float, low: float, high: float) -> str:
+def _arc_tooltip(*, values: str, label: str, magnitude: float, low: float, high: float) -> str:
     """What one arc's ``<title>`` says: whose it is, what it reads, and **what range it is a
     fraction of**.
 
@@ -165,24 +165,29 @@ def _arc_tooltip(*, value: str, label: str, magnitude: float, low: float, high: 
     The legend names the arcs rather than the scale, and the chart's ``<desc>`` says the range
     once for the whole picture; this says it for the arc under the pointer.
 
-    Both bounds go through :func:`format_number` for the reason the value does: a gauge over
+    Both bounds go through :func:`format_number` for the reason the magnitude does: a gauge over
     ``[0, 1e308]`` would otherwise read out 309 digits, twice, per arc.
+
+    ``values`` is the *column name* and ``magnitude`` is the number, matching the public
+    signature. ``heatmap`` splits them the same way. ``barplot``/``pieplot``/``treemap`` use
+    ``value`` for the number instead, which is why this one is not called that -- two helpers
+    whose ``value`` means opposite things read almost identically at the call site.
     """
     parts = []
     if (shown := format_label(label)) is not None:
         parts.append(shown)
-    parts.append(clause(value, format_number(magnitude)))
+    parts.append(clause(values, format_number(magnitude)))
     parts.append(f"of [{format_number(low)}, {format_number(high)}]")
     return " · ".join(parts)
 
 
 def gaugeplot(
     data: object,
-    value: str,
+    values: str,
+    labels: str | None = None,
     *,
     vmin: float | None = None,
     vmax: float | None = None,
-    labels: str | None = None,
     tooltip: bool = False,
     width: float | None = None,
     height: float | None = None,
@@ -196,10 +201,16 @@ def gaugeplot(
     full arc rather than silently winding past the end and back around, which would render
     as a *smaller* arc than a value that merely reached the top.
 
-    ``vmin`` defaults to zero (or to the smallest value, if that is negative) and ``vmax``
-    to the largest value. ``labels`` names the legend column; without it, rows are numbered
-    from 1, and a single unlabelled row gets no legend at all -- its number is already
+    ``values`` names the numeric column an arc's sweep comes from, and ``labels`` the legend
+    column -- the same pair, in the same positions, that ``pieplot`` and ``treemap`` take, since
+    all three read one magnitude column and give a row its own mark. A gauge draws *at most*
+    one arc per row rather than exactly one: a value at or below ``vmin`` has no sweep, and is
+    left out rather than drawn as nothing (see below). Without ``labels`` the rows are
+    numbered from 1, and a single unlabelled row gets no legend at all: its number is already
     printed in the middle.
+
+    ``vmin`` defaults to zero (or to the smallest value, if that is negative) and ``vmax``
+    to the largest value.
 
     ``tooltip=True`` gives every arc a ``<title>`` naming its row, its value, and **the range
     the sweep is a fraction of**. That last part is what the picture withholds: a half-full arc
@@ -232,7 +243,7 @@ def gaugeplot(
     drawn in between.
 
     Raises:
-        KeyError: if ``value``/``labels`` isn't a column in ``data``, or if ``theme`` is a
+        KeyError: if ``values``/``labels`` isn't a column in ``data``, or if ``theme`` is a
             string that isn't a registered preset name.
         TypeError: if ``theme`` is neither a ``Theme``, a preset name, nor ``None``.
         ValueError: if ``data`` has no rows, if no rows remain after dropping missing
@@ -242,8 +253,8 @@ def gaugeplot(
     """
     resolved_theme = resolve_theme(theme)
     columns = extract_columns(data)
-    if value not in columns:
-        raise KeyError(f"value column not found in data: {value!r}")
+    if values not in columns:
+        raise KeyError(f"values column not found in data: {values!r}")
     if labels is not None and labels not in columns:
         raise KeyError(f"labels column not found in data: {labels!r}")
     length = column_length(columns)
@@ -253,7 +264,7 @@ def gaugeplot(
     raw_labels = columns[labels] if labels is not None else [str(index + 1) for index in range(length)]
     pairs = [
         (str(label), float(magnitude))
-        for label, magnitude in zip(raw_labels, columns[value], strict=True)
+        for label, magnitude in zip(raw_labels, columns[values], strict=True)
         if not is_missing(label) and not is_missing(magnitude)
     ]
     if not pairs:
@@ -310,7 +321,7 @@ def gaugeplot(
                 classes=[series_class, "gauge-value"],
             )
             if tooltip:
-                add_tooltip(document, arc, _arc_tooltip(value=value, label=label, magnitude=magnitude, low=low, high=high))
+                add_tooltip(document, arc, _arc_tooltip(values=values, label=label, magnitude=magnitude, low=low, high=high))
 
     _render_value_text(document, [magnitude for _, magnitude in pairs], cx, cy)
 

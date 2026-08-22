@@ -99,7 +99,7 @@ _CHARTS = {
     "heatmap": lambda theme: sp.heatmap(GRID, x="c", y="r", values="v", annot=True, theme=theme),
     "radarplot": lambda theme: sp.radarplot(CATEGORIES3, x="c", y="v", theme=theme),
     "treemap": lambda theme: sp.treemap(CATEGORIES, values="v", labels="c", theme=theme),
-    "gaugeplot": lambda theme: sp.gaugeplot(GAUGE, value="v", labels="n", theme=theme),
+    "gaugeplot": lambda theme: sp.gaugeplot(GAUGE, values="v", labels="n", theme=theme),
     "sparkline": lambda theme: sp.sparkline({"y": [1.0, 2, 3]}, y="y", theme=theme),
     "row": lambda theme: sp.row(
         [sp.lineplot(DATA, x="x", y="y", theme=theme), sp.barplot(CATEGORIES, x="c", y="v", theme=theme)]

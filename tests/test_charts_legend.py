@@ -118,7 +118,7 @@ _LEGEND_CHARTS = {
     "areaplot": lambda data, label: sp.areaplot(data, x="d", y="y", hue="g"),
     "pieplot": lambda data, label: sp.pieplot(data, values="v", labels="g"),
     "treemap": lambda data, label: sp.treemap(data, values="v", labels="g"),
-    "gaugeplot": lambda data, label: sp.gaugeplot(data, value="v", labels="g"),
+    "gaugeplot": lambda data, label: sp.gaugeplot(data, values="v", labels="g"),
     "histplot": lambda data, label: sp.histplot(data, x="y", hue="g", bins=2),
     "ecdfplot": lambda data, label: sp.ecdfplot(data, x="y", hue="g"),
     "heatmap": lambda data, label: sp.heatmap(data, x="x", y="g", values="v"),

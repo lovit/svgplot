@@ -33,7 +33,7 @@ _DIAL = {"이름": ["가", "나"], "값": [40.0, 70.0]}
 _CASES = [
     pytest.param(lambda: pieplot(_SLICES, values="값", labels="이름").to_string(), "pie-value", 3, id="pieplot"),
     pytest.param(lambda: treemap(_TILES, values="값", labels="이름").to_string(), "treemap-label", 3, id="treemap"),
-    pytest.param(lambda: gaugeplot(_DIAL, value="값", labels="이름").to_string(), "gauge-number", 2, id="gaugeplot"),
+    pytest.param(lambda: gaugeplot(_DIAL, values="값", labels="이름").to_string(), "gauge-number", 2, id="gaugeplot"),
 ]
 
 

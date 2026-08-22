@@ -114,7 +114,7 @@ def _render_every_chart(theme: Theme | None) -> list[str]:
             sp.boxplot(_CATEGORICAL, x="g", y="y", theme=theme),
             sp.heatmap(_GRID, x="c", y="r", values="v", theme=theme),
             sp.treemap(_CATEGORICAL, values="v", labels="cat", theme=theme),
-            sp.gaugeplot(_CATEGORICAL, value="v", labels="cat", theme=theme),
+            sp.gaugeplot(_CATEGORICAL, values="v", labels="cat", theme=theme),
             sp.radarplot(_CATEGORICAL, x="cat", y="v", theme=theme),
             sp.sparkline(_CATEGORICAL, y="v", theme=theme),
             sp.areaplot(_CATEGORICAL, x="x", y="y", hue="g", theme=theme),

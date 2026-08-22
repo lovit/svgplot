@@ -34,8 +34,18 @@ import pytest
 
 import svgplot as sp
 
-_CHANNELS = ("data", "x", "y", "hue", "size", "values", "value", "labels")
+_CHANNELS = ("data", "x", "y", "hue", "size", "values", "labels")
 """Positional-or-keyword parameters: what the chart is drawn *from*.
+
+``value`` is deliberately absent. It was here while ``gaugeplot`` took the singular, and leaving
+it would contradict :data:`_SYNONYMS`, further down this file, which forbids that spelling -- and
+it would cost a guard. Measured, reverting ``gaugeplot`` to the singular:
+
+* with ``value`` in this tuple -- one failure, the synonym test alone;
+* without it -- two, because :func:`test_everything_but_the_channels_is_keyword_only` sees a
+  positional parameter that is not a channel.
+
+The one name this file exists for should not be the one defended least.
 
 Everything else is keyword-only in every chart, which is itself part of the convention and is
 checked by :func:`test_everything_but_the_channels_is_keyword_only`.
@@ -168,10 +178,7 @@ _CHART_OPTIONS = {
     "barplot": {"orient", "stacked", "estimator"},
     "boxplot": {"mode"},
     "ecdfplot": {"stat", "complementary"},
-    # ``labels`` is this chart's own option today: ``pieplot``/``treemap`` take it positionally
-    # as a channel and ``gaugeplot`` declares it keyword-only. That disagreement is real and has
-    # its own issue; until it is settled this is where the name lives.
-    "gaugeplot": {"vmin", "vmax", "labels"},
+    "gaugeplot": {"vmin", "vmax"},
     "heatmap": {"cmap", "center", "annot"},
     "histplot": {"bins"},
     "kdeplot": {"bandwidth", "fill"},
@@ -210,12 +217,12 @@ def test_a_chart_uses_the_shared_vocabulary_or_declares_its_own(name: str) -> No
     """
     kwargs = {parameter for parameter, spec in _parameters(name).items() if spec.kind is inspect.Parameter.KEYWORD_ONLY}
     # Channels are deliberately *not* blanket-exempt here. Adding ``_CHANNELS`` to this set was
-    # tried, to let ``gaugeplot``'s keyword-only ``labels`` through, and it opened the hole this
-    # check exists to close: ``barplot`` renaming ``categories`` to ``labels`` -- near-synonyms,
-    # and ``pieplot``/``treemap`` already use ``labels`` for the human concept -- then passed
-    # every test in this file while silently losing category sharing under ``facet``. The
-    # exemption belongs to the one chart that needs it, where it is a table entry somebody has
-    # to justify, not an eight-word blanket.
+    # tried once, so that ``gaugeplot`` could keep a keyword-only ``labels``, and it opened the
+    # hole this check exists to close: ``barplot`` renaming ``categories`` to ``labels`` --
+    # near-synonyms, and ``pieplot``/``treemap`` already use ``labels`` for the human concept --
+    # then passed every test in this file while silently losing category sharing under
+    # ``facet``. Nothing needs the blanket now: ``gaugeplot`` takes ``labels`` positionally like
+    # its two siblings, so it is a channel and never reaches this check at all.
     shared = set(_CROSS_CUTTING) | set(_UNIVERSAL) | set(_DOMAIN)
 
     unknown = kwargs - shared - _CHART_OPTIONS[name]
@@ -232,10 +239,16 @@ def test_every_declared_option_is_real() -> None:
     A declared option that no chart takes would quietly widen the partition for that chart,
     letting a future rename through under the name of a parameter that no longer exists.
     """
+
+    def keyword_only(name: str) -> set[str]:
+        return {parameter for parameter, spec in _parameters(name).items() if spec.kind is inspect.Parameter.KEYWORD_ONLY}
+
+    # Against the *keyword-only* names, not against every parameter. A declared option that
+    # became positional would otherwise still look real -- which is exactly what happened when
+    # ``gaugeplot``'s ``labels`` moved: the table entry could have stayed and nothing would
+    # have said so.
     stale = {
-        name: sorted(options - set(_parameters(name)))
-        for name, options in _CHART_OPTIONS.items()
-        if options - set(_parameters(name))
+        name: sorted(options - keyword_only(name)) for name, options in _CHART_OPTIONS.items() if options - keyword_only(name)
     }
 
     assert _CHART_OPTIONS.keys() == set(_CHARTS), "the option table and the chart registry disagree"
@@ -276,3 +289,45 @@ def test_facet_passes_only_names_this_file_pins() -> None:
 
     assert assigned, "no overrides[...] assignments found — the pattern is not matching"
     assert assigned == set(_FACET_READS), f"facet passes {sorted(assigned)}; this file pins {sorted(_FACET_READS)}"
+
+
+_SYNONYMS = {
+    "value": "values",
+    "label": "labels",
+    "color": "hue",
+    "colour": "hue",
+    "tooltips": "tooltip",
+    "category": "categories",
+}
+"""Names a chart might reach for, and the one this package uses instead.
+
+``gaugeplot`` took ``value`` where ``pieplot``, ``treemap`` and ``heatmap`` all take ``values``
+-- and used the plural for ``labels`` in the same signature, so the disagreement was inside one
+function as well as across four. A reader who has met one of these charts should not have to
+check which spelling the next one chose.
+"""
+
+
+@pytest.mark.parametrize("name", _CHARTS)
+def test_a_chart_never_invents_a_second_word_for_a_shared_concept(name: str) -> None:
+    """One concept, one spelling, across sixteen charts.
+
+    **Not redundant with**
+    :func:`test_a_chart_uses_the_shared_vocabulary_or_declares_its_own`, which is what a first
+    version of this docstring claimed. That check filters to keyword-only parameters, and the
+    defect this file was written for -- ``gaugeplot``'s singular ``value`` -- was
+    positional-or-keyword, so it sailed past. Measured: revert the rename and two assertions
+    fire, this one and :func:`test_everything_but_the_channels_is_keyword_only`; this is the
+    only one that names the *spelling* rather than reporting a positional parameter that is not
+    a channel. (An earlier draft said "the only assertion", which was true until ``value`` was
+    dropped from :data:`_CHANNELS` -- the same edit that made it false.)
+
+    The distinction matters for the same reason the vocabulary check has a chart-options table:
+    a name is either a channel, where the vocabulary check does not look, or an option, where
+    it does. This one looks at both.
+    """
+    parameters = _parameters(name)
+
+    wrong = {found: want for found, want in _SYNONYMS.items() if found in parameters}
+
+    assert not wrong, f"{name} spells {wrong}"

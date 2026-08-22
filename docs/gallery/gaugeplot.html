@@ -99,7 +99,7 @@
     <p class="summary">값 하나가 범위 안에서 어디쯤인지를 240도 아크의 채운 길이로 나타낸다.</p>
     <dl class="meta">
       <dt>데이터</dt>
-      <dd>value: 수치(비유한 값 거부) · labels(선택): 아크 이름 · vmin/vmax(선택): 범위</dd>
+      <dd>values: 수치(비유한 값 거부) · labels(선택): 아크 이름 · vmin/vmax(선택): 범위</dd>
     </dl>
     <h2>데이터</h2>
     <pre><code>import svgplot as sp
@@ -142,7 +142,7 @@ KPI = {
 </svg>
     </figure>
     <pre><code>ONE = {&quot;지표&quot;: [&quot;가동률&quot;], &quot;값&quot;: [72.0]}
-sp.gaugeplot(ONE, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0)</code></pre>
+sp.gaugeplot(ONE, values=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0)</code></pre>
     <h3>여러 행은 하나의 범위를 공유하는 동심 아크가 된다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-2" role="img" aria-label="여러 행은 하나의 범위를 공유하는 동심 아크가 된다">
@@ -187,7 +187,7 @@ sp.gaugeplot(ONE, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vm
   <desc>Gauge, 3 arcs (가동률, 적중률, 재구매율), values 38 to 91, range 0 to 100.</desc>
 </svg>
     </figure>
-    <pre><code>sp.gaugeplot(KPI, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0)</code></pre>
+    <pre><code>sp.gaugeplot(KPI, values=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0)</code></pre>
     <h3>vmin=/vmax= 를 주지 않으면 데이터에서 범위를 잡는다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-3" role="img" aria-label="vmin=/vmax= 를 주지 않으면 데이터에서 범위를 잡는다">
@@ -230,7 +230,7 @@ sp.gaugeplot(ONE, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vm
   <desc>Gauge, 3 arcs (가동률, 적중률, 재구매율), values 38 to 91, range 0 to 91.</desc>
 </svg>
     </figure>
-    <pre><code>sp.gaugeplot(KPI, value=&quot;값&quot;, labels=&quot;지표&quot;)</code></pre>
+    <pre><code>sp.gaugeplot(KPI, values=&quot;값&quot;, labels=&quot;지표&quot;)</code></pre>
     <h3>tooltip=True — 아크마다 자기 값과 *어떤 범위에 대고* 그려졌는지를 말한다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-4" role="img" aria-label="tooltip=True — 아크마다 자기 값과 *어떤 범위에 대고* 그려졌는지를 말한다">
@@ -281,7 +281,7 @@ sp.gaugeplot(ONE, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vm
   <desc>Gauge, 3 arcs (가동률, 적중률, 재구매율), values 38 to 91, range 0 to 100.</desc>
 </svg>
     </figure>
-    <pre><code>sp.gaugeplot(KPI, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0, tooltip=True)</code></pre>
+    <pre><code>sp.gaugeplot(KPI, values=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0, tooltip=True)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
       <li>네 번째 그림에는 체크박스가 없다. 한 행이 아크 하나라서 토글은 범례가 아니라 데이터 편집이 된다. 대신 커서가 얹힌 아크의 테두리가 진해진다 — 아크는 원래 자기 색 테두리를 갖고 있고, hover 규칙이 그걸 거의 검정으로 바꾼다. 이 페이지의 CSS 이고 JavaScript 는 0줄이다.</li>
@@ -295,7 +295,7 @@ sp.gaugeplot(ONE, value=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vm
       <li>범위 밖 값은 양 끝으로 클램핑된다. 감아 돌게 두면 vmax 를 넘은 큰 값이 더 작은 아크로 그려져 데이터를 뒤집어 보이게 된다.</li>
       <li>링이 3px 보다 얇아질 만큼 행이 많으면 거부한다. 그보다 얇은 링은 서로 구별되지 않는다.</li>
       <li>vmin &gt;= vmax 를 거부하고, 비유한 경계나 넘치는 범위도 거부한다.</li>
-      <li>16종 중 데이터 모델이 비교가 아니라 스칼라인 유일한 차트다. 그래서 x/y 채널 대신 value 컬럼 하나를 받는다.</li>
+      <li>16종 중 데이터 모델이 비교가 아니라 스칼라인 유일한 차트다. 그래서 x/y 채널 대신 values 컬럼 하나를 받는다 — pieplot·treemap 과 같은 자리, 같은 이름이다.</li>
     </ul>
     <footer>
       <a href="./">갤러리로</a> · <a href="https://github.com/lovit/svgplot/blob/main/gallery/examples/gaugeplot.py">이 페이지의 예시 소스</a>

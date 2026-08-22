@@ -63,7 +63,7 @@ CHART_TYPES: list[tuple[str, Callable[..., Chart]]] = [
     ("radarplot", lambda **kw: sp.radarplot(DATA, x="category", y="value", hue="group", **kw)),
     ("treemap", lambda **kw: sp.treemap(DATA, values="value", labels="category", **kw)),
     ("sparkline", lambda **kw: sp.sparkline(DATA, y="value", **kw)),
-    ("gaugeplot", lambda **kw: sp.gaugeplot(DATA, value="value", labels="category", **kw)),
+    ("gaugeplot", lambda **kw: sp.gaugeplot(DATA, values="value", labels="category", **kw)),
 ]
 CHART_IDS = [name for name, _ in CHART_TYPES]
 CHART_FACTORIES = [factory for _, factory in CHART_TYPES]
@@ -381,7 +381,7 @@ def test_sparkline_keeps_its_own_canvas_while_every_other_chart_shares_one() -> 
         pytest.param(sp.radarplot, {"x": "category", "y": "value"}, id="radarplot"),
         pytest.param(sp.treemap, {"values": "value", "labels": "category"}, id="treemap"),
         pytest.param(sp.sparkline, {"y": "value"}, id="sparkline"),
-        pytest.param(sp.gaugeplot, {"value": "value", "labels": "category"}, id="gaugeplot"),
+        pytest.param(sp.gaugeplot, {"values": "value", "labels": "category"}, id="gaugeplot"),
     ],
 )
 def test_the_shape_charts_facet(factory: Callable[..., Chart], kwargs: dict[str, str]) -> None:
@@ -448,7 +448,7 @@ def test_a_mixed_composition_of_shape_charts_keeps_its_namespaces() -> None:
         [
             sp.heatmap(DATA, x="day", y="group", values="value", annot=True),
             sp.radarplot(DATA, x="category", y="value", hue="group"),
-            sp.gaugeplot(DATA, value="value", labels="category"),
+            sp.gaugeplot(DATA, values="value", labels="category"),
         ]
     )
     svg = composition.to_string()
