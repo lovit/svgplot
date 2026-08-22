@@ -99,7 +99,7 @@
     <p class="summary">값 하나가 범위 안에서 어디쯤인지를 240도 아크의 채운 길이로 나타낸다.</p>
     <dl class="meta">
       <dt>데이터</dt>
-      <dd>value: 수치(비유한 값 거부) · labels(선택): 아크 이름 · vmin/vmax(선택): 범위</dd>
+      <dd>values: 수치(비유한 값 거부) · labels(선택): 아크 이름 · vmin/vmax(선택): 범위</dd>
     </dl>
     <h2>데이터</h2>
     <pre><code>import svgplot as sp
@@ -295,7 +295,7 @@ sp.gaugeplot(ONE, values=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, v
       <li>범위 밖 값은 양 끝으로 클램핑된다. 감아 돌게 두면 vmax 를 넘은 큰 값이 더 작은 아크로 그려져 데이터를 뒤집어 보이게 된다.</li>
       <li>링이 3px 보다 얇아질 만큼 행이 많으면 거부한다. 그보다 얇은 링은 서로 구별되지 않는다.</li>
       <li>vmin &gt;= vmax 를 거부하고, 비유한 경계나 넘치는 범위도 거부한다.</li>
-      <li>16종 중 데이터 모델이 비교가 아니라 스칼라인 유일한 차트다. 그래서 x/y 채널 대신 value 컬럼 하나를 받는다.</li>
+      <li>16종 중 데이터 모델이 비교가 아니라 스칼라인 유일한 차트다. 그래서 x/y 채널 대신 values 컬럼 하나를 받는다 — pieplot·treemap 과 같은 자리, 같은 이름이다.</li>
     </ul>
     <footer>
       <a href="./">갤러리로</a> · <a href="https://github.com/lovit/svgplot/blob/main/gallery/examples/gaugeplot.py">이 페이지의 예시 소스</a>

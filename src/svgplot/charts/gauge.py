@@ -203,7 +203,9 @@ def gaugeplot(
 
     ``values`` names the numeric column an arc's sweep comes from, and ``labels`` the legend
     column -- the same pair, in the same positions, that ``pieplot`` and ``treemap`` take, since
-    all three draw one mark per row from one magnitude column. Without ``labels`` the rows are
+    all three read one magnitude column and give a row its own mark. A gauge draws *at most*
+    one arc per row rather than exactly one: a value at or below ``vmin`` has no sweep, and is
+    left out rather than drawn as nothing (see below). Without ``labels`` the rows are
     numbered from 1, and a single unlabelled row gets no legend at all: its number is already
     printed in the middle.
 
