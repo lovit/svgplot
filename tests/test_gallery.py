@@ -278,11 +278,12 @@ def test_the_gallery_figure_shows_the_two_orders_disagreeing() -> None:
 # ------------------------------------------------------- captions against the code they caption
 #
 # The caption becomes the figure's ``aria-label``, so it is the only description a screen
-# reader gets. Written after an audit claimed in a PR body did not reproduce: seven of the 76
-# figures passed an argument no caption named -- ``barplot`` one, ``gaugeplot`` three,
-# ``kdeplot``, ``scatterplot`` and ``violinplot`` one each -- and two more captions described a
-# figure that was not the one under them. A claim about every caption belongs in a test, not in
-# a sentence nobody re-runs.
+# reader gets. Written after an audit claimed in a PR body did not reproduce. Measured against
+# this branch's own tip before the fix: seven of the 76 figures passed an argument no caption
+# named -- ``barplot`` one, ``gaugeplot`` three, ``kdeplot``, ``scatterplot`` and ``violinplot``
+# one each -- and two more captions described a figure that was not the one under them. That
+# second pair is the argument for a test rather than a sentence: one of the two was a caption
+# this branch had written itself, one commit earlier, while rewriting the page it sat on.
 
 _SUBJECT = ("data", "x", "y", "hue", "size", "values", "labels")
 """The channels. A page's ``REQUIRES`` already declares these, and every figure on the page
@@ -329,7 +330,10 @@ def test_the_audit_would_notice_a_channel_going_missing() -> None:
     can never fail. Measured: widening both tuples with ``tooltip`` left all 3,899 tests green,
     and a live caption could then stop naming ``tooltip=`` with nothing complaining. The second
     assertion says every exempt name is one some chart really takes positionally, which is what
-    makes ``tooltip`` unaddable."""
+    makes ``tooltip`` unaddable. One direction, not equality: the converse -- that no chart takes
+    anything positionally the audit does not exempt -- is what ``test_api_shape``'s own per-chart
+    check is for, and asserting it here again would fail this test, with this test's message,
+    for a chart signature that changed."""
     import inspect
 
     from test_api_shape import _CHANNELS
@@ -342,4 +346,6 @@ def test_the_audit_would_notice_a_channel_going_missing() -> None:
     }
 
     assert set(_SUBJECT) == set(_CHANNELS), "the caption audit and the signature guard disagree about what a channel is"
-    assert set(_SUBJECT) == positional, "an exempt name is not a channel any chart takes positionally"
+    assert (
+        set(_SUBJECT) <= positional
+    ), f"{sorted(set(_SUBJECT) - positional)} is exempt from the caption audit but no chart takes it positionally"
