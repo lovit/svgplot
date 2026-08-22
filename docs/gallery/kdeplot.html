@@ -115,7 +115,7 @@
     <p class="summary">수치 한 컬럼의 분포를 곡선 하나로 추정해 그린다. 히스토그램과 달리 구간 경계가 없다.</p>
     <dl class="meta">
       <dt>데이터</dt>
-      <dd>x: 수치(그룹마다 2개 이상, 분산 0 불가) · hue(선택): 아무 타입</dd>
+      <dd>x: 수치(그룹마다 2개 이상, 분산 0 불가) · hue(선택): 아무 타입 · y 는 받지 않는다(높이는 밀도다)</dd>
     </dl>
     <h2>데이터</h2>
     <pre><code>import random
@@ -132,9 +132,9 @@ SESSION = {
 }</code></pre>
     <h2>예시</h2>
     <p class="interaction-note">체크를 끄면 시리즈가 사라지지 않고 흐려진다. 축·눈금·카테고리 밴드는 그릴 때 한 번 정해지고 다시 계산되지 않으므로, 감추면 남은 그림이 자기보다 넓은 축 위에 서게 된다. 흐리게 하는 것은 &quot;이건 지금 보지 말라&quot;는 말이고, 감추는 것은 &quot;이 값은 없다&quot;는 말이다 — 뒤쪽은 사실이 아니다.</p>
-    <h3>기본</h3>
+    <h3>기본 — fill= 없이 곡선만, 그리드는 데이터 양끝 밖까지 잡는다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-kdeplot-1" role="img" aria-label="기본">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-kdeplot-1" role="img" aria-label="기본 — fill= 없이 곡선만, 그리드는 데이터 양끝 밖까지 잡는다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="760" y2="550" class="spine" />
   <line x1="171.109853" y1="30" x2="171.109853" y2="550" class="grid-line" />
@@ -180,7 +180,7 @@ SESSION = {
 :where(.svgplot-kdeplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-kdeplot-1) .series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
 :where(.svgplot-kdeplot-1) .series-1-marker { fill: #E69F00; stroke: none; }</style>
-  <title>기본</title>
+  <title>기본 — fill= 없이 곡선만, 그리드는 데이터 양끝 밖까지 잡는다</title>
   <desc>Density plot, 300 observations, x -4.583645 to 24.293645, density 0 to 0.111256.</desc>
 </svg>
     </figure>

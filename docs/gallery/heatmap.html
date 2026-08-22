@@ -97,7 +97,7 @@
     <p class="summary">행·열 카테고리가 만드는 격자에서 값을 색으로 나타낸다. 색은 9단계로 양자화된다.</p>
     <dl class="meta">
       <dt>데이터</dt>
-      <dd>x: 열 카테고리 · y: 행 카테고리 · values: 수치 · 셀 하나에 행 하나(중복 거부)</dd>
+      <dd>x: 열 카테고리 · y: 행 카테고리 · values: 수치 · hue 는 받지 않는다(색은 values 가 정한다) · 셀 하나에 행 하나(중복 거부)</dd>
     </dl>
     <h2>데이터</h2>
     <pre><code>import svgplot as sp
@@ -115,9 +115,9 @@ TRAFFIC = {
     &quot;요청&quot;: [value for row in _load for value in row],
 }</code></pre>
     <h2>예시</h2>
-    <h3>기본 — sequential 컬러맵</h3>
+    <h3>기본 — cmap= 기본값은 순차 컬러맵 &quot;blues&quot; 다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-1" role="img" aria-label="기본 — sequential 컬러맵">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-1" role="img" aria-label="기본 — cmap= 기본값은 순차 컬러맵 &quot;blues&quot; 다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
   <line x1="118" y1="30" x2="118" y2="550" class="grid-line" />
@@ -193,7 +193,7 @@ TRAFFIC = {
 :where(.svgplot-heatmap-1) .level-7 { fill: #0c79e8; stroke: none; opacity: 1; }
 :where(.svgplot-heatmap-1) .level-8 { fill: #0a65c2; stroke: none; opacity: 1; }
 :where(.svgplot-heatmap-1) .level-9 { fill: #08519c; stroke: none; opacity: 1; }</style>
-  <title>기본 — sequential 컬러맵</title>
+  <title>기본 — cmap= 기본값은 순차 컬러맵 "blues" 다</title>
   <desc>Heatmap, 5 columns (09시, 12시, 15시, 18시, 21시), 3 rows (월, 수, 금), 15 of 15 cells filled, values 12 to 82, quantised into 9 levels.</desc>
 </svg>
     </figure>
@@ -305,9 +305,9 @@ TRAFFIC = {
 </svg>
     </figure>
     <pre><code>sp.heatmap(TRAFFIC, x=&quot;시각&quot;, y=&quot;요일&quot;, values=&quot;요청&quot;, annot=True)</code></pre>
-    <h3>cmap= 을 발산으로 바꾸고 center= 로 가운데 단계를 정한다 — annot= 도 함께 켠 그림</h3>
+    <h3>cmap= 을 발산으로 바꾸고 center= 로 가운데 단계를 정한다 — annot= 도 함께 켰다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-3" role="img" aria-label="cmap= 을 발산으로 바꾸고 center= 로 가운데 단계를 정한다 — annot= 도 함께 켠 그림">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-3" role="img" aria-label="cmap= 을 발산으로 바꾸고 center= 로 가운데 단계를 정한다 — annot= 도 함께 켰다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
   <line x1="118" y1="30" x2="118" y2="550" class="grid-line" />
@@ -409,7 +409,7 @@ TRAFFIC = {
 :where(.svgplot-heatmap-3) .level-7-annotation { fill: #000000; }
 :where(.svgplot-heatmap-3) .level-8-annotation { fill: #000000; }
 :where(.svgplot-heatmap-3) .level-9-annotation { fill: #000000; }</style>
-  <title>cmap= 을 발산으로 바꾸고 center= 로 가운데 단계를 정한다 — annot= 도 함께 켠 그림</title>
+  <title>cmap= 을 발산으로 바꾸고 center= 로 가운데 단계를 정한다 — annot= 도 함께 켰다</title>
   <desc>Heatmap, 5 columns (09시, 12시, 15시, 18시, 21시), 3 rows (월, 수, 금), 15 of 15 cells filled, values -33 to 37, quantised into 9 levels.</desc>
 </svg>
     </figure>
@@ -542,7 +542,7 @@ sp.heatmap(DIFF, x=&quot;시각&quot;, y=&quot;요일&quot;, values=&quot;증감
       <li>셀 하나에 행이 둘이면 거부한다. 어느 값을 쓸지 정하는 것은 이 차트의 몫이 아니다.</li>
       <li>빠진 셀은 0 이 아니라 구멍으로 남는다 — 값이 0 인 것과 값이 없는 것은 다르다.</li>
       <li>색이 9단계로 양자화된다. 연속 램프가 아닌 이유는 CSS 규칙 9개면 손으로 다시 칠할 수 있지만 셀마다 규칙 하나면 그러지 못하기 때문이고, 덤으로 범례가 스와치 9개로 끝난다.</li>
-      <li>cmap 과 center 는 짝이 맞아야 한다 — 발산 컬러맵(&quot;coolwarm&quot;·&quot;purplegreen&quot;)에 center= 가 없거나 sequential(&quot;blues&quot;·&quot;greens&quot;·&quot;oranges&quot;)에 center= 를 주면 고치는 법을 알려주며 거부한다.</li>
+      <li>cmap= 과 center= 는 짝이 맞아야 한다 — 발산 컬러맵(&quot;coolwarm&quot;·&quot;purplegreen&quot;)에 center= 가 없거나 sequential(&quot;blues&quot;·&quot;greens&quot;·&quot;oranges&quot;)에 center= 를 주면 고치는 법을 알려주며 거부한다.</li>
       <li>annot=True 의 글자 색은 테마가 아니라 셀 색의 휘도에서 고른다. 그래서 어느 프리셋에서도 대비가 유지된다.</li>
       <li>격자 셀이 2,500 개를 넘으면 크기를 경고하되 그린다. 100x100 은 셀 하나가 7x5px 이라 개별 식별이 어려워진다.</li>
     </ul>

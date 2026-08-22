@@ -2,7 +2,7 @@ TITLE = "kdeplot"
 
 SUMMARY = "수치 한 컬럼의 분포를 곡선 하나로 추정해 그린다. 히스토그램과 달리 구간 경계가 없다."
 
-REQUIRES = "x: 수치(그룹마다 2개 이상, 분산 0 불가) · hue(선택): 아무 타입"
+REQUIRES = "x: 수치(그룹마다 2개 이상, 분산 0 불가) · hue(선택): 아무 타입 · y 는 받지 않는다(높이는 밀도다)"
 
 SETUP = """
 import random
@@ -20,7 +20,7 @@ SESSION = {
 """
 
 EXAMPLES = [
-    ("기본", 'sp.kdeplot(SESSION, x="체류분")'),
+    ("기본 — fill= 없이 곡선만, 그리드는 데이터 양끝 밖까지 잡는다", 'sp.kdeplot(SESSION, x="체류분")'),
     ("fill=True 는 곡선 아래를 축까지 채우고 윤곽을 남긴다", 'sp.kdeplot(SESSION, x="체류분", fill=True)'),
     (
         "hue= 그룹은 하나의 x 그리드를 공유한다 — fill=True 로 겹침을 보이게 뒀다",

@@ -13,6 +13,7 @@ an example file, and every page is well-formed with its figures present.
 from __future__ import annotations
 
 import ast
+import importlib
 import re
 import sys
 import tempfile
@@ -350,3 +351,213 @@ def test_the_audit_would_notice_a_channel_going_missing() -> None:
     assert (
         set(_SUBJECT) <= positional
     ), f"{sorted(set(_SUBJECT) - positional)} is exempt from the caption audit but no chart takes it positionally"
+
+
+# --------------------------------------------------------------- prose against the page it sits on
+#
+# The conventions in ``gallery/examples/__init__.py`` are mostly a matter of taste and stay
+# unenforced. Two of them are not: a figure ordinal in a NOTE is a reference that goes wrong the
+# moment a figure is inserted above it, and the interaction note names the figures that carry a
+# control. Both were wrong at some point on a page that rendered perfectly.
+
+_ORDINALS = {"첫": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9, "열": 10}
+
+_ORDINAL = re.compile(rf"(?<![가-힣])({'|'.join(_ORDINALS)})\s*번째")
+
+_NOT_A_FIGURE = {("histplot", "다섯 번째 슬롯"), ("regplot", "그 두 번째다")}
+"""Ordinals in NOTES that count something other than figures.
+
+An exclusion list rather than a pattern for what a reference *looks* like, because the first
+attempt at the latter went the wrong way: it matched ``번째 그림``, five particles and three punctuation marks, and
+quietly dropped five real references written some other way -- ``다섯 번째가``, ``세 번째가``,
+``(네 번째)은``, ``(다섯 번째)는``, ``네 번째와 다섯 번째 모두``. One of them was the only
+pointer to ``lineplot``'s fifth figure: the guard below went on auditing that page's other three
+references and simply stopped knowing about figure 5.
+
+Matching every ordinal and naming the exceptions fails in the safe direction: a reference
+written a new way is audited by default, and an ordinal that counts something else fails loudly
+until someone decides which it is. The two here count x slots and the things this chart adds to
+another; both sit in range today only because their pages happen to be long enough.
+"""
+
+
+def _without_exceptions(note: str, page: str) -> str:
+    for owner, phrase in _NOT_A_FIGURE:
+        if owner == page:
+            note = note.replace(phrase, "")
+    return note
+
+
+def _cited_figures(notes: list[str], page: str) -> set[int]:
+    return {_ORDINALS[match[1]] for note in notes for match in _ORDINAL.finditer(_without_exceptions(note, page))}
+
+
+def test_no_note_points_past_the_last_figure() -> None:
+    """``다섯 번째`` on a four-figure page is a reference to nothing, and the build does not care.
+
+    Range only. A reference that points at the *wrong* figure while staying in range is not
+    covered here and cannot be, in general -- nothing mechanical knows that ``세 번째(누적)``
+    means the stacked one. The one place it is covered is the interaction note below, where the
+    page declares the answer in ``INTERACTIONS`` and the sentence can be checked against it.
+    """
+    overflowing = [
+        (page.name, sorted(number for number in _cited_figures(page.notes, page.name) if number > len(page.examples)))
+        for page in discover()
+    ]
+
+    assert not [row for row in overflowing if row[1]], f"notes citing figures that do not exist: {overflowing}"
+
+
+def test_every_exception_to_the_ordinal_audit_is_still_in_use() -> None:
+    """An exclusion list is only safe while every entry earns its place. One left behind after
+    its sentence is rewritten silently exempts whatever text drifts into the same shape."""
+    by_page = {page.name: " ".join(page.notes) for page in discover()}
+    unused = [(owner, phrase) for owner, phrase in _NOT_A_FIGURE if phrase not in by_page.get(owner, "")]
+
+    assert not unused, f"exceptions no longer on the page that justifies them: {unused}"
+
+    # And each must be the *whole* phrase that makes it a non-reference: an ordinal followed by
+    # the noun it counts (``다섯 번째 슬롯``) or closed off as a predicate (``그 두 번째다``).
+    # An entry ending at a particle -- ``다섯 번째가`` -- is a real reference, and adding one
+    # would re-create the regression this list exists to avoid, from the other direction.
+    #
+    # Three conditions, because each of the first two was defeated on its own.
+    #
+    # ``그림`` disqualifies an entry outright: requiring "some noun after the ordinal" was not
+    # enough, since ``세 번째 그림`` satisfies that and is the most ordinary reference there is --
+    # three such entries each emptied a page's cited set with the whole suite green.
+    #
+    # The word limit is what bounds ``endswith("다")``. Korean declarative sentences end in
+    # ``다``, so *any* whole sentence satisfied that clause: pasting a live note's full sentence
+    # (``다섯 번째가 갤러리에서 theme= 을 보여주는 유일한 자리다``) exempted the only pointer to
+    # ``lineplot``'s fifth figure and left 149 tests green -- the same regression as above, for
+    # the third time, through the one clause still unbounded. A real exception is short: both
+    # entries here are three words.
+    unjustified = [
+        (owner, phrase)
+        for owner, phrase in _NOT_A_FIGURE
+        if "그림" in phrase or len(phrase.split()) > 3 or not (phrase.endswith("다") or re.search(r"번째\s+\S", phrase))
+    ]
+
+    assert not unjustified, f"exceptions that are ordinary figure references: {unjustified}"
+
+
+def test_every_ordinal_in_the_gallery_is_classified() -> None:
+    """The audit above is worth only as much as the set of ordinals it sees. Every ``N 번째`` on
+    every page is either a figure reference it counts or a listed exception -- there is no third
+    category that quietly leaves. This is what the previous, pattern-based version could not
+    say: it silently ignored anything it did not recognise."""
+    for page in discover():
+        for note in page.notes:
+            seen = len(_ORDINAL.findall(_without_exceptions(note, page.name)))
+            # Bare ``번째``, not ``_ORDINAL`` again: counting both sides with the same pattern
+            # makes this vacuous -- anything the pattern does not recognise is missing from
+            # *both* and the equality holds. ``열두 번째``, ``12번째`` and an ordinal glued to a
+            # preceding syllable all slipped through that way.
+            total = len(re.findall("번째", note))
+            excepted = sum(note.count(phrase) for owner, phrase in _NOT_A_FIGURE if owner == page.name)
+
+            assert seen + excepted == total, f"{page.name}: {total - seen - excepted} ordinals fell through: {note[:70]}"
+
+
+_JAVASCRIPT_CLAUSE = "JavaScript 는 0줄이다"
+"""The fixed tail of the interaction note. Found by that phrase rather than by the words for a
+control, because the pages do not share those: ``lineplot`` writes ``조작 장치`` where the rest
+write ``체크박스``, since its controls are a checkbox *and* a radio."""
+
+
+def test_the_interaction_note_names_the_figures_that_have_controls() -> None:
+    """A page's controls come from ``INTERACTIONS``; the sentence describing them is written by
+    hand. Reordering ``scatterplot``'s examples moved a control from figure 4 to figure 5 and
+    left the sentence saying 4 -- true of nothing, and invisible to every other test here.
+
+    Both directions: a page with controls has exactly one such note naming exactly the
+    controlled figures, and a page with none does not disclaim JavaScript for a control it
+    never draws.
+    """
+    for page in discover():
+        controlled = {index for index, example in enumerate(page.examples, 1) if example.controls}
+        notes = [note for note in page.notes if _JAVASCRIPT_CLAUSE in note]
+
+        if not controlled:
+            assert not notes, f"{page.name} draws no control but disclaims JavaScript for one"
+            continue
+
+        assert len(notes) == 1, f"{page.name} has controls on {sorted(controlled)} and {len(notes)} notes saying so"
+        assert (
+            _cited_figures(notes, page.name) == controlled
+        ), f"{page.name}: the note names {sorted(_cited_figures(notes, page.name))}, the controls are on {sorted(controlled)}"
+
+
+_VERB_FINAL = re.compile(r"다$")
+"""Whether a caption ends in the syllable ``다``.
+
+Not the same question as "does it end in a verb", and the gap is the copula: ``…원이다`` and
+``…marker_size 다`` are noun phrases closed with ``이다``/``다`` and score verb-final here. Four
+live captions are that shape, three of them written by this branch. So what the list below
+really enumerates is the captions ending in something that is not even a clause -- useful, and
+narrower than the conventions' wording. An earlier version listed ``었다``/``한다``/``된다``
+beside ``다``; every one already ends in ``다``, so all three were dead."""
+
+_NUMBER_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
+
+_ENDS_IN_A_NOUN = {
+    ("areaplot", 4),
+    ("boxplot", 1),
+    ("lineplot", 5),
+    ("scatterplot", 4),
+    ("sparkline", 1),
+    ("sparkline", 3),
+}
+"""The captions the conventions let end in a noun, listed rather than described.
+
+Two shapes qualify -- the value or size the figure was given, and the condition the figure is
+for -- and no pattern tells either from an ordinary noun phrase, so the exemption is a list and
+this is what keeps the list honest. It was written after the rule allowed two *shapes* while nine
+captions ended in a noun and two of the nine -- ``heatmap``'s third and ``pieplot``'s third --
+fitted neither of them. The rule stated no caption count at all then, so nothing could notice;
+the count and this list arrived together, and the check below keeps them together.
+"""
+
+
+def test_only_the_listed_captions_end_in_a_noun() -> None:
+    """Both directions, so the list cannot grow to cover a caption nobody reconsidered, and
+    cannot keep an entry whose caption has since been rewritten."""
+    ending_in_a_noun = {
+        (page.name, index)
+        for page in discover()
+        for index, example in enumerate(page.examples, 1)
+        if not _VERB_FINAL.search(example.caption)
+    }
+
+    assert ending_in_a_noun == _ENDS_IN_A_NOUN
+    # The conventions state the number in prose, and a number in prose drifts. Without this,
+    # adding a caption *and* listing it here is green while the sentence goes on saying six.
+    # Whitespace folded, and the number spelled with a fallback: matching the hard-wrapped
+    # literal made a correctly worded sentence fail whenever the line break moved, with a
+    # message saying the conventions do not state something they state.
+    conventions = " ".join((importlib.import_module("gallery.examples").__doc__ or "").split())
+    spelled = _NUMBER_WORDS.get(len(_ENDS_IN_A_NOUN), str(len(_ENDS_IN_A_NOUN)))
+
+    assert f"and {spelled} captions use them" in conventions, f"the conventions do not say {spelled} captions end in a noun"
+
+
+def test_every_page_answers_the_hue_question() -> None:
+    """``hue=`` decides what colour means, so a page that says nothing about it leaves a reader
+    to guess from silence. Either a field describing what the channel takes, or a field saying
+    the chart does not take one -- sixteen out of sixteen, matched against the signature so a
+    page cannot answer wrongly either."""
+    import inspect
+
+    for page in discover():
+        takes_hue = "hue" in inspect.signature(getattr(sp, page.name)).parameters
+        # ``hue`` appearing somewhere is not an answer -- a field reading ``· hue`` and stopping
+        # names the channel and says nothing. The two forms below are the two answers.
+        declares_hue = "hue(선택):" in page.requires
+        refuses_hue = "hue 는 받지 않는다" in page.requires
+
+        assert declares_hue or refuses_hue, f"{page.name}: REQUIRES names no hue= field and no refusal"
+        assert not (declares_hue and refuses_hue), f"{page.name}: REQUIRES both declares and refuses hue="
+        assert (
+            declares_hue is takes_hue
+        ), f"{page.name}: takes hue={takes_hue} but REQUIRES says {'it does not' if refuses_hue else 'it does'}"

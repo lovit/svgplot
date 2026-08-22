@@ -95,7 +95,7 @@
     <p class="summary">축도 범례도 라벨도 없는 120x24 미니 선. 문장 안이나 표의 셀에 넣으라고 있는 것이다.</p>
     <dl class="meta">
       <dt>데이터</dt>
-      <dd>y: 수치 · x 는 받지 않는다(위치는 행 순서)</dd>
+      <dd>y: 수치 · x 는 받지 않는다(위치는 행 순서) · hue 는 받지 않는다(선 하나뿐이다)</dd>
     </dl>
     <h2>데이터</h2>
     <pre><code>import svgplot as sp
@@ -120,9 +120,9 @@ WEEKLY = {&quot;방문&quot;: [120.0, 138.0, 131.0, 165.0, 149.0, 182.0, 204.0, 
 </svg>
     </figure>
     <pre><code>sp.sparkline(WEEKLY, y=&quot;방문&quot;)</code></pre>
-    <h3>같은 크기가 오르는 줄이든 꺾이는 줄이든 담는다 — 이건 꺾이는 쪽</h3>
+    <h3>같은 크기가 오르는 줄이든 꺾이는 줄이든 담는다 — 이건 꺾이는 데이터다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="120" height="24" viewBox="0 0 120 24" class="svgplot-sparkline-2" role="img" aria-label="같은 크기가 오르는 줄이든 꺾이는 줄이든 담는다 — 이건 꺾이는 쪽">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="24" viewBox="0 0 120 24" class="svgplot-sparkline-2" role="img" aria-label="같은 크기가 오르는 줄이든 꺾이는 줄이든 담는다 — 이건 꺾이는 데이터다">
   <rect x="0" y="0" width="120" height="24" class="plot-background" />
   <path d="M 2,18.666667 L 14.888889,15.333333 L 27.777778,17 L 40.666667,10.333333 L 53.555556,2 L 66.444444,7 L 79.333333,13.666667 L 92.222222,17 L 105.111111,20.333333 L 118,22" class="series-1" />
   <style>:where(.svgplot-sparkline-2) .plot-background { fill: #ffffff; }
@@ -133,7 +133,7 @@ WEEKLY = {&quot;방문&quot;: [120.0, 138.0, 131.0, 165.0, 149.0, 182.0, 204.0, 
 :where(.svgplot-sparkline-2) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-sparkline-2) .series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
 :where(.svgplot-sparkline-2) .series-1-marker { fill: #E69F00; stroke: none; }</style>
-  <title>같은 크기가 오르는 줄이든 꺾이는 줄이든 담는다 — 이건 꺾이는 쪽</title>
+  <title>같은 크기가 오르는 줄이든 꺾이는 줄이든 담는다 — 이건 꺾이는 데이터다</title>
   <desc>Sparkline, 10 points, values 2 to 14.</desc>
 </svg>
     </figure>
@@ -159,7 +159,7 @@ sp.sparkline(DIPPING, y=&quot;오류&quot;)</code></pre>
     <pre><code>sp.sparkline(WEEKLY, y=&quot;방문&quot;, width=200.0, height=32.0)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
-      <li>이 페이지는 토글도 마우스오버 강조도 마크 툴팁도 받지 않는다. 갤러리의 나머지 차트들이 그것을 받는 자리에서 이 차트만 빈손인데, 빠뜨린 것이 아니라 이 차트가 무엇인지에서 나오는 결과다. 아래 셋이 그 이유다.</li>
+      <li>어느 그림에도 조작 장치가 없다 — 토글도 마우스오버 강조도 마크 툴팁도 이 차트에는 붙지 않는다. 갤러리의 나머지 차트들이 그것을 받는 자리에서 이 차트만 빈손인데, 빠뜨린 것이 아니라 이 차트가 무엇인지에서 나오는 결과다. 아래 셋이 그 이유다.</li>
       <li>토글은 판단이 아니라 방출기가 거부한다. 컨트롤에는 이름이 필요하고 이름은 범례에서 오는데, 이 차트는 범례를 안 그린다 — 선이 하나뿐이라 이름 붙일 대상도 하나이고, 그 이름은 이미 그림이 박힌 문장이나 표의 머리에 있다.</li>
       <li>마우스오버로 짚을 시리즈가 없다. 배경 사각형은 캔버스 전면을 덮으니 포인터가 닿을 곳 자체는 있지만, 선은 fill: none 이라 커서가 닿는 것이 선 굵기뿐이다 — 기본 테마에서 2px, print 프리셋에서 2.5px 이고, 기본 캔버스 높이는 24px 다(width=/height= 로 바꾸면 그 비율만 달라진다).</li>
       <li>체크박스 한 줄이 그림보다 크다. 갤러리의 컨트롤 라벨은 0.9rem 이고 페이지가 line-height: 1.7 을 물려주므로 줄 상자만 24.5px 인데, 기본 캔버스 높이가 24px 다(루트 글꼴 16px 기준). 문장 안에 박히는 그림이지 들여다보는 그림이 아니다.</li>
