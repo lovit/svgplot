@@ -319,8 +319,8 @@ def test_a_chart_never_invents_a_second_word_for_a_shared_concept(name: str) -> 
     positional-or-keyword, so it sailed past. Measured: revert the rename and two assertions
     fire, this one and :func:`test_everything_but_the_channels_is_keyword_only`; this is the
     only one that names the *spelling* rather than reporting a positional parameter that is not
-    a channel. (An earlier draft said "the only assertion", which was true before ``value`` was
-    dropped from :data:`_CHANNELS` four paragraphs up -- the same edit that made it false.)
+    a channel. (An earlier draft said "the only assertion", which was true until ``value`` was
+    dropped from :data:`_CHANNELS` -- the same edit that made it false.)
 
     The distinction matters for the same reason the vocabulary check has a chart-options table:
     a name is either a channel, where the vocabulary check does not look, or an option, where
