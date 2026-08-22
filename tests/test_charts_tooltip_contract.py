@@ -70,7 +70,9 @@ def test_a_chart_that_takes_tooltip_takes_it_the_agreed_way(name: str) -> None:
     """
     parameter = inspect.signature(getattr(sp, name)).parameters.get("tooltip")
     if parameter is None:
-        pytest.skip(f"{name} has no tooltip= yet")
+        # "does not take one", not "does not take one yet": the six are a decision, and each
+        # says so in its own docstring -- see ``test_a_chart_without_a_tooltip_says_why``.
+        pytest.skip(f"{name} takes no tooltip=, by design")
 
     assert parameter.kind is inspect.Parameter.KEYWORD_ONLY, f"{name}: tooltip must be keyword-only"
     positional = [
@@ -225,3 +227,56 @@ def test_a_column_name_too_long_to_read_is_dropped_rather_than_repeated() -> Non
 
     assert "<title>1 · 매출: 3</title>" in svg
     assert long_name not in svg
+
+
+_DECLINES_TOOLTIP = "There is no ``tooltip=``"
+"""The sentence each of the six opens its explanation with.
+
+One fixed phrase rather than a keyword, so that removing the position removes the match. It is
+also what makes the six read alike: a reader who has met one of these paragraphs recognises the
+next at a glance.
+"""
+
+_WITHOUT_TOOLTIP = ("areaplot", "ecdfplot", "kdeplot", "lineplot", "radarplot", "sparkline")
+"""The six charts that take no ``tooltip=``, and are expected not to.
+
+A list, so the split is a decision rather than an accident. Ten charts have the argument; these
+six do not, and until now the source said nothing about why -- the word "tooltip" appeared zero
+times in all six modules, so a reader could not tell a design decision from an oversight. The
+reason lives in their docstrings now, and this is what keeps it there.
+"""
+
+
+@pytest.mark.parametrize("name", _WITHOUT_TOOLTIP)
+def test_a_chart_without_a_tooltip_says_why(name: str) -> None:
+    """Not having the argument is a position; an unexplained absence is not.
+
+    The gallery had the reasoning all along -- a ``fill: none`` line's hit area is its 2px
+    stroke, one ``<path>`` per series means the only thing to say is the series name -- but a
+    reader working from ``help()`` never sees the gallery.
+
+    Matched on :data:`_DECLINES_TOOLTIP`, a fixed sentence, **not on the word "tooltip"**. The
+    word was tried and is too weak: these paragraphs use it more than once, so deleting the
+    sentence that states the position leaves the word behind in the explanation and the check
+    passes. A fixed phrase is the same device ``test_theme_fields`` uses for its dead fields,
+    and for the same reason -- the marker has to be the proposition, not a topic.
+    """
+    import svgplot as sp
+
+    prose = (getattr(sp, name).__doc__ or "").split("Raises:")[0]
+
+    assert _DECLINES_TOOLTIP in prose, f"{name} takes no tooltip= and does not say why"
+
+
+def test_the_two_lists_together_are_every_chart() -> None:
+    """So a new chart lands in one list or the other rather than in neither.
+
+    Without this, adding a seventeenth chart with no ``tooltip=`` and no explanation would pass
+    both halves -- it is not in :data:`_WITHOUT_TOOLTIP`, so nothing asks it for a reason.
+    """
+    import svgplot as sp
+
+    with_tooltip = {name for name in _charts() if "tooltip" in inspect.signature(getattr(sp, name)).parameters}
+
+    assert with_tooltip | set(_WITHOUT_TOOLTIP) == set(_charts())
+    assert not with_tooltip & set(_WITHOUT_TOOLTIP)

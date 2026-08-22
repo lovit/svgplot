@@ -67,6 +67,17 @@ def sparkline(
     ``None``-means-default like the full-size charts, because there is no margin preset to
     pick: a sparkline draws no axis, no ticks and no legend.
 
+    **There is no ``tooltip=``.** Ten charts have one; these six do not, and the reason is the
+    same for all six: a series is drawn as **one** mark, so the only thing a ``<title>`` on it
+    could say is the series name -- which the legend already says, in the same colour, without
+    the reader having to find and hold the pointer. A tooltip earns its element when a mark is
+    one row or one bin; here it would repeat the legend once per series.
+
+    For a sparkline this compounds: at 120x24 with one series and no legend, there is neither a
+    second mark to distinguish nor a name to repeat. The chart's own ``<title>`` -- its
+    accessible name, at the root -- is there as on every other chart, and a browser shows that
+    on hover; what this chart does not have is a tooltip *per mark*.
+
     Raises:
         KeyError: if ``y`` isn't a column in ``data``, or if ``theme`` is a string that
             isn't a registered preset name.

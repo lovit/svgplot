@@ -162,6 +162,15 @@ def radarplot(
     to one value, with no ``AggregationWarning`` -- unlike ``barplot``, which folds the same
     shape and says so.
 
+    **There is no ``tooltip=``.** Ten charts have one; these six do not, and the reason is the
+    same for all six: a series is drawn as **one** mark, so the only thing a ``<title>`` on it
+    could say is the series name -- which the legend already says, in the same colour, without
+    the reader having to find and hold the pointer. A tooltip earns its element when a mark is
+    one row or one bin; here it would repeat the legend once per series.
+
+    ``fill=True`` gives the polygon an interior and so a real hit area, but not a second thing
+    to say: the mark is still the whole series.
+
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme`` is a
             string that isn't a registered preset name.

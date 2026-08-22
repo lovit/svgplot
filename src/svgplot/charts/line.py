@@ -244,6 +244,16 @@ def lineplot(
     style state, so two charts given the same ``Theme`` are styled alike no matter what was
     drawn in between.
 
+    **There is no ``tooltip=``.** Ten charts have one; these six do not, and the reason is the
+    same for all six: a series is drawn as **one** mark, so the only thing a ``<title>`` on it
+    could say is the series name -- which the legend already says, in the same colour, without
+    the reader having to find and hold the pointer. A tooltip earns its element when a mark is
+    one row or one bin; here it would repeat the legend once per series.
+
+    ``lineplot`` has the sharper version of the problem: it emits ``fill: none``, so a series'
+    hit area is the stroke itself -- 2px under the default theme, 2.5px under ``print``. The
+    ``<title>`` would attach fine and be almost unreachable.
+
     Raises:
         ValueError: if ``x`` holds a type with no position on an axis (``datetime.time`` is
             a time of day with no day, so two values a week apart are the same point), if it

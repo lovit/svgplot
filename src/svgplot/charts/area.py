@@ -165,6 +165,16 @@ def areaplot(
     style state, so two charts given the same ``Theme`` are styled alike no matter what was
     drawn in between.
 
+    **There is no ``tooltip=``.** Ten charts have one; these six do not, and the reason is the
+    same for all six: a series is drawn as **one** mark, so the only thing a ``<title>`` on it
+    could say is the series name -- which the legend already says, in the same colour, without
+    the reader having to find and hold the pointer. A tooltip earns its element when a mark is
+    one row or one bin; here it would repeat the legend once per series.
+
+    A stacked area is the case where a per-row tooltip would be worth most -- a band's thickness
+    at one x is a number the picture does not print -- and it is also where one ``<path>`` per
+    series makes it impossible without drawing something new.
+
     Raises:
         KeyError: if ``x``/``y``/``hue`` isn't a column in ``data``, or if ``theme``
             is a string that isn't a registered preset name.
