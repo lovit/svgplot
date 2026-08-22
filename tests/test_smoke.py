@@ -52,23 +52,28 @@ def test_every_type_a_chart_parameter_names_can_be_imported() -> None:
     rather than of one name, so the next alias to reach one is covered without anyone
     remembering to come back.
 
-    **Chart parameters only**, which is narrower than "every public signature": ``Chart`` and
-    ``Composition`` name ``SvgDocument``, ``LabelData`` and ``Domains`` in their constructors,
-    and ``Chart.domains`` returns a ``Domains`` -- none of the three importable. The
-    constructors are documented as "not usually built by hand"; the property is a real gap and
-    is left for the issue that widens this, rather than pretended away by a name that claims
-    more than the code asks.
+    **Chart parameters only**, which is narrower than "every public signature": ``Chart`` names
+    ``SvgDocument``, ``LabelData`` and ``Domains`` in its constructor, ``Composition`` names
+    ``SvgDocument``, and ``Chart.domains`` returns a ``Domains`` -- and ``SvgDocument``,
+    ``LabelData`` and ``Domains`` are none of them importable. ``Chart``'s constructor is
+    documented as "constructed by the chart functions, not usually by hand" so its annotations
+    are arguably not addressed to a caller; ``Composition``'s says no such thing, and
+    ``Chart.domains`` is a public property returning an unimportable type. Both are real gaps,
+    left for the issue that widens this rather than pretended away by a name claiming more than
+    the code asks.
     """
     per_chart = {chart: _named_types(chart) for chart in svgplot.charts.__all__}
     leaked = set().union(*per_chart.values())
 
     # What this test reads is *source text*, and it is source text only because every chart
     # module carries ``from __future__ import annotations``. Nothing in the lint config enforces
-    # that import. Without it an annotation is evaluated, and an evaluated *alias* loses its
-    # name -- ``Estimator`` becomes ``str | collections.abc.Callable[[list[float]], float]``,
-    # which has nothing capitalised left to check -- while an evaluated *class* keeps hers, so
-    # ``Theme`` would go on satisfying any "did we find anything" check. Asserting the
-    # annotations are strings is what pins it, and it is the alias that this test is for.
+    # that import, and without it a whole module goes quiet at once: an evaluated alias loses
+    # its name (``Estimator`` becomes ``str | collections.abc.Callable[[list[float]], float]``)
+    # and an evaluated class gains a dotted path whose first token is lowercase
+    # (``svgplot.theme.base.Theme``), which the capitalisation filter above drops. Both halves
+    # of the two assertions are needed: ``eager`` catches the module that stopped being source
+    # text, and ``leaked`` being non-empty catches the extraction itself going blind -- point
+    # the regex at nothing and ``set() <= anything`` is quietly true.
     eager = sorted(
         chart
         for chart in svgplot.charts.__all__
@@ -76,6 +81,7 @@ def test_every_type_a_chart_parameter_names_can_be_imported() -> None:
         if spec.annotation is not inspect.Parameter.empty and not isinstance(spec.annotation, str)
     )
     assert not eager, f"{eager} evaluate their annotations -- `from __future__ import annotations` is missing"
+    assert leaked >= {"Estimator", "LabelSpec", "Theme"}, f"the extraction found only {sorted(leaked)}"
     assert leaked <= set(
         svgplot.__all__
     ), f"chart parameters name types that are not exported: {sorted(leaked - set(svgplot.__all__))}"

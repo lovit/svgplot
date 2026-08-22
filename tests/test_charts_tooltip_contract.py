@@ -285,12 +285,13 @@ def test_the_two_lists_together_are_every_chart() -> None:
 
     with_tooltip = {name for name in _charts() if "tooltip" in inspect.signature(getattr(sp, name)).parameters}
 
-    # Both sides of the union derive from ``_charts()``, so they shrink together: dropping a
-    # chart that *takes* ``tooltip=`` leaves this equality true. These two do not derive from
-    # it. The count is the package's own "sixteen charts", and a seventeenth is meant to fail
-    # here -- deciding its tooltip question is the point of this file.
+    # ``with_tooltip`` is derived from ``_charts()`` and ``_WITHOUT_TOOLTIP`` is a literal, so
+    # the equality below already notices a chart leaving the registry *while this list still
+    # names it*. What it cannot notice is the registry shrinking on the side that has no
+    # literal: drop a chart that takes ``tooltip=`` and both sides lose it together. Hence the
+    # count -- and a seventeenth is meant to fail here too, because deciding its tooltip
+    # question is what this file is for.
     assert len(_charts()) == 16, f"the package now ships {len(_charts())} charts; put the new one on a side"
-    assert set(_WITHOUT_TOOLTIP) <= set(_charts()), f"{sorted(set(_WITHOUT_TOOLTIP) - set(_charts()))} left the registry"
 
     assert with_tooltip | set(_WITHOUT_TOOLTIP) == set(_charts())
     assert not with_tooltip & set(_WITHOUT_TOOLTIP)
