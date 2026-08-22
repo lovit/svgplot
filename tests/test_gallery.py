@@ -12,6 +12,7 @@ an example file, and every page is well-formed with its figures present.
 
 from __future__ import annotations
 
+import ast
 import re
 import sys
 import tempfile
@@ -272,3 +273,48 @@ def test_the_gallery_figure_shows_the_two_orders_disagreeing() -> None:
 
     assert from_marks != list(stores["점포"]), "the figure's data no longer shows the two orders differing"
     assert sorted(from_marks) == sorted(stores["점포"]), "the marks and the table hold the same rows"
+
+
+# ------------------------------------------------------- captions against the code they caption
+#
+# The caption becomes the figure's ``aria-label``, so it is the only description a screen
+# reader gets. Written after an audit claimed in a PR body did not reproduce: three figures
+# passed an argument no caption named, and one caption pointed at the wrong figure. A claim
+# about every caption belongs in a test, not in a sentence nobody re-runs.
+
+_SUBJECT = ("data", "x", "y", "hue", "size", "values", "labels")
+"""The channels. A page's ``REQUIRES`` already declares these, and every figure on the page
+passes them -- naming them again in each caption would say nothing. What a caption has to
+account for is what makes *this* figure different from the one above it: the options."""
+
+
+def _keywords(code: str) -> set[str]:
+    return {
+        keyword.arg
+        for node in ast.walk(ast.parse(code))
+        if isinstance(node, ast.Call)
+        for keyword in node.keywords
+        if keyword.arg
+    }
+
+
+def test_every_option_a_figure_passes_is_named_in_its_caption() -> None:
+    """A figure that quietly passes ``stacked=True`` under a caption about tooltips teaches the
+    reader that the caption is the whole call, and it is not."""
+    unnamed = []
+    for page in discover():
+        for example in page.examples:
+            options = _keywords(example.code) - set(_SUBJECT)
+            missing = sorted(option for option in options if option not in example.caption)
+            if missing:
+                unnamed.append((page.name, example.caption, missing))
+
+    assert not unnamed, f"captions that do not name an option their code passes: {unnamed}"
+
+
+def test_the_audit_would_notice_a_channel_going_missing() -> None:
+    """The exemption above is a list of names, and a list can be edited until it exempts
+    everything. This pins what it may hold: channels, and only the ones charts really take."""
+    from test_api_shape import _CHANNELS
+
+    assert set(_SUBJECT) == set(_CHANNELS), "the caption audit and the signature guard disagree about what a channel is"

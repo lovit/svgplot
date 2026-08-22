@@ -109,9 +109,9 @@ KPI = {
     &quot;값&quot;: [72.0, 91.0, 38.0],
 }</code></pre>
     <h2>예시</h2>
-    <h3>기본 — 행 하나면 범례도 없다</h3>
+    <h3>기본 — vmin=/vmax= 로 범위를 정한다, 행 하나면 범례도 없다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-1" role="img" aria-label="기본 — 행 하나면 범례도 없다">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-1" role="img" aria-label="기본 — vmin=/vmax= 로 범위를 정한다, 행 하나면 범례도 없다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="115.421852" y1="421" x2="111.957751" y2="423" class="tick-line" />
   <text x="103.297497" y="428" text-anchor="end" dominant-baseline="middle" class="tick-label">0</text>
@@ -137,15 +137,15 @@ KPI = {
 :where(.svgplot-gaugeplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
 :where(.svgplot-gaugeplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-gaugeplot-1) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }</style>
-  <title>기본 — 행 하나면 범례도 없다</title>
+  <title>기본 — vmin=/vmax= 로 범위를 정한다, 행 하나면 범례도 없다</title>
   <desc>Gauge, 1 arc (가동률), values 72 to 72, range 0 to 100.</desc>
 </svg>
     </figure>
     <pre><code>ONE = {&quot;지표&quot;: [&quot;가동률&quot;], &quot;값&quot;: [72.0]}
 sp.gaugeplot(ONE, values=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0)</code></pre>
-    <h3>여러 행은 하나의 범위를 공유하는 동심 아크가 된다</h3>
+    <h3>여러 행은 하나의 vmin=/vmax= 범위를 공유하는 동심 아크가 된다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-2" role="img" aria-label="여러 행은 하나의 범위를 공유하는 동심 아크가 된다">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-2" role="img" aria-label="여러 행은 하나의 vmin=/vmax= 범위를 공유하는 동심 아크가 된다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="115.421852" y1="421" x2="111.957751" y2="423" class="tick-line" />
   <text x="103.297497" y="428" text-anchor="end" dominant-baseline="middle" class="tick-label">0</text>
@@ -183,7 +183,7 @@ sp.gaugeplot(ONE, values=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, v
 :where(.svgplot-gaugeplot-2) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }
 :where(.svgplot-gaugeplot-2) .series-2 { stroke: #56B4E9; stroke-width: 2; fill: #56B4E9; fill-opacity: 0.75; opacity: 1; }
 :where(.svgplot-gaugeplot-2) .series-3 { stroke: #009E73; stroke-width: 2; fill: #009E73; fill-opacity: 0.75; opacity: 1; }</style>
-  <title>여러 행은 하나의 범위를 공유하는 동심 아크가 된다</title>
+  <title>여러 행은 하나의 vmin=/vmax= 범위를 공유하는 동심 아크가 된다</title>
   <desc>Gauge, 3 arcs (가동률, 적중률, 재구매율), values 38 to 91, range 0 to 100.</desc>
 </svg>
     </figure>
@@ -231,9 +231,9 @@ sp.gaugeplot(ONE, values=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, v
 </svg>
     </figure>
     <pre><code>sp.gaugeplot(KPI, values=&quot;값&quot;, labels=&quot;지표&quot;)</code></pre>
-    <h3>tooltip=True — 아크마다 자기 값과 *어떤 범위에 대고* 그려졌는지를 말한다</h3>
+    <h3>tooltip=True — 아크마다 자기 값과 *어떤 vmin=/vmax= 범위에 대고* 그려졌는지를 말한다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-4" role="img" aria-label="tooltip=True — 아크마다 자기 값과 *어떤 범위에 대고* 그려졌는지를 말한다">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-4" role="img" aria-label="tooltip=True — 아크마다 자기 값과 *어떤 vmin=/vmax= 범위에 대고* 그려졌는지를 말한다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="115.421852" y1="421" x2="111.957751" y2="423" class="tick-line" />
   <text x="103.297497" y="428" text-anchor="end" dominant-baseline="middle" class="tick-label">0</text>
@@ -277,7 +277,7 @@ sp.gaugeplot(ONE, values=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, v
 :where(.svgplot-gaugeplot-4) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }
 :where(.svgplot-gaugeplot-4) .series-2 { stroke: #56B4E9; stroke-width: 2; fill: #56B4E9; fill-opacity: 0.75; opacity: 1; }
 :where(.svgplot-gaugeplot-4) .series-3 { stroke: #009E73; stroke-width: 2; fill: #009E73; fill-opacity: 0.75; opacity: 1; }</style>
-  <title>tooltip=True — 아크마다 자기 값과 *어떤 범위에 대고* 그려졌는지를 말한다</title>
+  <title>tooltip=True — 아크마다 자기 값과 *어떤 vmin=/vmax= 범위에 대고* 그려졌는지를 말한다</title>
   <desc>Gauge, 3 arcs (가동률, 적중률, 재구매율), values 38 to 91, range 0 to 100.</desc>
 </svg>
     </figure>

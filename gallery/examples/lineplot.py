@@ -45,7 +45,8 @@ INTERACTIONS = {2: "toggle", 3: "focus"}
 
 NOTES = [
     "다섯 번째가 갤러리에서 theme= 을 보여주는 유일한 자리다. 16종 전부가 받는 인자인데 그림으로는 한 번도 안 나왔었다. "
-    '프리셋 이름("light"·"dark"·"minimal"·"high_contrast"·"print")이나 Theme 객체를 받고, 색·글꼴·선 굵기·불투명도가 전부 거기서 온다.',
+    '프리셋 이름("light"·"dark"·"minimal"·"high_contrast"·"print")이나 Theme 객체를 받는다. 차트가 그리는 것의 색·글꼴·선 굵기·불투명도가 거기서 오는데, '
+    "전부는 아니다 — heatmap 의 annot 글자색은 셀 휘도에서 고르고, 컴포지션의 캡션·제목은 테마를 안 보며, Theme 의 폰트 크기 여섯 개는 아직 아무 출력도 안 바꾼다.",
     "여섯 번째의 info= 는 차트가 실제로 그린 행만 담은 표를 함께 낸다. lineplot 은 그것을 받는 세 차트 중 하나인데(나머지는 "
     "scatterplot·pieplot) 이 페이지가 여태 안 보여줬다. estimator= 와는 함께 못 쓴다 — 행을 접고 나면 표가 가리킬 행이 없다.",
     "두 번째와 세 번째 그림에 조작 장치가 붙어 있다. 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.",

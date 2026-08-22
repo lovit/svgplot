@@ -28,7 +28,7 @@ EXAMPLES = [
         'sp.scatterplot(STORES, x="면적", y="매출", hue="지역", size="직원수", tooltip=True)',
     ),
     (
-        "info= 선언 하나가 각주 표와 툴팁을 함께 채운다",
+        "info= 선언 하나가 각주 표와 tooltip=True 의 툴팁을 함께 채운다",
         """sp.scatterplot(
     STORES,
     x="면적",

@@ -5,9 +5,12 @@ no registry to edit, so the chart PRs do not collide or queue.
 
 Conventions every page follows, so sixteen pages read as one document:
 
-**Fixture names are ``ALL_CAPS``**; intermediates a reader never sees take a leading underscore
-(``_rng``, ``_hours``). A page that seeds randomness uses its own ``random.Random(n)`` with a
-seed no other page uses, so two pages cannot drift into each other's numbers.
+**Fixture names are ``ALL_CAPS``**; the values built on the way to one take a leading underscore
+(``_rng``, ``_hours``). Not because they are hidden -- ``SETUP`` is printed verbatim on the page,
+so a reader sees every name in it -- but so that a glance separates *the data this page is
+about* from the scaffolding that produced it. A page that seeds randomness uses its own
+``random.Random(n)`` with a seed no other page uses, so two pages cannot drift into each
+other's numbers.
 
 **Column names are Korean nouns, and carry no Latin script.** Where a unit belongs in the name
 it is spelled in Korean too -- ``"대기분"``, ``"응답밀리초"``, ``"기가바이트"``, not ``"ms"`` or

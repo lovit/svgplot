@@ -28,7 +28,7 @@ sp.barplot(ONE_ROW, x="분기", y="매출")""",
         'sp.barplot(QUARTERS, x="분기", y="매출", hue="채널", categories=("1분기", "2분기", "3분기", "4분기", "5분기"))',
     ),
     (
-        "tooltip=True — 막대마다 자기 카테고리와 값을 말한다",
+        "stacked=True 에 tooltip=True — 층마다 자기 카테고리·채널·값을 말한다",
         'sp.barplot(QUARTERS, x="분기", y="매출", hue="채널", stacked=True, tooltip=True)',
     ),
 ]
