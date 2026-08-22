@@ -298,8 +298,8 @@ def test_the_two_lists_together_are_every_chart() -> None:
     # *declines* a tooltip is not this assertion's -- it is absent from ``_WITHOUT_TOOLTIP``,
     # so the equality above already names it in the diff.
     assert len(_charts()) == 16, (
-        f"the package ships {len(_charts())} charts, not 16 -- a chart arrived without being put on a side, "
-        "or one left the registry"
+        f"the package ships {len(_charts())} charts, not 16 -- the split changed size and this count did not. "
+        "A chart that arrived and was *not* put on a side fails the equality above instead, not here"
     )
 
 
