@@ -8,9 +8,11 @@ eight lines carry three policies:
 - **that an empty ``hue=`` is refused**, naming the column, rather than drawn as nothing;
 - **how "no ``hue=``" is spelled**, as one series keyed ``None``.
 
-Change any of the three and seven files have to agree, and one left behind means two charts
-answer the same question differently. That has already happened once: ``radarplot`` handled
-the category set derived from here differently and left spokes no series could fill (#104).
+Change any of the three and eight files have to agree, and one left behind means two charts
+answer the same question differently. That has already happened twice: ``radarplot`` handled
+the category set derived from here differently and left spokes no series could fill (#104), and
+``histplot`` was still carrying its own copy -- same sort key, same error string, same variable
+name -- until #241 noticed that ``series_items`` had two implementations.
 
 Private/internal -- not re-exported from ``svgplot.charts``.
 """

@@ -1,15 +1,14 @@
 """Bucketing rows into (category, hue) groups — shared by ``boxplot`` and ``violinplot``.
 
-These two charts promise, in the README and in their own docstrings, that they take the same
-positional arguments. That promise is about more than the call: it says a category means the
-same thing in both, and a hue group means the same thing in both. One function is how that
-stays true.
+``violinplot``'s docstring promises that it and ``boxplot`` take the same positional arguments.
+That promise is about more than the call: it says a category means the same thing in both, and
+a hue group means the same thing in both. One function is how that stays true.
 
 It used to live in ``charts/box.py`` and ``violinplot`` imported it from there -- the only
-chart-to-chart import in the package. That worked, at the cost of making ``group_by_category``
-and ``NO_HUE`` public names on a chart module (no other chart module has any) and of a
-do-nothing alias on the violin side to soften the borrow. The dependency was real; the place
-was wrong.
+chart-to-chart import in the package -- with a do-nothing alias on the violin side to soften
+the borrow. The dependency was real; the place was wrong. Moving it does not hide the names:
+``box.py`` still imports both, so ``svgplot.charts.box.NO_HUE`` still resolves. What changes is
+that neither chart owns them, so neither can drift them for its own convenience.
 """
 
 from __future__ import annotations

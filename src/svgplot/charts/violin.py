@@ -71,7 +71,9 @@ _EVALUATION_GRID = 200
 also fixes how many vertices each emitted path carries."""
 
 
-def _density(values: list[float], category: str, bandwidth: float | str, grid_range: tuple[float, float] | None) -> KdeCurve:
+def _density(
+    values: list[float], category: object, bandwidth: float | str, grid_range: tuple[float, float] | None
+) -> KdeCurve:
     """``kde`` over one category's values, with the category named in any failure.
 
     Without this the most common mistake -- a category holding a single observation, or
@@ -100,7 +102,11 @@ def shared_grid_range(groups: Mapping[str | tuple[str, str], list[float]], bandw
     """
     return union_grid_range(
         ((key[0] if isinstance(key, tuple) else key, values) for key, values in groups.items()),
-        lambda values, category: _density(values, str(category), bandwidth, None).bandwidth,
+        # ``category`` unwrapped, not ``str(category)``: ``shared_grid_range`` is public and a
+        # caller reconstructing the mapping may key it with anything. Stringifying here turned
+        # ``category 5:`` into ``category '5':`` in the error, which the chart paths never see
+        # (``group_by_category`` stringifies its keys) but an outside caller does.
+        lambda values, category: _density(values, category, bandwidth, None).bandwidth,
         _CUT,
     )
 
