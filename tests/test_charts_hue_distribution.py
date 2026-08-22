@@ -16,8 +16,8 @@ import xml.etree.ElementTree as ET
 import pytest
 
 import svgplot as sp
+from svgplot.charts._categorical import NO_HUE, group_by_category
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, plot_area
-from svgplot.charts.box import NO_HUE, group_by_category
 from svgplot.scales import CategoricalScale
 
 SVG = "{http://www.w3.org/2000/svg}"
@@ -190,13 +190,19 @@ def test_the_no_hue_chart_is_untouched(plot) -> None:
 
 
 def test_both_charts_group_through_one_function() -> None:
-    """The README says the two take the same positional arguments; they now also agree on what
-    a category and a hue group *are*, because there is only one implementation left."""
-    from svgplot.charts.violin import _group_by_x
+    """``violinplot`` promises it takes ``boxplot``'s positional arguments; this is what makes
+    the promise mean something about *behaviour* rather than about the call.
 
-    columns = {"g": ["a", "a", "b"], "v": [1.0, 2.0, 3.0], "h": ["x", "y", "x"]}
+    Asserted as **object identity**, not as equal results. An earlier version compared
+    ``group_by_category(...)`` with itself -- the two sides had been distinct calls until a
+    rename collapsed them -- and it survived replacing both charts' grouping with a function
+    returning a single fabricated category. Two implementations that agree on one fixture are
+    exactly what this file exists to rule out, so agreement on a fixture is the wrong evidence.
+    """
+    from svgplot.charts import box, violin
 
-    assert _group_by_x(columns, "g", "v", "h") == group_by_category(columns, "g", "v", "h")
+    assert violin.group_by_category is group_by_category
+    assert box.group_by_category is group_by_category
 
 
 def test_a_missing_hue_value_drops_its_row() -> None:

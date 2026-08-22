@@ -15,6 +15,8 @@ from collections.abc import Mapping
 from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, fit_rotated_labels, render_x_axis, render_y_axis
+from svgplot.charts._categorical import NO_HUE, group_by_category
+from svgplot.charts._density_grid import union_grid_range
 from svgplot.charts._describe import describe, group, plural, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
@@ -31,7 +33,6 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
-from svgplot.charts.box import NO_HUE, group_by_category
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import CategoricalScale, LinearScale
 from svgplot.stats.kde import KdeCurve, kde
@@ -70,14 +71,9 @@ _EVALUATION_GRID = 200
 also fixes how many vertices each emitted path carries."""
 
 
-def _group_by_x(columns: dict[str, list], x: str, y: str, hue: str | None = None) -> dict[tuple[str, str], list[float]]:
-    """``charts/box.py``'s grouping, reused so the two charts cannot disagree about what a
-    category or a hue group *is* -- the README tells readers they take the same positional
-    arguments, and that promise is worth more than a saved import."""
-    return group_by_category(columns, x, y, hue)
-
-
-def _density(values: list[float], category: str, bandwidth: float | str, grid_range: tuple[float, float] | None) -> KdeCurve:
+def _density(
+    values: list[float], category: object, bandwidth: float | str, grid_range: tuple[float, float] | None
+) -> KdeCurve:
     """``kde`` over one category's values, with the category named in any failure.
 
     Without this the most common mistake -- a category holding a single observation, or
@@ -96,26 +92,23 @@ def shared_grid_range(groups: Mapping[str | tuple[str, str], list[float]], bandw
     """The y span every category is evaluated over: the union of what each would have
     chosen alone.
 
-    Bandwidth is chosen per category, so pooling the values first would settle on one width
-    and clip a narrow category's tail. Public (unlike this module's other helpers) because
+    The rule, and the cost of sharing a grid at all, live in
+    :mod:`~svgplot.charts._density_grid`. Public (unlike this module's other helpers) because
     it is the only way to reconstruct the chart's y mapping from outside.
 
-    A shared grid has one inherent cost: if two categories differ in scale by orders of
-    magnitude, the grid step can exceed the narrow one's bandwidth entirely and it
-    evaluates to zero everywhere -- drawn as a vertical line with its inner box still
-    beside it. seaborn shares the limitation; ``charts/kde.py`` records the same note.
+    The key is ``(category, hue)`` from the chart and a bare category from a caller
+    reconstructing the mapping; only the category is ever reported, because naming the hue
+    group in a bandwidth error would point at the wrong half of the problem.
     """
-    lows: list[float] = []
-    highs: list[float] = []
-    for key, values in groups.items():
-        # The key is ``(category, hue)`` from the chart and a bare category from a caller
-        # reconstructing the mapping; only the category is ever reported, and naming the hue
-        # group in a bandwidth error would point at the wrong half of the problem.
-        category = key[0] if isinstance(key, tuple) else key
-        width = _density(values, category, bandwidth, None).bandwidth
-        lows.append(min(values) - _CUT * width)
-        highs.append(max(values) + _CUT * width)
-    return min(lows), max(highs)
+    return union_grid_range(
+        ((key[0] if isinstance(key, tuple) else key, values) for key, values in groups.items()),
+        # ``category`` unwrapped, not ``str(category)``: ``shared_grid_range`` is public and a
+        # caller reconstructing the mapping may key it with anything. Stringifying here turned
+        # ``category 5:`` into ``category '5':`` in the error, which the chart paths never see
+        # (``group_by_category`` stringifies its keys) but an outside caller does.
+        lambda values, category: _density(values, category, bandwidth, None).bandwidth,
+        _CUT,
+    )
 
 
 def _violin_path(ys: list[float], densities: list[float], centre: float, half_width: float, y_scale: LinearScale) -> str:
@@ -278,7 +271,7 @@ def violinplot(
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
 
-    groups = _group_by_x(longform.columns, x, y, hue)
+    groups = group_by_category(longform.columns, x, y, hue)
     if not groups:
         raise ValueError("no rows with both x and y present after dropping missing values")
 

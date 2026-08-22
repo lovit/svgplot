@@ -6,9 +6,9 @@ import re
 import pytest
 
 from _svg_probe import style_rule, tags as _tags, texts as _texts
+from svgplot.charts._categorical import NO_HUE, group_by_category
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT_LEGEND, plot_area
-from svgplot.charts.box import NO_HUE
-from svgplot.charts.violin import _EVALUATION_GRID, _VIOLIN_PADDING, _group_by_x, shared_grid_range, violinplot
+from svgplot.charts.violin import _EVALUATION_GRID, _VIOLIN_PADDING, shared_grid_range, violinplot
 from svgplot.scales import CategoricalScale, LinearScale
 from svgplot.stats.box import box_stats
 from svgplot.stats.kde import kde
@@ -181,7 +181,7 @@ def test_the_inner_box_lands_exactly_on_the_quartiles() -> None:
     Asserted in pixel space against the chart's own y mapping, rebuilt from
     ``shared_grid_range``, rather than by eyeballing the drawn numbers."""
     data = _three_groups()
-    groups = _group_by_x({"grp": data["grp"], "v": data["v"]}, "grp", "v")
+    groups = group_by_category({"grp": data["grp"], "v": data["v"]}, "grp", "v")
     y_scale = LinearScale(shared_grid_range(groups, "scott"), (AREA.bottom, AREA.top))
     svg = violinplot(data, x="grp", y="v").to_string()
 
@@ -298,7 +298,7 @@ def test_an_explicit_bandwidth_sets_the_shared_span() -> None:
     """With a numeric bandwidth the span is just ``min - 3h`` .. ``max + 3h``, so it can be
     written out by hand rather than taken from the helper under test."""
     data = _three_groups()
-    groups = _group_by_x(data, "grp", "v")
+    groups = group_by_category(data, "grp", "v")
 
     low, high = shared_grid_range(groups, 0.5)
 
@@ -321,7 +321,7 @@ def test_the_bandwidth_reaches_both_passes() -> None:
     output. Undoing the pixel mapping pins the density itself, and the span check pins the
     grid, so each pass is asserted on its own."""
     data = _three_groups()
-    groups = _group_by_x(data, "grp", "v")
+    groups = group_by_category(data, "grp", "v")
     low = min(min(values) for values in groups.values()) - 3.0 * 0.5
     high = max(max(values) for values in groups.values()) + 3.0 * 0.5
     y_scale = LinearScale((low, high), (AREA.bottom, AREA.top))
@@ -436,7 +436,7 @@ def test_a_nan_category_label_drops_the_row() -> None:
     so the difference is a decision on record rather than an accident."""
     data = {"grp": [float("nan"), "a", "a", "a"], "v": [1.0, 2.0, 3.0, 4.0]}
 
-    assert sorted(_group_by_x(data, "grp", "v")) == [("a", NO_HUE)]
+    assert sorted(group_by_category(data, "grp", "v")) == [("a", NO_HUE)]
 
 
 def test_every_category_is_named_on_the_axis() -> None:
