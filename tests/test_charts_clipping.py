@@ -20,27 +20,53 @@ import pytest
 
 import svgplot as sp
 from _svg_probe import CLIP_CLASS
-from svgplot.charts._layout import MARGIN_WITH_LEGEND, MARGIN_WITHOUT_LEGEND, plot_area
 
 _SVG_NS = "http://www.w3.org/2000/svg"
 
 DATA = {
-    "x": [1.0, 2.0, 3.0, 4.0],
-    "y": [10.0, 20.0, 30.0, 40.0],
-    "category": ["가", "나", "다", "라"],
-    "group": ["a", "a", "b", "b"],
+    # Nine rows per group, not two: ``boxplot`` computes no outliers from a pair, and an outlier
+    # is a mark drawn by a code path of its own. 46.0 is 1.5 IQR clear of 가's third quartile.
+    "x": [1.0, 2.0, 3.0, 4.0] * 5,
+    "y": [
+        10.0,
+        12.0,
+        14.0,
+        16.0,
+        18.0,
+        20.0,
+        22.0,
+        24.0,
+        26.0,
+        46.0,
+        11.0,
+        13.0,
+        15.0,
+        17.0,
+        19.0,
+        21.0,
+        23.0,
+        25.0,
+        27.0,
+        9.0,
+    ],
+    "category": ["가", "나", "다", "라"] * 5,
+    "group": ["a"] * 10 + ["b"] * 10,
+    "weight": [1.0, 2.0, 3.0, 4.0, 5.0] * 4,
 }
 
 WINDOWS = {
+    "barplot": (19.0, 21.0),
     "ecdfplot": (0.1, 0.5),
     "histplot": (0.2, 0.8),
     "kdeplot": (0.005, 0.02),
 }
-"""Per-chart ``ylim=`` windows, where a chart's y axis is not the ``y`` column.
+"""Per-chart ``ylim=`` windows, where ``(15, 25)`` would not bite on both sides.
 
-Everything else measures ``y`` (10..40) and takes ``(15, 25)``: inside the data on both sides,
-so there is ink to lose above *and* below. ``ecdfplot``'s y is a proportion and ``kdeplot``'s a
-density, and a window outside their range would leave the whole curve on one side of the clip
+Everything else measures ``y`` (9..46) and takes ``(15, 25)``: inside the data on both sides,
+so there is ink to lose above *and* below. ``barplot`` aggregates, so what it draws is four
+category means (18, 20, 22, 24) rather than the rows -- ``(15, 25)`` contains all four and only
+the baseline escapes. ``ecdfplot``'s y is a proportion and ``kdeplot``'s a
+density, and a window outside *their* range would leave the whole curve on one side of the clip
 -- which still clips, and would still pass a test that only asked whether anything was cut.
 Every window is checked for biting rather than trusted -- in both directions except for
 ``histplot``, which draws each bar from its top down to ``area.bottom`` literally rather than
@@ -66,7 +92,7 @@ def _window(name: str) -> tuple[float, float]:
 
 CHARTS = {
     "areaplot": lambda **kwargs: sp.areaplot(DATA, x="x", y="y", **kwargs),
-    "barplot": lambda **kwargs: sp.barplot(DATA, x="category", y="y", **kwargs),
+    "barplot": lambda **kwargs: sp.barplot(DATA, x="category", y="y", estimator="mean", **kwargs),
     "boxplot": lambda **kwargs: sp.boxplot(DATA, x="group", y="y", **kwargs),
     "ecdfplot": lambda **kwargs: sp.ecdfplot(DATA, x="y", **kwargs),
     "histplot": lambda **kwargs: sp.histplot(DATA, x="y", **kwargs),
@@ -131,9 +157,20 @@ def test_a_narrowing_limit_leaves_no_mark_outside_the_plot_area(name: str) -> No
     clips = [element for element in root.iter(f"{{{_SVG_NS}}}svg") if CLIP_CLASS in (element.get("class") or "").split()]
 
     assert len(clips) == 1, f"{name}: expected exactly one clip, got {len(clips)}"
-    top, bottom = float(clips[0].get("y")), float(clips[0].get("y")) + float(clips[0].get("height"))
-    area = plot_area(800.0, 600.0, MARGIN_WITH_LEGEND if "legend-text" in svg else MARGIN_WITHOUT_LEGEND)
-    assert (top, bottom) == (area.top, area.bottom), f"{name}: the clip is not the plot area"
+    left, top = float(clips[0].get("x")), float(clips[0].get("y"))
+    right, bottom = left + float(clips[0].get("width")), top + float(clips[0].get("height"))
+
+    # All four sides, measured from the chart's own spines rather than recomputed from a margin
+    # preset -- the left margin is *fitted* to the widest tick label and the right one to the
+    # legend, so ``plot_area(800, 600, MARGIN_WITHOUT_LEGEND)`` is the plot area of a chart
+    # nobody drew. The spines come from the axis renderer, which is handed the same rect the
+    # clip is, and they are the one place the plot area appears twice in the output.
+    #
+    # Two of these four sides had no assertion at all until a review widened the clip by 20px on
+    # each side and the suite stayed green -- a clip that leaks marks over the y-axis spine and
+    # into the right margin. The ``viewBox`` check below cannot see that either: it compares the
+    # attribute against the element's own rect, so a corruption moving both is self-consistent.
+    assert (left, top, right, bottom) == _spine_rect(root), f"{name}: the clip is not the plot area"
 
     ink_top, ink_bottom = _mark_extent(svg)
     assert (ink_top < top, ink_bottom > bottom) == ESCAPES[name], (
@@ -166,37 +203,112 @@ def test_the_clip_does_not_move_what_it_holds(name: str) -> None:
 
 
 @pytest.mark.parametrize("name", sorted(CHARTS))
-def test_a_chart_given_no_limit_is_byte_identical(name: str) -> None:
+def test_a_chart_given_no_limit_draws_no_clip(name: str) -> None:
     """The other half. A chart whose domain came from its own data covers that data, so there
     is nothing to cut -- and paying a wrapper element for it would rewrite every committed
-    gallery page to say nothing. ``plot-clip`` appearing here at all is the failure."""
+    gallery page to say nothing.
+
+    Named for what it asserts. The stronger claim -- that the *bytes* are unchanged -- is one
+    the gallery already makes for every figure it holds
+    (``test_the_committed_gallery_is_what_a_fresh_build_produces``), since not one of them
+    passes a limit."""
     svg = CHARTS[name]().to_string()
 
     assert CLIP_CLASS not in svg
     assert svg.count("<svg") == 1, "a chart with no limit gained a nested viewport"
 
 
+VARIANTS: dict[str, tuple[dict[str, object], ...]] = {
+    "areaplot": ({}, {"hue": "group"}, {"hue": "group", "stacked": True}),
+    "barplot": ({}, {"hue": "group"}, {"hue": "group", "stacked": True}, {"orient": "h", "xlim": DEFAULT_WINDOW}),
+    "boxplot": ({}, {"hue": "group"}),
+    "ecdfplot": ({}, {"hue": "group"}),
+    "histplot": ({}, {"hue": "group"}),
+    "kdeplot": ({}, {"hue": "group"}),
+    "lineplot": ({}, {"hue": "group"}),
+    "regplot": ({}, {"ci": None}, {"scatter": False}),
+    "scatterplot": ({}, {"hue": "group"}, {"size": "weight"}),
+    "violinplot": ({}, {"hue": "group"}, {"inner": None}),
+}
+"""Per chart, the option combinations that change *which marks exist* -- not how they look.
+
+A defaults-only sweep leaves whole code paths unvisited, and an escaped mark on one of them is
+invisible: reparenting one mark at a time to the document root, thirteen of twenty-two
+mutations survived the entire suite before this table existed -- every ``boxplot`` mark, all
+three ``regplot`` marks, both ``violinplot`` inner marks, and ``areaplot``'s stacked band.
+
+So: ``regplot`` without its band and without its points, ``violinplot`` without its inner box
+and median tick, ``scatterplot`` with the size legend that ``render_size_legend`` draws as
+circles at the document root, stacked bands and bars, and ``hue=`` everywhere it is taken
+(which is what puts a legend beside the marks). ``boxplot``'s outliers need no variant -- the
+fixture draws one. Options that only restyle an existing mark (``interpolate=``, ``bins=``,
+``mode=``, ``fill=``, ``complementary=``, a different ``ci=``) are deliberately absent: they
+add no element for a clip to miss, and the widened fixture repeats its x values, which
+``interpolate="cubic"`` refuses outright.
+
+``barplot(orient="h")`` carries its own ``xlim=``: a horizontal bar's values run along x, so
+that is the limit the chart applies and the one it clips on.
+"""
+
+
+def _spine_rect(root: ET.Element) -> tuple[float, float, float, float]:
+    """``(left, top, right, bottom)`` of the plot area, read back from the two axis spines.
+
+    ``render_x_axis`` draws its spine along the bottom from ``area.left`` to ``area.right`` and
+    ``render_y_axis`` draws its own down the left from ``area.top`` to ``area.bottom``, so the
+    union of their endpoints is the rect both were handed.
+    """
+    spines = [element for element in root.iter(f"{{{_SVG_NS}}}line") if "spine" in (element.get("class") or "").split()]
+    assert len(spines) == 2, f"expected two spines to measure the plot area, found {len(spines)}"
+    xs = [float(spine.get(key)) for spine in spines for key in ("x1", "x2")]
+    ys = [float(spine.get(key)) for spine in spines for key in ("y1", "y2")]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def _limited(name: str, options: dict[str, object]) -> dict[str, object]:
+    """``options`` plus the limit that makes a clip, unless the variant brought its own."""
+    if {"xlim", "ylim"} & set(options):
+        return options
+    return options | {"ylim": _window(name)}
+
+
+def _root_marks(root: ET.Element) -> list[ET.Element]:
+    return [element for element in root if "series-" in (element.get("class") or "")]
+
+
 @pytest.mark.parametrize("name", sorted(CHARTS))
-def test_the_marks_are_inside_the_clip_and_the_legend_is_not(name: str) -> None:
-    """A clip that swallowed the legend would hide it: the legend sits to the right of the plot
-    area, which is precisely what the clip cuts away. Charts here are drawn with ``hue=`` so
-    there is a legend to lose, and its swatch carries the same ``series-`` class as a mark --
-    class alone cannot tell them apart, only where they sit."""
-    import inspect
+def test_every_mark_a_chart_draws_is_inside_the_clip(name: str) -> None:
+    """The property the whole change is for, asserted directly rather than through a sample.
 
-    if "hue" not in inspect.signature(getattr(sp, name)).parameters:
-        pytest.skip(f"{name} draws one series and has no legend to lose")
-    root = ET.fromstring(CHARTS[name](hue="group", ylim=_window(name)).to_string())
-    clip = next(element for element in root.iter(f"{{{_SVG_NS}}}svg") if CLIP_CLASS in (element.get("class") or "").split())
+    A mark left at the document root is exactly the bug -- it is drawn past the plot area again
+    -- but the root is also where the legend lives, and a legend swatch carries the same
+    ``series-`` class as a mark. So the count is the test: ``render_legend`` writes one swatch
+    and one label per entry, and ``scatterplot``'s size legend does the same, so the number of
+    ``series-`` elements at the root equals the number of ``legend-text`` elements exactly when
+    nothing but the legend is there. A chart with no legend must have none.
+    """
+    for options in VARIANTS[name]:
+        root = ET.fromstring(CHARTS[name](**_limited(name, options)).to_string())
+        labels = [element for element in root.iter() if "legend-text" in (element.get("class") or "")]
 
-    in_clip = [element for element in clip.iter() if "series-" in (element.get("class") or "")]
-    at_root = [element for element in root if "series-" in (element.get("class") or "")]
+        assert len(_root_marks(root)) == len(labels), (
+            f"{name}{options}: {len(_root_marks(root))} series elements at the root against "
+            f"{len(labels)} legend entries -- a mark escaped the clip"
+        )
 
-    assert in_clip, f"{name}: the clip holds no marks"
-    assert at_root, f"{name}: no legend swatch stayed outside the clip"
-    assert all(
-        element.tag in (f"{{{_SVG_NS}}}line", f"{{{_SVG_NS}}}rect") for element in at_root
-    ), f"{name}: something other than a legend swatch was left outside the clip"
+
+@pytest.mark.parametrize("name", sorted(CHARTS))
+def test_the_clip_holds_something_on_every_variant(name: str) -> None:
+    """The other half of the count above, which a chart drawing *nothing* would also satisfy."""
+    for options in VARIANTS[name]:
+        root = ET.fromstring(CHARTS[name](**_limited(name, options)).to_string())
+        clip = next(
+            element for element in root.iter(f"{{{_SVG_NS}}}svg") if CLIP_CLASS in (element.get("class") or "").split()
+        )
+
+        assert [
+            element for element in clip.iter() if "series-" in (element.get("class") or "")
+        ], f"{name}{options}: the clip is empty"
 
 
 def test_a_lone_chart_has_no_placed_panels() -> None:

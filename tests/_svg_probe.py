@@ -18,6 +18,7 @@ The silent one is the worse outcome. Issue #117 named four; these were the follo
 from __future__ import annotations
 
 import re
+import xml.etree.ElementTree as ET
 
 _ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 
@@ -155,6 +156,12 @@ def style_rule(svg: str, selector: str) -> str:
 
 
 _SVG_NS = "http://www.w3.org/2000/svg"
+ET.register_namespace("", _SVG_NS)
+"""At import, not per call: ``register_namespace`` writes to a module-level table in
+``ElementTree``, and doing that from inside a helper three test modules call would mutate
+process-global state on every use. It is here so ``placed_panels`` can hand back markup with
+the default namespace rather than ``ns0:`` prefixes."""
+
 CLIP_CLASS = "plot-clip"
 """The class ``charts/_layout.marks_viewport`` puts on the nested ``<svg>`` it clips marks to."""
 
