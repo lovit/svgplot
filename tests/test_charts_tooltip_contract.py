@@ -21,23 +21,18 @@ import pytest
 import svgplot as sp
 from _svg_probe import every_tag
 
-_NOT_A_CHART = {
-    "facet",
-    "row",
-    "column",
-    "grid",
-    "apply_size",
-    "apply_context",
-    "add_caption",
-    "parametric_theme",
-}
-
 
 def _charts() -> list[str]:
-    """Every public chart function, taken from the package rather than from a list here."""
-    return sorted(
-        name for name in sp.__all__ if name[0].islower() and callable(getattr(sp, name)) and name not in _NOT_A_CHART
-    )
+    """Every public chart function.
+
+    ``svgplot.charts.__all__`` rather than ``svgplot.__all__`` minus a list of the things that
+    are not charts: that list is the package's own answer to "which sixteen", and two other
+    registries already derive themselves from it (``test_charts_describe``,
+    ``test_markdown_embedding``). Filtering the top level instead meant a chart callable on the
+    package but missing from ``svgplot.__all__`` was invisible here -- and the coverage test
+    below claimed to catch exactly that.
+    """
+    return sorted(sp.charts.__all__)
 
 
 def _with_tooltip() -> list[str]:
@@ -279,10 +274,11 @@ def test_the_two_lists_together_are_every_chart() -> None:
     """Every chart is on exactly one side of the split, and the split covers all sixteen.
 
     The check above is per-chart, so it says nothing about a chart that never reaches it -- one
-    dropped from ``svgplot.__all__``, or a seventeenth that exists but is not exported. This is
-    the coverage half. (An earlier version of this docstring claimed it was what caught a new
-    chart with no ``tooltip=`` and no explanation; the biconditional above catches that
-    directly, and this claim was left behind when that check was widened.)
+    dropped from ``svgplot.charts.__all__``, or a seventeenth added there and to neither list
+    here. This is the coverage half. (Two earlier versions of this docstring overclaimed: one
+    said this was what caught a new chart with no ``tooltip=`` and no explanation -- the
+    biconditional above catches that directly -- and one said it caught a chart "that exists but
+    is not exported", which it could not while both sides derived from ``svgplot.__all__``.)
     """
     import svgplot as sp
 

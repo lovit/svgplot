@@ -67,6 +67,14 @@ from svgplot.stats.quantile import quantile
 from svgplot.warnings import AggregationWarning
 
 Estimator = str | Callable[[list[float]], float]
+"""What ``estimator=`` accepts: one of :data:`ESTIMATORS` by name, or any callable folding a
+group's values into one number.
+
+Exported from the top level (``svgplot.Estimator``) because it is the annotation on three
+public signatures -- ``barplot``, ``areaplot``, ``lineplot`` -- and a caller writing their own
+folding function had no name to type it against. No docstring gate would have asked for this
+one: ``test_docstring_coverage`` walks callables and classes, and a ``types.UnionType`` is
+neither."""
 
 _BUILTIN_ESTIMATORS: dict[str, Callable[[list[float]], float]] = {
     # fmean rather than sum()/len(): it converts the sequence once and is the stdlib's
