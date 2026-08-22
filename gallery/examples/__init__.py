@@ -54,7 +54,8 @@ channel is ``아무 타입``; a channel that subdivides a category is
 ``카테고리 안에서 한 번 더 나눌 값``. Constraints that are not about one channel come last,
 after the channels they constrain.
 
-**Every page answers the ``hue=`` question**, either with a field or with
+**Every page answers the ``hue=`` question**, either with a ``hue(선택): <무엇이든>`` field --
+that exact spelling, which is what ``test_gallery`` looks for -- or with
 ``hue 는 받지 않는다(왜)`` -- sixteen out of sixteen, and ``test_gallery`` keeps it that way.
 ``hue=`` is the argument a reader arrives looking for, because it is the one that decides what
 colour means, so silence about it is the one silence worth forbidding outright. Other absent

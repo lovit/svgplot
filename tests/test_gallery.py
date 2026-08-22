@@ -420,8 +420,15 @@ def test_every_exception_to_the_ordinal_audit_is_still_in_use() -> None:
     # the noun it counts (``다섯 번째 슬롯``) or closed off as a predicate (``그 두 번째다``).
     # An entry ending at a particle -- ``다섯 번째가`` -- is a real reference, and adding one
     # would re-create the regression this list exists to avoid, from the other direction.
+    #
+    # ``그림`` disqualifies an entry outright, whichever shape it otherwise fits. Requiring
+    # "some noun after the ordinal" was not enough: ``세 번째 그림`` satisfies it and is the most
+    # ordinary reference there is, so three such entries each switched the audit off for a page
+    # with the whole suite green. ``다섯 번째 그림이다`` slips past the predicate clause the same way.
     unjustified = [
-        (owner, phrase) for owner, phrase in _NOT_A_FIGURE if not (phrase.endswith("다") or re.search(r"번째\s+\S", phrase))
+        (owner, phrase)
+        for owner, phrase in _NOT_A_FIGURE
+        if "그림" in phrase or not (phrase.endswith("다") or re.search(r"번째\s+\S", phrase))
     ]
 
     assert not unjustified, f"exceptions that are ordinary figure references: {unjustified}"
