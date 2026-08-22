@@ -353,9 +353,67 @@ sp.barplot(ONE_ROW, x=&quot;분기&quot;, y=&quot;매출&quot;)</code></pre>
 </svg>
     </figure>
     <pre><code>sp.barplot(QUARTERS, x=&quot;분기&quot;, y=&quot;매출&quot;, hue=&quot;채널&quot;, orient=&quot;h&quot;)</code></pre>
+    <h3>categories= 는 카테고리 축을 데이터가 아니라 목록이 정하게 한다 — 없는 분기도 자리를 갖는다</h3>
+    <figure>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-barplot-5" role="img" aria-label="categories= 는 카테고리 축을 데이터가 아니라 목록이 정하게 한다 — 없는 분기도 자리를 갖는다">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="640" y2="550" class="spine" />
+  <line x1="118" y1="30" x2="118" y2="550" class="grid-line" />
+  <line x1="118" y1="550" x2="118" y2="554" class="tick-line" />
+  <text x="118" y="572" text-anchor="middle" class="tick-label">1분기</text>
+  <line x1="234" y1="30" x2="234" y2="550" class="grid-line" />
+  <line x1="234" y1="550" x2="234" y2="554" class="tick-line" />
+  <text x="234" y="572" text-anchor="middle" class="tick-label">2분기</text>
+  <line x1="350" y1="30" x2="350" y2="550" class="grid-line" />
+  <line x1="350" y1="550" x2="350" y2="554" class="tick-line" />
+  <text x="350" y="572" text-anchor="middle" class="tick-label">3분기</text>
+  <line x1="466" y1="30" x2="466" y2="550" class="grid-line" />
+  <line x1="466" y1="550" x2="466" y2="554" class="tick-line" />
+  <text x="466" y="572" text-anchor="middle" class="tick-label">4분기</text>
+  <line x1="582" y1="30" x2="582" y2="550" class="grid-line" />
+  <line x1="582" y1="550" x2="582" y2="554" class="tick-line" />
+  <text x="582" y="572" text-anchor="middle" class="tick-label">5분기</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="550" x2="640" y2="550" class="grid-line" />
+  <line x1="56" y1="550" x2="60" y2="550" class="tick-line" />
+  <text x="54" y="554" text-anchor="end" class="tick-label">0</text>
+  <line x1="60" y1="402.272727" x2="640" y2="402.272727" class="grid-line" />
+  <line x1="56" y1="402.272727" x2="60" y2="402.272727" class="tick-line" />
+  <text x="54" y="406.272727" text-anchor="end" class="tick-label">50</text>
+  <line x1="60" y1="254.545455" x2="640" y2="254.545455" class="grid-line" />
+  <line x1="56" y1="254.545455" x2="60" y2="254.545455" class="tick-line" />
+  <text x="54" y="258.545455" text-anchor="end" class="tick-label">100</text>
+  <line x1="60" y1="106.818182" x2="640" y2="106.818182" class="grid-line" />
+  <line x1="56" y1="106.818182" x2="60" y2="106.818182" class="tick-line" />
+  <text x="54" y="110.818182" text-anchor="end" class="tick-label">150</text>
+  <rect x="73.92" y="301.818182" width="41.76" height="248.181818" class="series-1" />
+  <rect x="189.92" y="278.181818" width="41.76" height="271.818182" class="series-1" />
+  <rect x="305.92" y="225" width="41.76" height="325" class="series-1" />
+  <rect x="421.92" y="162.954545" width="41.76" height="387.045455" class="series-1" />
+  <rect x="120.32" y="195.454545" width="41.76" height="354.545455" class="series-2" />
+  <rect x="236.32" y="121.590909" width="41.76" height="428.409091" class="series-2" />
+  <rect x="352.32" y="260.454545" width="41.76" height="289.545455" class="series-2" />
+  <rect x="468.32" y="30" width="41.76" height="520" class="series-2" />
+  <rect x="660" y="25" width="16" height="10" class="series-1" />
+  <text x="682" y="34" class="legend-text">오프라인</text>
+  <rect x="660" y="45" width="16" height="10" class="series-2" />
+  <text x="682" y="54" class="legend-text">온라인</text>
+  <style>:where(.svgplot-barplot-5) .plot-background { fill: #ffffff; }
+:where(.svgplot-barplot-5) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-barplot-5) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-barplot-5) .tick-line { stroke: #333333; }
+:where(.svgplot-barplot-5) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-barplot-5) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-barplot-5) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-barplot-5) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
+  <title>categories= 는 카테고리 축을 데이터가 아니라 목록이 정하게 한다 — 없는 분기도 자리를 갖는다</title>
+  <desc>Bar chart, 5 categories (1분기, 2분기, 3분기, 4분기, 5분기), 2 series (오프라인, 온라인), values 84 to 176.</desc>
+</svg>
+    </figure>
+    <pre><code>sp.barplot(QUARTERS, x=&quot;분기&quot;, y=&quot;매출&quot;, hue=&quot;채널&quot;, categories=(&quot;1분기&quot;, &quot;2분기&quot;, &quot;3분기&quot;, &quot;4분기&quot;, &quot;5분기&quot;))</code></pre>
     <h3>tooltip=True — 막대마다 자기 카테고리와 값을 말한다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-barplot-5" role="img" aria-label="tooltip=True — 막대마다 자기 카테고리와 값을 말한다">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-barplot-6" role="img" aria-label="tooltip=True — 막대마다 자기 카테고리와 값을 말한다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
   <line x1="132.5" y1="30" x2="132.5" y2="550" class="grid-line" />
@@ -420,14 +478,14 @@ sp.barplot(ONE_ROW, x=&quot;분기&quot;, y=&quot;매출&quot;)</code></pre>
   <text x="682" y="34" class="legend-text">오프라인</text>
   <rect x="660" y="45" width="16" height="10" class="series-2" />
   <text x="682" y="54" class="legend-text">온라인</text>
-  <style>:where(.svgplot-barplot-5) .plot-background { fill: #ffffff; }
-:where(.svgplot-barplot-5) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
-:where(.svgplot-barplot-5) .spine { stroke: #333333; stroke-width: 1; fill: none; }
-:where(.svgplot-barplot-5) .tick-line { stroke: #333333; }
-:where(.svgplot-barplot-5) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
-:where(.svgplot-barplot-5) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
-:where(.svgplot-barplot-5) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
-:where(.svgplot-barplot-5) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
+  <style>:where(.svgplot-barplot-6) .plot-background { fill: #ffffff; }
+:where(.svgplot-barplot-6) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-barplot-6) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-barplot-6) .tick-line { stroke: #333333; }
+:where(.svgplot-barplot-6) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-barplot-6) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-barplot-6) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }
+:where(.svgplot-barplot-6) .series-2 { fill: #56B4E9; stroke: none; opacity: 0.75; }</style>
   <title>tooltip=True — 막대마다 자기 카테고리와 값을 말한다</title>
   <desc>Stacked bar chart, 4 categories (1분기, 2분기, 3분기, 4분기), 2 series (오프라인, 온라인), values 84 to 176, stacked totals up to 307.</desc>
 </svg>
@@ -435,6 +493,7 @@ sp.barplot(ONE_ROW, x=&quot;분기&quot;, y=&quot;매출&quot;)</code></pre>
     <pre><code>sp.barplot(QUARTERS, x=&quot;분기&quot;, y=&quot;매출&quot;, hue=&quot;채널&quot;, stacked=True, tooltip=True)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
+      <li>다섯 번째의 categories= 는 카테고리 축을 데이터가 아니라 목록이 정하게 한다. 데이터에 없는 5분기도 밴드를 갖고 막대만 없다 — 여러 차트의 카테고리 축을 맞출 때 쓰고, facet 이 패널마다 이것을 넘겨 축을 공유한다.</li>
       <li>두 번째와 세 번째 그림에 체크박스가 붙어 있다. 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.</li>
       <li>세 번째(누적)가 이 갤러리에서 흐리게 하는 쪽을 고른 이유를 가장 잘 보여준다. 한 층을 꺼도 막대의 전체 높이가 그대로 있다 — 감췄다면 남은 층이 아래로 내려앉아 일어나지 않은 재배치를 주장했을 것이다.</li>
       <li>tooltip=True 는 막대마다 &lt;title&gt; 을 붙인다. 값은 그 막대 자신의 것이다 — 누적이면 그 층의 값이지 누계가 아니고, estimator= 가 여러 행을 접었으면 접힌 값이다. 막대의 마크는 집계이므로 뒤에 있는 행들을 말하면 그려지지 않은 것을 말하는 셈이 된다.</li>

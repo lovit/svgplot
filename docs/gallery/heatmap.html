@@ -110,7 +110,7 @@ _load = [
     [22.0, 66.0, 47.0, 82.0, 71.0],
 ]
 TRAFFIC = {
-    &quot;시간&quot;: [hour for _ in _days for hour in _hours],
+    &quot;시각&quot;: [hour for _ in _days for hour in _hours],
     &quot;요일&quot;: [day for day in _days for _ in _hours],
     &quot;요청&quot;: [value for row in _load for value in row],
 }</code></pre>
@@ -197,7 +197,7 @@ TRAFFIC = {
   <desc>Heatmap, 5 columns (09시, 12시, 15시, 18시, 21시), 3 rows (월, 수, 금), 15 of 15 cells filled, values 12 to 82, quantised into 9 levels.</desc>
 </svg>
     </figure>
-    <pre><code>sp.heatmap(TRAFFIC, x=&quot;시간&quot;, y=&quot;요일&quot;, values=&quot;요청&quot;)</code></pre>
+    <pre><code>sp.heatmap(TRAFFIC, x=&quot;시각&quot;, y=&quot;요일&quot;, values=&quot;요청&quot;)</code></pre>
     <h3>annot=True 는 셀 안에 값을 쓴다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-2" role="img" aria-label="annot=True 는 셀 안에 값을 쓴다">
@@ -304,10 +304,10 @@ TRAFFIC = {
   <desc>Heatmap, 5 columns (09시, 12시, 15시, 18시, 21시), 3 rows (월, 수, 금), 15 of 15 cells filled, values 12 to 82, quantised into 9 levels.</desc>
 </svg>
     </figure>
-    <pre><code>sp.heatmap(TRAFFIC, x=&quot;시간&quot;, y=&quot;요일&quot;, values=&quot;요청&quot;, annot=True)</code></pre>
-    <h3>center= 는 발산 컬러맵과 함께 준다 — 가운데 단계가 그 값을 뜻하게 된다</h3>
+    <pre><code>sp.heatmap(TRAFFIC, x=&quot;시각&quot;, y=&quot;요일&quot;, values=&quot;요청&quot;, annot=True)</code></pre>
+    <h3>cmap= 을 발산으로 바꾸고 center= 로 가운데 단계를 정한다 — annot= 도 함께 켠 그림</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-3" role="img" aria-label="center= 는 발산 컬러맵과 함께 준다 — 가운데 단계가 그 값을 뜻하게 된다">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-3" role="img" aria-label="cmap= 을 발산으로 바꾸고 center= 로 가운데 단계를 정한다 — annot= 도 함께 켠 그림">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
   <line x1="118" y1="30" x2="118" y2="550" class="grid-line" />
@@ -409,16 +409,16 @@ TRAFFIC = {
 :where(.svgplot-heatmap-3) .level-7-annotation { fill: #000000; }
 :where(.svgplot-heatmap-3) .level-8-annotation { fill: #000000; }
 :where(.svgplot-heatmap-3) .level-9-annotation { fill: #000000; }</style>
-  <title>center= 는 발산 컬러맵과 함께 준다 — 가운데 단계가 그 값을 뜻하게 된다</title>
+  <title>cmap= 을 발산으로 바꾸고 center= 로 가운데 단계를 정한다 — annot= 도 함께 켠 그림</title>
   <desc>Heatmap, 5 columns (09시, 12시, 15시, 18시, 21시), 3 rows (월, 수, 금), 15 of 15 cells filled, values -33 to 37, quantised into 9 levels.</desc>
 </svg>
     </figure>
     <pre><code>DIFF = {
-    &quot;시간&quot;: TRAFFIC[&quot;시간&quot;],
+    &quot;시각&quot;: TRAFFIC[&quot;시각&quot;],
     &quot;요일&quot;: TRAFFIC[&quot;요일&quot;],
     &quot;증감&quot;: [value - 45.0 for value in TRAFFIC[&quot;요청&quot;]],
 }
-sp.heatmap(DIFF, x=&quot;시간&quot;, y=&quot;요일&quot;, values=&quot;증감&quot;, cmap=&quot;coolwarm&quot;, center=0.0, annot=True)</code></pre>
+sp.heatmap(DIFF, x=&quot;시각&quot;, y=&quot;요일&quot;, values=&quot;증감&quot;, cmap=&quot;coolwarm&quot;, center=0.0, annot=True)</code></pre>
     <h3>tooltip=True — 셀마다 자기 열·행·값·단계를 말한다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-4" role="img" aria-label="tooltip=True — 셀마다 자기 열·행·값·단계를 말한다">
@@ -450,49 +450,49 @@ sp.heatmap(DIFF, x=&quot;시간&quot;, y=&quot;요일&quot;, values=&quot;증감
   <line x1="56" y1="463.333333" x2="60" y2="463.333333" class="tick-line" />
   <text x="54" y="467.333333" text-anchor="end" class="tick-label">금</text>
   <rect x="60" y="30" width="116" height="173.333333" class="level-1 heatmap-cell">
-    <title>시간: 09시 · 요일: 월 · 요청: 12 · level 1 of 9</title>
+    <title>시각: 09시 · 요일: 월 · 요청: 12 · level 1 of 9</title>
   </rect>
   <rect x="60" y="203.333333" width="116" height="173.333333" class="level-1 heatmap-cell">
-    <title>시간: 09시 · 요일: 수 · 요청: 18 · level 1 of 9</title>
+    <title>시각: 09시 · 요일: 수 · 요청: 18 · level 1 of 9</title>
   </rect>
   <rect x="60" y="376.666667" width="116" height="173.333333" class="level-2 heatmap-cell">
-    <title>시간: 09시 · 요일: 금 · 요청: 22 · level 2 of 9</title>
+    <title>시각: 09시 · 요일: 금 · 요청: 22 · level 2 of 9</title>
   </rect>
   <rect x="176" y="30" width="116" height="173.333333" class="level-5 heatmap-cell">
-    <title>시간: 12시 · 요일: 월 · 요청: 48 · level 5 of 9</title>
+    <title>시각: 12시 · 요일: 월 · 요청: 48 · level 5 of 9</title>
   </rect>
   <rect x="176" y="203.333333" width="116" height="173.333333" class="level-6 heatmap-cell">
-    <title>시간: 12시 · 요일: 수 · 요청: 52 · level 6 of 9</title>
+    <title>시각: 12시 · 요일: 수 · 요청: 52 · level 6 of 9</title>
   </rect>
   <rect x="176" y="376.666667" width="116" height="173.333333" class="level-7 heatmap-cell">
-    <title>시간: 12시 · 요일: 금 · 요청: 66 · level 7 of 9</title>
+    <title>시각: 12시 · 요일: 금 · 요청: 66 · level 7 of 9</title>
   </rect>
   <rect x="292" y="30" width="116" height="173.333333" class="level-3 heatmap-cell">
-    <title>시간: 15시 · 요일: 월 · 요청: 35 · level 3 of 9</title>
+    <title>시각: 15시 · 요일: 월 · 요청: 35 · level 3 of 9</title>
   </rect>
   <rect x="292" y="203.333333" width="116" height="173.333333" class="level-4 heatmap-cell">
-    <title>시간: 15시 · 요일: 수 · 요청: 41 · level 4 of 9</title>
+    <title>시각: 15시 · 요일: 수 · 요청: 41 · level 4 of 9</title>
   </rect>
   <rect x="292" y="376.666667" width="116" height="173.333333" class="level-5 heatmap-cell">
-    <title>시간: 15시 · 요일: 금 · 요청: 47 · level 5 of 9</title>
+    <title>시각: 15시 · 요일: 금 · 요청: 47 · level 5 of 9</title>
   </rect>
   <rect x="408" y="30" width="116" height="173.333333" class="level-7 heatmap-cell">
-    <title>시간: 18시 · 요일: 월 · 요청: 61 · level 7 of 9</title>
+    <title>시각: 18시 · 요일: 월 · 요청: 61 · level 7 of 9</title>
   </rect>
   <rect x="408" y="203.333333" width="116" height="173.333333" class="level-6 heatmap-cell">
-    <title>시간: 18시 · 요일: 수 · 요청: 58 · level 6 of 9</title>
+    <title>시각: 18시 · 요일: 수 · 요청: 58 · level 6 of 9</title>
   </rect>
   <rect x="408" y="376.666667" width="116" height="173.333333" class="level-9 heatmap-cell">
-    <title>시간: 18시 · 요일: 금 · 요청: 82 · level 9 of 9</title>
+    <title>시각: 18시 · 요일: 금 · 요청: 82 · level 9 of 9</title>
   </rect>
   <rect x="524" y="30" width="116" height="173.333333" class="level-5 heatmap-cell">
-    <title>시간: 21시 · 요일: 월 · 요청: 44 · level 5 of 9</title>
+    <title>시각: 21시 · 요일: 월 · 요청: 44 · level 5 of 9</title>
   </rect>
   <rect x="524" y="203.333333" width="116" height="173.333333" class="level-4 heatmap-cell">
-    <title>시간: 21시 · 요일: 수 · 요청: 39 · level 4 of 9</title>
+    <title>시각: 21시 · 요일: 수 · 요청: 39 · level 4 of 9</title>
   </rect>
   <rect x="524" y="376.666667" width="116" height="173.333333" class="level-8 heatmap-cell">
-    <title>시간: 21시 · 요일: 금 · 요청: 71 · level 8 of 9</title>
+    <title>시각: 21시 · 요일: 금 · 요청: 71 · level 8 of 9</title>
   </rect>
   <rect x="660" y="25" width="16" height="10" class="level-1" />
   <text x="682" y="34" class="legend-text">12</text>
@@ -531,7 +531,7 @@ sp.heatmap(DIFF, x=&quot;시간&quot;, y=&quot;요일&quot;, values=&quot;증감
   <desc>Heatmap, 5 columns (09시, 12시, 15시, 18시, 21시), 3 rows (월, 수, 금), 15 of 15 cells filled, values 12 to 82, quantised into 9 levels.</desc>
 </svg>
     </figure>
-    <pre><code>sp.heatmap(TRAFFIC, x=&quot;시간&quot;, y=&quot;요일&quot;, values=&quot;요청&quot;, tooltip=True)</code></pre>
+    <pre><code>sp.heatmap(TRAFFIC, x=&quot;시각&quot;, y=&quot;요일&quot;, values=&quot;요청&quot;, tooltip=True)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
       <li>네 번째 그림에는 체크박스가 없다. 단계는 값의 구간이지 시리즈가 아니라서, 토글을 달면 &quot;3단계를 끄시오&quot; 가 되는데 그건 범례가 아니라 데이터 편집이다. 대신 커서가 얹힌 셀에 테두리가 생긴다 — 이 페이지의 CSS 이고 JavaScript 는 0줄이다.</li>

@@ -15,27 +15,27 @@ _load = [
     [22.0, 66.0, 47.0, 82.0, 71.0],
 ]
 TRAFFIC = {
-    "시간": [hour for _ in _days for hour in _hours],
+    "시각": [hour for _ in _days for hour in _hours],
     "요일": [day for day in _days for _ in _hours],
     "요청": [value for row in _load for value in row],
 }
 """
 
 EXAMPLES = [
-    ("기본 — sequential 컬러맵", 'sp.heatmap(TRAFFIC, x="시간", y="요일", values="요청")'),
-    ("annot=True 는 셀 안에 값을 쓴다", 'sp.heatmap(TRAFFIC, x="시간", y="요일", values="요청", annot=True)'),
+    ("기본 — sequential 컬러맵", 'sp.heatmap(TRAFFIC, x="시각", y="요일", values="요청")'),
+    ("annot=True 는 셀 안에 값을 쓴다", 'sp.heatmap(TRAFFIC, x="시각", y="요일", values="요청", annot=True)'),
     (
-        "center= 는 발산 컬러맵과 함께 준다 — 가운데 단계가 그 값을 뜻하게 된다",
+        "cmap= 을 발산으로 바꾸고 center= 로 가운데 단계를 정한다 — annot= 도 함께 켠 그림",
         """DIFF = {
-    "시간": TRAFFIC["시간"],
+    "시각": TRAFFIC["시각"],
     "요일": TRAFFIC["요일"],
     "증감": [value - 45.0 for value in TRAFFIC["요청"]],
 }
-sp.heatmap(DIFF, x="시간", y="요일", values="증감", cmap="coolwarm", center=0.0, annot=True)""",
+sp.heatmap(DIFF, x="시각", y="요일", values="증감", cmap="coolwarm", center=0.0, annot=True)""",
     ),
     (
         "tooltip=True — 셀마다 자기 열·행·값·단계를 말한다",
-        'sp.heatmap(TRAFFIC, x="시간", y="요일", values="요청", tooltip=True)',
+        'sp.heatmap(TRAFFIC, x="시각", y="요일", values="요청", tooltip=True)',
     ),
 ]
 

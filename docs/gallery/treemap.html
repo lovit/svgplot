@@ -102,7 +102,7 @@
 
 STORAGE = {
     &quot;종류&quot;: [&quot;이미지&quot;, &quot;동영상&quot;, &quot;문서&quot;, &quot;로그&quot;, &quot;백업&quot;, &quot;기타&quot;],
-    &quot;GB&quot;: [420.0, 1180.0, 95.0, 260.0, 640.0, 45.0],
+    &quot;기가바이트&quot;: [420.0, 1180.0, 95.0, 260.0, 640.0, 45.0],
 }</code></pre>
     <h2>예시</h2>
     <h3>기본 — labels= 를 주지 않으면 타일 번호가 이름이 된다</h3>
@@ -149,7 +149,7 @@ STORAGE = {
   <desc>Treemap, 6 tiles (1, 2, 3, 4, 5, 6), values 45 to 1180, total 2640.</desc>
 </svg>
     </figure>
-    <pre><code>sp.treemap(STORAGE, values=&quot;GB&quot;)</code></pre>
+    <pre><code>sp.treemap(STORAGE, values=&quot;기가바이트&quot;)</code></pre>
     <h3>labels= 로 타일에 이름을 붙인다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-treemap-2" role="img" aria-label="labels= 로 타일에 이름을 붙인다">
@@ -194,7 +194,7 @@ STORAGE = {
   <desc>Treemap, 6 tiles (이미지, 동영상, 문서, 로그, 백업, 기타), values 45 to 1180, total 2640.</desc>
 </svg>
     </figure>
-    <pre><code>sp.treemap(STORAGE, values=&quot;GB&quot;, labels=&quot;종류&quot;)</code></pre>
+    <pre><code>sp.treemap(STORAGE, values=&quot;기가바이트&quot;, labels=&quot;종류&quot;)</code></pre>
     <h3>타일이 작으면 라벨을 넣지 않는다 — 값이 고르지 않을수록 자주 일어난다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-treemap-3" role="img" aria-label="타일이 작으면 라벨을 넣지 않는다 — 값이 고르지 않을수록 자주 일어난다">
@@ -240,35 +240,35 @@ STORAGE = {
     </figure>
     <pre><code>LOPSIDED = {
     &quot;종류&quot;: [&quot;동영상&quot;, &quot;이미지&quot;, &quot;문서&quot;, &quot;캐시&quot;, &quot;임시&quot;, &quot;기타&quot;],
-    &quot;GB&quot;: [3200.0, 180.0, 40.0, 22.0, 11.0, 6.0],
+    &quot;기가바이트&quot;: [3200.0, 180.0, 40.0, 22.0, 11.0, 6.0],
 }
-sp.treemap(LOPSIDED, values=&quot;GB&quot;, labels=&quot;종류&quot;)</code></pre>
+sp.treemap(LOPSIDED, values=&quot;기가바이트&quot;, labels=&quot;종류&quot;)</code></pre>
     <h3>tooltip=True — 라벨이 안 들어간 타일도 자기 이름을 말한다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-treemap-4" role="img" aria-label="tooltip=True — 라벨이 안 들어간 타일도 자기 이름을 말한다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <rect x="30" y="30" width="545.822492" height="540" class="series-1">
-    <title>동영상 · GB: 3200 · 92.5%</title>
+    <title>동영상 · 기가바이트: 3200 · 92.5%</title>
   </rect>
   <text x="302.911246" y="300" text-anchor="middle" class="treemap-label legend-text">동영상</text>
   <rect x="575.822492" y="30" width="44.177508" height="375.289575" class="series-2">
-    <title>이미지 · GB: 180 · 5.2%</title>
+    <title>이미지 · 기가바이트: 180 · 5.2%</title>
   </rect>
   <text x="597.911246" y="217.644788" text-anchor="middle" class="treemap-label legend-text">이미지<title>이미지</title>
   </text>
   <rect x="575.822492" y="405.289575" width="44.177508" height="83.397683" class="series-3">
-    <title>문서 · GB: 40 · 1.2%</title>
+    <title>문서 · 기가바이트: 40 · 1.2%</title>
   </rect>
   <text x="597.911246" y="446.988417" text-anchor="middle" class="treemap-label legend-text">문서</text>
   <rect x="575.822492" y="488.687259" width="44.177508" height="45.868726" class="series-4">
-    <title>캐시 · GB: 22 · 0.6%</title>
+    <title>캐시 · 기가바이트: 22 · 0.6%</title>
   </rect>
   <text x="597.911246" y="511.621622" text-anchor="middle" class="treemap-label legend-text">캐시</text>
   <rect x="575.822492" y="534.555985" width="28.585446" height="35.444015" class="series-5">
-    <title>임시 · GB: 11 · 0.3%</title>
+    <title>임시 · 기가바이트: 11 · 0.3%</title>
   </rect>
   <rect x="604.407938" y="534.555985" width="15.592062" height="35.444015" class="series-6">
-    <title>기타 · GB: 6 · 0.2%</title>
+    <title>기타 · 기가바이트: 6 · 0.2%</title>
   </rect>
   <rect x="640" y="25" width="16" height="10" class="series-1" />
   <text x="662" y="34" class="legend-text">동영상</text>
@@ -301,9 +301,9 @@ sp.treemap(LOPSIDED, values=&quot;GB&quot;, labels=&quot;종류&quot;)</code></p
     </figure>
     <pre><code>LOPSIDED = {
     &quot;종류&quot;: [&quot;동영상&quot;, &quot;이미지&quot;, &quot;문서&quot;, &quot;캐시&quot;, &quot;임시&quot;, &quot;기타&quot;],
-    &quot;GB&quot;: [3200.0, 180.0, 40.0, 22.0, 11.0, 6.0],
+    &quot;기가바이트&quot;: [3200.0, 180.0, 40.0, 22.0, 11.0, 6.0],
 }
-sp.treemap(LOPSIDED, values=&quot;GB&quot;, labels=&quot;종류&quot;, tooltip=True)</code></pre>
+sp.treemap(LOPSIDED, values=&quot;기가바이트&quot;, labels=&quot;종류&quot;, tooltip=True)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
       <li>네 번째 그림에는 체크박스가 없다. 타일 하나가 행 하나라서 토글을 달면 &quot;3행을 끄시오&quot; 가 되는데, 그건 범례가 아니라 데이터 편집이다.</li>

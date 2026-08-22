@@ -39,12 +39,12 @@ EXAMPLES = [
 )""",
     ),
     (
-        'yscale="log" — 값이 자릿수로 벌어질 때',
+        'xscale="log", yscale="log" — 양쪽이 자릿수로 벌어질 때',
         """LATENCY = {
     "요청수": [10.0, 100.0, 1000.0, 10000.0, 100000.0],
-    "지연ms": [1.2, 3.0, 14.0, 130.0, 1400.0],
+    "지연밀리초": [1.2, 3.0, 14.0, 130.0, 1400.0],
 }
-sp.scatterplot(LATENCY, x="요청수", y="지연ms", xscale="log", yscale="log")""",
+sp.scatterplot(LATENCY, x="요청수", y="지연밀리초", xscale="log", yscale="log")""",
     ),
 ]
 
