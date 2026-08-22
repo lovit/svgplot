@@ -1,7 +1,7 @@
 """How a chart splits its rows into series (docs-research/10-feature-matrix.md A2).
 
-Seven charts held this character for character, and it is not a formatting decision -- the
-eight lines carry three policies:
+Seven charts had held this character for character when it was consolidated here, and it is
+not a formatting decision -- the eight lines carry three policies:
 
 - **the order series appear in**, which is the order the palette assigns colours and the
   legend lists names, so changing it recolours every chart;
