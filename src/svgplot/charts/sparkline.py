@@ -2,7 +2,8 @@
 
 Tufte's sparkline is a "datawords"-sized graphic meant to sit inside a line of
 prose or a table cell, so it deliberately drops every piece of chart chrome the
-other chart types provide: there is no axis, no legend, no tick, no title. That
+other chart types provide: there is no axis, no legend and no tick. (The root ``<title>`` every chart carries as its
+accessible name is still there -- what a sparkline drops is chrome that takes up room.) That
 makes it the only chart here whose canvas isn't ``DEFAULT_WIDTH``/``DEFAULT_HEIGHT``
 (see ``charts/_layout.SPARKLINE_WIDTH``), and it is why this module calls neither
 ``charts/_axes`` nor ``charts/_legend`` — ``charts/pie.py`` is the precedent for an
@@ -66,6 +67,21 @@ def sparkline(
     inside a line of text rather than to be looked into. They are plain floats here, not
     ``None``-means-default like the full-size charts, because there is no margin preset to
     pick: a sparkline draws no axis, no ticks and no legend.
+
+    **There is no ``tooltip=``.** Ten charts have one; these six do not, and the reason is the
+    same for all six: a series is drawn as **one** mark, so the only thing a ``<title>`` on it
+    could say is the series name. A tooltip earns its element when a mark is one row or one
+    bin; on the other five it would repeat the legend where there is one and repeat nothing
+    where there is not, and here there is never one -- ``sparkline`` takes no ``hue=`` and
+    draws a single series.
+
+    For a sparkline this compounds: at 120x24 with one series and no legend, there is neither a
+    second mark to distinguish nor a name to repeat. The chart's own ``<title>`` -- its
+    accessible name, at the root -- is there as on every other chart, and by the SVG spec a
+    browser shows it on hover; inside an ``<img>`` it does not, which is where a sparkline most
+    often ends up. It also reads ``Chart`` until :meth:`~svgplot.chart.base.Chart.set_title`
+    says otherwise, so it is not a name this chart withheld -- it is the same one every chart
+    starts with.
 
     Raises:
         KeyError: if ``y`` isn't a column in ``data``, or if ``theme`` is a string that

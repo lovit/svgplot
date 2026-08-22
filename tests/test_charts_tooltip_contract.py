@@ -21,23 +21,18 @@ import pytest
 import svgplot as sp
 from _svg_probe import every_tag
 
-_NOT_A_CHART = {
-    "facet",
-    "row",
-    "column",
-    "grid",
-    "apply_size",
-    "apply_context",
-    "add_caption",
-    "parametric_theme",
-}
-
 
 def _charts() -> list[str]:
-    """Every public chart function, taken from the package rather than from a list here."""
-    return sorted(
-        name for name in sp.__all__ if name[0].islower() and callable(getattr(sp, name)) and name not in _NOT_A_CHART
-    )
+    """Every public chart function.
+
+    ``svgplot.charts.__all__`` rather than ``svgplot.__all__`` minus a list of the things that
+    are not charts: that list is the package's own answer to "which sixteen", and two other
+    registries already derive themselves from it (``test_charts_describe``,
+    ``test_markdown_embedding``). Filtering the top level instead meant a chart callable on the
+    package but missing from ``svgplot.__all__`` was invisible here -- and the coverage test
+    below claimed to catch exactly that.
+    """
+    return sorted(sp.charts.__all__)
 
 
 def _with_tooltip() -> list[str]:
@@ -70,7 +65,9 @@ def test_a_chart_that_takes_tooltip_takes_it_the_agreed_way(name: str) -> None:
     """
     parameter = inspect.signature(getattr(sp, name)).parameters.get("tooltip")
     if parameter is None:
-        pytest.skip(f"{name} has no tooltip= yet")
+        # "does not take one", not "does not take one yet": the six are a decision, and each
+        # says so in its own docstring -- see ``test_the_marker_sentence_appears_exactly_where_it_belongs``.
+        pytest.skip(f"{name} takes no tooltip=, by design")
 
     assert parameter.kind is inspect.Parameter.KEYWORD_ONLY, f"{name}: tooltip must be keyword-only"
     positional = [
@@ -225,3 +222,142 @@ def test_a_column_name_too_long_to_read_is_dropped_rather_than_repeated() -> Non
 
     assert "<title>1 · 매출: 3</title>" in svg
     assert long_name not in svg
+
+
+_DECLINES_TOOLTIP = "There is no ``tooltip=``"
+"""The sentence each of the six opens its explanation with.
+
+One fixed phrase rather than a keyword, so that removing the position removes the match. It is
+also what makes the six read alike: a reader who has met one of these paragraphs recognises the
+next at a glance.
+"""
+
+_WITHOUT_TOOLTIP = ("areaplot", "ecdfplot", "kdeplot", "lineplot", "radarplot", "sparkline")
+"""The six charts that take no ``tooltip=``, and are expected not to.
+
+A list, so the split is a decision rather than an accident. Ten charts have the argument; these
+six do not, and until now the source said nothing about why -- the word "tooltip" appeared zero
+times in all six modules, so a reader could not tell a design decision from an oversight. The
+reason lives in their docstrings now, and this is what keeps it there.
+"""
+
+
+@pytest.mark.parametrize("name", sorted(_charts()))
+def test_the_marker_sentence_appears_exactly_where_it_belongs(name: str) -> None:
+    """Not having the argument is a position; an unexplained absence is not.
+
+    The gallery had the reasoning all along -- one ``<path>`` per series means the only thing to
+    say is the series name -- but a reader working from ``help()`` never sees the gallery.
+
+    **A biconditional over all sixteen, not an implication over six.** The first version
+    parametrized only :data:`_WITHOUT_TOOLTIP` and asserted presence, which left the other half
+    unwatched: pasting the marker into ``barplot`` -- a chart that *takes* ``tooltip=`` -- ran
+    the whole suite green. ``test_theme_fields`` is cited as the precedent for the fixed-phrase
+    device, and that file gets this right (``reaches_the_output != denies_it`` over every
+    field); this had copied the phrase and dropped the shape.
+
+    Matched on :data:`_DECLINES_TOOLTIP` rather than on the word "tooltip". The word is too
+    weak: these paragraphs use it more than once, so deleting the sentence that states the
+    position leaves the word behind in the explanation and the check passes.
+    """
+    import svgplot as sp
+
+    prose = (getattr(sp, name).__doc__ or "").split("Raises:")[0]
+    takes_one = "tooltip" in inspect.signature(getattr(sp, name)).parameters
+
+    assert (
+        _DECLINES_TOOLTIP in prose
+    ) is not takes_one, f"{name} takes tooltip={takes_one} but its docstring says the opposite"
+
+
+def test_the_two_lists_together_are_every_chart() -> None:
+    """Every chart is on exactly one side of the split, and the split covers all sixteen.
+
+    The check above is per-chart, so it says nothing about a chart that never reaches it. This
+    is the coverage half. (Three earlier versions of this docstring overclaimed, which is why
+    the assertions below are spelled out: one said this was what caught a new chart with no
+    ``tooltip=`` and no explanation -- the biconditional above catches that directly; one said
+    it caught a chart "that exists but is not exported", which it could not while both sides
+    derived from ``svgplot.__all__``; and one said "the split covers all sixteen" while the
+    only assertion was a union of two sets that shrink together.)
+    """
+    import svgplot as sp
+
+    with_tooltip = {name for name in _charts() if "tooltip" in inspect.signature(getattr(sp, name)).parameters}
+
+    # ``with_tooltip`` is derived from ``_charts()`` and ``_WITHOUT_TOOLTIP`` is a literal, so
+    # this equality notices a chart leaving the registry while the literal still names it, and
+    # names it in the diff. Ordered first for that reason: it is the assertion with something to
+    # say about *which* chart.
+    assert with_tooltip | set(_WITHOUT_TOOLTIP) == set(_charts())
+    assert not with_tooltip & set(_WITHOUT_TOOLTIP)
+
+    # What the equality cannot see is the registry changing size on the side that has no
+    # literal, in either direction: drop a chart that takes ``tooltip=`` and both sides lose it
+    # together, add a seventeenth that takes one and both sides gain it. The seventeenth that
+    # *declines* a tooltip is not this assertion's -- it is absent from ``_WITHOUT_TOOLTIP``,
+    # so the equality above already names it in the diff.
+    assert len(_charts()) == 16, (
+        f"the package ships {len(_charts())} charts, not 16 -- the split changed size and this count did not. "
+        "A chart that arrived and was *not* put on a side fails the equality above instead, not here"
+    )
+
+
+@pytest.mark.parametrize("name", _WITHOUT_TOOLTIP)
+def test_a_chart_that_declines_a_tooltip_really_draws_one_mark_per_series(name: str) -> None:
+    """The proposition all six paragraphs rest on, measured.
+
+    Every one of them says a series is drawn as **one** mark, and therefore that a ``<title>``
+    on it could only repeat the series name. Nothing in the tree checked that. The phrase guard
+    above matches a sentence; ``test_theme_fields``, which those docstrings cite as the
+    precedent, matches a sentence *against a render-and-compare measurement* -- so its phrase
+    cannot outlive its proposition and this one could. This is the missing half.
+
+    Counted in the plot body, excluding the legend: a swatch carries the same ``series-N`` class
+    as the mark it stands for, so selecting on the class alone finds one extra element per
+    series and would make every chart *that draws a legend* look like it draws two. ``sparkline``
+    draws none -- it is the one fixture below where the cut is a no-op.
+
+    The cut is at the **first swatch**, not at the first ``legend-text``. Splitting on the label
+    was tried and let exactly one swatch through -- the legend emits swatch then label, so
+    series 1's swatch precedes the first label and series 1 alone appeared to draw twice. That
+    reads as a real defect in one chart rather than a mistake in the counting, which is the
+    worst way for a measurement to be wrong.
+
+    If a chart ever grows a second mark per series -- point markers on a line, say -- this fails,
+    and it should: at that point the paragraph's reason is gone and the chart has become a
+    candidate for ``tooltip=``.
+    """
+
+    chart = _WITHOUT_TOOLTIP_FIXTURES[name]()
+    drawn = re.sub(r"<style>.*?</style>", "", chart.to_string(), flags=re.S)
+    legend = re.search(r'<(?:line|rect)[^>]*class="series-\d+"[^>]*/>\s*<text[^>]*legend-text', drawn)
+    body = drawn[: legend.start()] if legend else drawn
+    per_series: dict[str, int] = {}
+    for series in re.findall(r'<(?:path|polyline|line|rect|circle|ellipse)[^>]*class="(series-\d+)[^"]*"', body):
+        per_series[series] = per_series.get(series, 0) + 1
+
+    assert per_series, f"{name}: no series marks found — the pattern is not matching"
+    assert set(per_series.values()) == {1}, f"{name} draws {per_series}, not one mark per series"
+
+
+_SPREAD = {
+    "v": [float(index % 9 + 1) for index in range(40)],
+    "x": [float(index) for index in range(40)],
+    "g": ["a", "b"] * 20,
+}
+_SPOKES = {"cat": ["a", "b", "c"] * 2, "v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], "g": ["x"] * 3 + ["y"] * 3}
+
+_WITHOUT_TOOLTIP_FIXTURES = {
+    "areaplot": lambda: __import__("svgplot").areaplot(_SPREAD, x="x", y="v", hue="g"),
+    "ecdfplot": lambda: __import__("svgplot").ecdfplot(_SPREAD, x="v", hue="g"),
+    "kdeplot": lambda: __import__("svgplot").kdeplot(_SPREAD, x="v", hue="g"),
+    "lineplot": lambda: __import__("svgplot").lineplot(_SPREAD, x="x", y="v", hue="g"),
+    "radarplot": lambda: __import__("svgplot").radarplot(_SPOKES, x="cat", y="v", hue="g"),
+    "sparkline": lambda: __import__("svgplot").sparkline(_SPREAD, y="v"),
+}
+"""One call per chart, with ``hue=`` wherever the chart takes it, so more than one series is
+drawn and "one *per series*" is a real claim rather than a count of one -- on five of the six.
+``sparkline`` takes no ``hue=`` and draws a single series by construction, so for that one the
+measurement really is a count of one; what it still catches there is the same thing it catches
+everywhere else, a chart that grows a second element per series."""
