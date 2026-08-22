@@ -292,10 +292,15 @@ def test_the_two_lists_together_are_every_chart() -> None:
     assert with_tooltip | set(_WITHOUT_TOOLTIP) == set(_charts())
     assert not with_tooltip & set(_WITHOUT_TOOLTIP)
 
-    # What the equality cannot see is the registry shrinking on the side that has no literal:
-    # drop a chart that takes ``tooltip=`` and both sides lose it together. A seventeenth is
-    # meant to fail here too -- deciding its tooltip question is what this file is for.
-    assert len(_charts()) == 16, f"the package ships {len(_charts())} charts, not 16 -- put the new one on a side"
+    # What the equality cannot see is the registry changing size on the side that has no
+    # literal, in either direction: drop a chart that takes ``tooltip=`` and both sides lose it
+    # together, add a seventeenth that takes one and both sides gain it. The seventeenth that
+    # *declines* a tooltip is not this assertion's -- it is absent from ``_WITHOUT_TOOLTIP``,
+    # so the equality above already names it in the diff.
+    assert len(_charts()) == 16, (
+        f"the package ships {len(_charts())} charts, not 16 -- a chart arrived without being put on a side, "
+        "or one left the registry"
+    )
 
 
 @pytest.mark.parametrize("name", _WITHOUT_TOOLTIP)

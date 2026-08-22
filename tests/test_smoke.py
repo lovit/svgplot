@@ -53,15 +53,20 @@ def test_every_type_a_chart_parameter_names_can_be_imported() -> None:
     remembering to come back.
 
     **Chart parameters only**, which is narrower than "every public signature". Three names
-    reach a public signature and are not importable: ``Chart``'s constructor takes
-    ``SvgDocument``, ``LabelData`` and ``Domains``; ``Composition``'s takes ``SvgDocument`` (and
-    ``Chart``, which is exported); and ``Chart.domains`` returns a ``Domains``. Neither case is
-    clearly in scope. ``Chart``'s *class* docstring says it is "constructed by the chart
-    functions, not usually by hand", so those annotations are arguably not addressed to a
-    caller at all -- ``Composition`` says nothing of the kind. And ``Chart.domains`` disclaims
-    itself: "not part of the public API surface yet -- the shape of that report is still
-    settling". Left for the issue that decides those questions, rather than answered here by a
-    test name claiming more than the code asks.
+    reach a public signature and are not importable, at three sites: ``Chart``'s constructor
+    takes ``SvgDocument``, ``LabelData`` and ``Domains``; ``Composition``'s takes
+    ``SvgDocument`` (and ``Chart``, which is exported); and ``Chart.domains`` returns a
+    ``Domains``. The three do not answer the same way.
+
+    Both constructors document themselves as things a caller does not build: ``Chart``'s class
+    docstring says it is "constructed by the chart functions, not usually by hand", and
+    ``Composition.__init__`` says its ``document`` "is the composed canvas built by a
+    ``svgplot.layout`` function" -- so neither set of annotations is really addressed to a
+    caller. ``Chart.domains`` is the one that is: a property, returning a type nothing exports.
+    It disclaims its own status in the same breath -- "Not part of the public API surface yet
+    -- it is a chart's report about itself, and the shape of that report is still settling" --
+    and that is a question for the issue that settles the shape, not one to answer here by
+    giving this test a name claiming more than its body asks.
     """
     per_chart = {chart: _named_types(chart) for chart in svgplot.charts.__all__}
     leaked = set().union(*per_chart.values())
