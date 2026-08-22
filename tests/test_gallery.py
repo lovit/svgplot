@@ -280,8 +280,9 @@ def test_the_gallery_figure_shows_the_two_orders_disagreeing() -> None:
 # The caption becomes the figure's ``aria-label``, so it is the only description a screen
 # reader gets. Written after an audit claimed in a PR body did not reproduce: seven of the 76
 # figures passed an argument no caption named -- ``barplot`` one, ``gaugeplot`` three,
-# ``kdeplot``, ``scatterplot`` and ``violinplot`` one each -- and one caption pointed at the
-# wrong figure. A claim about every caption belongs in a test, not in a sentence nobody re-runs.
+# ``kdeplot``, ``scatterplot`` and ``violinplot`` one each -- and two more captions described a
+# figure that was not the one under them. A claim about every caption belongs in a test, not in
+# a sentence nobody re-runs.
 
 _SUBJECT = ("data", "x", "y", "hue", "size", "values", "labels")
 """The channels. A page's ``REQUIRES`` already declares these, and every figure on the page
@@ -320,7 +321,25 @@ def test_every_option_a_figure_passes_is_named_in_its_caption() -> None:
 
 def test_the_audit_would_notice_a_channel_going_missing() -> None:
     """The exemption above is a list of names, and a list can be edited until it exempts
-    everything. This pins what it may hold: channels, and only the ones charts really take."""
+    everything -- adding ``tooltip`` to it would drop every ``tooltip=True`` figure out of the
+    audit. Two assertions, because the first alone does not close that: agreeing with
+    ``_CHANNELS`` only makes the edit take two lines instead of one, since nothing in
+    ``test_api_shape`` requires a ``_CHANNELS`` entry to be a real parameter -- its own use of
+    the tuple is ``assert set(positional) <= set(_CHANNELS)``, an upper bound, which widening
+    can never fail. Measured: widening both tuples with ``tooltip`` left all 3,899 tests green,
+    and a live caption could then stop naming ``tooltip=`` with nothing complaining. The second
+    assertion says every exempt name is one some chart really takes positionally, which is what
+    makes ``tooltip`` unaddable."""
+    import inspect
+
     from test_api_shape import _CHANNELS
 
+    positional = {
+        name
+        for chart in sp.charts.__all__
+        for name, spec in inspect.signature(getattr(sp, chart)).parameters.items()
+        if spec.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    }
+
     assert set(_SUBJECT) == set(_CHANNELS), "the caption audit and the signature guard disagree about what a channel is"
+    assert set(_SUBJECT) == positional, "an exempt name is not a channel any chart takes positionally"
