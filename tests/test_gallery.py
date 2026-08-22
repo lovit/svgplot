@@ -278,9 +278,10 @@ def test_the_gallery_figure_shows_the_two_orders_disagreeing() -> None:
 # ------------------------------------------------------- captions against the code they caption
 #
 # The caption becomes the figure's ``aria-label``, so it is the only description a screen
-# reader gets. Written after an audit claimed in a PR body did not reproduce: three figures
-# passed an argument no caption named, and one caption pointed at the wrong figure. A claim
-# about every caption belongs in a test, not in a sentence nobody re-runs.
+# reader gets. Written after an audit claimed in a PR body did not reproduce: seven of the 76
+# figures passed an argument no caption named -- ``barplot`` one, ``gaugeplot`` three,
+# ``kdeplot``, ``scatterplot`` and ``violinplot`` one each -- and one caption pointed at the
+# wrong figure. A claim about every caption belongs in a test, not in a sentence nobody re-runs.
 
 _SUBJECT = ("data", "x", "y", "hue", "size", "values", "labels")
 """The channels. A page's ``REQUIRES`` already declares these, and every figure on the page
@@ -305,7 +306,12 @@ def test_every_option_a_figure_passes_is_named_in_its_caption() -> None:
     for page in discover():
         for example in page.examples:
             options = _keywords(example.code) - set(_SUBJECT)
-            missing = sorted(option for option in options if option not in example.caption)
+            # ``opt=`` at an identifier boundary, not ``opt in caption``: ``width`` is a
+            # substring of ``bandwidth``, both are parameters of the same chart, and two live
+            # captions say "bandwidth=" -- so a bare containment check passes a figure that
+            # quietly adds ``width=`` under a caption that never mentions it. Measured: all 76
+            # figures already satisfy the anchored form, so this costs nothing today.
+            missing = sorted(option for option in options if not re.search(rf"(?<![A-Za-z0-9_]){option}=", example.caption))
             if missing:
                 unnamed.append((page.name, example.caption, missing))
 
