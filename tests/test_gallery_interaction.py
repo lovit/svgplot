@@ -367,9 +367,8 @@ def test_only_a_toggle_needs_the_chart_to_have_a_legend(kind: str, refused: bool
 
     A toggle needs a name per series and the legend is where names come from. Hover needs none
     -- there is nothing to label -- so it works on a chart that draws series without naming
-    them. ``boxplot`` without ``hue=`` is exactly that: one series per category from the
-    per-category palette -- four here, because the fixture has four -- and no legend for any
-    of them.
+    them. ``boxplot`` without ``hue=`` is exactly that: one unnamed series covering every
+    category, and no legend, because a legend names hue values and there are none.
 
     Written as one parametrized pair rather than two tests, because the claim is the
     *difference*: removing the ``kind == TOGGLE`` condition left the whole suite green, since
@@ -389,9 +388,9 @@ def test_only_a_toggle_needs_the_chart_to_have_a_legend(kind: str, refused: bool
 
     (controls,) = load(module, "nolegend").examples[0].controls
 
-    # Four categories in the fixture, so four series from the per-category palette -- and no
-    # legend for any of them, which is the state a toggle cannot use and hover can.
-    assert [series.index for series in controls.series] == [1, 2, 3, 4]
+    # One series, unnamed, which is the state a toggle cannot use and hover can. It was four
+    # here until colour stopped following categories; the count was never the point.
+    assert [series.index for series in controls.series] == [1]
     assert all(series.label == "" for series in controls.series), "hover names nothing, so it needs no name"
 
 

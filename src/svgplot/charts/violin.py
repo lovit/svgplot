@@ -218,13 +218,20 @@ def violinplot(
     ``tooltip=False`` is the default, and not as a matter of taste: every existing caller's
     output would otherwise change bytes for a feature they did not ask for.
 
+    Colour follows ``hue=`` and nothing else. Without it every violin is one series and one
+    colour: a category is already named by its axis label and placed by its position, and a
+    palette rotating under the violins would say that the colour means something it does not.
+    With ``hue=`` the palette cycles per hue value, so the same group is the same colour in
+    every category, and a legend names them. ``barplot`` has always drawn it this way;
+    ``violinplot`` and ``boxplot`` used to cycle per category, and the three now agree.
+
     ``categories=`` replaces the category list this chart would take from its own data, and
     ``ylim=`` its value domain. They exist so several charts can be made to agree -- see
-    :func:`~svgplot.layout.facet.facet`. A category with no rows still gets its band **and
-    its place in the palette**, so the same category is the same colour in every chart
-    sharing the list; it simply has no mark drawn in it. Minting the class for an undrawn
-    category is the point: skipping it would shift every later category's colour, and two
-    panels would disagree about what blue means.
+    :func:`~svgplot.layout.facet.facet`. A category with no rows still gets its band; it simply
+    has no mark drawn in it, so the bands line up across panels. It no longer holds a palette
+    slot, because categories no longer have any: what a panel missing a value must not disturb
+    is the *hue* colours, and an absent hue value still mints its class for exactly that
+    reason.
 
     ``width``/``height`` set the canvas in pixels; ``None`` (the default) means 800x600, so a
     call that does not mention them is byte-identical to one written before they existed. The
@@ -330,16 +337,21 @@ def violinplot(
     band = x_scale.step / len(hue_values)
     half_width = slot_width / 2 / peak
     series_classes: list[str] = []
-    for _name in hue_values if hue is not None else drawn_categories:
+    # One class per *hue value*, or a single class for the whole chart when there is no
+    # ``hue=``. Colour means one thing in this package and that thing is ``hue=``: a category
+    # is already told apart by its position and its axis label, so rotating the palette under
+    # the categories would spend the reader's attention claiming a distinction the colour is
+    # not carrying. See ``barplot``, which has always drawn it this way.
+    for _name in hue_values if hue is not None else (None,):
         # Minted even when this panel has no rows for it, so a shared list keeps one colour
-        # per name across every chart using it.
+        # per hue value across every chart using it.
         series_classes.append(document.semantic_class("series"))
     for slot, hue_value in enumerate(hue_values):
-        for index, category in enumerate(drawn_categories):
+        for category in drawn_categories:
             curve = curves.get((category, hue_value))
             if curve is None:
                 continue
-            series_class = series_classes[slot if hue is not None else index]
+            series_class = series_classes[slot if hue is not None else 0]
             centre = x_scale(category) + (slot + 0.5) * slot_width
             values = groups[(category, hue_value)]
             # One call, shared by the tooltip and the inner box below. Two calls agree today and

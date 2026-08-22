@@ -38,6 +38,32 @@ def _elements(chart: Chart, tag: str, class_prefix: str = "") -> list[dict[str, 
     ]
 
 
+def _by_category(elements: list[dict[str, str]]) -> list[list[dict[str, str]]]:
+    """``elements`` grouped into one list per box, left to right.
+
+    Selecting on ``series-N`` used to do this, back when a box's palette slot was its
+    category. Colour now comes from ``hue=`` and nothing else, so every box without a hue
+    carries ``series-1`` and the class no longer says which category a mark belongs to --
+    which is the point of the change, and a reason to group by something that still does.
+
+    Grouped on the mark's **centre**, which is exact: every line in one box -- the median
+    across the full width, the two caps at 60% of it, the two stems at zero width -- is drawn
+    symmetrically about ``x_scale(category) + slot_width / 2``, so the centres within a box
+    are equal and the centres of two boxes are a slot apart. A first version clustered on
+    ``x1`` with a distance threshold and I had to pick the number from the fixture; the
+    within-box spread turned out to be 105px against my guess of 30, so the threshold was
+    wrong as well as unprincipled.
+    """
+    groups: dict[float, list[dict[str, str]]] = {}
+    for attributes in elements:
+        if "x1" in attributes:
+            centre = (float(attributes["x1"]) + float(attributes["x2"])) / 2
+        else:
+            centre = float(attributes["x"]) + float(attributes["width"]) / 2
+        groups.setdefault(centre, []).append(attributes)
+    return [groups[centre] for centre in sorted(groups)]
+
+
 def _y_scale(stats_by_category: list[BoxStats]) -> LinearScale:
     """Rebuild the y scale boxplot() derives from the rendered stats — the domain
     spans every whisker *and* every outlier, which is what keeps outliers on-canvas.
@@ -55,11 +81,16 @@ def test_boxplot_renders_for_every_mode(mode: str) -> None:
 
 
 def test_boxplot_draws_one_box_per_distinct_x_category() -> None:
+    """Counted as box bodies, not as palette classes.
+
+    Two categories used to mean ``series-1`` and ``series-2``, so the class count was the box
+    count. Colour follows ``hue=`` alone now, so both boxes are ``series-1`` and the rects are
+    what has to be counted -- which is what the test was ever about.
+    """
     chart = boxplot(NO_OUTLIER_DATA, x="group", y="value")
-    svg = chart.to_string()
-    assert "series-1" in svg
-    assert "series-2" in svg
-    assert "series-3" not in svg
+
+    assert len(_elements(chart, "rect", "series-1-marker")) == 2
+    assert "series-2" not in chart.to_string(), "a category took a palette slot of its own"
 
 
 def test_boxplot_box_spans_exactly_q1_to_q3_in_pixels() -> None:
@@ -107,8 +138,8 @@ def test_boxplot_draws_exactly_five_series_lines_per_category() -> None:
     elements would not catch a missing box: the axes alone emit 12 of them.
     """
     chart = boxplot(NO_OUTLIER_DATA, x="group", y="value")
-    assert len(_elements(chart, "line", "series-1")) == 5
-    assert len(_elements(chart, "line", "series-2")) == 5
+
+    assert [len(category) for category in _by_category(_elements(chart, "line", "series-1"))] == [5, 5]
 
 
 def test_boxplot_whisker_caps_sit_at_the_whisker_ends() -> None:
@@ -116,7 +147,8 @@ def test_boxplot_whisker_caps_sit_at_the_whisker_ends() -> None:
     chart = boxplot(NO_OUTLIER_DATA, x="group", y="value")
     y_scale = _y_scale([stats, box_stats(NO_OUTLIER_DATA["value"][5:], mode="1.5IQR")])
 
-    _median, _upper_stem, upper_cap, _lower_stem, lower_cap = _elements(chart, "line", "series-1")
+    first_category, _second = _by_category(_elements(chart, "line", "series-1"))
+    _median, _upper_stem, upper_cap, _lower_stem, lower_cap = first_category
     for cap, whisker in ((upper_cap, stats.whisker_high), (lower_cap, stats.whisker_low)):
         assert float(cap["y1"]) == float(cap["y2"]) == pytest.approx(y_scale(whisker))  # horizontal, at the whisker end
         assert float(cap["x1"]) < float(cap["x2"])  # non-zero width
