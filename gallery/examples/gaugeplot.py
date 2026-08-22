@@ -15,7 +15,7 @@ KPI = {
 
 EXAMPLES = [
     (
-        "기본 — vmin=/vmax= 로 범위를 정한다, labels= 없는 행 하나는 범례 대신 가운데 숫자를 갖는다",
+        "기본 — labels= 없는 한 행은 번호가 이름이 되고 범례가 없다, 범위는 vmin=/vmax= 가 정한다",
         """ONE = {"값": [72.0]}
 sp.gaugeplot(ONE, values="값", vmin=0.0, vmax=100.0)""",
     ),

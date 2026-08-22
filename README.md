@@ -30,12 +30,12 @@ PNG 출력에는 cairosvg 가 필요하다 — `uv add "svgplot[png] @ git+https
 import svgplot as sp
 
 data = {
-    "요일": [1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
+    "일차": [1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
     "매출": [10.0, 15.0, 7.0, 20.0, 12.0, 6.0, 9.0, 4.0, 14.0, 8.0],
     "지역": ["서울", "서울", "서울", "서울", "서울", "부산", "부산", "부산", "부산", "부산"],
 }
 
-sp.lineplot(data, x="요일", y="매출", hue="지역").save("sales.svg")
+sp.lineplot(data, x="일차", y="매출", hue="지역").save("sales.svg")
 ```
 
 `sales.svg` 안에서 두 지역의 선은 `class="series-1 line-series"` 와 `class="series-2 line-series"` 이고, 파일의 `<style>` 에 그에 대응하는 규칙이 있다.
