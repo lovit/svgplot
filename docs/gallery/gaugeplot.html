@@ -109,9 +109,9 @@ KPI = {
     &quot;값&quot;: [72.0, 91.0, 38.0],
 }</code></pre>
     <h2>예시</h2>
-    <h3>기본 — vmin=/vmax= 로 범위를 정한다, 행 하나면 범례도 없다</h3>
+    <h3>기본 — vmin=/vmax= 로 범위를 정한다, labels= 없는 행 하나는 범례 대신 가운데 숫자를 갖는다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-1" role="img" aria-label="기본 — vmin=/vmax= 로 범위를 정한다, 행 하나면 범례도 없다">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-1" role="img" aria-label="기본 — vmin=/vmax= 로 범위를 정한다, labels= 없는 행 하나는 범례 대신 가운데 숫자를 갖는다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="115.421852" y1="421" x2="111.957751" y2="423" class="tick-line" />
   <text x="103.297497" y="428" text-anchor="end" dominant-baseline="middle" class="tick-label">0</text>
@@ -128,8 +128,6 @@ KPI = {
   <path d="M 115.421852,421 A 242,242 0 1 1 534.578148,421 L 398.352352,342.35 A 84.7,84.7 0 1 0 251.647648,342.35 Z" class="gauge-track spine" />
   <path d="M 115.421852,421 A 242,242 0 0 1 517.76024,153.687014 L 392.466084,248.790455 A 84.7,84.7 0 0 0 251.647648,342.35 Z" class="series-1 gauge-value" />
   <text x="325" y="300" text-anchor="middle" dominant-baseline="middle" class="gauge-number legend-text">72</text>
-  <rect x="640" y="25" width="16" height="10" class="series-1" />
-  <text x="662" y="34" class="legend-text">가동률</text>
   <style>:where(.svgplot-gaugeplot-1) .plot-background { fill: #ffffff; }
 :where(.svgplot-gaugeplot-1) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
 :where(.svgplot-gaugeplot-1) .spine { stroke: #333333; stroke-width: 1; fill: none; }
@@ -137,12 +135,12 @@ KPI = {
 :where(.svgplot-gaugeplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
 :where(.svgplot-gaugeplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-gaugeplot-1) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }</style>
-  <title>기본 — vmin=/vmax= 로 범위를 정한다, 행 하나면 범례도 없다</title>
-  <desc>Gauge, 1 arc (가동률), values 72 to 72, range 0 to 100.</desc>
+  <title>기본 — vmin=/vmax= 로 범위를 정한다, labels= 없는 행 하나는 범례 대신 가운데 숫자를 갖는다</title>
+  <desc>Gauge, 1 arc (1), values 72 to 72, range 0 to 100.</desc>
 </svg>
     </figure>
-    <pre><code>ONE = {&quot;지표&quot;: [&quot;가동률&quot;], &quot;값&quot;: [72.0]}
-sp.gaugeplot(ONE, values=&quot;값&quot;, labels=&quot;지표&quot;, vmin=0.0, vmax=100.0)</code></pre>
+    <pre><code>ONE = {&quot;값&quot;: [72.0]}
+sp.gaugeplot(ONE, values=&quot;값&quot;, vmin=0.0, vmax=100.0)</code></pre>
     <h3>여러 행은 하나의 vmin=/vmax= 범위를 공유하는 동심 아크가 된다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-gaugeplot-2" role="img" aria-label="여러 행은 하나의 vmin=/vmax= 범위를 공유하는 동심 아크가 된다">

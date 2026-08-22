@@ -283,7 +283,8 @@ def test_the_gallery_figure_shows_the_two_orders_disagreeing() -> None:
 # named -- ``barplot`` one, ``gaugeplot`` three, ``kdeplot``, ``scatterplot`` and ``violinplot``
 # one each -- and two more captions described a figure that was not the one under them. That
 # second pair is the argument for a test rather than a sentence: one of the two was a caption
-# this branch had written itself, one commit earlier, while rewriting the page it sat on.
+# this branch had written itself, in the commit before the one measured, while rewriting the
+# page it sat on.
 
 _SUBJECT = ("data", "x", "y", "hue", "size", "values", "labels")
 """The channels. A page's ``REQUIRES`` already declares these, and every figure on the page

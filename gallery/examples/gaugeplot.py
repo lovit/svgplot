@@ -15,9 +15,9 @@ KPI = {
 
 EXAMPLES = [
     (
-        "기본 — vmin=/vmax= 로 범위를 정한다, 행 하나면 범례도 없다",
-        """ONE = {"지표": ["가동률"], "값": [72.0]}
-sp.gaugeplot(ONE, values="값", labels="지표", vmin=0.0, vmax=100.0)""",
+        "기본 — vmin=/vmax= 로 범위를 정한다, labels= 없는 행 하나는 범례 대신 가운데 숫자를 갖는다",
+        """ONE = {"값": [72.0]}
+sp.gaugeplot(ONE, values="값", vmin=0.0, vmax=100.0)""",
     ),
     (
         "여러 행은 하나의 vmin=/vmax= 범위를 공유하는 동심 아크가 된다",

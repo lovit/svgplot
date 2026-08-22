@@ -501,7 +501,6 @@ sp.barplot(ONE_ROW, x=&quot;분기&quot;, y=&quot;매출&quot;)</code></pre>
       <li>같은 카테고리에 행이 여럿이고 estimator= 를 주지 않으면 마지막 행이 이기고, 몇 행을 버렸는지 AggregationWarning 이 알린다. estimator=&quot;mean&quot;/&quot;median&quot;/&quot;sum&quot; 또는 그룹의 값을 행 순서대로 받는 callable 로 접는 방법을 고를 수 있다.</li>
       <li>색은 hue= 만 따른다. hue= 가 없으면 카테고리가 몇 개든 막대는 전부 한 시리즈이고 한 색이다 — 카테고리는 이미 위치와 축 라벨로 구분되고, 그 아래에서 팔레트가 돌면 색이 뭔가를 뜻한다고 읽힌다. hue= 가 있으면 hue 값마다 팔레트를 하나씩 가져가므로 같은 그룹이 모든 카테고리에서 같은 색이 된다.</li>
       <li>orient=&quot;h&quot; 면 값이 x 축으로 가므로 값 범위를 좁히는 인자도 xlim= 이다. xlim=/ylim= 은 화면의 축을 가리킨다.</li>
-      <li>categories= 로 카테고리 목록을 지정하면 데이터에 없는 카테고리도 목록이 정한 자리에 밴드를 갖는다 — 여러 차트의 카테고리 축을 맞출 때 쓴다. 색은 위 항목대로 hue= 가 정한다.</li>
     </ul>
     <footer>
       <a href="./">갤러리로</a> · <a href="https://github.com/lovit/svgplot/blob/main/gallery/examples/barplot.py">이 페이지의 예시 소스</a>
