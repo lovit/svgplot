@@ -52,15 +52,16 @@ def test_every_type_a_chart_parameter_names_can_be_imported() -> None:
     rather than of one name, so the next alias to reach one is covered without anyone
     remembering to come back.
 
-    **Chart parameters only**, which is narrower than "every public signature": ``Chart`` names
-    ``SvgDocument``, ``LabelData`` and ``Domains`` in its constructor, ``Composition`` names
-    ``SvgDocument``, and ``Chart.domains`` returns a ``Domains`` -- and ``SvgDocument``,
-    ``LabelData`` and ``Domains`` are none of them importable. ``Chart``'s constructor is
-    documented as "constructed by the chart functions, not usually by hand" so its annotations
-    are arguably not addressed to a caller; ``Composition``'s says no such thing, and
-    ``Chart.domains`` is a public property returning an unimportable type. Both are real gaps,
-    left for the issue that widens this rather than pretended away by a name claiming more than
-    the code asks.
+    **Chart parameters only**, which is narrower than "every public signature". Three names
+    reach a public signature and are not importable: ``Chart``'s constructor takes
+    ``SvgDocument``, ``LabelData`` and ``Domains``; ``Composition``'s takes ``SvgDocument`` (and
+    ``Chart``, which is exported); and ``Chart.domains`` returns a ``Domains``. Neither case is
+    clearly in scope. ``Chart``'s *class* docstring says it is "constructed by the chart
+    functions, not usually by hand", so those annotations are arguably not addressed to a
+    caller at all -- ``Composition`` says nothing of the kind. And ``Chart.domains`` disclaims
+    itself: "not part of the public API surface yet -- the shape of that report is still
+    settling". Left for the issue that decides those questions, rather than answered here by a
+    test name claiming more than the code asks.
     """
     per_chart = {chart: _named_types(chart) for chart in svgplot.charts.__all__}
     leaked = set().union(*per_chart.values())
@@ -72,8 +73,10 @@ def test_every_type_a_chart_parameter_names_can_be_imported() -> None:
     # and an evaluated class gains a dotted path whose first token is lowercase
     # (``svgplot.theme.base.Theme``), which the capitalisation filter above drops. Both halves
     # of the two assertions are needed: ``eager`` catches the module that stopped being source
-    # text, and ``leaked`` being non-empty catches the extraction itself going blind -- point
-    # the regex at nothing and ``set() <= anything`` is quietly true.
+    # text, and naming the three types it must find catches the extraction itself going blind --
+    # point the regex at nothing and ``set() <= anything`` is quietly true. The three rather
+    # than "at least one", because finding only ``Theme`` is the shape a half-broken extraction
+    # takes: it is on all sixteen charts, and the two aliases are on three each.
     eager = sorted(
         chart
         for chart in svgplot.charts.__all__

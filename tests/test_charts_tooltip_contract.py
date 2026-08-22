@@ -286,15 +286,16 @@ def test_the_two_lists_together_are_every_chart() -> None:
     with_tooltip = {name for name in _charts() if "tooltip" in inspect.signature(getattr(sp, name)).parameters}
 
     # ``with_tooltip`` is derived from ``_charts()`` and ``_WITHOUT_TOOLTIP`` is a literal, so
-    # the equality below already notices a chart leaving the registry *while this list still
-    # names it*. What it cannot notice is the registry shrinking on the side that has no
-    # literal: drop a chart that takes ``tooltip=`` and both sides lose it together. Hence the
-    # count -- and a seventeenth is meant to fail here too, because deciding its tooltip
-    # question is what this file is for.
-    assert len(_charts()) == 16, f"the package now ships {len(_charts())} charts; put the new one on a side"
-
+    # this equality notices a chart leaving the registry while the literal still names it, and
+    # names it in the diff. Ordered first for that reason: it is the assertion with something to
+    # say about *which* chart.
     assert with_tooltip | set(_WITHOUT_TOOLTIP) == set(_charts())
     assert not with_tooltip & set(_WITHOUT_TOOLTIP)
+
+    # What the equality cannot see is the registry shrinking on the side that has no literal:
+    # drop a chart that takes ``tooltip=`` and both sides lose it together. A seventeenth is
+    # meant to fail here too -- deciding its tooltip question is what this file is for.
+    assert len(_charts()) == 16, f"the package ships {len(_charts())} charts, not 16 -- put the new one on a side"
 
 
 @pytest.mark.parametrize("name", _WITHOUT_TOOLTIP)
