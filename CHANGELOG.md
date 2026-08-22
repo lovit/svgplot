@@ -6,6 +6,14 @@
 
 ### Changed
 
+- **`gaugeplot(value=)` 가 `values=` 가 되고 `labels=` 가 위치 인자가 된다.** BREAKING. `pieplot`·`treemap`·`heatmap` 이 전부 `values=` 인데 `gaugeplot` 만 단수였고, **같은 시그니처 안에서** `labels` 는 복수였다 — 행마다 라벨이 하나인 것은 값이 하나인 것과 같으므로 한쪽만 단수일 이유가 없었다. `labels` 가 `pieplot`/`treemap` 에서는 위치 인자인데 gauge 에서만 키워드 전용이던 것도 함께 맞췄다.
+
+  ```python
+  gaugeplot(data, values, labels=None, *, vmin=None, vmax=None, tooltip=False, ...)
+  ```
+
+  `gaugeplot(value=…)` 는 이제 `TypeError` 다. `labels=` 를 키워드로 부르던 코드는 그대로 동작한다(위치 인자로 만드는 것은 순수 추가다). **렌더 출력은 바이트 동일하다** — 이름만 바뀐다. 컬럼을 못 찾을 때의 오류 문구도 인자 이름을 따라간다(`values column not found`).
+
 - **키워드 전용 인자 순서가 16종에서 같아진다.** `gaugeplot`·`pieplot`·`regplot` 이 관례에서 벗어나 있었다 — 특히 `regplot` 은 `tooltip=` 이 통계 인자 둘 사이에 끼어 있었다. 순서는 `차트별 옵션 → info → tooltip → width, height, theme → 도메인` 이고 나머지 13종은 이미 그랬다. **키워드 전용 인자는 이름으로만 넘길 수 있으므로 호출 호환성이 100% 유지되고 출력 바이트도 안 바뀐다** — `help()` 와 IDE 자동완성에서 보이는 순서만 달라진다.
 
   `tests/test_api_shape.py` 가 이 관례를 16종에 대해 실행으로 지킨다. 그중 한 항목은 미용이 아니다: `layout/facet.py` 가 차트 인자를 **이름으로** 찾아 `xlim`/`ylim`/`bins`/`categories` 를 넘기므로, 이름이 어긋난 차트는 오류 없이 축 공유를 잃는다.
