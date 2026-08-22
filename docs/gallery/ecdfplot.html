@@ -121,17 +121,11 @@ import svgplot as sp
 
 _rng = random.Random(13)
 RESPONSE = {
-    &quot;ms&quot;: (
+    &quot;응답밀리초&quot;: (
         [round(_rng.gauss(120, 30)) for _ in range(200)]
         + [round(_rng.gauss(260, 90)) for _ in range(200)]
     ),
     &quot;버전&quot;: [&quot;v1&quot;] * 200 + [&quot;v2&quot;] * 200,
-}
-
-# 그룹 크기가 다른 같은 데이터. stat=&quot;count&quot; 는 이것을 하나의 y 축에 얹는다.
-UNEVEN = {
-    &quot;ms&quot;: RESPONSE[&quot;ms&quot;][:200] + RESPONSE[&quot;ms&quot;][200:260],
-    &quot;버전&quot;: [&quot;v1&quot;] * 200 + [&quot;v2&quot;] * 60,
 }</code></pre>
     <h2>예시</h2>
     <p class="interaction-note">체크를 끄면 시리즈가 사라지지 않고 흐려진다. 축·눈금·카테고리 밴드는 그릴 때 한 번 정해지고 다시 계산되지 않으므로, 감추면 남은 그림이 자기보다 넓은 축 위에 서게 된다. 흐리게 하는 것은 &quot;이건 지금 보지 말라&quot;는 말이고, 감추는 것은 &quot;이 값은 없다&quot;는 말이다 — 뒤쪽은 사실이 아니다.</p>
@@ -184,7 +178,7 @@ UNEVEN = {
   <desc>Cumulative distribution plot, 400 observations, x 3 to 485, proportion 0 to 1.</desc>
 </svg>
     </figure>
-    <pre><code>sp.ecdfplot(RESPONSE, x=&quot;ms&quot;)</code></pre>
+    <pre><code>sp.ecdfplot(RESPONSE, x=&quot;응답밀리초&quot;)</code></pre>
     <h3>stat=&quot;count&quot; 는 비율 대신 누적 행 수를 쓴다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-ecdfplot-2" role="img" aria-label="stat=&quot;count&quot; 는 비율 대신 누적 행 수를 쓴다">
@@ -231,7 +225,7 @@ UNEVEN = {
   <desc>Cumulative distribution plot, 400 observations, x 3 to 485, count 0 to 400.</desc>
 </svg>
     </figure>
-    <pre><code>sp.ecdfplot(RESPONSE, x=&quot;ms&quot;, stat=&quot;count&quot;)</code></pre>
+    <pre><code>sp.ecdfplot(RESPONSE, x=&quot;응답밀리초&quot;, stat=&quot;count&quot;)</code></pre>
     <h3>complementary=True 는 1에서 빼 생존함수로 뒤집는다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-ecdfplot-3" role="img" aria-label="complementary=True 는 1에서 빼 생존함수로 뒤집는다">
@@ -281,7 +275,7 @@ UNEVEN = {
   <desc>Complementary cumulative distribution plot, 400 observations, x 3 to 485, proportion 0 to 1.</desc>
 </svg>
     </figure>
-    <pre><code>sp.ecdfplot(RESPONSE, x=&quot;ms&quot;, complementary=True)</code></pre>
+    <pre><code>sp.ecdfplot(RESPONSE, x=&quot;응답밀리초&quot;, complementary=True)</code></pre>
     <h3>hue= 는 그룹마다 계단을 하나씩 그린다</h3>
     <figure>
       <input type="checkbox" class="series-toggle" id="svgplot-ecdfplot-4-toggle-1" checked="checked" />
@@ -342,7 +336,12 @@ UNEVEN = {
   <desc>Cumulative distribution plot, 2 series (v1, v2) over 260 observations, x 41 to 444, proportion 0 to 1.</desc>
 </svg>
     </figure>
-    <pre><code>sp.ecdfplot(UNEVEN, x=&quot;ms&quot;, hue=&quot;버전&quot;)</code></pre>
+    <pre><code># 그룹 크기가 다른 같은 데이터
+UNEVEN = {
+    &quot;응답밀리초&quot;: RESPONSE[&quot;응답밀리초&quot;][:200] + RESPONSE[&quot;응답밀리초&quot;][200:260],
+    &quot;버전&quot;: [&quot;v1&quot;] * 200 + [&quot;v2&quot;] * 60,
+}
+sp.ecdfplot(UNEVEN, x=&quot;응답밀리초&quot;, hue=&quot;버전&quot;)</code></pre>
     <h3>stat=&quot;count&quot; 와 hue= 를 함께 주면 그룹들이 하나의 y 축을 나눠 쓴다</h3>
     <figure>
       <input type="checkbox" class="series-toggle" id="svgplot-ecdfplot-5-toggle-1" checked="checked" />
@@ -400,7 +399,11 @@ UNEVEN = {
   <desc>Cumulative distribution plot, 2 series (v1, v2) over 260 observations, x 41 to 444, count 0 to 200.</desc>
 </svg>
     </figure>
-    <pre><code>sp.ecdfplot(UNEVEN, x=&quot;ms&quot;, hue=&quot;버전&quot;, stat=&quot;count&quot;)</code></pre>
+    <pre><code>UNEVEN = {
+    &quot;응답밀리초&quot;: RESPONSE[&quot;응답밀리초&quot;][:200] + RESPONSE[&quot;응답밀리초&quot;][200:260],
+    &quot;버전&quot;: [&quot;v1&quot;] * 200 + [&quot;v2&quot;] * 60,
+}
+sp.ecdfplot(UNEVEN, x=&quot;응답밀리초&quot;, hue=&quot;버전&quot;, stat=&quot;count&quot;)</code></pre>
     <h2>메모</h2>
     <ul class="notes">
       <li>네 번째와 다섯 번째 그림에 체크박스가 붙어 있다. 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.</li>

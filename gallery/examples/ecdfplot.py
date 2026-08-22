@@ -11,31 +11,38 @@ import svgplot as sp
 
 _rng = random.Random(13)
 RESPONSE = {
-    "ms": (
+    "응답밀리초": (
         [round(_rng.gauss(120, 30)) for _ in range(200)]
         + [round(_rng.gauss(260, 90)) for _ in range(200)]
     ),
     "버전": ["v1"] * 200 + ["v2"] * 200,
 }
 
-# 그룹 크기가 다른 같은 데이터. stat="count" 는 이것을 하나의 y 축에 얹는다.
-UNEVEN = {
-    "ms": RESPONSE["ms"][:200] + RESPONSE["ms"][200:260],
-    "버전": ["v1"] * 200 + ["v2"] * 60,
-}
 """
 
 EXAMPLES = [
-    ('기본 — stat="proportion" 은 0에서 1까지 오른다', 'sp.ecdfplot(RESPONSE, x="ms")'),
-    ('stat="count" 는 비율 대신 누적 행 수를 쓴다', 'sp.ecdfplot(RESPONSE, x="ms", stat="count")'),
+    ('기본 — stat="proportion" 은 0에서 1까지 오른다', 'sp.ecdfplot(RESPONSE, x="응답밀리초")'),
+    ('stat="count" 는 비율 대신 누적 행 수를 쓴다', 'sp.ecdfplot(RESPONSE, x="응답밀리초", stat="count")'),
     (
         "complementary=True 는 1에서 빼 생존함수로 뒤집는다",
-        'sp.ecdfplot(RESPONSE, x="ms", complementary=True)',
+        'sp.ecdfplot(RESPONSE, x="응답밀리초", complementary=True)',
     ),
-    ("hue= 는 그룹마다 계단을 하나씩 그린다", 'sp.ecdfplot(UNEVEN, x="ms", hue="버전")'),
+    (
+        "hue= 는 그룹마다 계단을 하나씩 그린다",
+        """# 그룹 크기가 다른 같은 데이터
+UNEVEN = {
+    "응답밀리초": RESPONSE["응답밀리초"][:200] + RESPONSE["응답밀리초"][200:260],
+    "버전": ["v1"] * 200 + ["v2"] * 60,
+}
+sp.ecdfplot(UNEVEN, x="응답밀리초", hue="버전")""",
+    ),
     (
         'stat="count" 와 hue= 를 함께 주면 그룹들이 하나의 y 축을 나눠 쓴다',
-        'sp.ecdfplot(UNEVEN, x="ms", hue="버전", stat="count")',
+        """UNEVEN = {
+    "응답밀리초": RESPONSE["응답밀리초"][:200] + RESPONSE["응답밀리초"][200:260],
+    "버전": ["v1"] * 200 + ["v2"] * 60,
+}
+sp.ecdfplot(UNEVEN, x="응답밀리초", hue="버전", stat="count")""",
     ),
 ]
 

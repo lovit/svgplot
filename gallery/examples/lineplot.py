@@ -8,34 +8,47 @@ SETUP = """
 import svgplot as sp
 
 SALES = {
-    "day": [1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
-    "sales": [10.0, 15.0, 7.0, 20.0, 12.0, 6.0, 9.0, 4.0, 14.0, 8.0],
-    "region": ["서울"] * 5 + ["부산"] * 5,
+    "일차": [1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
+    "매출": [10.0, 15.0, 7.0, 20.0, 12.0, 6.0, 9.0, 4.0, 14.0, 8.0],
+    "지역": ["서울"] * 5 + ["부산"] * 5,
 }
 """
 
 EXAMPLES = [
-    ("기본", 'sp.lineplot(SALES, x="day", y="sales")'),
-    ("hue= 로 시리즈를 나눈다", 'sp.lineplot(SALES, x="day", y="sales", hue="region")'),
+    ("기본", 'sp.lineplot(SALES, x="일차", y="매출")'),
+    ("hue= 로 시리즈를 나눈다", 'sp.lineplot(SALES, x="일차", y="매출", hue="지역")'),
     (
         "interpolate= 로 점 사이를 곡선으로 잇는다",
-        'sp.lineplot(SALES, x="day", y="sales", hue="region", interpolate="cubic")',
+        'sp.lineplot(SALES, x="일차", y="매출", hue="지역", interpolate="cubic")',
     ),
     (
         "x 가 날짜면 시간축이 되고 눈금 표기가 도메인 폭을 따른다",
         """from datetime import date
 
 TRAFFIC = {
-    "day": [date(2024, 1, 1), date(2024, 2, 1), date(2024, 3, 1), date(2024, 4, 1)],
-    "hits": [120.0, 180.0, 150.0, 240.0],
+    "날짜": [date(2024, 1, 1), date(2024, 2, 1), date(2024, 3, 1), date(2024, 4, 1)],
+    "방문": [120.0, 180.0, 150.0, 240.0],
 }
-sp.lineplot(TRAFFIC, x="day", y="hits")""",
+sp.lineplot(TRAFFIC, x="날짜", y="방문")""",
+    ),
+    (
+        'theme= 는 프리셋 이름이나 Theme 객체를 받는다 — 여기서는 "dark"',
+        'sp.lineplot(SALES, x="일차", y="매출", hue="지역", theme="dark")',
+    ),
+    (
+        "info= 는 차트가 실제로 그린 행만 담은 각주 표를 함께 낸다",
+        'sp.lineplot(SALES, x="일차", y="매출", info=[("일차", "@일차"), ("매출", "@매출{0.0}")])',
     ),
 ]
 
 INTERACTIONS = {2: "toggle", 3: "focus"}
 
 NOTES = [
+    "다섯 번째가 갤러리에서 theme= 을 보여주는 유일한 자리다. 16종 전부가 받는 인자인데 그림으로는 한 번도 안 나왔었다. "
+    '프리셋 이름("light"·"dark"·"minimal"·"high_contrast"·"print")이나 Theme 객체를 받는다. 차트가 그리는 것의 색·글꼴·선 굵기·불투명도가 거기서 오는데, '
+    "전부는 아니다 — heatmap 의 annot 글자색은 셀 휘도에서 고르고, 컴포지션의 캡션·제목은 테마를 안 보며, Theme 의 폰트 크기 여섯 개는 아직 아무 출력도 안 바꾼다.",
+    "여섯 번째의 info= 는 차트가 실제로 그린 행만 담은 표를 함께 낸다. lineplot 은 그것을 받는 세 차트 중 하나인데(나머지는 "
+    "scatterplot·pieplot) 이 페이지가 여태 안 보여줬다. estimator= 와는 함께 못 쓴다 — 행을 접고 나면 표가 가리킬 행이 없다.",
     "두 번째와 세 번째 그림에 조작 장치가 붙어 있다. 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.",
     "세 번째의 라디오가 얇은 선 차트의 답이다. lineplot 은 fill: none 을 내므로 시리즈 하나의 히트 영역이 "
     "선 그 자체다 — 이 페이지의 프리셋에서 2px 이고(print 는 2.5px, poster 컨텍스트는 3.2px) 어느 쪽도 겨냥할 "

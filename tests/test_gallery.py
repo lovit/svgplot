@@ -12,6 +12,7 @@ an example file, and every page is well-formed with its figures present.
 
 from __future__ import annotations
 
+import ast
 import re
 import sys
 import tempfile
@@ -272,3 +273,80 @@ def test_the_gallery_figure_shows_the_two_orders_disagreeing() -> None:
 
     assert from_marks != list(stores["점포"]), "the figure's data no longer shows the two orders differing"
     assert sorted(from_marks) == sorted(stores["점포"]), "the marks and the table hold the same rows"
+
+
+# ------------------------------------------------------- captions against the code they caption
+#
+# The caption becomes the figure's ``aria-label``, so it is the only description a screen
+# reader gets. Written after an audit claimed in a PR body did not reproduce. Measured against
+# this branch's own tip before the fix: seven of the 76 figures passed an argument no caption
+# named -- ``barplot`` one, ``gaugeplot`` three, ``kdeplot``, ``scatterplot`` and ``violinplot``
+# one each -- and two more captions described a figure that was not the one under them. That
+# second pair is the argument for a test rather than a sentence: one of the two was a caption
+# this branch had written itself, in the commit before the one measured, while rewriting the
+# page it sat on.
+
+_SUBJECT = ("data", "x", "y", "hue", "size", "values", "labels")
+"""The channels. A page's ``REQUIRES`` already declares these, and every figure on the page
+passes them -- naming them again in each caption would say nothing. What a caption has to
+account for is what makes *this* figure different from the one above it: the options."""
+
+
+def _keywords(code: str) -> set[str]:
+    return {
+        keyword.arg
+        for node in ast.walk(ast.parse(code))
+        if isinstance(node, ast.Call)
+        for keyword in node.keywords
+        if keyword.arg
+    }
+
+
+def test_every_option_a_figure_passes_is_named_in_its_caption() -> None:
+    """A figure that quietly passes ``stacked=True`` under a caption about tooltips teaches the
+    reader that the caption is the whole call, and it is not."""
+    unnamed = []
+    for page in discover():
+        for example in page.examples:
+            options = _keywords(example.code) - set(_SUBJECT)
+            # ``opt=`` at an identifier boundary, not ``opt in caption``: ``width`` is a
+            # substring of ``bandwidth``, both are parameters of the same chart, and two live
+            # captions say "bandwidth=" -- so a bare containment check passes a figure that
+            # quietly adds ``width=`` under a caption that never mentions it. Measured: all 76
+            # figures already satisfy the anchored form, so this costs nothing today.
+            missing = sorted(option for option in options if not re.search(rf"(?<![A-Za-z0-9_]){option}=", example.caption))
+            if missing:
+                unnamed.append((page.name, example.caption, missing))
+
+    assert not unnamed, f"captions that do not name an option their code passes: {unnamed}"
+
+
+def test_the_audit_would_notice_a_channel_going_missing() -> None:
+    """The exemption above is a list of names, and a list can be edited until it exempts
+    everything -- adding ``tooltip`` to it would drop every ``tooltip=True`` figure out of the
+    audit. Two assertions, because the first alone does not close that: agreeing with
+    ``_CHANNELS`` only makes the edit take two lines instead of one, since nothing in
+    ``test_api_shape`` requires a ``_CHANNELS`` entry to be a real parameter -- its own use of
+    the tuple is ``assert set(positional) <= set(_CHANNELS)``, an upper bound, which widening
+    can never fail. Measured: widening both tuples with ``tooltip`` left all 3,899 tests green,
+    and a live caption could then stop naming ``tooltip=`` with nothing complaining. The second
+    assertion says every exempt name is one some chart really takes positionally, which is what
+    makes ``tooltip`` unaddable. One direction, not equality: the converse -- that no chart takes
+    anything positionally the audit does not exempt -- is what ``test_api_shape``'s own per-chart
+    check is for, and asserting it here again would fail this test, with this test's message,
+    for a chart signature that changed."""
+    import inspect
+
+    from test_api_shape import _CHANNELS
+
+    positional = {
+        name
+        for chart in sp.charts.__all__
+        for name, spec in inspect.signature(getattr(sp, chart)).parameters.items()
+        if spec.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    }
+
+    assert set(_SUBJECT) == set(_CHANNELS), "the caption audit and the signature guard disagree about what a channel is"
+    assert (
+        set(_SUBJECT) <= positional
+    ), f"{sorted(set(_SUBJECT) - positional)} is exempt from the caption audit but no chart takes it positionally"

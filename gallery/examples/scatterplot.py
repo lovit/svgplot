@@ -28,7 +28,7 @@ EXAMPLES = [
         'sp.scatterplot(STORES, x="면적", y="매출", hue="지역", size="직원수", tooltip=True)',
     ),
     (
-        "info= 선언 하나가 각주 표와 툴팁을 함께 채운다",
+        "info= 선언 하나가 각주 표와 tooltip=True 의 툴팁을 함께 채운다",
         """sp.scatterplot(
     STORES,
     x="면적",
@@ -39,12 +39,12 @@ EXAMPLES = [
 )""",
     ),
     (
-        'yscale="log" — 값이 자릿수로 벌어질 때',
+        'xscale="log", yscale="log" — 양쪽이 자릿수로 벌어질 때',
         """LATENCY = {
     "요청수": [10.0, 100.0, 1000.0, 10000.0, 100000.0],
-    "지연ms": [1.2, 3.0, 14.0, 130.0, 1400.0],
+    "지연밀리초": [1.2, 3.0, 14.0, 130.0, 1400.0],
 }
-sp.scatterplot(LATENCY, x="요청수", y="지연ms", xscale="log", yscale="log")""",
+sp.scatterplot(LATENCY, x="요청수", y="지연밀리초", xscale="log", yscale="log")""",
     ),
 ]
 

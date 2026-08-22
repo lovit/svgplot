@@ -441,8 +441,9 @@ def css(controls: Controls, *, toggled_by: Mapping[int, str] | None = None) -> s
             # The stroke is a fixed near-black rather than ``var(--fg)``, and what it has to
             # read against is the chart's own ``.plot-background`` -- an opaque rect the chart
             # paints over the whole canvas, so the page's ``--figure-bg`` never shows through.
-            # That fill is ``#ffffff`` under every preset the gallery uses (none of the
-            # examples pass ``theme=``). Under ``theme="dark"`` it is ``#1e1e1e`` and this
+            # That fill is ``#ffffff`` under ``light``, which is what every figure declaring a
+            # hover or cell control uses -- ``lineplot``'s ``theme="dark"`` figure declares
+            # neither. Under ``theme="dark"`` the fill is ``#1e1e1e`` and this
             # stroke would be invisible; a page wanting hover on a dark-preset chart needs its
             # own colour, and this rule does not try to guess one.
             rules.append(f"      .{controls.figure} :is({targets}) {{ opacity: 1; stroke: #16181d; stroke-width: 1.5; }}\n")

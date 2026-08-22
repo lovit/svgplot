@@ -35,7 +35,7 @@ EXAMPLES = [
         'sp.violinplot(REVIEW, x="팀", y="시간", hue="규모", tooltip=True)',
     ),
     (
-        "inner=None 이어도 사분위는 말한다 — 끈 것은 주석이지 데이터가 아니다",
+        "inner=None 이어도 tooltip=True 는 사분위를 말한다 — 끈 것은 주석이지 데이터가 아니다",
         'sp.violinplot(REVIEW, x="팀", y="시간", inner=None, tooltip=True)',
     ),
 ]

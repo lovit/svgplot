@@ -23,7 +23,7 @@ EXAMPLES = [
     ("기본", 'sp.kdeplot(SESSION, x="체류분")'),
     ("fill=True 는 곡선 아래를 축까지 채우고 윤곽을 남긴다", 'sp.kdeplot(SESSION, x="체류분", fill=True)'),
     (
-        "hue= 그룹은 하나의 x 그리드를 공유한다",
+        "hue= 그룹은 하나의 x 그리드를 공유한다 — fill=True 로 겹침을 보이게 뒀다",
         'sp.kdeplot(SESSION, x="체류분", hue="기기", fill=True)',
     ),
     (
@@ -31,7 +31,7 @@ EXAMPLES = [
         'sp.kdeplot(SESSION, x="체류분", hue="기기", bandwidth=0.3)',
     ),
     (
-        "위와 같은 그림, fill= 만 다르다 — 마우스로 가리킬 수 있는 것이 달라진다",
+        "hue= 그림에서 fill=True 를 뺐다 — 마우스로 가리킬 수 있는 것이 달라진다",
         'sp.kdeplot(SESSION, x="체류분", hue="기기")',
     ),
 ]

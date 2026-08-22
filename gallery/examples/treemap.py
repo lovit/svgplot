@@ -9,28 +9,28 @@ import svgplot as sp
 
 STORAGE = {
     "종류": ["이미지", "동영상", "문서", "로그", "백업", "기타"],
-    "GB": [420.0, 1180.0, 95.0, 260.0, 640.0, 45.0],
+    "기가바이트": [420.0, 1180.0, 95.0, 260.0, 640.0, 45.0],
 }
 """
 
 EXAMPLES = [
-    ("기본 — labels= 를 주지 않으면 타일 번호가 이름이 된다", 'sp.treemap(STORAGE, values="GB")'),
-    ("labels= 로 타일에 이름을 붙인다", 'sp.treemap(STORAGE, values="GB", labels="종류")'),
+    ("기본 — labels= 를 주지 않으면 타일 번호가 이름이 된다", 'sp.treemap(STORAGE, values="기가바이트")'),
+    ("labels= 로 타일에 이름을 붙인다", 'sp.treemap(STORAGE, values="기가바이트", labels="종류")'),
     (
         "타일이 작으면 라벨을 넣지 않는다 — 값이 고르지 않을수록 자주 일어난다",
         """LOPSIDED = {
     "종류": ["동영상", "이미지", "문서", "캐시", "임시", "기타"],
-    "GB": [3200.0, 180.0, 40.0, 22.0, 11.0, 6.0],
+    "기가바이트": [3200.0, 180.0, 40.0, 22.0, 11.0, 6.0],
 }
-sp.treemap(LOPSIDED, values="GB", labels="종류")""",
+sp.treemap(LOPSIDED, values="기가바이트", labels="종류")""",
     ),
     (
         "tooltip=True — 라벨이 안 들어간 타일도 자기 이름을 말한다",
         """LOPSIDED = {
     "종류": ["동영상", "이미지", "문서", "캐시", "임시", "기타"],
-    "GB": [3200.0, 180.0, 40.0, 22.0, 11.0, 6.0],
+    "기가바이트": [3200.0, 180.0, 40.0, 22.0, 11.0, 6.0],
 }
-sp.treemap(LOPSIDED, values="GB", labels="종류", tooltip=True)""",
+sp.treemap(LOPSIDED, values="기가바이트", labels="종류", tooltip=True)""",
     ),
 ]
 

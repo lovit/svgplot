@@ -120,9 +120,9 @@
     <pre><code>import svgplot as sp
 
 SALES = {
-    &quot;day&quot;: [1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
-    &quot;sales&quot;: [10.0, 15.0, 7.0, 20.0, 12.0, 6.0, 9.0, 4.0, 14.0, 8.0],
-    &quot;region&quot;: [&quot;서울&quot;] * 5 + [&quot;부산&quot;] * 5,
+    &quot;일차&quot;: [1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
+    &quot;매출&quot;: [10.0, 15.0, 7.0, 20.0, 12.0, 6.0, 9.0, 4.0, 14.0, 8.0],
+    &quot;지역&quot;: [&quot;서울&quot;] * 5 + [&quot;부산&quot;] * 5,
 }</code></pre>
     <h2>예시</h2>
     <p class="interaction-note">체크를 끄면 시리즈가 사라지지 않고 흐려진다. 축·눈금·카테고리 밴드는 그릴 때 한 번 정해지고 다시 계산되지 않으므로, 감추면 남은 그림이 자기보다 넓은 축 위에 서게 된다. 흐리게 하는 것은 &quot;이건 지금 보지 말라&quot;는 말이고, 감추는 것은 &quot;이 값은 없다&quot;는 말이다 — 뒤쪽은 사실이 아니다.</p>
@@ -172,7 +172,7 @@ SALES = {
   <desc>Line chart, 10 points, x 1 to 5, y 4 to 20.</desc>
 </svg>
     </figure>
-    <pre><code>sp.lineplot(SALES, x=&quot;day&quot;, y=&quot;sales&quot;)</code></pre>
+    <pre><code>sp.lineplot(SALES, x=&quot;일차&quot;, y=&quot;매출&quot;)</code></pre>
     <h3>hue= 로 시리즈를 나눈다</h3>
     <figure>
       <input type="checkbox" class="series-toggle" id="svgplot-lineplot-2-toggle-1" checked="checked" />
@@ -230,7 +230,7 @@ SALES = {
   <desc>Line chart, 2 series (부산, 서울) over 10 points, x 1 to 5, y 4 to 20.</desc>
 </svg>
     </figure>
-    <pre><code>sp.lineplot(SALES, x=&quot;day&quot;, y=&quot;sales&quot;, hue=&quot;region&quot;)</code></pre>
+    <pre><code>sp.lineplot(SALES, x=&quot;일차&quot;, y=&quot;매출&quot;, hue=&quot;지역&quot;)</code></pre>
     <h3>interpolate= 로 점 사이를 곡선으로 잇는다</h3>
     <figure>
       <input type="radio" class="series-focus" name="svgplot-lineplot-3-focus" id="svgplot-lineplot-3-focus-0" checked="checked" />
@@ -290,7 +290,7 @@ SALES = {
   <desc>Line chart, 2 series (부산, 서울) over 10 points, x 1 to 5, y 4 to 20, cubic interpolation.</desc>
 </svg>
     </figure>
-    <pre><code>sp.lineplot(SALES, x=&quot;day&quot;, y=&quot;sales&quot;, hue=&quot;region&quot;, interpolate=&quot;cubic&quot;)</code></pre>
+    <pre><code>sp.lineplot(SALES, x=&quot;일차&quot;, y=&quot;매출&quot;, hue=&quot;지역&quot;, interpolate=&quot;cubic&quot;)</code></pre>
     <h3>x 가 날짜면 시간축이 되고 눈금 표기가 도메인 폭을 따른다</h3>
     <figure>
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-lineplot-4" role="img" aria-label="x 가 날짜면 시간축이 되고 눈금 표기가 도메인 폭을 따른다">
@@ -346,12 +346,116 @@ SALES = {
     <pre><code>from datetime import date
 
 TRAFFIC = {
-    &quot;day&quot;: [date(2024, 1, 1), date(2024, 2, 1), date(2024, 3, 1), date(2024, 4, 1)],
-    &quot;hits&quot;: [120.0, 180.0, 150.0, 240.0],
+    &quot;날짜&quot;: [date(2024, 1, 1), date(2024, 2, 1), date(2024, 3, 1), date(2024, 4, 1)],
+    &quot;방문&quot;: [120.0, 180.0, 150.0, 240.0],
 }
-sp.lineplot(TRAFFIC, x=&quot;day&quot;, y=&quot;hits&quot;)</code></pre>
+sp.lineplot(TRAFFIC, x=&quot;날짜&quot;, y=&quot;방문&quot;)</code></pre>
+    <h3>theme= 는 프리셋 이름이나 Theme 객체를 받는다 — 여기서는 &quot;dark&quot;</h3>
+    <figure>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-lineplot-5" role="img" aria-label="theme= 는 프리셋 이름이나 Theme 객체를 받는다 — 여기서는 &quot;dark&quot;">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="640" y2="550" class="spine" />
+  <line x1="60" y1="30" x2="60" y2="550" class="grid-line" />
+  <line x1="60" y1="550" x2="60" y2="554" class="tick-line" />
+  <text x="60" y="572" text-anchor="middle" class="tick-label">1</text>
+  <line x1="205" y1="30" x2="205" y2="550" class="grid-line" />
+  <line x1="205" y1="550" x2="205" y2="554" class="tick-line" />
+  <text x="205" y="572" text-anchor="middle" class="tick-label">2</text>
+  <line x1="350" y1="30" x2="350" y2="550" class="grid-line" />
+  <line x1="350" y1="550" x2="350" y2="554" class="tick-line" />
+  <text x="350" y="572" text-anchor="middle" class="tick-label">3</text>
+  <line x1="495" y1="30" x2="495" y2="550" class="grid-line" />
+  <line x1="495" y1="550" x2="495" y2="554" class="tick-line" />
+  <text x="495" y="572" text-anchor="middle" class="tick-label">4</text>
+  <line x1="640" y1="30" x2="640" y2="550" class="grid-line" />
+  <line x1="640" y1="550" x2="640" y2="554" class="tick-line" />
+  <text x="640" y="572" text-anchor="middle" class="tick-label">5</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="517.5" x2="640" y2="517.5" class="grid-line" />
+  <line x1="56" y1="517.5" x2="60" y2="517.5" class="tick-line" />
+  <text x="54" y="521.5" text-anchor="end" class="tick-label">5</text>
+  <line x1="60" y1="355" x2="640" y2="355" class="grid-line" />
+  <line x1="56" y1="355" x2="60" y2="355" class="tick-line" />
+  <text x="54" y="359" text-anchor="end" class="tick-label">10</text>
+  <line x1="60" y1="192.5" x2="640" y2="192.5" class="grid-line" />
+  <line x1="56" y1="192.5" x2="60" y2="192.5" class="tick-line" />
+  <text x="54" y="196.5" text-anchor="end" class="tick-label">15</text>
+  <line x1="60" y1="30" x2="640" y2="30" class="grid-line" />
+  <line x1="56" y1="30" x2="60" y2="30" class="tick-line" />
+  <text x="54" y="34" text-anchor="end" class="tick-label">20</text>
+  <path d="M 60,485 L 205,387.5 L 350,550 L 495,225 L 640,420" class="series-1 line-series" />
+  <path d="M 60,355 L 205,192.5 L 350,452.5 L 495,30 L 640,290" class="series-2 line-series" />
+  <line x1="660" y1="30" x2="676" y2="30" class="series-1" />
+  <text x="682" y="34" class="legend-text">부산</text>
+  <line x1="660" y1="50" x2="676" y2="50" class="series-2" />
+  <text x="682" y="54" class="legend-text">서울</text>
+  <style>:where(.svgplot-lineplot-5) .plot-background { fill: #1e1e1e; }
+:where(.svgplot-lineplot-5) .grid-line { stroke: #3a3a3a; stroke-width: 1; }
+:where(.svgplot-lineplot-5) .spine { stroke: #cccccc; stroke-width: 1; fill: none; }
+:where(.svgplot-lineplot-5) .tick-line { stroke: #cccccc; }
+:where(.svgplot-lineplot-5) .tick-label { fill: #f5f5f5; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-lineplot-5) .legend-text { fill: #f5f5f5; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-lineplot-5) .series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-lineplot-5) .series-1-marker { fill: #E69F00; stroke: none; }
+:where(.svgplot-lineplot-5) .series-2 { stroke: #56B4E9; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-lineplot-5) .series-2-marker { fill: #56B4E9; stroke: none; }</style>
+  <title>theme= 는 프리셋 이름이나 Theme 객체를 받는다 — 여기서는 "dark"</title>
+  <desc>Line chart, 2 series (부산, 서울) over 10 points, x 1 to 5, y 4 to 20.</desc>
+</svg>
+    </figure>
+    <pre><code>sp.lineplot(SALES, x=&quot;일차&quot;, y=&quot;매출&quot;, hue=&quot;지역&quot;, theme=&quot;dark&quot;)</code></pre>
+    <h3>info= 는 차트가 실제로 그린 행만 담은 각주 표를 함께 낸다</h3>
+    <figure>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-lineplot-6" role="img" aria-label="info= 는 차트가 실제로 그린 행만 담은 각주 표를 함께 낸다" aria-describedby="svgplot-lineplot-6-table">
+  <rect x="0" y="0" width="800" height="600" class="plot-background" />
+  <line x1="60" y1="550" x2="760" y2="550" class="spine" />
+  <line x1="60" y1="30" x2="60" y2="550" class="grid-line" />
+  <line x1="60" y1="550" x2="60" y2="554" class="tick-line" />
+  <text x="60" y="572" text-anchor="middle" class="tick-label">1</text>
+  <line x1="235" y1="30" x2="235" y2="550" class="grid-line" />
+  <line x1="235" y1="550" x2="235" y2="554" class="tick-line" />
+  <text x="235" y="572" text-anchor="middle" class="tick-label">2</text>
+  <line x1="410" y1="30" x2="410" y2="550" class="grid-line" />
+  <line x1="410" y1="550" x2="410" y2="554" class="tick-line" />
+  <text x="410" y="572" text-anchor="middle" class="tick-label">3</text>
+  <line x1="585" y1="30" x2="585" y2="550" class="grid-line" />
+  <line x1="585" y1="550" x2="585" y2="554" class="tick-line" />
+  <text x="585" y="572" text-anchor="middle" class="tick-label">4</text>
+  <line x1="760" y1="30" x2="760" y2="550" class="grid-line" />
+  <line x1="760" y1="550" x2="760" y2="554" class="tick-line" />
+  <text x="760" y="572" text-anchor="middle" class="tick-label">5</text>
+  <line x1="60" y1="30" x2="60" y2="550" class="spine" />
+  <line x1="60" y1="517.5" x2="760" y2="517.5" class="grid-line" />
+  <line x1="56" y1="517.5" x2="60" y2="517.5" class="tick-line" />
+  <text x="54" y="521.5" text-anchor="end" class="tick-label">5</text>
+  <line x1="60" y1="355" x2="760" y2="355" class="grid-line" />
+  <line x1="56" y1="355" x2="60" y2="355" class="tick-line" />
+  <text x="54" y="359" text-anchor="end" class="tick-label">10</text>
+  <line x1="60" y1="192.5" x2="760" y2="192.5" class="grid-line" />
+  <line x1="56" y1="192.5" x2="60" y2="192.5" class="tick-line" />
+  <text x="54" y="196.5" text-anchor="end" class="tick-label">15</text>
+  <line x1="60" y1="30" x2="760" y2="30" class="grid-line" />
+  <line x1="56" y1="30" x2="60" y2="30" class="tick-line" />
+  <text x="54" y="34" text-anchor="end" class="tick-label">20</text>
+  <path d="M 60,355 L 60,485 L 235,192.5 L 235,387.5 L 410,452.5 L 410,550 L 585,30 L 585,225 L 760,290 L 760,420" class="series-1 line-series" />
+  <style>:where(.svgplot-lineplot-6) .plot-background { fill: #ffffff; }
+:where(.svgplot-lineplot-6) .grid-line { stroke: #e0e0e0; stroke-width: 1; }
+:where(.svgplot-lineplot-6) .spine { stroke: #333333; stroke-width: 1; fill: none; }
+:where(.svgplot-lineplot-6) .tick-line { stroke: #333333; }
+:where(.svgplot-lineplot-6) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
+:where(.svgplot-lineplot-6) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
+:where(.svgplot-lineplot-6) .series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
+:where(.svgplot-lineplot-6) .series-1-marker { fill: #E69F00; stroke: none; }</style>
+  <title>info= 는 차트가 실제로 그린 행만 담은 각주 표를 함께 낸다</title>
+  <desc>Line chart, 10 points, x 1 to 5, y 4 to 20.</desc>
+</svg>
+      <table id="svgplot-lineplot-6-table"><thead><tr><th>일차</th><th>매출</th></tr></thead><tbody><tr><td>1</td><td>10.0</td></tr><tr><td>2</td><td>15.0</td></tr><tr><td>3</td><td>7.0</td></tr><tr><td>4</td><td>20.0</td></tr><tr><td>5</td><td>12.0</td></tr><tr><td>1</td><td>6.0</td></tr><tr><td>2</td><td>9.0</td></tr><tr><td>3</td><td>4.0</td></tr><tr><td>4</td><td>14.0</td></tr><tr><td>5</td><td>8.0</td></tr></tbody></table>
+    </figure>
+    <pre><code>sp.lineplot(SALES, x=&quot;일차&quot;, y=&quot;매출&quot;, info=[(&quot;일차&quot;, &quot;@일차&quot;), (&quot;매출&quot;, &quot;@매출{0.0}&quot;)])</code></pre>
     <h2>메모</h2>
     <ul class="notes">
+      <li>다섯 번째가 갤러리에서 theme= 을 보여주는 유일한 자리다. 16종 전부가 받는 인자인데 그림으로는 한 번도 안 나왔었다. 프리셋 이름(&quot;light&quot;·&quot;dark&quot;·&quot;minimal&quot;·&quot;high_contrast&quot;·&quot;print&quot;)이나 Theme 객체를 받는다. 차트가 그리는 것의 색·글꼴·선 굵기·불투명도가 거기서 오는데, 전부는 아니다 — heatmap 의 annot 글자색은 셀 휘도에서 고르고, 컴포지션의 캡션·제목은 테마를 안 보며, Theme 의 폰트 크기 여섯 개는 아직 아무 출력도 안 바꾼다.</li>
+      <li>여섯 번째의 info= 는 차트가 실제로 그린 행만 담은 표를 함께 낸다. lineplot 은 그것을 받는 세 차트 중 하나인데(나머지는 scatterplot·pieplot) 이 페이지가 여태 안 보여줬다. estimator= 와는 함께 못 쓴다 — 행을 접고 나면 표가 가리킬 행이 없다.</li>
       <li>두 번째와 세 번째 그림에 조작 장치가 붙어 있다. 이 페이지의 CSS 와 마크업이고 JavaScript 는 0줄이다.</li>
       <li>세 번째의 라디오가 얇은 선 차트의 답이다. lineplot 은 fill: none 을 내므로 시리즈 하나의 히트 영역이 선 그 자체다 — 이 페이지의 프리셋에서 2px 이고(print 는 2.5px, poster 컨텍스트는 3.2px) 어느 쪽도 겨냥할 만한 넓이가 아니다. :hover 를 달 수는 있지만 실제로 잡히지 않고, 툴팁도 시리즈당 &lt;path&gt; 하나에 걸리는데 그 하나에 닿기가 같은 이유로 어렵다. 독자가 *조작하는* 장치는 기하를 통째로 비켜간다.</li>
       <li>체크박스가 아니라 라디오인 것은 &quot;하나를 고른다&quot; 가 단일 선택이기 때문이다. 라디오 그룹은 화살표 키 이동까지 공짜로 준다 — 체크박스 여러 개는 그게 없다.</li>

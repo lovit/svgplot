@@ -15,12 +15,12 @@ KPI = {
 
 EXAMPLES = [
     (
-        "기본 — 행 하나면 범례도 없다",
-        """ONE = {"지표": ["가동률"], "값": [72.0]}
-sp.gaugeplot(ONE, values="값", labels="지표", vmin=0.0, vmax=100.0)""",
+        "기본 — labels= 없는 한 행은 번호가 이름이 되고 범례가 없다, 범위는 vmin=/vmax= 가 정한다",
+        """ONE = {"값": [72.0]}
+sp.gaugeplot(ONE, values="값", vmin=0.0, vmax=100.0)""",
     ),
     (
-        "여러 행은 하나의 범위를 공유하는 동심 아크가 된다",
+        "여러 행은 하나의 vmin=/vmax= 범위를 공유하는 동심 아크가 된다",
         'sp.gaugeplot(KPI, values="값", labels="지표", vmin=0.0, vmax=100.0)',
     ),
     (
@@ -28,7 +28,7 @@ sp.gaugeplot(ONE, values="값", labels="지표", vmin=0.0, vmax=100.0)""",
         'sp.gaugeplot(KPI, values="값", labels="지표")',
     ),
     (
-        "tooltip=True — 아크마다 자기 값과 *어떤 범위에 대고* 그려졌는지를 말한다",
+        "tooltip=True — 아크마다 자기 값과 *어떤 vmin=/vmax= 범위에 대고* 그려졌는지를 말한다",
         'sp.gaugeplot(KPI, values="값", labels="지표", vmin=0.0, vmax=100.0, tooltip=True)',
     ),
 ]
