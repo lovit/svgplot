@@ -42,11 +42,17 @@ def test_the_union_is_wider_than_any_single_group() -> None:
     flipping the sign of the margin, swapping min and max, and dropping ``cut`` from the low end
     all passed it.
 
-    With ``_fixed_bandwidth`` returning 1.0 and ``cut`` 3.0 the arithmetic is checkable by
-    hand: narrow spans ``10.0 - 3`` to ``10.2 + 3``, wide spans ``0.0 - 3`` to ``100.0 + 3``,
-    and the union is the outer pair.
+    The two groups **cross**, so each supplies one end and neither is inert. A first fixture had
+    one group's span sitting entirely inside the other's; the constant was then a statement about
+    the outer group alone, and three corruptions -- keep only the last group, keep only the
+    widest, drop the narrow one -- all returned it unchanged.
+
+    With ``_fixed_bandwidth`` returning 1.0 and ``cut`` 3.0 the arithmetic is checkable by hand:
+    ``low`` spans ``0.0 - 3`` to ``5.0 + 3``, ``high`` spans ``4.0 - 3`` to ``100.0 + 3``, and
+    the union takes the low end from the first and the high end from the second. Both asserted
+    numbers are exact in binary, so the equality carries no float tolerance.
     """
-    groups = [("narrow", [10.0, 10.1, 10.2]), ("wide", [0.0, 50.0, 100.0])]
+    groups = [("low", [0.0, 5.0]), ("high", [4.0, 100.0])]
 
     assert union_grid_range(groups, _fixed_bandwidth, 3.0) == (-3.0, 103.0)
 
