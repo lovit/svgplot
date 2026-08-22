@@ -2,7 +2,7 @@ TITLE = "radarplot"
 
 SUMMARY = "카테고리를 원 둘레의 스포크에 놓고 값을 반지름으로 삼아 닫힌 다각형을 그린다."
 
-REQUIRES = "x: 카테고리(3개 이상) · y: 수치(음수 불가, 전부 0 불가) · hue(선택): 시리즈"
+REQUIRES = "x: 카테고리(3개 이상) · y: 수치(음수 불가, 전부 0 불가) · hue(선택): 아무 타입"
 
 SETUP = """
 import svgplot as sp

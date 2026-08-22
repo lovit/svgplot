@@ -15,7 +15,7 @@ SALES = {
 """
 
 EXAMPLES = [
-    ("기본", 'sp.lineplot(SALES, x="일차", y="매출")'),
+    ("기본 — hue= 가 없으면 열 행이 전부 한 선이고, interpolate= 기본값은 직선이다", 'sp.lineplot(SALES, x="일차", y="매출")'),
     ("hue= 로 시리즈를 나눈다", 'sp.lineplot(SALES, x="일차", y="매출", hue="지역")'),
     (
         "interpolate= 로 점 사이를 곡선으로 잇는다",

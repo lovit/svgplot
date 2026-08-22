@@ -20,7 +20,7 @@ SESSION = {
 """
 
 EXAMPLES = [
-    ("기본", 'sp.kdeplot(SESSION, x="체류분")'),
+    ("기본 — fill= 없이 곡선만, 그리드는 데이터 양끝 밖까지 잡는다", 'sp.kdeplot(SESSION, x="체류분")'),
     ("fill=True 는 곡선 아래를 축까지 채우고 윤곽을 남긴다", 'sp.kdeplot(SESSION, x="체류분", fill=True)'),
     (
         "hue= 그룹은 하나의 x 그리드를 공유한다 — fill=True 로 겹침을 보이게 뒀다",
