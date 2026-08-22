@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import math
 import numbers
+import xml.etree.ElementTree as ET
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -238,6 +239,61 @@ def new_canvas(
         classes=["plot-background"],
     )
     return document, area
+
+
+def marks_viewport(document: SvgDocument, area: PlotArea, *, clipped: bool) -> ET.Element | None:
+    """The parent a chart should hang its marks on, given whether the view was narrowed.
+
+    Returns a nested ``<svg>`` covering exactly ``area`` when ``clipped``, and ``None`` -- the
+    document root, where marks have always gone -- otherwise. A nested ``<svg>`` establishes a
+    new viewport and clips to it, so passing it as ``add_node``'s parent is the whole of the
+    mechanism: no ``id``, no ``clipPath`` to reference it by, and no CSS. That matters here
+    because nothing else this package writes into an SVG carries an ``id``, and a page holding
+    two charts would have to be told to keep two of them apart (see ``Chart.set_table_id`` for
+    what that costs). The ``viewBox`` repeats the viewport rect so a child's coordinates mean
+    the same thing inside as out -- charts compute pixels against ``area`` and must not have to
+    know whether they were handed a viewport or the root.
+
+    **Only when the caller passed a limit** -- not only when that limit narrows anything. A
+    widening or identical ``ylim=`` gets a viewport too, one that cuts nothing; deciding
+    otherwise would mean comparing the override against the computed domain at every call site
+    to save an element that changes no pixel. Without a limit there is no viewport at all:
+    a chart's own domain is computed from its own data and therefore covers it, so a chart that
+    could not overflow keeps the bytes it had. With one, ``apply_limit`` *replaces* the domain
+    (``chart/_domain.py``), values outside the window map to pixels outside the plot area, and
+    until this existed they were drawn there -- over the axis, into the margin, off the canvas.
+
+    **A mark straddling the edge is cut, not kept.** The viewport is the plot area exactly, so a
+    marker whose centre is the last point inside the window loses the half of its radius that
+    hangs past the axis, and a stroke loses half its width. That is what clipping means and what
+    matplotlib's ``clip_on=True`` does, but it is a visible change on the most ordinary path
+    that produces a limit: ``facet`` shares axes by passing each panel the *union*, which is the
+    data range, so the extreme markers in a faceted scatter are now half-height.
+
+    ``overflow="hidden"`` is the initial value for a nested viewport and is written anyway: it
+    is the one attribute that says what this element is for, in a file this package intends to
+    be read and hand-edited. The ``plot-clip`` class is the other half of that: a composition
+    positions each panel with a nested ``<svg x= y=>`` too, and four test helpers were reading
+    exactly that shape to count panels. Position is what separates the two *inside* a
+    composition -- a panel is the sheet's own child and a clip is a grandchild, and the class
+    is namespaced to ``c0-plot-clip`` there anyway -- but a chart on its own has its clip as a
+    direct child of the root, and then only the name tells them apart.
+    """
+    if not clipped:
+        return None
+    return document.add_node(
+        None,
+        "svg",
+        attrib={
+            "x": format_coord(area.left),
+            "y": format_coord(area.top),
+            "width": format_coord(area.width),
+            "height": format_coord(area.height),
+            "viewBox": " ".join(format_coord(value) for value in (area.left, area.top, area.width, area.height)),
+            "overflow": "hidden",
+        },
+        classes=["plot-clip"],
+    )
 
 
 def resolve_size(width: float | None, height: float | None) -> tuple[float, float]:

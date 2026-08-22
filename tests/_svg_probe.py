@@ -18,6 +18,7 @@ The silent one is the worse outcome. Issue #117 named four; these were the follo
 from __future__ import annotations
 
 import re
+import xml.etree.ElementTree as ET
 
 _ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 
@@ -152,3 +153,32 @@ def style_rule(svg: str, selector: str) -> str:
     if len(matches) != 1:
         raise AssertionError(f"expected exactly one {selector!r} rule, found {len(matches)}: {matches}")
     return matches[0]
+
+
+_SVG_NS = "http://www.w3.org/2000/svg"
+ET.register_namespace("", _SVG_NS)
+"""At import, not per call: ``register_namespace`` writes to a module-level table in
+``ElementTree``, and doing that from inside a helper four test modules call would mutate
+process-global state on every use. It is here so ``placed_panels`` can hand back markup with
+the default namespace rather than ``ns0:`` prefixes."""
+
+CLIP_CLASS = "plot-clip"
+"""The class ``charts/_layout.marks_viewport`` puts on the nested ``<svg>`` it clips marks to."""
+
+
+def placed_panels(svg: str) -> list[str]:
+    """Every child a composition placed, as markup, in document order.
+
+    Not every nested ``<svg>`` is a panel. A chart handed ``xlim=``/``ylim=`` wraps its marks
+    in one to clip them, and sharing an axis is exactly how ``facet`` hands a panel a limit --
+    so three test modules that split on ``<svg x=`` began counting each panel's clip as a panel
+    of its own, and the text split cut a panel in half at the clip so its remaining ticks were
+    read as yet another. Panels are the composition root's own children; a clip is a
+    grandchild inside one of them.
+    """
+    root = ET.fromstring(svg)
+    return [
+        ET.tostring(child, encoding="unicode")
+        for child in root
+        if child.tag == f"{{{_SVG_NS}}}svg" and CLIP_CLASS not in (child.get("class") or "").split()
+    ]

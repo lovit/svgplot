@@ -16,6 +16,7 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
+    marks_viewport,
     new_canvas,
     resolve_size,
     ticks_for,
@@ -249,12 +250,13 @@ def regplot(
         font_size=resolved_theme.tick_label_font_size,
     )
 
+    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
     series_class = document.semantic_class("series")
 
     if ci is not None:
         # Drawn first so the fit line and the points sit on top of it.
         band_node = document.add_node(
-            None,
+            viewport,
             "path",
             attrib={"d": _band_path_data(band, pixel_x_scale, pixel_y_scale)},
             classes=[series_class, "regression-band"],
@@ -268,7 +270,7 @@ def regplot(
         # charts/_layout.format_coord. Extract when a third consumer appears.
         for xv, yv in zip(xs, ys, strict=True):
             point = document.add_node(
-                None,
+                viewport,
                 "circle",
                 attrib={
                     "cx": format_coord(pixel_x_scale(xv)),
@@ -281,7 +283,7 @@ def regplot(
                 add_tooltip(document, point, _point_tooltip(x=x, y=y, xv=xv, yv=yv))
 
     document.add_node(
-        None,
+        viewport,
         "path",
         attrib={"d": _line_path_data(band, pixel_x_scale, pixel_y_scale)},
         classes=[series_class, "regression-line"],

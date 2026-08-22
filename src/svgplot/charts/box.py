@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET
+
 from svgplot._svg import SvgDocument
 from svgplot.chart._domain import Domains, apply_limit, require_categories
 from svgplot.chart.base import Chart
@@ -16,6 +18,7 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
+    marks_viewport,
     new_canvas,
     resolve_size,
     ticks_for,
@@ -247,6 +250,7 @@ def boxplot(
     box_half_width = slot_width * _BOX_WIDTH_FRACTION / 2
     cap_half_width = slot_width * _WHISKER_CAP_FRACTION / 2
 
+    viewport = marks_viewport(document, area, clipped=ylim is not None)
     series_classes: list[str] = []
     # One class per *hue value*, or a single class for the whole chart when there is no
     # ``hue=``. Colour means one thing in this package and that thing is ``hue=``: a category
@@ -272,6 +276,7 @@ def boxplot(
             center = x_scale(category) + (slot + 0.5) * slot_width
             _render_box(
                 document,
+                viewport,
                 center,
                 y_scale,
                 stats,
@@ -284,7 +289,7 @@ def boxplot(
             )
             for outlier in stats.outliers:
                 point = document.add_node(
-                    None,
+                    viewport,
                     "circle",
                     attrib={
                         "cx": format_coord(center),
@@ -324,6 +329,7 @@ def boxplot(
 
 def _render_box(
     document: SvgDocument,
+    viewport: ET.Element | None,
     center: float,
     y_scale: LinearScale,
     stats: BoxStats,
@@ -366,10 +372,10 @@ def _render_box(
     }
     if corner_radius:
         box_attrib["rx"] = format_coord(corner_radius)
-    marks = [document.add_node(None, "rect", attrib=box_attrib, classes=[marker_class])]
+    marks = [document.add_node(viewport, "rect", attrib=box_attrib, classes=[marker_class])]
     marks.append(
         document.add_node(
-            None,
+            viewport,
             "line",
             attrib={
                 "x1": format_coord(left),
@@ -383,7 +389,7 @@ def _render_box(
     # whiskers: box edge (q1/q3) out to the whisker end, plus a short cap at each end
     marks.append(
         document.add_node(
-            None,
+            viewport,
             "line",
             attrib={
                 "x1": format_coord(center),
@@ -396,7 +402,7 @@ def _render_box(
     )
     marks.append(
         document.add_node(
-            None,
+            viewport,
             "line",
             attrib={
                 "x1": format_coord(cap_left),
@@ -409,7 +415,7 @@ def _render_box(
     )
     marks.append(
         document.add_node(
-            None,
+            viewport,
             "line",
             attrib={
                 "x1": format_coord(center),
@@ -422,7 +428,7 @@ def _render_box(
     )
     marks.append(
         document.add_node(
-            None,
+            viewport,
             "line",
             attrib={
                 "x1": format_coord(cap_left),

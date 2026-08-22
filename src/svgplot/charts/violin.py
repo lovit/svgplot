@@ -26,6 +26,7 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
+    marks_viewport,
     new_canvas,
     resolve_size,
     ticks_for,
@@ -331,6 +332,7 @@ def violinplot(
     slot_width = x_scale.bandwidth / len(hue_values)
     band = x_scale.step / len(hue_values)
     half_width = slot_width / 2 / peak
+    viewport = marks_viewport(document, area, clipped=ylim is not None)
     series_classes: list[str] = []
     # One class per *hue value*, or a single class for the whole chart when there is no
     # ``hue=``. Colour means one thing in this package and that thing is ``hue=``: a category
@@ -368,7 +370,7 @@ def violinplot(
             # quietly become a hole in the glyph -- see ``_violin_tooltip``.
             marks = [
                 document.add_node(
-                    None,
+                    viewport,
                     "path",
                     attrib={"d": _violin_path(curve.x, curve.y, centre, half_width, y_scale)},
                     classes=[series_class, "violin-body"],
@@ -390,7 +392,7 @@ def violinplot(
                 top, bottom = y_scale(q3), y_scale(q1)
                 marks.append(
                     document.add_node(
-                        None,
+                        viewport,
                         "rect",
                         attrib={
                             "x": format_coord(centre - box_half),
@@ -404,7 +406,7 @@ def violinplot(
                 tick_half = abs(band) * _MEDIAN_TICK_FRACTION / 2
                 marks.append(
                     document.add_node(
-                        None,
+                        viewport,
                         "line",
                         attrib={
                             "x1": format_coord(centre - tick_half),
