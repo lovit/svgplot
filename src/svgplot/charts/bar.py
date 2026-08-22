@@ -320,7 +320,10 @@ def barplot(
             font_size=resolved_theme.tick_label_font_size,
         )
 
-    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
+    # The same rule as the value domain two dozen lines up: a horizontal bar's values run along
+    # x, so ``ylim`` there names the category axis and is discarded. Clipping on it would emit a
+    # viewport for an argument this chart threw away.
+    viewport = marks_viewport(document, area, clipped=(xlim if orient == "h" else ylim) is not None)
     series_classes = [document.semantic_class("series") for _ in group_items]
     corner_radius = format_coord(resolved_theme.corner_radius) if resolved_theme.corner_radius > 0 else None
 
