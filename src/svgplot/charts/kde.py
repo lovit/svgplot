@@ -11,6 +11,7 @@ from __future__ import annotations
 from svgplot.chart._domain import Domains, apply_limit
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
+from svgplot.charts._density_grid import union_grid_range
 from svgplot.charts._describe import describe, over, plural, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
@@ -52,24 +53,13 @@ def _clean_values(columns: dict[str, list], x: str) -> list[float]:
 def _shared_grid_range(
     series_values: list[tuple[object, list[float]]], bandwidth: float | str, cut: float
 ) -> tuple[float, float]:
-    """The union of the spans each group would have chosen for itself.
+    """The union of the spans each hue group would have chosen for itself.
 
-    Taking the union rather than a single span computed from the pooled values keeps every
-    group's own tail on the canvas: a narrow group beside a wide one still gets its ``cut``
-    bandwidths of room, because the bandwidth is per-group.
-
-    A shared grid still has one cost, and it is inherent rather than a defect: if two groups
-    differ in scale by orders of magnitude, the grid step can exceed the narrow group's
-    bandwidth entirely and that group evaluates to zero everywhere -- drawn as a flat line
-    on the baseline. seaborn behaves the same way for the same reason.
+    The rule, and the cost of sharing a grid at all, live in
+    :mod:`~svgplot.charts._density_grid`; this passes ``_bandwidth_of`` so a failure names the
+    hue group rather than the category ``violinplot`` would name.
     """
-    lows: list[float] = []
-    highs: list[float] = []
-    for label, values in series_values:
-        width = _bandwidth_of(values, label, bandwidth)
-        lows.append(min(values) - cut * width)
-        highs.append(max(values) + cut * width)
-    return min(lows), max(highs)
+    return union_grid_range(series_values, lambda values, label: _bandwidth_of(values, label, bandwidth), cut)
 
 
 def _bandwidth_of(values: list[float], label: object, bandwidth: float | str) -> float:
