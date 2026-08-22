@@ -9,8 +9,8 @@ other side: a bar drawn 57.8px above the plot area, which nothing cut and nothin
 (That note is in this diff too -- the half of its sentence describing the absence of a clip is
 no longer true and had to go.)
 
-The two tests here are halves of one statement: with a limit, no mark outside the plot area;
-without one, the same bytes as before any of this existed.
+The statement the tests here divide up: with a limit the marks are inside the plot area and
+nowhere else, and without one the output is what it was before any of this existed.
 """
 
 from __future__ import annotations
@@ -335,13 +335,15 @@ def test_a_lone_chart_has_no_placed_panels() -> None:
 
 def test_a_limit_a_chart_discards_draws_no_clip() -> None:
     """``barplot`` reads its value limit off the axis the values run along: ``xlim=`` when
-    ``orient="h"``, ``ylim=`` otherwise. The other one names the *category* axis and is thrown
-    away by ``apply_limit`` -- so clipping on it would wrap the bars in a viewport because of an
-    argument that changed nothing, and the output would stop being byte-identical to the same
-    call without it.
+    ``orient="h"``, ``ylim=`` otherwise. The other one names the *category* axis and never reaches
+    ``apply_limit`` at all -- ``bar.py`` selects one of the two at the call site and passes only
+    that. So clipping on the other would wrap the bars in a viewport because of an argument that
+    changed nothing, and the output would stop being byte-identical to the same call without it.
 
-    Its own variant in ``VARIANTS`` passes the limit the chart uses, so it cannot see this. The
-    predicate before the fix (``xlim is not None or ylim is not None``) survived all 3,828 tests.
+    Its own variant in ``VARIANTS`` passes the limit the chart uses, so it cannot see this, and
+    neither did anything else: the predicate before the fix
+    (``xlim is not None or ylim is not None``) survived the entire suite. This test is the only
+    thing that fails for it.
     """
     horizontal = {"orient": "h"}
     for options, used, discarded in ((horizontal, "xlim", "ylim"), ({}, "ylim", "xlim")):
