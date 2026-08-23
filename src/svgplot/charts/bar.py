@@ -386,6 +386,7 @@ def barplot(
             y=area.top,
             mark_style="fill",
             font_size=resolved_theme.legend_font_size,
+            corner_radius=resolved_theme.corner_radius,
         )
 
     render_theme_style(document, resolved_theme, series_classes, mark_style="fill")

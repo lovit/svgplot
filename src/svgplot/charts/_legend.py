@@ -14,7 +14,7 @@ Private/internal — not re-exported from ``svgplot.charts``.
 from __future__ import annotations
 
 from svgplot._svg import SvgDocument
-from svgplot.charts._layout import format_coord
+from svgplot.charts._layout import corner_radius_attr, format_coord
 from svgplot.charts._textwidth import needs_full_text, truncate_to_width
 from svgplot.charts._tooltip import add_tooltip
 
@@ -120,6 +120,7 @@ def render_legend(
     y: float,
     mark_style: str = "stroke",
     font_size: float,
+    corner_radius: float = 0.0,
 ) -> float:
     """Draw a vertical legend starting at ``(x, y)``, one row per ``entries`` item,
     and return the y coordinate just past the last row.
@@ -193,6 +194,13 @@ def render_legend(
                     "y": format_coord(row_y - _SWATCH_HEIGHT / 2),
                     "width": format_coord(_SWATCH_WIDTH),
                     "height": format_coord(_SWATCH_HEIGHT),
+                    # The mark's own radius, unscaled. A swatch is a key to a mark, and a key
+                    # shaped differently from what it names reads as "not that one" -- a rounded
+                    # bar pointed at by a square rectangle (#265). Not reduced for the swatch's
+                    # size either: SVG clamps ``rx`` at half the shorter side, so a radius large
+                    # enough to make a 16x10 swatch a lozenge is one that has already made the
+                    # bars lozenges, and the two still agree.
+                    **({"rx": rounding} if (rounding := corner_radius_attr(corner_radius)) else {}),
                 },
                 classes=[css_class],
             )
