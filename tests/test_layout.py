@@ -66,11 +66,11 @@ def nested_rects(svg: str) -> list[tuple[float, float, float, float]]:
     """(x, y, width, height) of every placed child, in document order.
 
     Finds the panels with ``placed_panels`` and reads their attributes here. A nested
-    ``<svg x= y=>`` is not always a placed child: a chart handed ``xlim=``/``ylim=`` wraps its
-    marks in one to clip them. Every call site in this file *except the last* builds its charts
-    without a limit, so reading the raw shape returned the right answer by luck; the last one
-    faceted, and on a faceted composition -- where sharing an axis *is* passing each panel a
-    limit -- the raw shape returns six rects for three panels.
+    ``<svg x= y=>`` is not always a placed child: a chart handed an ``xlim=``/``ylim=`` that
+    *narrows* its domain wraps its marks in one to clip them. Every call site in this file
+    *except the last* builds its charts without a limit, so reading the raw shape returned the
+    right answer by luck; the last one facets *with* a narrowing ``ylim=``, and there the raw
+    shape returns six rects for three panels.
     """
     return [
         (float(match["x"]), float(match["y"]), float(match["w"]), float(match["h"]))
@@ -928,11 +928,14 @@ def test_nested_rects_counts_panels_not_clips() -> None:
     """``nested_rects`` reads placed children, and a chart's mark clip is not one of them.
 
     Every other call site in this file builds its charts without a limit, so nothing here would
-    notice the difference -- but ``facet`` shares an axis by handing each panel one, and on that
-    input the raw ``<svg x=`` shape returns two rects per panel. Six for three panels was what it
-    returned before this helper moved onto ``placed_panels``.
+    notice the difference -- but a chart given a *narrowing* one wraps its marks in a clip, and
+    on a faceted composition of those the raw ``<svg x=`` shape returns two rects per panel. Six
+    for three panels was what it returned before this helper moved onto ``placed_panels``.
+
+    The ``ylim=`` is what makes the clips: ``facet``'s own shared limit is the union of the
+    panels' domains, which narrows nothing, so faceting alone no longer produces one.
     """
-    svg = facet(lineplot, FACET_DATA, col="c", row="r", x="x", y="y").to_string()
+    svg = facet(lineplot, FACET_DATA, col="c", row="r", x="x", y="y", ylim=(1.5, 2.5)).to_string()
 
     assert CLIP_CLASS in svg, "this fixture is meant to produce clips"
     assert len(nested_rects(svg)) == len(placed_panels(svg)) == 3

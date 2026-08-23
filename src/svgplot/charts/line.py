@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import date, datetime
 
-from svgplot.chart._domain import Domains, apply_limit
+from svgplot.chart._domain import Domains, apply_limit, narrows
 from svgplot.chart.base import Chart
 from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
@@ -319,6 +319,7 @@ def lineplot(
     # caller to pass aware values for exactly that reason, which this path had made untrue.
     time_domain = (min(all_x, key=lambda value: _numeric_x(value, x)), max(all_x, key=lambda value: _numeric_x(value, x)))
     y_domain = (min(all_y), max(all_y))
+    clipped = narrows(numeric_x_domain, xlim) or narrows(y_domain, ylim)
     numeric_x_domain = apply_limit(numeric_x_domain, xlim)
     y_domain = apply_limit(y_domain, ylim)
 
@@ -365,7 +366,7 @@ def lineplot(
         font_size=resolved_theme.tick_label_font_size,
     )
 
-    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
+    viewport = marks_viewport(document, area, clipped=clipped)
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
     for label, points in series_points:

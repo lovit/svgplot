@@ -254,21 +254,27 @@ def marks_viewport(document: SvgDocument, area: PlotArea, *, clipped: bool) -> E
     the same thing inside as out -- charts compute pixels against ``area`` and must not have to
     know whether they were handed a viewport or the root.
 
-    **Only when the caller passed a limit** -- not only when that limit narrows anything. A
-    widening or identical ``ylim=`` gets a viewport too, one that cuts nothing; deciding
-    otherwise would mean comparing the override against the computed domain at every call site
-    to save an element that changes no pixel. Without a limit there is no viewport at all:
+    **Only when the limit narrows the domain**, which is what :func:`~svgplot.chart._domain.narrows`
+    decides. An earlier version keyed on "was a limit passed at all" and justified itself by
+    saying a widening or identical one "cuts nothing" -- both halves were false. It cuts by the
+    outer radius of whatever sits on the boundary, and ``facet`` walks straight into it: sharing
+    an axis means handing every panel the *union* of the panels' domains, which covers each
+    panel's data by construction, so a caller who passed no limit saw the extreme markers of a
+    faceted scatter lose half of themselves. Without a narrowing limit there is no viewport:
     a chart's own domain is computed from its own data and therefore covers it, so a chart that
     could not overflow keeps the bytes it had. With one, ``apply_limit`` *replaces* the domain
     (``chart/_domain.py``), values outside the window map to pixels outside the plot area, and
     until this existed they were drawn there -- over the axis, into the margin, off the canvas.
 
-    **A mark straddling the edge is cut, not kept.** The viewport is the plot area exactly, so a
-    marker whose centre is the last point inside the window loses the half of its radius that
-    hangs past the axis, and a stroke loses half its width. That is what clipping means and what
-    matplotlib's ``clip_on=True`` does, but it is a visible change on the most ordinary path
-    that produces a limit: ``facet`` shares axes by passing each panel the *union*, which is the
-    data range, so the extreme markers in a faceted scatter are now half-height.
+    **A mark straddling the edge is still cut, not kept.** The viewport is the plot area exactly,
+    so a marker whose centre is the last point *inside a narrowed window* loses the half of its
+    radius that hangs past the axis, and a stroke loses half its width. That is what clipping
+    means and what matplotlib's ``clip_on=True`` does; the caller asked for a smaller view and
+    the edge of that view is where the picture stops. What changed is that a chart no longer
+    clips when nothing was narrowed -- ``facet``'s shared union narrows nothing, so it produces
+    no clip and its extreme markers are whole again. The viewport is still one rect over both
+    axes, so narrowing *one* axis also trims the marks overhanging the other; splitting it per
+    axis is a separate question this does not answer.
 
     ``overflow="hidden"`` is the initial value for a nested viewport and is written anyway: it
     is the one attribute that says what this element is for, in a file this package intends to

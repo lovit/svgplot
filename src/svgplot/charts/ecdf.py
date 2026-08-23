@@ -7,7 +7,7 @@ count, so unlike ``histplot``/``boxplot`` this module consumes nothing from
 
 from __future__ import annotations
 
-from svgplot.chart._domain import Domains, apply_limit
+from svgplot.chart._domain import Domains, apply_limit, narrows
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, over, plural, span
@@ -165,6 +165,7 @@ def ecdfplot(
     x_domain = (min(all_values), max(all_values))
     y_top = max(len(values) for _, values in series_values) if stat == "count" else 1.0
     y_domain = (0.0, float(y_top))
+    clipped = narrows(x_domain, xlim) or narrows(y_domain, ylim)
     x_domain = apply_limit(x_domain, xlim)
     y_domain = apply_limit(y_domain, ylim)
 
@@ -203,7 +204,7 @@ def ecdfplot(
         font_size=resolved_theme.tick_label_font_size,
     )
 
-    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
+    viewport = marks_viewport(document, area, clipped=clipped)
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
     for label, values in series_values:

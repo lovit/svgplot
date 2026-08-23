@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from svgplot._svg import SvgDocument
-from svgplot.chart._domain import Domains, apply_limit
+from svgplot.chart._domain import Domains, apply_limit, narrows
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, fits, over, plural, span
@@ -307,6 +307,7 @@ def scatterplot(
     all_y = [row[1] for row in all_rows]
     x_domain = (min(all_x), max(all_x))
     y_domain = (min(all_y), max(all_y))
+    clipped = narrows(x_domain, xlim) or narrows(y_domain, ylim)
     x_domain = apply_limit(x_domain, xlim)
     y_domain = apply_limit(y_domain, ylim)
 
@@ -353,7 +354,7 @@ def scatterplot(
 
     radius_of = _radius_mapper([row[2] for row in all_rows], resolved_theme.marker_size) if size is not None else None
 
-    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
+    viewport = marks_viewport(document, area, clipped=clipped)
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
     for label, rows in series_rows:

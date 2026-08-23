@@ -108,6 +108,40 @@ def union(domains: list[Domains]) -> Domains:
     )
 
 
+def narrows(computed: tuple[float, float], override: tuple[float, float] | None) -> bool:
+    """Whether ``override`` makes the domain smaller than the chart computed for itself.
+
+    Only a narrowing override can put a mark outside the plot area *because of the override*.
+    Marks overhang the edge anyway -- a marker at the domain's maximum always spills its outer
+    radius past the spine, with or without a limit -- and that is not something to cut; a clip
+    exists for the values a narrowed window pushed out of view, not for the geometry of a mark
+    sitting on the boundary. The distinction is not pedantry: ``facet`` shares an axis by handing every
+    panel the *union* of the panels' domains, which by construction covers each panel's data,
+    and treating that as a reason to clip cut the extreme markers of an unfaceted-looking chart
+    in half -- a caller who passed no limit at all seeing marks lose their outer radius.
+
+    Equal bounds are not narrowing. Widening on one side and narrowing on the other is.
+
+    Validates through :func:`_require_finite_pair` rather than unpacking. Of the eighteen
+    chart-and-axis pairs, sixteen reach this function before :func:`apply_limit`, so a bare
+    ``low, high = override`` here would answer a malformed argument with ``too many values to
+    unpack`` instead of the message that names the parameter. The two that do not: ``histplot``'s
+    ``xlim=``, which settles the bin range first and so meets ``apply_limit`` there, and
+    ``barplot``'s discarded axis -- ``xlim=`` under ``orient="v"`` and ``ylim=`` under ``"h"`` --
+    which reaches neither, because the chart drops it at the call site. A malformed value in that
+    slot is refused by nothing and always has been; it is the price of an argument the chart
+    ignores.
+
+    Raises:
+        ValueError: if ``override`` isn't a pair of finite numbers -- the same refusal
+            :func:`apply_limit` makes, raised at whichever of the two the chart reaches first.
+    """
+    if override is None:
+        return False
+    low, high = _require_finite_pair(override)
+    return low > computed[0] or high < computed[1]
+
+
 def apply_limit(computed: tuple[float, float], override: tuple[float, float] | None) -> tuple[float, float]:
     """The domain a chart should draw against, given its own and a caller's override.
 
@@ -115,7 +149,8 @@ def apply_limit(computed: tuple[float, float], override: tuple[float, float] | N
     impossible to narrow, and a caller who asks for ``(0, 100)`` on data spanning 0..300
     means to clip the view, not to be told 300. *Clip* is meant literally: the marks that
     fall outside the window are cut at the plot area rather than drawn past it, which is
-    ``charts/_layout.marks_viewport``'s job and happens only when an override reaches here.
+    ``charts/_layout.marks_viewport``'s job and happens only when :func:`narrows` says this
+    override actually made the domain smaller.
 
     Raises:
         ValueError: if ``override`` isn't an increasing pair of finite numbers. A reversed
