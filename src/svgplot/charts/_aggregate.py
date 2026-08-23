@@ -22,6 +22,7 @@ Everything else is out of scope for a reason, not by omission:
 - ``heatmap`` **refuses** two rows naming the same cell rather than folding them, and
   that refusal is load-bearing: a heatmap cell is an identity, not an accumulator.
 - ``pieplot``/``treemap``/``gaugeplot`` are one row = one mark by construction.
+
 ``radarplot`` was the fourth, added later (#259). It folds per (series, category) pair
 inside a polygon that must have no gaps, which is why it was held back for its own change --
 and the answer turned out to be that the two do not interact: an estimator folds the values

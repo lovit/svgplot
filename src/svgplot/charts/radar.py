@@ -209,8 +209,11 @@ def radarplot(
         ValueError: if ``data`` has no rows, if its columns have different lengths, if no
             row has a non-missing ``hue``, if fewer than three categories remain, if a
             series is missing a value for some category (a radar polygon has no meaning
-            with a gap in it), if a value isn't a number, isn't finite, or is negative, or
-            if every value is zero.
+            with a gap in it), if a value isn't a number, isn't finite, or is negative, if
+            every value is zero, or if ``estimator`` is an unknown name or returns a value
+            that can't be plotted. The radius checks read the **folded** value, so an
+            estimator's own answer is refused on the same terms a raw row would be.
+        TypeError: if ``estimator`` is neither a name, a callable, nor ``None``.
     """
     resolved_theme = resolve_theme(theme)
     longform = ingest_longform(data, x, y)
