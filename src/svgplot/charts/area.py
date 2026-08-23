@@ -34,7 +34,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
-from svgplot.data._missing import is_missing
+from svgplot.data._missing import is_missing, require_number
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import LinearScale
 from svgplot.theme.base import Theme
@@ -63,7 +63,7 @@ def _series_points(
     for xv, yv in zip(columns[x], columns[y], strict=True):
         if is_missing(xv) or is_missing(yv):
             continue
-        groups.setdefault(float(xv), []).append(float(yv))
+        groups.setdefault(require_number(xv, x), []).append(require_number(yv, y))
     if estimate is None:
         return sorted((key, sum(values)) for key, values in groups.items())
     return sorted((key, apply_estimator(estimate, values, group=str(key))) for key, values in groups.items())

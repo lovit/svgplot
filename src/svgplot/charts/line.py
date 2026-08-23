@@ -37,7 +37,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
-from svgplot.data._missing import is_missing
+from svgplot.data._missing import is_missing, require_number
 from svgplot.data.ingest import ingest_longform
 from svgplot.labels._source import collect_label_data
 from svgplot.labels.spec import LabelSpec
@@ -145,7 +145,9 @@ def _series_points(
     UTC machine and stay apart everywhere else.
     """
     points = [
-        (xv, float(yv)) for xv, yv in zip(columns[x], columns[y], strict=True) if not is_missing(xv) and not is_missing(yv)
+        (xv, require_number(yv, y))
+        for xv, yv in zip(columns[x], columns[y], strict=True)
+        if not is_missing(xv) and not is_missing(yv)
     ]
     if estimate is not None:
         groups: dict[object, list[float]] = {}

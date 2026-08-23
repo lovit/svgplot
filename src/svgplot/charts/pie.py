@@ -17,6 +17,7 @@ from svgplot.charts._describe import describe, group, number, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_SIDE_LEGEND,
+    _finite,
     fit_margin,
     format_coord,
     format_value_label,
@@ -28,7 +29,7 @@ from svgplot.charts._polar import FULL_CIRCLE_TOLERANCE, full_ring_path, polar_p
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number, info_clauses
 from svgplot.data._columns import column_length, extract_columns
-from svgplot.data._missing import is_missing
+from svgplot.data._missing import is_missing, require_number
 from svgplot.labels._source import LabelData, collect_label_data
 from svgplot.labels.spec import LabelSpec
 from svgplot.theme.base import Theme
@@ -163,8 +164,10 @@ def pieplot(
     if length == 0:
         raise ValueError("data must contain at least one row")
 
-    if not (isinstance(inner_radius, int | float) and not isinstance(inner_radius, bool) and math.isfinite(inner_radius)):
-        raise ValueError(f"inner_radius must be a finite number, got {inner_radius!r}")
+    # ``_finite`` rather than a local copy: the copy asked ``int | float``, which refuses a
+    # ``numpy.float32`` that ``width=`` on this same call accepts (#256). The range check stays
+    # here -- it is this parameter's own rule, not a length's.
+    inner_radius = _finite(inner_radius, "inner_radius")
     if not (0.0 <= inner_radius < 1.0):
         raise ValueError(f"inner_radius must be a fraction of the outer radius in [0, 1), got {inner_radius!r}")
 
@@ -174,7 +177,7 @@ def pieplot(
     # from. Counting the surviving slices instead would work today and stop working the first
     # time either side learns to drop a row the other keeps.
     pairs = [
-        (str(label), float(value), index)
+        (str(label), require_number(value, values), index)
         for index, (label, value) in enumerate(zip(raw_labels, raw_values, strict=True))
         if not is_missing(label) and not is_missing(value)
     ]
