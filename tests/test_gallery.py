@@ -475,9 +475,12 @@ def test_every_exception_to_the_ordinal_audit_is_still_in_use() -> None:
     # any page's set, because another note on the same page cites the same figure. Two
     # characters do it: ``("areaplot", "째(")`` deletes the ordinal from three of areaplot's four
     # ordinal-bearing notes and the suite stays green, since the interaction note still says
-    # ``두 번째와 세 번째``. Dropping an entry passes for the same reason -- ``histplot``'s
-    # exempts a ``다섯 번째`` another note cites anyway -- and that one is harmless, because a
-    # lost exception widens the audit rather than narrowing it.
+    # ``두 번째와 세 번째``. Dropping an entry can pass for the same reason -- ``histplot``'s
+    # exempts a ``다섯 번째`` another note cites anyway, so removing it changes nothing. Not
+    # generally, though: dropping ``regplot``'s grows that page from ``{5}`` to ``{2, 5}`` and
+    # goes red, because the pin is an equality and catches a set that widens too. Losing an
+    # exception is the safe direction, but "safe" here means the audit sees more, not that the
+    # test stays quiet.
     #
     # It is not a restatement of the computation: the left side is read out of the notes, the
     # right side is written here.
