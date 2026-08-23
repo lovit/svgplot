@@ -1082,42 +1082,64 @@ def test_the_two_grid_forms_lay_the_same_charts_out_the_same_way() -> None:
     assert _canvas(tuple_form) == _canvas(matrix_form)
 
 
-def test_a_column_holding_only_a_spanning_child_keeps_the_fallback_width() -> None:
-    """Two rules meet in one figure, and the arithmetic separates them from every way of
-    getting them wrong.
+def test_a_spanning_child_sizes_the_tracks_it_covers_and_no_others() -> None:
+    """A span tops up the tracks it covers, evenly, and only by what they fall short (#270).
 
-    Column 0 holds an 800px single-track child, so it is 800 wide. Column 1 is covered only by
-    the spanning cell, which has no width of its own to give a track -- it falls back to 2400,
-    the widest cell in the grid, the same answer the matrix form gives an all-empty track. With
-    ``spacing=12``: ``800 + 12 + 2400 = 3212``.
+    The old rule gave a track covered *only* by a span the fallback -- "the widest cell anywhere
+    in the grid" -- on the reasoning that the matrix form gives an empty track the same thing.
+    The analogy was wrong: the matrix form's empty track has **nothing drawn in it**, while this
+    one has a child passing through. The result was over-sizing in exactly the shape spans exist
+    for: a 1612px header across two columns produced a 2424px figure, and a 3000px chart across
+    three columns produced 9024px -- three times its own width.
 
-    The exact number is the point. Two mutations survived a ``width > 0`` version of this test:
-    dropping the fallback (column 1 becomes 0, total 812) and letting a spanning child size a
-    track (column 0 becomes 2400, total 4812). All three totals differ, so the equality fails
-    for each.
+    Now each span distributes its shortfall across its own tracks, which is what CSS Grid does
+    and what makes a span's natural size come out exact. Here: column 0 holds an 800px
+    single-track child, column 1 is covered only by the 2400px span. The span needs 2400, has
+    ``800 + 12`` from what is already there, and shares the missing 1588 evenly -- 794 each, so
+    ``1594 + 12 + 794 = 2400``. The figure is exactly as wide as the widest thing in it.
     """
     narrow = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=800)
     wide = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=2400)
 
     composed = grid([(wide, 0, 0, 1, 2), (narrow, 1, 0, 1, 1)], spacing=12)
 
-    assert _canvas(composed)[0] == pytest.approx(800 + 12 + 2400)
+    assert _canvas(composed)[0] == pytest.approx(2400.0)
 
 
-def test_a_row_holding_only_a_spanning_child_keeps_the_fallback_height() -> None:
-    """The same two rules turned ninety degrees, and it is not a duplicate.
-
-    ``rowspan`` and ``colspan`` are separate conditions over separate dictionaries, and the
-    width fixture above has ``rowspan=1`` everywhere -- so a mutation removing the ``rowspan``
-    guard survived it. Row 0 holds a 400px single-track child; row 1 is covered only by the
-    two-row spanning cell and falls back to 1200. ``400 + 12 + 1200 = 1612``.
-    """
+def test_a_row_spanning_child_does_the_same_ninety_degrees_round() -> None:
+    """``rowspan`` and ``colspan`` are separate conditions over separate tables, and the width
+    fixture has ``rowspan=1`` everywhere -- so a change that fixed only one direction survives
+    it. Row 0 holds a 400px child, row 1 is covered only by the 1200px span:
+    ``400 + 12`` present, 788 short, 394 each, ``794 + 12 + 394 = 1200``."""
     short = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", height=400)
     tall = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", height=1200)
 
     composed = grid([(tall, 0, 0, 2, 1), (short, 0, 1, 1, 1)], spacing=12)
 
-    assert _canvas(composed)[1] == pytest.approx(400 + 12 + 1200)
+    assert _canvas(composed)[1] == pytest.approx(1200.0)
+
+
+def test_a_span_that_already_fits_changes_nothing() -> None:
+    """Only the *shortfall* is distributed. A span narrower than the tracks it covers must not
+    shrink them -- without the ``needed > have`` test it would share out a negative amount and
+    pull the figure in around a child that was never the constraint."""
+    wide = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=2000)
+    small = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=300)
+
+    composed = grid([(wide, 0, 0, 1, 1), (wide, 0, 1, 1, 1), (small, 1, 0, 1, 2)], spacing=12)
+
+    assert _canvas(composed)[0] == pytest.approx(2000 + 12 + 2000)
+
+
+def test_a_track_nothing_reaches_at_all_still_falls_back() -> None:
+    """The one case the old rule was right about, kept: ``ncols=`` can name a column no cell
+    occupies and no span covers. It has nothing to be sized from, so it takes the fallback --
+    the same answer the matrix form gives an all-empty track. ``800 * 3 + 2 * 12 = 2424``."""
+    chart = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=800)
+
+    composed = grid([(chart, 0, 0, 1, 1)], ncols=3, spacing=12)
+
+    assert _canvas(composed)[0] == pytest.approx(800 * 3 + 2 * 12)
 
 
 def test_a_grid_span_cell_still_refuses_something_that_is_neither() -> None:
