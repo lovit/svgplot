@@ -22,7 +22,11 @@ from __future__ import annotations
 from svgplot.chart.base import Chart
 from svgplot.chart.composition import TITLE_HEIGHT, Composition, Placement, chart_size, compose
 
-_TupleCell = tuple[Chart, int, int, int, int]
+_TupleCell = tuple[Chart | Composition, int, int, int, int]
+"""A span-aware cell. The first element is a ``Chart`` **or** a ``Composition``: the matrix
+form has always accepted either -- it never asks, it calls ``chart_size`` -- and the span form
+refusing one made "put this facet across the top two columns of a dashboard" fail at exactly
+the feature spans exist for (#260)."""
 
 
 def _is_tuple_form(cells: object) -> bool:
@@ -111,8 +115,8 @@ def _tuple_placements(
         if len(cell) != 5:
             raise ValueError(f"grid tuple cells must be (chart, row, col, rowspan, colspan), got {cell!r}")
         chart, row_index, col, rowspan, colspan = cell
-        if not isinstance(chart, Chart):
-            raise ValueError(f"grid tuple cell's first element must be a Chart, got {type(chart).__name__}")
+        if not isinstance(chart, Chart | Composition):
+            raise ValueError(f"grid tuple cell's first element must be a Chart or Composition, got {type(chart).__name__}")
         if row_index < 0 or col < 0:
             raise ValueError(f"grid cell row/col must be non-negative, got row={row_index}, col={col}")
         if rowspan < 1 or colspan < 1:
@@ -243,7 +247,7 @@ def grid(
     return Composition(document, [placement.chart for placement in placements])
 
 
-def row(charts: list[Chart | None], spacing: int = 12, *, titles: list[str | None] | None = None) -> Composition:
+def row(charts: list[Chart | None], *, spacing: int = 12, titles: list[str | None] | None = None) -> Composition:
     """Arrange charts in a single horizontal row. ``None`` entries render as empty cells.
 
     ``spacing`` is the gutter in pixels between neighbouring cells, and ``titles`` supplies one
@@ -260,7 +264,7 @@ def row(charts: list[Chart | None], spacing: int = 12, *, titles: list[str | Non
     return grid([list(charts)], spacing=spacing, titles=titles)
 
 
-def column(charts: list[Chart | None], spacing: int = 12, *, titles: list[str | None] | None = None) -> Composition:
+def column(charts: list[Chart | None], *, spacing: int = 12, titles: list[str | None] | None = None) -> Composition:
     """Arrange charts in a single vertical column. ``None`` entries render as empty cells.
 
     ``titles`` renders a heading above each chart — the default "Tabs 대체" idiom
