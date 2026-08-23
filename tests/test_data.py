@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import math
+from decimal import Decimal
 
 import pytest
 
 from svgplot.data import LongFormData, attach_metadata, extract_channels, ingest_longform
+from svgplot.data._missing import is_missing
 from svgplot.data.semantic import channel_row_indices
 
 
@@ -90,6 +92,29 @@ def test_ingest_longform_preserves_missing_values_without_dropping_rows() -> Non
     assert data.columns["x"] == [1, None, 3]
     assert data.columns["y"][2] != data.columns["y"][2]  # NaN preserved, not dropped
     assert len(data) == 3
+
+
+def test_a_decimal_nan_is_missing() -> None:
+    """The stdlib half of #257, and the half that runs when numpy is not installed.
+
+    ``is_missing`` tests ``numbers.Number`` rather than ``float`` because ``float`` made
+    NaN-detection depend on a column's dtype -- ``numpy.float64`` subclasses ``float`` and
+    ``numpy.float32`` does not. ``Decimal`` is the stdlib witness to the same widening: it is a
+    ``Number``, it is not a ``float``, and ``Decimal("nan") != Decimal("nan")``. So reverting
+    the predicate to ``isinstance(value, float)`` fails here with or without the ``numpy-parity``
+    extra, while ``test_data_missing_numpy_parity.py`` carries the width-by-width comparison.
+    """
+    assert is_missing(Decimal("nan"))
+    assert not is_missing(Decimal("1.5"))
+
+
+def test_text_is_not_missing() -> None:
+    """The type test is what keeps a category column out of the NaN comparison entirely: a
+    predicate that reached for ``value != value`` unconditionally would answer this one
+    correctly and then raise on anything whose ``!=`` returns an array rather than a bool."""
+    assert not is_missing("남")
+    assert not is_missing("")
+    assert not is_missing("nan")
 
 
 def test_ingest_longform_raises_for_empty_dict() -> None:
