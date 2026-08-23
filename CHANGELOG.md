@@ -6,6 +6,18 @@
 
 ### Fixed
 
+- **공개 API 표면에서 사용자가 실제로 부딪히던 넷을 고친다.**
+
+  **`Chart.palette()` 를 없앤다.** 인자를 저장만 하고 어떤 렌더 경로도 읽지 않아서, 부르면 출력이 한 바이트도 안 바뀌었다. docstring 둘째 문단은 *"Not wired up"* 이라고 정직하게 적었지만 **첫 줄**은 `Record a palette override` 였고, 자동완성에서 첫 줄만 보는 사용자는 정확히 반대로 이해했다. 배선하는 대신 지운다 — `Chart` 는 완성된 문서이고, 다 그린 것을 다시 칠하는 setter 를 두려면 `theme()`·`title()` 도 함께 와야 앞뒤가 맞는다. 색을 정하는 경로는 `Theme(palette=...)` 이고, 이제 README 에 실행되는 예제로 들어갔다(전에는 한 번도 안 나왔다).
+
+  **`add_caption` 이 `Chart` 를 받는다.** 전에는 `AttributeError: 'Chart' object has no attribute '_resolved_title'` 로 죽었다 — 다른 클래스의 사적 이름이라, 문제도 우회로(`row([chart])` 로 감싸기)도 알려 주지 않았고 그 우회로는 docstring 에도 README 에도 없었다. 이제 한 칸짜리 `row` 로 감싸고 `Composition` 을 돌려준다. `Composition` 을 주면 예전처럼 그 자리에서 변형해 같은 객체를 돌려준다.
+
+  **`spacing` 의 kind 가 세 함수에서 같아진다.** BREAKING. `row`/`column` 은 위치 인자로 받고 `grid` 는 키워드 전용이었다 — `row`/`column` 이 자기 docstring 에서 *"규칙이 사는 곳"* 이라 부르며 값을 그대로 넘기는 바로 그 함수와 달랐다. 키워드 전용 쪽으로 맞춘다: 16개 차트가 데이터 채널 말고는 전부 키워드 전용이고 `test_api_shape.py` 가 그것을 강제한다. `row(charts, 30)` 은 이제 `TypeError` 이고 `row(charts, spacing=30)` 이 맞다.
+
+  **`grid` 의 두 폼이 같은 것을 받는다.** 행렬 폼은 `Composition` 을 늘 받았고(묻지 않고 `chart_size` 를 부른다) span 폼만 거부했다 — "facet 결과를 대시보드 상단에 두 칸 걸쳐 놓기" 라는, span 폼이 존재하는 이유에서 정확히 막혔다. 거부 문구도 이제 둘 다 이름을 댄다(`must be a Chart or Composition`).
+
+  넷 다 기존 테스트가 하나도 안 보던 것이다 — 전부 고친 뒤에도 4,022개가 그대로 초록불이었다. 그래서 넷 각각에 가드를 넣었다.
+
 - **`interpolate("cubic")` 이 이제 정말 자연 3차 스플라인이다.** `_natural_cubic_spline_coeffs` 는 Burden–Faires 시스템(`alpha = 3 * …`)을 푸는데 그 미지수는 **2계도함수의 절반**(`c_i = S''/2`)이고, `_cubic` 은 Numerical Recipes 형태(`((a³−a)m_i + (b³−b)m_{i+1}) · h²/6`)로 평가하는데 그 식은 **완전한 2계도함수**를 요구한다. 두 공식의 절반씩을 섞어 곡선이 정확히 절반의 곡률만 갖고 있었다 — 함수의 docstring 이 `"Second derivatives at each knot"` 이라고 적은 값이 그 절반이었다.
 
   결과는 매끄러움이 존재 이유인 방법에서 **매듭점의 1계도함수가 끊기는** 곡선이다. `x=[0,1,2,3], y=[0,1,0,1]` 을 `precision=1601` 로 재면 매듭에서 기울기가 `1.01` 만큼 점프했다(같은 격자에서 `hermite` 는 `0.037`, `lagrange` 는 `0.015` — 순수 유한차분 오차다). 손으로 풀리는 `x=[0,1,2], y=[0,1,0]` 에서 계수는 `[0, -1.5, 0]` 이었고 해석해는 `[0, -3, 0]`, `y(0.5)` 는 `0.59375` 였고 정답은 `0.6875` 다.

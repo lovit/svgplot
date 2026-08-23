@@ -939,3 +939,134 @@ def test_nested_rects_counts_panels_not_clips() -> None:
 
     assert CLIP_CLASS in svg, "this fixture is meant to produce clips"
     assert len(nested_rects(svg)) == len(placed_panels(svg)) == 3
+
+
+# ---------------------------------------------------------------------------
+# the public layout surface: what these four functions accept (#260)
+# ---------------------------------------------------------------------------
+
+
+def _chart() -> Chart:
+    return lineplot({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0]}, x="x", y="y")
+
+
+def test_spacing_is_keyword_only_in_all_three_layout_functions() -> None:
+    """One argument, one kind, three functions.
+
+    ``row``/``column`` took ``spacing`` positionally while ``grid`` -- which their own
+    docstrings call the place "where their rules live", and to which they hand the value
+    straight through -- took it keyword-only. So ``row([a, b], 30)`` worked and
+    ``grid([[a, b]], 30)`` raised ``TypeError``, for the same argument with the same meaning.
+
+    Keyword-only is the direction because it is the package's own convention: every one of the
+    sixteen charts makes everything but its data channels keyword-only, and
+    ``test_api_shape.py`` enforces it there. This is the same rule reaching the layout
+    functions, which were the exception.
+    """
+    for function in (row, column, grid):
+        parameters = inspect.signature(function).parameters
+        assert parameters["spacing"].kind is inspect.Parameter.KEYWORD_ONLY, f"{function.__name__} takes spacing positionally"
+
+
+@pytest.mark.parametrize("function", [row, column])
+def test_a_positional_spacing_is_refused_rather_than_read_as_a_cell(function: object) -> None:
+    """The half the signature check cannot see: that the refusal actually happens.
+
+    Worth stating separately because the failure mode of getting this wrong is not a
+    ``TypeError`` -- a second positional could be silently absorbed by a future signature and
+    read as something else entirely.
+    """
+    with pytest.raises(TypeError, match="positional"):
+        function([_chart()], 30)  # type: ignore[operator]
+
+
+def test_the_three_functions_agree_on_what_a_keyword_spacing_does() -> None:
+    """Non-vacuity for the two checks above, which three functions that all ignored ``spacing``
+    would satisfy: the value has to reach the layout and move something."""
+    charts = [_chart(), _chart()]
+    tight = row(charts, spacing=0).to_string()
+    loose = row([_chart(), _chart()], spacing=40).to_string()
+
+    assert tight != loose
+    assert column([_chart(), _chart()], spacing=40) is not None
+    assert grid([[_chart(), _chart()]], spacing=40) is not None
+
+
+def test_add_caption_accepts_a_lone_chart_and_wraps_it() -> None:
+    """It used to raise ``AttributeError: 'Chart' object has no attribute '_resolved_title'`` --
+    a private name belonging to a different class, which named neither the problem nor the
+    ``row([chart])`` wrapping that was the workaround, and that wrapping was in no docstring."""
+    chart = _chart()
+
+    captioned = add_caption(chart, "분기별 매출")
+
+    assert isinstance(captioned, Composition)
+    assert "분기별 매출" in captioned.to_string()
+
+
+def test_captioning_a_chart_leaves_the_chart_alone() -> None:
+    """The consequence of wrapping, stated so a caller is not surprised by it: given a
+    ``Composition`` this function mutates in place, but a ``Chart`` cannot be mutated into a
+    composition, so the caption lives on the returned wrapper only."""
+    chart = _chart()
+
+    captioned = add_caption(chart, "분기별 매출")
+
+    assert "분기별 매출" not in chart.to_string()
+    assert captioned is not chart
+
+
+def test_captioning_a_composition_still_returns_the_same_object() -> None:
+    """The pre-existing contract, unchanged by the ``Chart`` branch -- and the reason that
+    branch is a wrap rather than a rewrite of this function."""
+    composition = row([_chart(), _chart()])
+
+    assert add_caption(composition, "둘") is composition
+
+
+def test_a_rejected_caption_leaves_the_chart_untouched() -> None:
+    """A refused caption must leave the caller with exactly what they had.
+
+    Named for what it observes. An earlier version was called ``..._wraps_nothing`` and claimed
+    the validation runs before the wrap -- which is true and is **not observable**: wrapping
+    allocates a new ``Composition`` and touches nothing the caller holds, so moving the wrap
+    above the checks passes this test, correctly. The order is only there to avoid building
+    something about to be thrown away.
+    """
+    chart = _chart()
+    before = chart.to_string()
+
+    with pytest.raises(ValueError, match="must not be empty"):
+        add_caption(chart, "   ")
+
+    assert chart.to_string() == before
+
+
+def test_a_grid_span_cell_takes_a_composition() -> None:
+    """The matrix form has always accepted one -- it never asks, it calls ``chart_size`` -- so
+    the span form refusing it split the two forms on a question neither is really about.
+
+    And it split them at the feature spans exist for: "put this facet across the top two
+    columns" is the reason to reach for the tuple form at all.
+    """
+    inner = row([_chart(), _chart()])
+
+    composed = grid([(inner, 0, 0, 1, 2), (_chart(), 1, 0, 1, 1)])
+
+    assert isinstance(composed, Composition)
+    assert len(placed_panels(composed.to_string())) >= 2
+
+
+def test_a_grid_span_cell_still_refuses_something_that_is_neither() -> None:
+    """Widened, not opened: the check now names both accepted types, and the message says so."""
+    with pytest.raises(ValueError, match="must be a Chart or Composition, got int"):
+        grid([(3, 0, 0, 1, 1)])  # type: ignore[list-item]
+
+
+def test_both_grid_forms_accept_the_same_things() -> None:
+    """The rule this pair of tests is really about: which form you write should not change
+    which figures you may place."""
+    inner = row([_chart(), _chart()])
+
+    assert grid([[inner]]) is not None
+    assert grid([(inner, 0, 0, 1, 1)]) is not None
