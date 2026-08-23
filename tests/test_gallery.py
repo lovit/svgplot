@@ -378,6 +378,10 @@ Matching every ordinal and naming the exceptions fails in the safe direction: a 
 written a new way is audited by default, and an ordinal that counts something else fails loudly
 until someone decides which it is. The two here count x slots and the things this chart adds to
 another; both sit in range today only because their pages happen to be long enough.
+
+**Which of the two an entry is cannot be decided by a test.** Four rounds tried and each was
+defeated by respelling the phrase -- see the comment beside the length assertion below. The test
+pins the list's length instead, so growing it is a visible decision rather than a passing diff.
 """
 
 
@@ -421,25 +425,22 @@ def test_every_exception_to_the_ordinal_audit_is_still_in_use() -> None:
     # An entry ending at a particle -- ``다섯 번째가`` -- is a real reference, and adding one
     # would re-create the regression this list exists to avoid, from the other direction.
     #
-    # Three conditions, because each of the first two was defeated on its own.
+    # The list is pinned at its length instead of its spelling. Four rounds of predicates tried
+    # to decide by shape whether a phrase is a figure reference, and every one was defeated by
+    # rewriting the phrase: first a lookahead over particles (which dropped five real
+    # references), then "must contain a noun after the ordinal" (``세 번째 그림`` satisfies it),
+    # then a word limit over ``endswith("다")`` -- and that one fell to deleting a single
+    # character, since ``다섯 번째 그`` is not ``그림``, is three words, and still deletes the
+    # ordinal. Twelve such truncations emptied three pages' audits with the whole suite green.
     #
-    # ``그림`` disqualifies an entry outright: requiring "some noun after the ordinal" was not
-    # enough, since ``세 번째 그림`` satisfies that and is the most ordinary reference there is --
-    # three such entries each emptied a page's cited set with the whole suite green.
-    #
-    # The word limit is what bounds ``endswith("다")``. Korean declarative sentences end in
-    # ``다``, so *any* whole sentence satisfied that clause: pasting a live note's full sentence
-    # (``다섯 번째가 갤러리에서 theme= 을 보여주는 유일한 자리다``) exempted the only pointer to
-    # ``lineplot``'s fifth figure and left 149 tests green -- the same regression as above, for
-    # the third time, through the one clause still unbounded. A real exception is short: both
-    # entries here are three words.
-    unjustified = [
-        (owner, phrase)
-        for owner, phrase in _NOT_A_FIGURE
-        if "그림" in phrase or len(phrase.split()) > 3 or not (phrase.endswith("다") or re.search(r"번째\s+\S", phrase))
-    ]
-
-    assert not unjustified, f"exceptions that are ordinary figure references: {unjustified}"
+    # Nothing mechanical can read a Korean sentence and say whether its ordinal counts figures;
+    # that is a judgement, and judgements belong in review. What a test *can* do is make the
+    # judgement visible: an entry cannot be added without also changing this number, and a diff
+    # that changes it is a diff that says "I am exempting one more thing".
+    assert len(_NOT_A_FIGURE) == 2, (
+        f"the exception list is {len(_NOT_A_FIGURE)} entries, not 2 -- every entry is a figure "
+        "reference this audit will no longer see, so adding one is a decision to be read, not a fix"
+    )
 
 
 def test_every_ordinal_in_the_gallery_is_classified() -> None:
@@ -493,8 +494,8 @@ _VERB_FINAL = re.compile(r"다$")
 """Whether a caption ends in the syllable ``다``.
 
 Not the same question as "does it end in a verb", and the gap is the copula: ``…원이다`` and
-``…marker_size 다`` are noun phrases closed with ``이다``/``다`` and score verb-final here. Four
-live captions are that shape, three of them written by this branch. So what the list below
+``…marker_size 다`` are noun phrases closed with ``이다``/``다`` and score verb-final here. Five
+live captions are that shape, and this branch wrote all five. So what the list below
 really enumerates is the captions ending in something that is not even a clause -- useful, and
 narrower than the conventions' wording. An earlier version listed ``었다``/``한다``/``된다``
 beside ``다``; every one already ends in ``다``, so all three were dead."""
