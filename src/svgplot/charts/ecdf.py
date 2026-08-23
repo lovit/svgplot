@@ -27,6 +27,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import LinearScale
 from svgplot.theme.base import Theme
@@ -38,7 +39,7 @@ STATS = ("proportion", "count")
 
 def _clean_values(columns: dict[str, list], x: str) -> list[float]:
     """Drop missing (``None``/NaN) values from column ``x``."""
-    return [float(v) for v in columns[x] if v is not None and not (isinstance(v, float) and v != v)]
+    return [float(v) for v in columns[x] if not is_missing(v)]
 
 
 def _cumulative_steps(values: list[float]) -> list[tuple[float, int]]:

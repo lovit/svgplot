@@ -34,6 +34,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
+from svgplot.data._missing import is_missing
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import LinearScale
 from svgplot.theme.base import Theme
@@ -60,7 +61,7 @@ def _series_points(
     """
     groups: dict[float, list[float]] = {}
     for xv, yv in zip(columns[x], columns[y], strict=True):
-        if xv is None or yv is None or (isinstance(yv, float) and yv != yv):
+        if is_missing(xv) or is_missing(yv):
             continue
         groups.setdefault(float(xv), []).append(float(yv))
     if estimate is None:
