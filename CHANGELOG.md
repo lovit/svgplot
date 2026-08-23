@@ -16,7 +16,11 @@
 
 - **`center=`·`xlim=`·`ylim=` 이 `width=` 와 같은 타입 범위를 받는다.** #256 이 `gauge.py`·`pie.py` 의 `int | float` 사본 둘을 지웠는데 같은 사본이 두 개 더 남아 있었다 — `palette/normalize._require_finite_number` 와 `chart/_domain._require_finite_pair`. **같은 호출 안에서** `heatmap(..., width=np.float32(400), center=np.float32(1.5))` 이 앞 인자는 받고 뒤 인자는 거부했다. `np.float64` 는 `float` 의 서브클래스라 양쪽을 다 통과해서, 좁은 dtype 에서만 갈라짐이 보였다.
 
-  **`Theme` 의 `opacity`·`fill_opacity`·`corner_radius` 도 같은 패턴이었다.** 리뷰가 찾았고, 개수를 놓친 것이 이번이 세 번째다(#256 이 둘, #271 리뷰가 둘, #276 리뷰가 이 셋). `Theme` 은 공개 API 이고 모든 렌더 호출에 넘어가므로 `Theme(opacity=np.float32(0.8))` 이 거부되는 것은 같은 결함이 한 층 위에 있는 것이다.
+  **`Theme` 의 `opacity`·`fill_opacity`·`corner_radius`, 그리고 `labels/spec` 도 같은 패턴이었다.** 전부 리뷰가 찾았다. `Theme` 은 공개 API 이고 모든 렌더 호출에 넘어가므로 `Theme(opacity=np.float32(0.8))` 이 거부되는 것은 같은 결함이 한 층 위에 있는 것이다.
+
+  `labels/spec` 쪽은 **조용히** 틀렸다: `info=[("Day", "@day{0.0}")]` 를 `numpy.float32` 컬럼에 걸면 툴팁이 `Day: 1.0` 이 아니라 기본 채널절 `day: 1` 로 떨어진다 — `charts/_tooltip` 이 그 `ValueError` 를 의도적으로 삼켜 폴백하기 때문에 **아무 말도 안 나온다**. 같은 차트의 `to_markdown()` 은 크래시했다. 조용한 쪽이 오래 남는 이유가 이것이다.
+
+  **개수를 네 번 놓쳤다**(#256 이 둘, #271 리뷰가 둘, #276 리뷰가 `Theme` 셋과 이것). 그래서 테스트 파일이 *"이번이 마지막"* 이라는 주장을 아예 하지 않는다 — 행을 더할 표일 뿐이고, 다음 사람에게 앞사람을 믿지 말고 다시 grep 하라고 적어 뒀다.
 
   전부 `numbers.Real` 로 넓힌다. **넓히는 것이지 여는 것이 아니다** — `bool` 은 `Real` 이지만 계속 거부한다(`center=True` 는 1 을 달라는 게 아니다).
 

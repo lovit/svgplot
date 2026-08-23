@@ -79,10 +79,19 @@ _ARGUMENTS = list(_VALID)
 
 ``width`` is ``charts/_layout._finite``; ``center`` is ``palette/normalize._require_finite_number``;
 ``xlim``/``ylim`` are ``chart/_domain._require_finite_pair``; ``vmax`` is ``gauge``'s use of
-``_finite`` after #256 removed its own copy. The last three are ``Theme.__post_init__``, which a
-review found still narrow after this file's first draft claimed the count was complete -- the
-third time that count has been wrong (#256 fixed two, #271's review found two more, #276's found
-these). Hence a table built to be added to rather than a number written in prose.
+``_finite`` after #256 removed its own copy. ``opacity``/``fill_opacity``/``corner_radius`` are
+``Theme.__post_init__``.
+
+``labels/spec._require_finite_number`` is the fifth and is **not** in this table: it validates a
+*data value* a format string is applied to, not an argument, so ``nan`` is a missing point there
+rather than a mistake. It gets its own checks at the bottom.
+
+The last two groups were found by reviews *after* a draft of this file said the count was
+complete, and that has now happened four times (#256 fixed two, #271's review found two more,
+#276's review found the ``Theme`` three and then ``labels/spec``). So this file makes no claim
+about being finished: it is a table to add a row to, and the row is what proves the rule reaches
+a new validator. Anyone adding one here should grep for the pattern again rather than trust that
+the previous person did.
 """
 
 
@@ -198,12 +207,14 @@ def _validators() -> dict[str, object]:
     """
     from svgplot.chart._domain import _require_finite_pair
     from svgplot.charts._layout import _finite
+    from svgplot.labels.spec import _require_finite_number as _spec_require_finite_number
     from svgplot.palette.normalize import _require_finite_number
 
     return {
         "_layout._finite": lambda value: _finite(value, "width"),
         "palette._require_finite_number": lambda value: _require_finite_number(value, field="center"),
         "_domain._require_finite_pair": lambda value: _require_finite_pair((0.0, value)),
+        "labels.spec._require_finite_number": lambda value: _spec_require_finite_number(value, context="numeral format"),
     }
 
 
@@ -253,3 +264,41 @@ def test_every_validator_accepts_a_real_that_is_not_int_or_float(name: str) -> N
     ordinary ``Fraction`` is a perfectly good number and has to get through, so the guard cannot
     be satisfied by refusing the whole type."""
     assert _validators()[name](Fraction(3, 2)) is not None  # type: ignore[operator]
+
+
+def test_a_format_string_over_a_numpy_column_keeps_its_format() -> None:
+    """``labels/spec``'s validator, through the public path it silently broke.
+
+    ``info=[("Day", "@day{0.0}")]`` over a ``numpy.float32`` column produced ``"day: 1"`` -- the
+    default channel clause -- instead of ``"Day: 1.0"``. Nothing raised: ``charts/_tooltip``
+    catches the ``ValueError`` and falls back on purpose, so the caller's format string was
+    dropped without a word while ``to_markdown()`` on the same chart crashed (#274).
+
+    Read through ``to_markdown`` because that is where the failure was *loud*; the tooltip
+    assertion below is what pins the silent half.
+    """
+    numpy_column = [numpy.float32(1.0), numpy.float32(2.0), numpy.float32(3.0)]
+    chart = sp.scatterplot(
+        {"일차": numpy_column, "매출": [1200.0, 3400.0, 2500.0]},
+        x="일차",
+        y="매출",
+        info=[("일차", "@일차{0.0}")],
+        tooltip=True,
+    )
+
+    assert "1.0" in chart.to_markdown()
+    assert "일차: 1.0" in chart.to_string(), "the tooltip fell back to the default clause"
+
+
+def test_a_missing_value_in_a_formatted_column_is_still_missing_not_refused() -> None:
+    """The half that must *not* change. ``nan`` is a missing point in a data column, not a bad
+    argument -- which is why this validator is outside the table above, where ``nan`` is the
+    mistake it is for a ``width=``."""
+    chart = sp.scatterplot(
+        {"일차": [1.0, float("nan"), 3.0], "매출": [1200.0, 3400.0, 2500.0]},
+        x="매출",
+        y="매출",
+        info=[("일차", "@일차{0.0}")],
+    )
+
+    assert chart.to_markdown()
