@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
-from _svg_probe import strip_document_scope
+from _svg_probe import CLIP_CLASS, placed_panels, strip_document_scope
 from svgplot.chart.base import Chart
 from svgplot.chart.composition import (
     CAPTION_HEIGHT,
@@ -63,10 +63,25 @@ def root_size(svg: str) -> tuple[float, float]:
 
 
 def nested_rects(svg: str) -> list[tuple[float, float, float, float]]:
-    """(x, y, width, height) of every placed child, in document order."""
+    """(x, y, width, height) of every placed child, in document order.
+
+    Finds the panels with ``placed_panels`` and reads their attributes here. A nested
+    ``<svg x= y=>`` is not always a placed child: a chart handed ``xlim=``/``ylim=`` wraps its
+    marks in one to clip them. Every call site in this file *except the last* builds its charts
+    without a limit, so reading the raw shape returned the right answer by luck; the last one
+    faceted, and on a faceted composition -- where sharing an axis *is* passing each panel a
+    limit -- the raw shape returns six rects for three panels.
+    """
     return [
-        (float(x), float(y), float(w), float(h))
-        for x, y, w, h in re.findall(r'<svg x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" height="([\d.]+)"', svg)
+        (float(match["x"]), float(match["y"]), float(match["w"]), float(match["h"]))
+        for panel in placed_panels(svg)
+        if (
+            match := re.match(
+                r'<svg[^>]*\bx="(?P<x>-?[\d.]+)"[^>]*\by="(?P<y>-?[\d.]+)"'
+                r'[^>]*\bwidth="(?P<w>[\d.]+)"[^>]*\bheight="(?P<h>[\d.]+)"',
+                panel,
+            )
+        )
     ]
 
 
@@ -907,3 +922,17 @@ def test_composition_pretty_output_keeps_the_serializers_shape() -> None:
     assert output.endswith(">\n") and not output.endswith("\n\n")
     assert "\n  <" in output, "pretty output indents its children"
     assert ET.fromstring(output.removeprefix(_PROLOG)).tag.endswith("svg")
+
+
+def test_nested_rects_counts_panels_not_clips() -> None:
+    """``nested_rects`` reads placed children, and a chart's mark clip is not one of them.
+
+    Every other call site in this file builds its charts without a limit, so nothing here would
+    notice the difference -- but ``facet`` shares an axis by handing each panel one, and on that
+    input the raw ``<svg x=`` shape returns two rects per panel. Six for three panels was what it
+    returned before this helper moved onto ``placed_panels``.
+    """
+    svg = facet(lineplot, FACET_DATA, col="c", row="r", x="x", y="y").to_string()
+
+    assert CLIP_CLASS in svg, "this fixture is meant to produce clips"
+    assert len(nested_rects(svg)) == len(placed_panels(svg)) == 3

@@ -16,6 +16,7 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
+    marks_viewport,
     new_canvas,
     resolve_size,
     ticks_for,
@@ -250,6 +251,7 @@ def histplot(
         font_size=resolved_theme.tick_label_font_size,
     )
 
+    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
     corner_radius = format_coord(resolved_theme.corner_radius) if resolved_theme.corner_radius else None
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
@@ -270,7 +272,7 @@ def histplot(
             }
             if corner_radius is not None:
                 attrib["rx"] = corner_radius
-            bar = document.add_node(None, "rect", attrib=attrib, classes=[series_class])
+            bar = document.add_node(viewport, "rect", attrib=attrib, classes=[series_class])
             if tooltip:
                 add_tooltip(
                     document,

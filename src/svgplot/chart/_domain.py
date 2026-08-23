@@ -113,7 +113,9 @@ def apply_limit(computed: tuple[float, float], override: tuple[float, float] | N
 
     The override **replaces** rather than widens. Widening would make a shared axis
     impossible to narrow, and a caller who asks for ``(0, 100)`` on data spanning 0..300
-    means to clip the view, not to be told 300.
+    means to clip the view, not to be told 300. *Clip* is meant literally: the marks that
+    fall outside the window are cut at the plot area rather than drawn past it, which is
+    ``charts/_layout.marks_viewport``'s job and happens only when an override reaches here.
 
     Raises:
         ValueError: if ``override`` isn't an increasing pair of finite numbers. A reversed

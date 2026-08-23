@@ -22,6 +22,7 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
+    marks_viewport,
     new_canvas,
     resolve_axis_scale,
     resolve_size,
@@ -352,6 +353,7 @@ def scatterplot(
 
     radius_of = _radius_mapper([row[2] for row in all_rows], resolved_theme.marker_size) if size is not None else None
 
+    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
     for label, rows in series_rows:
@@ -361,7 +363,7 @@ def scatterplot(
             xv, yv, sv, _index = row
             radius = radius_of(sv) if radius_of is not None else resolved_theme.marker_size
             point = document.add_node(
-                None,
+                viewport,
                 "circle",
                 attrib={
                     "cx": format_coord(pixel_x_scale(xv)),

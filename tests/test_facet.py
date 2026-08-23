@@ -4,6 +4,7 @@ import re
 
 import pytest
 
+from _svg_probe import placed_panels
 from svgplot.chart.composition import Composition
 from svgplot.charts.bar import barplot
 from svgplot.charts.line import lineplot
@@ -40,7 +41,11 @@ CAT_DATA = {
 
 def panels(svg: str) -> list[tuple[float, float]]:
     """(x, y) of every placed child panel, in document order."""
-    return [(float(x), float(y)) for x, y in re.findall(r'<svg x="([\d.-]+)" y="([\d.-]+)"', svg)]
+    return [
+        (float(match["x"]), float(match["y"]))
+        for panel in placed_panels(svg)
+        if (match := re.match(r'<svg[^>]*\bx="(?P<x>-?[\d.]+)"[^>]*\by="(?P<y>-?[\d.]+)"', panel))
+    ]
 
 
 def titles(svg: str) -> list[str]:

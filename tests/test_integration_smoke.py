@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 import svgplot as sp
-from _svg_probe import style_rules
+from _svg_probe import placed_panels, style_rules
 from svgplot.chart.base import Chart
 from svgplot.charts._layout import DEFAULT_WIDTH, SPARKLINE_WIDTH, format_coord
 from svgplot.charts._legend import _SWATCH_HEIGHT, _SWATCH_WIDTH
@@ -391,7 +391,7 @@ def test_the_shape_charts_facet(factory: Callable[..., Chart], kwargs: dict[str,
     composition = sp.facet(factory, DATA, col="group", **kwargs)
     svg = composition.to_string()
 
-    assert svg.count("<svg") == 3, "expected one root plus two panels"
+    assert len(placed_panels(svg)) == 2, "expected two panels"
     ET.fromstring(svg)
 
 
@@ -410,9 +410,10 @@ def test_a_composition_gives_each_child_its_own_width() -> None:
     column to the widest blows the 120px sparkline's column up to 800 and the sheet from
     932 to 1612, and the version of this test that only checked namespacing stayed green."""
     svg = _mixed_size_row()
-    widths = [float(width) for width, _ in re.findall(r'<svg[^>]*width="([\d.]+)" height="([\d.]+)"', svg)]
-
-    root, sparkline_width, treemap_width = widths
+    root = float(re.match(r'.*?<svg[^>]*width="([\d.]+)"', svg, re.S)[1])
+    sparkline_width, treemap_width = (
+        float(re.match(r'<svg[^>]*\bwidth="([\d.]+)"', panel)[1]) for panel in placed_panels(svg)
+    )
     assert (sparkline_width, treemap_width) == (SPARKLINE_WIDTH, DEFAULT_WIDTH)
     assert root == sparkline_width + treemap_width + _ROW_SPACING
 
@@ -423,7 +424,7 @@ def test_a_composition_places_a_narrow_child_right_after_its_neighbour() -> None
     the second child without changing the total, so the offsets need their own assertion --
     and the narrow child has to lead, or the two formulas agree (see ``_mixed_size_row``)."""
     svg = _mixed_size_row()
-    offsets = [float(x) for x in re.findall(r'<svg x="(-?[\d.]+)" y="-?[\d.]+"', svg)]
+    offsets = [float(re.match(r'<svg[^>]*\bx="(-?[\d.]+)"', panel)[1]) for panel in placed_panels(svg)]
 
     assert offsets == [0.0, SPARKLINE_WIDTH + _ROW_SPACING]
 

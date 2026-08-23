@@ -21,6 +21,7 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
+    marks_viewport,
     new_canvas,
     resolve_size,
     ticks_for,
@@ -213,6 +214,7 @@ def kdeplot(
         font_size=resolved_theme.tick_label_font_size,
     )
 
+    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
     mark_style = "outlined" if fill else "stroke"
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
@@ -220,7 +222,7 @@ def kdeplot(
         series_class = document.semantic_class("series")
         series_classes.append(series_class)
         path = _curve_path(curve, pixel_x_scale, pixel_y_scale, baseline=area.bottom, fill=fill)
-        document.add_node(None, "path", attrib={"d": path}, classes=[series_class, "kde-series"])
+        document.add_node(viewport, "path", attrib={"d": path}, classes=[series_class, "kde-series"])
         if label is not None:
             legend_entries.append((str(label), series_class))
 

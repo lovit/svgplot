@@ -24,6 +24,7 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
+    marks_viewport,
     new_canvas,
     resolve_axis_scale,
     resolve_size,
@@ -268,6 +269,7 @@ def areaplot(
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
 
+    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
     if do_stack:
         for label, xs, bottoms, tops in stacked_bands:
             series_class = document.semantic_class("series")
@@ -276,7 +278,7 @@ def areaplot(
             pixel_tops = [pixel_y_scale(value) for value in tops]
             pixel_bottoms = [pixel_y_scale(value) for value in bottoms]
             document.add_node(
-                None,
+                viewport,
                 "path",
                 attrib={"d": _stacked_band_path_data(pixel_xs, pixel_tops, pixel_bottoms)},
                 classes=[series_class, "area-series"],
@@ -291,7 +293,7 @@ def areaplot(
                 pixel_xs = [pixel_x_scale(px) for px, _ in points]
                 pixel_ys = [pixel_y_scale(py) for _, py in points]
                 document.add_node(
-                    None,
+                    viewport,
                     "path",
                     attrib={"d": _closed_path_data(pixel_xs, pixel_ys, baseline_y)},
                     classes=[series_class, "area-series"],

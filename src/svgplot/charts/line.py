@@ -27,6 +27,7 @@ from svgplot.charts._layout import (
     TICK_SPACING_Y,
     fit_margin,
     format_coord,
+    marks_viewport,
     new_canvas,
     resolve_axis_scale,
     resolve_size,
@@ -364,6 +365,7 @@ def lineplot(
         font_size=resolved_theme.tick_label_font_size,
     )
 
+    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
     for label, points in series_points:
@@ -380,7 +382,7 @@ def lineplot(
             pixel_xs = [pixel_x_scale(value) for value in curve_x]
             pixel_ys = [pixel_y_scale(value) for value in curve_y]
             document.add_node(
-                None, "path", attrib={"d": _path_data(pixel_xs, pixel_ys)}, classes=[series_class, "line-series"]
+                viewport, "path", attrib={"d": _path_data(pixel_xs, pixel_ys)}, classes=[series_class, "line-series"]
             )
         if label is not None:
             legend_entries.append((str(label), series_class))
