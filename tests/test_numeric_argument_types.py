@@ -216,6 +216,10 @@ def _validators() -> dict[str, object]:
         "palette._require_finite_number": lambda value: _require_finite_number(value, field="center"),
         "_domain._require_finite_pair": lambda value: _require_finite_pair((0.0, value)),
         "labels.spec._require_finite_number": lambda value: _spec_require_finite_number(value, context="numeral format"),
+        # Not a standalone function -- an inline check inside ``Theme.__post_init__`` -- and that
+        # is precisely why it was missed when the other four were lined up: the refactor went by
+        # shape. It answers the same question, so it belongs in the same table (#274).
+        "Theme.corner_radius": lambda value: Theme(corner_radius=value) and value,
     }
 
 
