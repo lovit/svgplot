@@ -29,6 +29,7 @@ ordering rather than imposing alphabetical.
 
 from __future__ import annotations
 
+import numbers
 from dataclasses import dataclass
 
 
@@ -172,7 +173,12 @@ def _require_finite_pair(value: object) -> tuple[float, float]:
         raise ValueError(f"axis limits must be a (low, high) pair, got {value!r}")
     low, high = value
     for bound in (low, high):
-        if isinstance(bound, bool) or not isinstance(bound, int | float) or not math.isfinite(bound):
+        # ``numbers.Real``, for the reason ``charts/_layout._finite`` gives and this shared the
+        # gap with: a limit comes from the same array library the data did, so
+        # ``xlim=(np.float32(0), np.float32(3))`` was refused on a call whose ``width=`` accepted
+        # the same dtype (#274). ``numpy.float64`` slipped through both -- it subclasses
+        # ``float`` -- so only the narrower dtypes showed the split.
+        if isinstance(bound, bool) or not isinstance(bound, numbers.Real) or not math.isfinite(bound):
             raise ValueError(f"axis limits must be finite numbers, got {value!r}")
     return (float(low), float(high))
 
