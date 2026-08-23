@@ -147,30 +147,51 @@ def test_no_chart_outside_the_table_rounds_anything() -> None:
 
 
 @pytest.mark.parametrize("name", ["barplot", "histplot"])
-def test_a_legend_swatch_does_not_share_its_marks_rounding(name: str) -> None:
-    """Recorded as it is, not as it arguably should be.
+def test_a_legend_swatch_is_rounded_like_the_marks_it_names(name: str) -> None:
+    """A key shaped differently from what it names reads as "not that one".
 
-    With ``hue=``, ``barplot`` and ``histplot`` draw rounded bars and then a legend swatch --
-    another ``<rect>``, in the same series class, naming the same colour -- with square corners.
-    A reader gets a rounded bar pointed at by a square key. Nothing in :attr:`Theme.corner_radius`'s
-    docstring mentions swatches either way, so this is an inconsistency rather than a decision,
-    and it is out of scope for #258, which is about a radius that cannot be written at all.
+    This test used to assert the opposite, and said so: ``Theme.corner_radius``'s docstring
+    named the three rectangles that ignore the field and gave a reason for each, but said
+    nothing about swatches either way -- so the square swatch beside a rounded bar was an
+    inconsistency rather than a decision, and #258 pinned it as it was with a note that the day
+    it changed, this was where the decision would be written. #265 made it, and this is it.
 
-    It is pinned rather than left unmentioned because the parity work above is exactly what would
-    otherwise make it invisible: the three charts agree with *each other* about their marks while
-    all three disagree with their own legends. If swatches are later made to round, this test
-    fails and its replacement records that decision.
+    The swatch takes the mark's radius **unscaled**. SVG clamps ``rx`` at half the shorter side,
+    so a radius big enough to turn a 16x10 swatch into a lozenge is one that has already done
+    the same to the bars -- the two go on agreeing at every value rather than only small ones.
     """
     svg = getattr(sp, name)(_DATA, theme=Theme(corner_radius=4.0), hue="행", **_CALLS[name]).to_string()
-    # Every ``<rect>`` in a series class: the marks and the legend swatches together. There is no
-    # attribute separating the two -- ``render_legend`` gives a swatch the same class its marks
-    # carry, which is the whole reason a reader is meant to connect them -- so ``rx`` is what
-    # tells them apart here, and that is exactly the difference under test.
     in_series = [rect for rect in re.findall(r"<rect[^>]*>", svg) if 'class="series-' in rect]
-    marks = [rect for rect in in_series if 'rx="4"' in rect]
-    squares = [rect for rect in in_series if "rx=" not in rect]
-    assert marks, f"{name} rounded nothing, so this test is not comparing marks to swatches"
-    assert squares, f"{name} now rounds its legend swatch too -- decide and update this test"
+
+    assert in_series, f"{name} drew no series rectangles"
+    assert all(
+        'rx="4"' in rect for rect in in_series
+    ), f"{name} left a series rectangle square while the others round: {[r for r in in_series if 'rx=' not in r]}"
+
+
+@pytest.mark.parametrize("name", ["barplot", "histplot"])
+def test_a_legend_swatch_stays_square_when_the_marks_do(name: str) -> None:
+    """The other half, and the one that keeps the default untouched: at ``corner_radius=0`` the
+    swatch must carry no ``rx`` at all -- not ``rx="0"`` -- so every existing chart is byte for
+    byte what it was."""
+    svg = getattr(sp, name)(_DATA, theme=Theme(corner_radius=0.0), hue="행", **_CALLS[name]).to_string()
+    in_series = [rect for rect in re.findall(r"<rect[^>]*>", svg) if 'class="series-' in rect]
+
+    assert in_series, f"{name} drew no series rectangles"
+    assert all("rx=" not in rect for rect in in_series), f"{name} wrote an rx at corner_radius=0"
+
+
+def test_a_chart_whose_legend_is_drawn_with_lines_is_unaffected() -> None:
+    """``boxplot`` takes ``hue=`` and rounds its boxes, and has no swatch to round: its legend
+    is ``mark_style="stroke"``, so ``render_legend`` draws a ``<line>`` per entry. Pinned so the
+    scope of the change above is a measured fact rather than an assumption about which charts
+    have swatches."""
+    svg = sp.boxplot(_DATA, theme=Theme(corner_radius=4.0), hue="행", **_CALLS["boxplot"]).to_string()
+
+    assert "<line" in svg
+    assert all(
+        "-marker" in rect for rect in re.findall(r'<rect[^>]*class="series-[^"]*"[^>]*>', svg)
+    ), "boxplot grew a rect swatch -- decide whether it rounds and extend the tests above"
 
 
 def test_the_shared_helper_is_what_the_charts_ask() -> None:
