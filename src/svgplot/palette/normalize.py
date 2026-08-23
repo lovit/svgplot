@@ -35,14 +35,26 @@ def _require_finite_number(value: object, *, field: str) -> float:
     # accepted one argument and refused the other on the same call (#274). ``bool`` stays out
     # even though it is ``Real`` -- ``center=True`` is a mistake, not a request for 1.
     #
-    # Not imported from ``charts/_layout``: ``palette`` sits below ``charts`` and must not
-    # depend on it. What keeps the three in step is a test that asks all of them the same
+    # Not imported from ``charts/_layout``: ``palette`` imports nothing from ``charts`` and
+    # keeping it that way is worth more than sharing four lines. (``chart`` is a weaker case --
+    # ``chart/composition.py`` already imports ``format_coord`` from there, so for *that* copy
+    # this is a choice rather than a constraint, and ``labels/spec.py`` shows the deferred-import
+    # idiom that would work.) What keeps them in step is a test that asks all of them the same
     # question, the way this package already pins rules that span a family.
     if isinstance(value, bool) or not isinstance(value, numbers.Real):
         raise ValueError(f"{field} must be a real number, got {value!r}")
-    if not math.isfinite(value):
+    # Behind try/except for the reason ``_layout._finite`` gives: a ``Real`` too large to be a
+    # float (``Fraction(10**400)``) makes ``isfinite`` raise ``OverflowError`` rather than
+    # answer, and this function documents ``ValueError``. Widening the type test above is what
+    # let such a value get here (#274).
+    try:
+        finite = math.isfinite(value)
+        number = float(value)
+    except (OverflowError, TypeError, ValueError) as error:
+        raise ValueError(f"{field} must be finite, got {value!r}") from error
+    if not finite:
         raise ValueError(f"{field} must be finite, got {value!r}")
-    return float(value)
+    return number
 
 
 @dataclass(frozen=True)

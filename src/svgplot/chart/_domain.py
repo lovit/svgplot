@@ -178,7 +178,18 @@ def _require_finite_pair(value: object) -> tuple[float, float]:
         # ``xlim=(np.float32(0), np.float32(3))`` was refused on a call whose ``width=`` accepted
         # the same dtype (#274). ``numpy.float64`` slipped through both -- it subclasses
         # ``float`` -- so only the narrower dtypes showed the split.
-        if isinstance(bound, bool) or not isinstance(bound, numbers.Real) or not math.isfinite(bound):
+        if isinstance(bound, bool) or not isinstance(bound, numbers.Real):
+            raise ValueError(f"axis limits must be finite numbers, got {value!r}")
+        # ``math.isfinite`` behind try/except, the way ``_layout._finite`` already does it: a
+        # ``Real`` too large to be a float -- ``Fraction(10**400)`` -- raises ``OverflowError``
+        # there rather than answering. Widening the type test to ``numbers.Real`` is what let
+        # such a value reach this line at all, so the two changes belong together; without it
+        # this function broke its own documented contract of raising ``ValueError`` (#274).
+        try:
+            finite = math.isfinite(bound)
+        except (OverflowError, TypeError, ValueError) as error:
+            raise ValueError(f"axis limits must be finite numbers, got {value!r}") from error
+        if not finite:
             raise ValueError(f"axis limits must be finite numbers, got {value!r}")
     return (float(low), float(high))
 

@@ -24,6 +24,7 @@ than raw string concatenation — see ``_svg.py``'s own "escape chokepoint" docs
 from __future__ import annotations
 
 import math
+import numbers
 from dataclasses import dataclass
 
 from svgplot.palette.colorblind import DEFAULT_PALETTE
@@ -208,7 +209,11 @@ class Theme:
         # validating only one would leave the identical hole open on the other.
         for field in ("opacity", "fill_opacity"):
             value = getattr(self, field)
-            if not isinstance(value, int | float) or isinstance(value, bool):
+            # ``numbers.Real``, the same width every other numeric argument uses -- see
+            # ``charts/_layout._finite``. ``Theme`` is public and passed to every render call, so
+            # ``Theme(opacity=np.float32(0.8))`` being refused while ``width=np.float32(400)`` is
+            # accepted is the same split, one layer up (#274).
+            if not isinstance(value, numbers.Real) or isinstance(value, bool):
                 raise ValueError(f"{field} must be a real number, got {value!r}")
             # A range check alone rejects nan/inf too (every comparison with nan is False,
             # and inf fails the upper bound), so no separate isfinite() call is needed.
@@ -221,7 +226,7 @@ class Theme:
         # ``histplot``, no ``rx`` at all from ``barplot``, and for ``nan`` a ValueError from two
         # of the three (#258). Bounded only from below: there is no largest sensible rounding,
         # and a radius past half the rect's side is already clamped by SVG itself.
-        if not isinstance(self.corner_radius, int | float) or isinstance(self.corner_radius, bool):
+        if not isinstance(self.corner_radius, numbers.Real) or isinstance(self.corner_radius, bool):
             raise ValueError(f"corner_radius must be a real number, got {self.corner_radius!r}")
         # ``>= 0.0`` is false for nan and true for inf, so inf needs the explicit finiteness
         # test that the [0, 1] range check above got for free.
