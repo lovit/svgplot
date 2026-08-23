@@ -198,6 +198,25 @@ def format_coord(value: float) -> str:
     return text
 
 
+def corner_radius_attr(radius: float) -> str | None:
+    """The ``rx`` a rectangle should carry for ``theme.corner_radius``, or ``None`` for none.
+
+    One function because the rule -- "round only for a radius greater than zero" -- was written
+    three times and two of the three were wrong. ``barplot`` asked ``> 0``; ``histplot`` and
+    ``boxplot`` asked for truthiness, which is a different question: ``-5.0`` is truthy, so both
+    emitted ``rx="-5"``, an invalid SVG attribute that renders as nothing in some viewers and as
+    an error in others. ``nan`` split them a third way -- truthy, so it reached
+    :func:`format_coord` and raised, while ``> 0`` is false for ``nan`` and ``barplot`` drew
+    square corners in silence (#258).
+
+    ``Theme.__post_init__`` now refuses those values at construction, which is where the failure
+    belongs. This stays as the single expression of the rendering half: it is what makes the
+    three charts *agree*, and it still holds if a radius arrives by some route that skips the
+    constructor -- ``Theme`` is frozen, but ``object.__setattr__`` is not locked away.
+    """
+    return format_coord(radius) if radius > 0 else None
+
+
 MARGIN_WITH_SIDE_LEGEND = (30.0, 180.0, 30.0, 30.0)
 """Margin for a chart that has no axes but does have a legend down the right side.
 

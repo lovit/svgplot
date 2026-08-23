@@ -15,6 +15,7 @@ from svgplot.charts._layout import (
     MARGIN_WITHOUT_LEGEND,
     TICK_SPACING_X,
     TICK_SPACING_Y,
+    corner_radius_attr,
     fit_margin,
     format_coord,
     marks_viewport,
@@ -327,7 +328,7 @@ def barplot(
     # viewport for an argument this chart threw away.
     viewport = marks_viewport(document, area, clipped=clipped)
     series_classes = [document.semantic_class("series") for _ in group_items]
-    corner_radius = format_coord(resolved_theme.corner_radius) if resolved_theme.corner_radius > 0 else None
+    corner_radius = corner_radius_attr(resolved_theme.corner_radius)
 
     band_width = category_scale.bandwidth
     band_inset = band_width * _BAND_PADDING_FRACTION / 2
