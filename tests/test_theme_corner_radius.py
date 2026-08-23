@@ -27,7 +27,8 @@ from importlib import import_module
 import pytest
 
 import svgplot as sp
-from svgplot.charts._layout import corner_radius_attr
+from svgplot.charts._layout import corner_radius_attr, format_coord
+from svgplot.charts._legend import _SWATCH_HEIGHT, _SWATCH_WIDTH
 from svgplot.theme.base import Theme
 
 _ROUNDS = ("barplot", "boxplot", "histplot")
@@ -147,26 +148,62 @@ def test_no_chart_outside_the_table_rounds_anything() -> None:
 
 
 @pytest.mark.parametrize("name", ["barplot", "histplot"])
-def test_a_legend_swatch_is_rounded_like_the_marks_it_names(name: str) -> None:
+def test_a_legend_swatch_is_rounded_when_its_marks_are(name: str) -> None:
     """A key shaped differently from what it names reads as "not that one".
 
-    This test used to assert the opposite, and said so: ``Theme.corner_radius``'s docstring
-    named the three rectangles that ignore the field and gave a reason for each, but said
-    nothing about swatches either way -- so the square swatch beside a rounded bar was an
-    inconsistency rather than a decision, and #258 pinned it as it was with a note that the day
-    it changed, this was where the decision would be written. #265 made it, and this is it.
+    This test used to assert the opposite, and said so: ``Theme.corner_radius``'s docstring named
+    the three rectangles that ignore the field and gave a reason for each, but said nothing about
+    swatches either way -- so the square swatch beside a rounded bar was an inconsistency rather
+    than a decision, and #258 pinned it as it was with a note that the day it changed, this was
+    where the decision would be written. #265 made it, and this is it.
 
-    The swatch takes the mark's radius **unscaled**. SVG clamps ``rx`` at half the shorter side,
-    so a radius big enough to turn a 16x10 swatch into a lozenge is one that has already done
-    the same to the bars -- the two go on agreeing at every value rather than only small ones.
+    The assertion is that the swatch is rounded at all, not that it carries the mark's number:
+    the radius is scaled to the swatch, for the reason the companion test measures.
     """
     svg = getattr(sp, name)(_DATA, theme=Theme(corner_radius=4.0), hue="행", **_CALLS[name]).to_string()
     in_series = [rect for rect in re.findall(r"<rect[^>]*>", svg) if 'class="series-' in rect]
 
     assert in_series, f"{name} drew no series rectangles"
     assert all(
-        'rx="4"' in rect for rect in in_series
+        "rx=" in rect for rect in in_series
     ), f"{name} left a series rectangle square while the others round: {[r for r in in_series if 'rx=' not in r]}"
+
+
+@pytest.mark.parametrize("radius", [1.0, 2.0, 2.5])
+def test_a_small_radius_reaches_the_swatch_unchanged(radius: float) -> None:
+    """Below the cap the swatch takes the mark's radius exactly -- the scaling is a ceiling, not
+    a constant reduction, so an almost-square theme gives an almost-square swatch."""
+    svg = sp.barplot(_DATA, theme=Theme(corner_radius=radius), hue="행", **_CALLS["barplot"]).to_string()
+    radii = {re.search(r'rx="([^"]*)"', rect)[1] for rect in re.findall(r"<rect[^>]*>", svg) if "rx=" in rect}  # type: ignore[index]
+
+    assert radii == {format_coord(radius)}, f"mark and swatch disagree at radius {radius}: {radii}"
+
+
+@pytest.mark.parametrize("radius", [8.0, 20.0, 100.0])
+def test_a_large_radius_does_not_turn_the_swatch_into_an_ellipse(radius: float) -> None:
+    """Why the radius is scaled rather than copied, measured.
+
+    A first version passed the mark's radius through unchanged, arguing that SVG clamps ``rx`` at
+    half the shorter side so anything big enough to round the swatch away had already done the
+    same to the bars. A review measured that and it is false over a wide, ordinary range: a bar's
+    short side is around 100px and a swatch's is 10, so at radius 8 the swatch is a **full
+    ellipse** while the bar is plainly still a bar -- the very mismatch this change exists to
+    remove, in a new shape.
+
+    Half the short side is where SVG's clamp lands, so staying strictly under it is what keeps
+    the swatch a rectangle at any theme setting.
+    """
+    svg = sp.barplot(_DATA, theme=Theme(corner_radius=radius), hue="행", **_CALLS["barplot"]).to_string()
+    swatches = [
+        rect
+        for rect in re.findall(r"<rect[^>]*>", svg)
+        if f'width="{_SWATCH_WIDTH:g}"' in rect and f'height="{_SWATCH_HEIGHT:g}"' in rect
+    ]
+
+    assert swatches, "no swatch found -- the fixture stopped drawing a legend"
+    for swatch in swatches:
+        drawn = float(re.search(r'rx="([\d.]+)"', swatch)[1])  # type: ignore[index]
+        assert drawn < _SWATCH_HEIGHT / 2, f"swatch radius {drawn} reaches SVG's clamp at {_SWATCH_HEIGHT / 2}"
 
 
 @pytest.mark.parametrize("name", ["barplot", "histplot"])
@@ -179,6 +216,26 @@ def test_a_legend_swatch_stays_square_when_the_marks_do(name: str) -> None:
 
     assert in_series, f"{name} drew no series rectangles"
     assert all("rx=" not in rect for rect in in_series), f"{name} wrote an rx at corner_radius=0"
+
+
+@pytest.mark.parametrize("bad", [-5.0, float("nan"), float("inf"), float("-inf")], ids=["negative", "nan", "inf", "-inf"])
+def test_a_swatch_refuses_what_its_marks_refuse(bad: float) -> None:
+    """The scaling must not accept a radius the mark rejects.
+
+    ``inf`` found this: ``min(inf, 2.5)`` is ``2.5``, a perfectly drawable number, so capping
+    turned a value ``corner_radius_attr`` refuses into one the swatch took -- a **square bar
+    beside a rounded swatch**, this defect wearing its own fix inside out. The cap has to come
+    after the finiteness question, not before it.
+
+    Reachable only past ``Theme``'s constructor, which refuses all four -- the same route
+    :func:`test_a_theme_smuggled_past_the_constructor_still_draws_square_corners` uses.
+    """
+    smuggled = Theme()
+    object.__setattr__(smuggled, "corner_radius", bad)
+
+    svg = sp.barplot(_DATA, theme=smuggled, hue="행", **_CALLS["barplot"]).to_string()
+
+    assert "rx=" not in svg, f"a swatch rounded for {bad!r} while its marks stayed square"
 
 
 def test_a_chart_whose_legend_is_drawn_with_lines_is_unaffected() -> None:
