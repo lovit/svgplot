@@ -18,6 +18,7 @@ them in step -- the same shape as ``test_charts_numeric_refusal.py``, one layer 
 
 from __future__ import annotations
 
+import numbers
 from fractions import Fraction
 
 import pytest
@@ -256,6 +257,127 @@ def test_every_validator_turns_an_unfloatable_real_into_a_value_error(name: str)
     """
     with pytest.raises(ValueError):
         _validators()[name](Fraction(10**400))  # type: ignore[operator]
+
+
+class _RealBase(numbers.Real):
+    """Enough of ``numbers.Real`` to be instantiable. Nothing below ``__float__`` is reached --
+    the validators ask ``isinstance`` and then convert."""
+
+    def __abs__(self):
+        raise NotImplementedError
+
+    def __add__(self, other):
+        raise NotImplementedError
+
+    def __ceil__(self):
+        raise NotImplementedError
+
+    def __eq__(self, other):
+        raise NotImplementedError
+
+    def __floor__(self):
+        raise NotImplementedError
+
+    def __floordiv__(self, other):
+        raise NotImplementedError
+
+    def __le__(self, other):
+        raise NotImplementedError
+
+    def __lt__(self, other):
+        raise NotImplementedError
+
+    def __mod__(self, other):
+        raise NotImplementedError
+
+    def __mul__(self, other):
+        raise NotImplementedError
+
+    def __neg__(self):
+        raise NotImplementedError
+
+    def __pos__(self):
+        raise NotImplementedError
+
+    def __pow__(self, other):
+        raise NotImplementedError
+
+    def __radd__(self, other):
+        raise NotImplementedError
+
+    def __rfloordiv__(self, other):
+        raise NotImplementedError
+
+    def __rmod__(self, other):
+        raise NotImplementedError
+
+    def __rmul__(self, other):
+        raise NotImplementedError
+
+    def __round__(self, ndigits=None):
+        raise NotImplementedError
+
+    def __rpow__(self, other):
+        raise NotImplementedError
+
+    def __rtruediv__(self, other):
+        raise NotImplementedError
+
+    def __truediv__(self, other):
+        raise NotImplementedError
+
+    def __trunc__(self):
+        raise NotImplementedError
+
+
+class _UnconvertibleReal(_RealBase):
+    """A ``Real`` whose ``__float__`` always fails, and not with ``OverflowError``.
+
+    A huge ``Fraction`` raises ``OverflowError``, which is all any of these needed in practice --
+    and that is why ``labels/spec`` caught only that one and leaked everything else while the
+    other three caught the wider tuple. Four expressions of one rule have to fail the same way,
+    not just accept the same things (#274).
+    """
+
+    def __float__(self) -> float:
+        raise TypeError("bad conversion")
+
+
+class _ConvertibleOnceReal(_RealBase):
+    """A ``Real`` that converts successfully once and fails if asked again.
+
+    The only thing that can tell "convert inside the guard, once" from "convert again on the way
+    out". A huge ``Fraction`` dies at the ``isfinite`` call, which is inside the guard either
+    way, so it cannot see the difference -- a review measured that reverting ``_domain``'s
+    conversion back outside the ``try`` left every check green.
+
+    This one must be **accepted**: a validator that converts once has nothing to fail on.
+    """
+
+    def __init__(self) -> None:
+        self._calls = 0
+
+    def __float__(self) -> float:
+        self._calls += 1
+        if self._calls > 1:
+            raise TypeError("asked to convert twice")
+        return 2.0
+
+
+@pytest.mark.parametrize("name", sorted(_validators()))
+def test_every_validator_turns_a_failed_conversion_into_a_value_error(name: str) -> None:
+    """All four document ``ValueError``, so all four have to catch every way a conversion can
+    fail -- not just the ``OverflowError`` a huge ``Fraction`` happens to raise."""
+    with pytest.raises(ValueError):
+        _validators()[name](_UnconvertibleReal())  # type: ignore[operator]
+
+
+@pytest.mark.parametrize("name", sorted(_validators()))
+def test_every_validator_converts_once(name: str) -> None:
+    """Converting twice is not merely wasteful -- the second call is outside whatever guard the
+    first was inside, so anything it raises leaks past the ``ValueError`` contract. Asserted as
+    acceptance: a validator that asks once gets a number and returns it."""
+    assert _validators()[name](_ConvertibleOnceReal()) is not None  # type: ignore[operator]
 
 
 @pytest.mark.parametrize("name", sorted(_validators()))

@@ -24,7 +24,9 @@
 
   전부 `numbers.Real` 로 넓힌다. **넓히는 것이지 여는 것이 아니다** — `bool` 은 `Real` 이지만 계속 거부한다(`center=True` 는 1 을 달라는 게 아니다).
 
-  **넓히면서 회귀를 하나 만들었고 리뷰가 잡았다.** `Fraction(10**400)` 은 `int | float` 검사에서 깨끗이 거부되던 것이, `Real` 이 되면서 `math.isfinite` 까지 도달해 `OverflowError` 를 **그대로 흘렸다** — 두 함수가 문서에 적은 `Raises: ValueError` 계약 위반이다. `_layout._finite` 는 이미 그 `try`/`except` 를 갖고 있고 docstring 이 이 경우를 이름까지 대며 적어 두었는데, 나는 패턴의 절반만 베꼈다. 이제 셋 다 같은 방식으로 잡는다.
+  **넓히면서 회귀를 하나 만들었고 리뷰가 잡았다.** `Fraction(10**400)` 은 `int | float` 검사에서 깨끗이 거부되던 것이, `Real` 이 되면서 `math.isfinite` 까지 도달해 `OverflowError` 를 **그대로 흘렸다** — 네 함수가 문서에 적은 `Raises: ValueError` 계약 위반이다. `_layout._finite` 는 이미 그 `try`/`except` 를 갖고 있고 docstring 이 이 경우를 이름까지 대며 적어 두었는데, 나는 패턴의 절반만 베꼈다.
+
+  그래서 넷을 **정확히 같은 모양**으로 맞췄다 — `float()` 를 먼저 하고 그 결과로 `isfinite` 를 묻는다. `math.isfinite` 자체가 변환을 하므로 유한성을 먼저 물으면 `__float__` 가 **두 번** 불리고, 그중 한 번만 가드 안에 있다. 리뷰가 그 비대칭을 짚었고, 잡는 방법도 함께 알려 줬다: 한 번은 성공하고 두 번째에 실패하는 합성 `Real` 이 아니면 구별할 수 없다(큰 `Fraction` 은 어느 쪽이든 가드 안에서 죽는다). `except` 튜플도 넷이 같아졌다 — `labels/spec` 만 `OverflowError` 하나였다.
 
   공용 함수를 import 하지는 **않는다**: `palette` 는 `charts` 에서 아무것도 import 하지 않고 그 상태를 유지하는 편이 네 줄을 공유하는 것보다 낫다. (`chart` 는 더 약한 근거다 — `chart/composition.py` 가 이미 `format_coord` 를 거기서 가져오므로 그쪽은 제약이 아니라 선택이다.) 셋을 맞춰 두는 것은 **셋에게 같은 질문을 하는 테스트**다.
 
