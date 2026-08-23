@@ -6,7 +6,7 @@ import pytest
 
 from svgplot.stats.binning import MAX_BINS, histogram_bins
 from svgplot.stats.box import MODES as BOX_MODES, box_stats
-from svgplot.stats.interpolate import METHODS, interpolate
+from svgplot.stats.interpolate import METHODS, _natural_cubic_spline_coeffs, interpolate
 
 # --- interpolate ---------------------------------------------------------
 
@@ -31,6 +31,170 @@ def test_interpolate_passes_through_original_points_at_matching_x(method: str) -
     for xi, yi in zip(X, Y, strict=True):
         index = curve.x.index(pytest.approx(xi))
         assert curve.y[index] == pytest.approx(yi, abs=1e-6)
+
+
+def _solve(matrix: list[list[float]], rhs: list[float]) -> list[float]:
+    """Gaussian elimination with partial pivoting.
+
+    Deliberately a *dense* solve, where the implementation uses the Thomas algorithm: a second
+    copy of the same recurrence would agree with a transcription error in the first. This one
+    is written from the linear system itself, so the two share only the mathematics.
+    """
+    size = len(matrix)
+    augmented = [row[:] + [rhs[index]] for index, row in enumerate(matrix)]
+    for column in range(size):
+        pivot = max(range(column, size), key=lambda r: abs(augmented[r][column]))
+        augmented[column], augmented[pivot] = augmented[pivot], augmented[column]
+        for row in range(column + 1, size):
+            factor = augmented[row][column] / augmented[column][column]
+            for k in range(column, size + 1):
+                augmented[row][k] -= factor * augmented[column][k]
+    solution = [0.0] * size
+    for row in range(size - 1, -1, -1):
+        total = sum(augmented[row][k] * solution[k] for k in range(row + 1, size))
+        solution[row] = (augmented[row][size] - total) / augmented[row][row]
+    return solution
+
+
+def _natural_spline_reference(xs: list[float], ys: list[float], query: float) -> float:
+    """A natural cubic spline evaluated at ``query``, from the textbook system.
+
+    ``h[i-1]*M[i-1] + 2*(h[i-1]+h[i])*M[i] + h[i]*M[i+1] = 6*((y[i+1]-y[i])/h[i] - (y[i]-y[i-1])/h[i-1])``
+    with ``M[0] = M[n-1] = 0``, then the standard evaluation. ``M`` is the second derivative at
+    each knot -- the quantity ``_natural_cubic_spline_coeffs``'s own docstring names.
+    """
+    n = len(xs)
+    h = [xs[i + 1] - xs[i] for i in range(n - 1)]
+    matrix = [[0.0] * n for _ in range(n)]
+    rhs = [0.0] * n
+    matrix[0][0] = matrix[n - 1][n - 1] = 1.0
+    for i in range(1, n - 1):
+        matrix[i][i - 1], matrix[i][i], matrix[i][i + 1] = h[i - 1], 2 * (h[i - 1] + h[i]), h[i]
+        rhs[i] = 6 * ((ys[i + 1] - ys[i]) / h[i] - (ys[i] - ys[i - 1]) / h[i - 1])
+    second = _solve(matrix, rhs)
+    segment = next(i for i in range(n - 1) if xs[i] <= query <= xs[i + 1])
+    width = h[segment]
+    a = (xs[segment + 1] - query) / width
+    b = (query - xs[segment]) / width
+    return (
+        a * ys[segment]
+        + b * ys[segment + 1]
+        + ((a**3 - a) * second[segment] + (b**3 - b) * second[segment + 1]) * width * width / 6
+    )
+
+
+def test_the_cubic_coefficients_are_second_derivatives_as_named() -> None:
+    """``_natural_cubic_spline_coeffs`` returned **half** the second derivative (#268).
+
+    It solves the Burden-Faires system (``alpha = 3 * ...``), whose unknown is ``S''/2`` and
+    whose companion evaluation is ``a + b*t + c*t^2 + d*t^3``. ``_cubic`` evaluates the
+    Numerical Recipes way instead -- ``((a^3-a)*m_i + (b^3-b)*m_{i+1}) * h^2/6`` -- which
+    requires the full second derivative. Half of one formula and half of the other, so the
+    curve carried exactly half the curvature it should.
+
+    ``x=[0,1,2], y=[0,1,0]`` is the smallest case that pins it, and it solves by hand: one
+    interior equation, ``4*M1 = 6*((0-1)/1 - (1-0)/1) = -12``, so ``M1 = -3``. The buggy version
+    answered ``-1.5``.
+    """
+    assert _natural_cubic_spline_coeffs([0.0, 1.0, 2.0], [0.0, 1.0, 0.0]) == pytest.approx([0.0, -3.0, 0.0])
+
+
+def test_the_cubic_curve_matches_the_hand_solved_spline() -> None:
+    """The same case carried through to a drawn point. With ``M1 = -3`` and ``a = b = 0.5``:
+    ``0.5*0 + 0.5*1 + ((0.125-0.5)*0 + (0.125-0.5)*(-3)) * 1/6 = 0.6875``. The buggy version
+    drew ``0.59375`` -- and passed every test in this file, because the midpoint of a symmetric
+    fixture is not a knot and nothing looked anywhere but at knots."""
+    curve = interpolate([0.0, 1.0, 2.0], [0.0, 1.0, 0.0], method="cubic", precision=5)
+
+    assert curve.x[1] == pytest.approx(0.5)
+    assert curve.y[1] == pytest.approx(0.6875)
+
+
+@pytest.mark.parametrize("query", [0.5, 1.25, 1.5, 2.5, 3.75])
+def test_the_cubic_curve_matches_an_independent_solve_away_from_the_knots(query: float) -> None:
+    """Away from the knots is the only place this can be checked at all.
+
+    At a knot ``a = 1`` and ``b = 0``, so ``(a^3 - a)`` and ``(b^3 - b)`` are both zero and the
+    entire coefficient term cancels: the curve passes through every knot whatever ``m`` holds --
+    half the truth, zero, or noise. That cancellation is why
+    :func:`test_interpolate_passes_through_original_points_at_matching_x` stayed green through
+    this defect, and it is the same cancellation that makes a ``/6`` -> ``/3`` mutation invisible
+    (#262).
+
+    Five samples rather than one because a single one can land where the wrong answer and the
+    right one coincide. That is not a hypothetical: on ``x=[0,1,2,3], y=[0,1,0,1]`` -- symmetric
+    about ``x=1.5`` -- both the halved and the correct spline answer ``0.5`` there, and
+    :func:`test_a_symmetric_midpoint_cannot_tell_the_two_apart` pins that so the reason for
+    spreading the samples stays on the record. On *this* fixture all five separate the two
+    (e.g. ``x=0.5``: 0.59375 halved, 0.6875 correct).
+    """
+    xs, ys = [0.0, 1.0, 2.0, 3.0, 4.0], [0.0, 1.0, 0.0, -1.0, 0.0]
+    curve = interpolate(xs, ys, method="cubic", precision=1601)
+    index = min(range(len(curve.x)), key=lambda i: abs(curve.x[i] - query))
+
+    assert curve.x[index] == pytest.approx(query, abs=1e-9)
+    assert curve.y[index] == pytest.approx(_natural_spline_reference(xs, ys, query), abs=1e-9)
+
+
+def test_a_symmetric_midpoint_agrees_with_the_reference_for_the_wrong_reason() -> None:
+    """The sample that proves nothing, kept as an executable fact about why the checks above
+    spread out instead of picking one point.
+
+    ``x=[0,1,2,3], y=[0,1,0,1]`` is symmetric about ``x=1.5``, and **both** splines answer
+    ``0.5`` there -- measured on the defective implementation as well as this one. So this
+    assertion passing is not evidence the curve is right; a reviewer who verified the fix at
+    this one point would have seen agreement either way.
+
+    It is deliberately the only assertion here. An earlier draft added an off-centre sample
+    alongside it, which made the whole test fail under the original defect -- and a test that
+    catches the bug cannot also be the record of a sample that does not. The catching is
+    :func:`test_the_cubic_curve_matches_an_independent_solve_away_from_the_knots`'s job, which
+    is why its ``query`` list has five entries and none of them is this one.
+
+    The blindness is structural, not luck, and it has a boundary. With ``m0 = m3 = 0`` and
+    uniform spacing the system forces ``m2 = -m1`` for *any* scaling of ``alpha`` -- the
+    right-hand side is antisymmetric and the coefficient matrix is symmetric -- and ``x=1.5``
+    is the midpoint of its segment, where ``(a^3-a)`` and ``(b^3-b)`` are equal. So the
+    curvature term is ``-0.375*(m1 + m2) = 0`` whatever the coefficients are scaled by, which
+    is exactly why every ``alpha`` and ``/6`` mutation is invisible here. Break the *symmetry*
+    instead -- a mutation to the Thomas recurrence itself -- and ``m2 = -m1`` no longer holds,
+    so this point does start failing. Blind to the scale of the coefficients, not to their
+    structure.
+    """
+    xs, ys = [0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 0.0, 1.0]
+    curve = interpolate(xs, ys, method="cubic", precision=1601)
+    midpoint = min(range(len(curve.x)), key=lambda i: abs(curve.x[i] - 1.5))
+
+    assert curve.x[midpoint] == pytest.approx(1.5, abs=1e-9), "the grid must land on the midpoint"
+    assert curve.y[midpoint] == pytest.approx(0.5, abs=1e-9)
+    assert curve.y[midpoint] == pytest.approx(_natural_spline_reference(xs, ys, 1.5), abs=1e-9)
+
+
+def test_the_cubic_curve_has_a_continuous_first_derivative_at_its_knots() -> None:
+    """The property that *defines* a cubic spline, and the one a knot check cannot see.
+
+    Measured as the gap between the finite-difference slopes just either side of a knot. The
+    fixture spans 3 units at ``precision=1601``, so the grid step is ``3/1600 = 0.001875`` and a
+    smooth curve leaves a gap of ``0.022`` from the discretisation alone; the defect left
+    ``1.011`` at the same spacing. The ``0.1`` threshold sits between them with roughly a factor
+    of 4 below and 10 above -- it separates the two states, and is not a smoothness tolerance.
+    """
+    xs, ys = [0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 0.0, 1.0]
+    curve = interpolate(xs, ys, method="cubic", precision=1601)
+
+    for knot in xs[1:-1]:
+        index = min(range(len(curve.x)), key=lambda i: abs(curve.x[i] - knot))
+        left = (curve.y[index - 1] - curve.y[index - 2]) / (curve.x[index - 1] - curve.x[index - 2])
+        right = (curve.y[index + 2] - curve.y[index + 1]) / (curve.x[index + 2] - curve.x[index + 1])
+        assert abs(left - right) < 0.1, f"first derivative jumps by {abs(left - right):.4f} at knot x={knot}"
+
+
+def test_the_cubic_spline_is_flat_at_its_ends() -> None:
+    """The "natural" in natural cubic spline: zero second derivative at both endpoints. Pinned
+    separately because it is the boundary condition the tridiagonal system is built around, and
+    it held true even while the interior coefficients were halved."""
+    assert _natural_cubic_spline_coeffs(X, Y)[0] == 0.0
+    assert _natural_cubic_spline_coeffs(X, Y)[-1] == 0.0
 
 
 def test_interpolate_two_points_works_for_every_method() -> None:
