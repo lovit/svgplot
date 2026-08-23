@@ -211,16 +211,20 @@ def corner_radius_attr(radius: float) -> str | None:
 
     ``Theme.__post_init__`` now refuses those values at construction, which is where the failure
     belongs. This stays as the single expression of the rendering half: it is what makes the
-    three charts *agree*, and it still holds if a radius arrives by some route that skips the
-    constructor -- ``Theme`` is frozen, but ``object.__setattr__`` is not locked away.
+    three charts *agree*, and it holds for every value, including one that arrives by a route
+    skipping the constructor -- ``Theme`` is frozen, but ``object.__setattr__`` is not locked
+    away. Hence ``isfinite`` rather than a bare ``radius > 0``: ``nan`` and ``inf`` are neither
+    accepted nor refused by an ordering comparison, and a review measured both of them reaching
+    :func:`format_coord` and raising there. A radius that cannot be drawn draws nothing; it does
+    not fail at render time, which is the thing the constructor check exists to prevent.
 
-    The answer is read back rather than returned straight from :func:`format_coord`, because
+    The answer is also read back rather than returned straight from :func:`format_coord`, because
     "greater than zero" and "rounds to something" are not the same question at six decimals: a
     radius of ``1e-10`` is positive, formats to ``"0"``, and would ship an ``rx="0"`` that draws
     exactly what no ``rx`` draws. Two spellings of "square corners" is the asymmetry this
     function exists to remove.
     """
-    if radius <= 0:
+    if not (radius > 0 and math.isfinite(radius)):
         return None
     attribute = format_coord(radius)
     return attribute if attribute != "0" else None

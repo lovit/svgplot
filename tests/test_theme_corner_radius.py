@@ -187,23 +187,34 @@ def test_the_shared_helper_is_what_the_charts_ask() -> None:
 def test_a_radius_too_small_to_survive_formatting_writes_no_rx(radius: float) -> None:
     """ "Greater than zero" and "rounds to something" are different questions at six decimals.
 
-    ``format_coord`` rounds a coordinate to six places, so a positive radius below half a
-    millionth of a pixel formats to ``"0"``. Returning that would ship ``rx="0"``, which draws
-    precisely what no ``rx`` draws -- two spellings of square corners, differing in bytes only.
-    ``1e-6`` is the first radius that survives the rounding, and it is checked below as the
-    other side of the boundary.
+    ``format_coord`` rounds a coordinate to six places, so a small enough positive radius formats
+    to ``"0"``. Returning that would ship ``rx="0"``, which draws precisely what no ``rx`` draws
+    -- two spellings of square corners, differing in bytes only.
+
+    ``5e-7`` is the largest value here and it is the interesting one: it looks like the tie that
+    banker's rounding would send to zero, but it never gets that far -- the nearest double to
+    ``0.0000005`` sits just *below* it, so ``round`` is not choosing between two neighbours at
+    all. The first value above it already survives, which is what the companion test pins.
     """
     assert corner_radius_attr(radius) is None
     for name in _ROUNDS:
         assert _radii(name, radius) == [], f"{name} wrote an rx for a radius that formats to zero"
 
 
-def test_the_smallest_radius_that_formats_to_something_still_rounds() -> None:
-    """The boundary from the other side, so the check above cannot be satisfied by a helper
-    that simply stopped rounding small values -- or by one that stopped rounding at all."""
-    assert corner_radius_attr(1e-6) == "0.000001"
+@pytest.mark.parametrize("radius", [5.0000001e-7, 6e-7, 9.999999e-7, 1e-6])
+def test_a_radius_that_survives_formatting_still_rounds(radius: float) -> None:
+    """The boundary from the other side, so the check above cannot be satisfied by a helper that
+    simply stopped rounding small values -- or by one that stopped rounding at all.
+
+    The first version of this test used ``1e-6`` alone and called it "the smallest radius that
+    survives the rounding". A review measured that and it is false: everything from just above
+    ``5e-7`` already survives, and ``1e-6`` is merely the smallest **output** six-decimal
+    rounding can produce -- a grid point, not a threshold. The two are a thousandfold apart, and
+    a single sample at ``1e-6`` could not tell them apart. Hence the samples across the gap.
+    """
+    assert corner_radius_attr(radius) == "0.000001"
     for name in _ROUNDS:
-        assert _radii(name, 1e-6) == ["0.000001"], f"{name} dropped a radius that does format"
+        assert _radii(name, radius) == ["0.000001"], f"{name} dropped a radius that does format"
 
 
 @pytest.mark.parametrize(("name", "module"), [("barplot", "bar"), ("boxplot", "box"), ("histplot", "histogram")])
@@ -231,19 +242,26 @@ def test_each_rounding_chart_asks_the_shared_helper(name: str, module: str, monk
         assert 'rx="9"' in svg, f"{name} did not take the helper's answer at corner_radius={radius}"
 
 
-def test_a_theme_smuggled_past_the_constructor_still_draws_square_corners() -> None:
+@pytest.mark.parametrize("radius", [-5.0, float("nan"), float("inf"), float("-inf")])
+def test_a_theme_smuggled_past_the_constructor_still_draws_square_corners(radius: float) -> None:
     """Both halves are load-bearing, and this is what proves the second one is.
 
     ``dataclasses.replace`` re-runs ``__post_init__``, so it cannot be used to build the bad
-    theme -- which is the validator working. ``object.__setattr__`` bypasses both the frozen
-    flag and the validator, and it is the route by which a ``-5.0`` could still reach a
-    renderer. With the guard only in ``Theme``, this is the case that emits ``rx="-5"``.
+    theme -- which is the validator working. ``object.__setattr__`` bypasses both the frozen flag
+    and the validator, and it is the route by which a ``-5.0`` could still reach a renderer. With
+    the guard only in ``Theme``, this is the case that emits ``rx="-5"``.
+
+    ``nan`` and ``inf`` are here because a review found that only ``-5.0`` was, and the other
+    three did not behave like it: an ordering comparison neither accepts nor refuses ``nan``, so
+    ``inf`` reached ``format_coord`` and raised, and a later rewrite sent ``nan`` there too. The
+    helper now asks ``isfinite`` and every one of the four draws square corners, which is what
+    its docstring claims and what this parametrization is here to keep true.
     """
     with pytest.raises(ValueError, match="corner_radius"):
-        dataclasses.replace(Theme(), corner_radius=-5.0)
+        dataclasses.replace(Theme(), corner_radius=radius)
 
     smuggled = Theme()
-    object.__setattr__(smuggled, "corner_radius", -5.0)
+    object.__setattr__(smuggled, "corner_radius", radius)
     for name in _ROUNDS:
         svg = getattr(sp, name)(_DATA, theme=smuggled, **_CALLS[name]).to_string()
-        assert 'rx="' not in svg, f"{name} wrote an rx for a negative radius that skipped the constructor"
+        assert 'rx="' not in svg, f"{name} wrote an rx for {radius!r}, which skipped the constructor"
