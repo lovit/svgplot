@@ -136,29 +136,59 @@ def _tuple_placements(
 
     fallback_width = max(chart_size(cell[0])[0] for cell in cells)
     fallback_height = max(chart_size(cell[0])[1] for cell in cells)
-    # Size tracks from single-track children only; a spanning child's size is
-    # satisfied by the tracks it covers plus the spacing between them, so letting
-    # it drive a single track's size would over-size every other cell in it.
-    #
-    # Collected first and *replaced*, not folded into the fallback with ``max``. Doing the
-    # latter made ``fallback_width`` -- the widest cell anywhere in the grid -- a floor under
-    # every column, so a narrow chart beside a wide one was given the wide one's width and the
-    # figure came out 4812px where the matrix form of the same two charts is 3212px. The matrix
-    # form has always replaced (see :func:`_matrix_placements`), and the two forms differing on
-    # what a column is worth is the same class of defect as their differing on what a cell may
-    # hold, fixed alongside it (#260).
-    single_track_widths: dict[int, list[float]] = {}
-    single_track_heights: dict[int, list[float]] = {}
+
+    def _tracks(
+        sizes: dict[int, list[float]], spans: list[tuple[int, int, float]], count: int, fallback: float
+    ) -> list[float]:
+        """Track sizes: each track takes its own members, then spans top up what they cover.
+
+        Two rules, in this order.
+
+        **A track is as big as its largest single-track member.** A spanning child has no size
+        *for one track* -- its size is satisfied by all the tracks it covers plus the gutters
+        between them -- so letting it drive one track would over-size every other cell in that
+        track. (Folding it in with ``max`` did exactly that until #260: ``fallback_width``, the
+        widest cell anywhere, became a floor under every column and a narrow chart beside a wide
+        one was given the wide one's width.)
+
+        **Then each span tops up its own tracks, and only if they fall short.** Distributing the
+        shortfall evenly is what CSS Grid does, and it is what makes a span's natural size come
+        out right: a 1612px header across two columns used to produce a 2424px figure, because
+        the column it did not share with anything fell back to "the widest cell anywhere".
+        A track covered only by spans starts at zero and is sized entirely by them (#270).
+
+        A track that **nothing** reaches -- no member, no span, which ``ncols=`` can produce --
+        keeps ``fallback``. That is the one case the old rule was right about, and it is the same
+        answer :func:`_matrix_placements` gives an all-empty track.
+        """
+        reached = set(sizes) | {track for start, length, _ in spans for track in range(start, start + length)}
+        tracks = [max(sizes.get(track, [0.0])) if track in reached else fallback for track in range(count)]
+        for start, length, needed in spans:
+            covered = range(start, start + length)
+            have = sum(tracks[track] for track in covered) + spacing * (length - 1)
+            if needed > have:
+                share = (needed - have) / length
+                for track in covered:
+                    tracks[track] += share
+        return tracks
+
+    width_members: dict[int, list[float]] = {}
+    height_members: dict[int, list[float]] = {}
+    width_spans: list[tuple[int, int, float]] = []
+    height_spans: list[tuple[int, int, float]] = []
     for chart, row_index, col, rowspan, colspan in cells:
         chart_width, chart_height = chart_size(chart)
         if colspan == 1:
-            single_track_widths.setdefault(col, []).append(chart_width)
+            width_members.setdefault(col, []).append(chart_width)
+        else:
+            width_spans.append((col, colspan, chart_width))
         if rowspan == 1:
-            single_track_heights.setdefault(row_index, []).append(chart_height)
-    # A track holding nothing but spanning children keeps the fallback: it has no member whose
-    # width it is, and the same reasoning gives an all-empty track its fallback in the matrix form.
-    col_widths = [max(single_track_widths.get(col, [fallback_width])) for col in range(inferred_ncols)]
-    row_heights = [max(single_track_heights.get(row_index, [fallback_height])) for row_index in range(nrows)]
+            height_members.setdefault(row_index, []).append(chart_height)
+        else:
+            height_spans.append((row_index, rowspan, chart_height))
+
+    col_widths = _tracks(width_members, width_spans, inferred_ncols, fallback_width)
+    row_heights = _tracks(height_members, height_spans, nrows, fallback_height)
 
     row_title_heights = [0.0] * nrows
     for index, (_, row_index, _, _, _) in enumerate(cells):
