@@ -368,17 +368,31 @@ def test_a_limit_that_narrows_nothing_draws_no_clip(name: str) -> None:
 
     Byte identity, not just "no clip": the viewport was the only thing that changed, so its
     absence has to restore the exact output.
+
+    Both axes, because a chart can consult one and not the other. ``histplot`` is the case that
+    needs it: its ``xlim=`` sets the bin range, so the edges are computed inside the window and
+    ``narrows`` has nothing to report -- a version keying on ``xlim is not None`` there draws a
+    viewport that cuts nothing, and until this arm existed the whole suite stayed green for it.
     """
     chart = CHARTS[name]()
-    computed = chart.domains.y
-    assert computed is not None, f"{name} records no y domain to reuse"
+    computed_y = chart.domains.y
+    assert computed_y is not None, f"{name} records no y domain to reuse"
 
-    identical = CHARTS[name](ylim=computed).to_string()
-    wider = CHARTS[name](ylim=(computed[0] - 1000.0, computed[1] + 1000.0)).to_string()
+    identical = CHARTS[name](ylim=computed_y).to_string()
+    wider = CHARTS[name](ylim=(computed_y[0] - 1000.0, computed_y[1] + 1000.0)).to_string()
 
     assert CLIP_CLASS not in identical, f"{name}: a limit equal to the computed domain drew a clip"
     assert CLIP_CLASS not in wider, f"{name}: a widening limit drew a clip"
     assert identical == chart.to_string(), f"{name}: a limit that narrows nothing changed the output"
+
+    computed_x = chart.domains.x
+    if computed_x is None:
+        return
+
+    on_x = CHARTS[name](xlim=computed_x).to_string()
+
+    assert CLIP_CLASS not in on_x, f"{name}: an xlim= equal to the computed domain drew a clip"
+    assert on_x == chart.to_string(), f"{name}: an xlim= that narrows nothing changed the output"
 
 
 def test_faceting_alone_leaves_its_markers_whole() -> None:
@@ -399,10 +413,9 @@ def test_faceting_alone_leaves_its_markers_whole() -> None:
     assert CLIP_CLASS not in plain, "faceting alone drew a clip"
     assert narrowed.count(CLIP_CLASS) == 2, "this fixture cannot produce clips, so the assertion above proves nothing"
 
-    # And the markers the clip would have taken a bite out of are really there: rendering one
-    # panel's rows on their own puts markers on the plot-area edge.
-    panel = sp.scatterplot(DATA, x="x", y="y")
-    root = ET.fromstring(panel.to_string())
+    # And the markers a clip would have taken a bite out of are really there: the same data
+    # drawn as one chart puts markers on the plot-area edge.
+    root = ET.fromstring(sp.scatterplot(DATA, x="x", y="y").to_string())
     _, top, _, bottom = _spine_rect(root)
     edge = [
         (float(c.get("cy")), float(c.get("r")))
@@ -427,8 +440,9 @@ def test_faceting_alone_leaves_its_markers_whole() -> None:
 def test_a_malformed_limit_is_refused_by_name(override: object, message: str) -> None:
     """The refusal a caller sees has to name the argument, not the line that tripped over it.
 
-    ``narrows`` runs *before* ``apply_limit`` at every chart, so it meets a malformed override
-    first. Unpacking it there answered ``too many values to unpack (expected 2)`` and, for a
+    ``narrows`` runs *before* ``apply_limit`` for seventeen of the eighteen chart-and-axis pairs
+    (``histplot``'s ``xlim=`` settles the bin range first), so it usually meets a malformed
+    override first. Unpacking it there answered ``too many values to unpack (expected 2)`` and, for a
     string, a ``TypeError`` from comparing ``str`` to ``float`` -- the failure mode
     ``_require_finite_pair`` exists to prevent, and which ``require_categories``' docstring
     cites as its reason for validating early. Nothing asserted the chart-level message before

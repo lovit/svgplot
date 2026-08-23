@@ -122,10 +122,11 @@ def narrows(computed: tuple[float, float], override: tuple[float, float] | None)
 
     Equal bounds are not narrowing. Widening on one side and narrowing on the other is.
 
-    Validates through :func:`_require_finite_pair` rather than unpacking, because every chart
-    asks this *before* it calls :func:`apply_limit` -- so a bare ``low, high = override`` here
-    reaches a malformed argument first and answers it with ``too many values to unpack`` instead
-    of the message that names the parameter.
+    Validates through :func:`_require_finite_pair` rather than unpacking. Almost every chart
+    asks this *before* it calls :func:`apply_limit` -- ``histplot``'s ``xlim=`` is the exception,
+    since that one settles the bin range first -- so a bare ``low, high = override`` here reaches
+    a malformed argument first for seventeen of the eighteen chart-and-axis pairs, and answers it
+    with ``too many values to unpack`` instead of the message that names the parameter.
 
     Raises:
         ValueError: if ``override`` isn't a pair of finite numbers -- the same refusal
