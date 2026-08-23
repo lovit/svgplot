@@ -48,11 +48,10 @@ def _require_finite_number(value: object, *, field: str) -> float:
     # answer, and this function documents ``ValueError``. Widening the type test above is what
     # let such a value get here (#274).
     try:
-        finite = math.isfinite(value)
         number = float(value)
     except (OverflowError, TypeError, ValueError) as error:
         raise ValueError(f"{field} must be finite, got {value!r}") from error
-    if not finite:
+    if not math.isfinite(number):
         raise ValueError(f"{field} must be finite, got {value!r}")
     return number
 

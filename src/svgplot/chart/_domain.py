@@ -186,17 +186,18 @@ def _require_finite_pair(value: object) -> tuple[float, float]:
         # there rather than answering. Widening the type test to ``numbers.Real`` is what let
         # such a value reach this line at all, so the two changes belong together; without it
         # this function broke its own documented contract of raising ``ValueError`` (#274).
+        # Convert first, then ask ``isfinite`` of the ``float`` -- the shape ``_layout._finite``
+        # uses. Asking ``math.isfinite(bound)`` directly converts too, so testing finiteness
+        # before converting calls ``__float__`` twice: once inside this guard and once outside
+        # it, where whatever the second call raises escapes the ``ValueError`` this function
+        # documents. One conversion, one guard (#274).
         try:
-            finite = math.isfinite(bound)
-            bounds.append(float(bound))
+            number = float(bound)
         except (OverflowError, TypeError, ValueError) as error:
             raise ValueError(f"axis limits must be finite numbers, got {value!r}") from error
-        if not finite:
+        if not math.isfinite(number):
             raise ValueError(f"axis limits must be finite numbers, got {value!r}")
-    # Converted inside the ``try`` and reused, rather than converted again on the way out: a
-    # ``Real`` whose ``__float__`` succeeds once and raises the second time would otherwise leak
-    # an ``OverflowError`` past the guard that exists to turn it into a ``ValueError``. Same
-    # shape as ``palette/normalize``'s, which does the conversion once for the same reason.
+        bounds.append(number)
     return (bounds[0], bounds[1])
 
 

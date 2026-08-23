@@ -267,14 +267,21 @@ def _require_finite_number(value: object, *, context: str) -> float:
     if isinstance(value, bool) or not isinstance(value, numbers.Real):
         raise ValueError(f"{context} requires a real number, got {value!r}")
     try:
-        # An int too large to represent as a float (e.g. 10**400) makes
-        # math.isfinite/float() itself raise OverflowError rather than
-        # returning False — the docstring only promises ValueError, so
-        # this must be caught and re-raised as one, not left to leak.
-        if not math.isfinite(value):
+        # An int too large to represent as a float (e.g. 10**400) makes float() itself raise
+        # OverflowError rather than returning a number — the docstring only promises ValueError,
+        # so this must be caught and re-raised as one, not left to leak. Converted *before* the
+        # finiteness test because ``math.isfinite`` converts too, and doing it in both places
+        # calls ``__float__`` twice with only one of the calls guarded.
+        number = float(value)
+        if not math.isfinite(number):
             raise ValueError(f"{context} requires a finite number, got {value!r}")
-        return float(value)
-    except OverflowError as e:
+        return number
+    except (OverflowError, TypeError, ValueError) as e:
+        # The same tuple the other three validators catch. ``OverflowError`` alone is what a huge
+        # ``Fraction`` raises and so is all this needed in practice, but a ``Real`` whose
+        # ``__float__`` fails another way leaked past it while the other three turned it into the
+        # ``ValueError`` they all document -- four expressions of one rule have to fail the same
+        # way as well as accept the same things (#274).
         raise ValueError(f"{context} requires a finite number, got {value!r}") from e
 
 
