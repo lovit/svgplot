@@ -10,7 +10,9 @@
 
   `charts/ecdf.py`·`charts/histogram.py`·`charts/area.py` 가 이 판정을 각자 손으로 베껴 갖고 있어서 공유 헬퍼를 고쳐도 안 따라왔다. 셋 다 `is_missing` 을 부르게 했고, 그 과정에서 `areaplot` 이 x 컬럼의 NaN 에서 `ValueError` 로 죽던 것이 `lineplot` 과 같이 그 행을 버리는 것으로 바뀐다 — 두 차트가 같은 데이터에 다르게 답할 이유가 없었다.
 
-  새 가드는 16개 차트 **전부**에 대해 `float` NaN 과 각 numpy 폭의 NaN 이 같은 SVG·같은 예외·같은 경고를 내는지 비교한다(`tests/test_data_missing_numpy_parity.py`). 손으로 베낀 판정이 다시 생기면 그 차트에서 걸린다.
+  같은 술어가 `numpy.bool_` 을 돌려주던 것도 함께 고쳤다. numpy 스칼라의 `!=` 는 `bool` 이 아니라 `numpy.bool_` 을 답하고, `numpy.float64` 는 `float` 의 서브클래스라 빠른 경로를 탄다 — 그 경로에 변환이 없었다. `numpy.bool_` 은 truthy 이고 `True` 와 같다고 비교되므로 호출부 어디에서도 티가 안 나다가, 런타임 의존성이 없는 패키지의 `data` 모듈이 numpy 타입을 반환한다는 사실이 먼 곳에서(`is True`, `json.dumps`) 드러난다.
+
+  새 가드는 16개 차트 **전부**에 대해 `float` NaN·각 numpy 폭의 NaN·`None` 이 같은 SVG·같은 예외·같은 경고를 내는지 비교한다(`tests/test_data_missing_numpy_parity.py`). 손으로 베낀 판정이 다시 생기면 그 차트에서 걸린다.
 
 - **`radarplot` 이 검은 다각형 위에 그려지던 것을 고친다.** `.grid-line` 규칙에 `fill` 이 없었고 SVG 의 `fill` 초기값은 검정이다. 열다섯 차트는 이 클래스를 `<line>` 에만 붙여서 칠할 면이 없었는데, `radarplot` 은 동심 그리드 링을 그리는 **닫힌 `<path>`** 에 붙인다 — 링이 플롯 전체를 덮었고 공개된 갤러리 페이지도 그 상태였다. 바로 다음 줄의 `.spine` 은 같은 함정을 알고 `fill: none` 을 갖고 있었다. `.tick-line` 에도 함께 넣었다 — 지금은 `<line>` 에만 쓰이지만 같은 사고가 나는 자리다. 갤러리 페이지의 세 예시를 800×600 으로 래스터화해 재면 검은 픽셀이 각각 10.7%·4.1%·24.6% 에서 전부 0.01% 미만으로 떨어진다(남는 것은 눈금 글자의 안티에일리어싱이다). `fill=False` 로 윤곽만 남긴 세 번째가 가장 심한 것이 이 결함의 모양을 말해 준다 — 시리즈 다각형이 링을 가려 주지 않으면 검은 면이 그대로 드러난다.
 

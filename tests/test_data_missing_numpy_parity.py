@@ -9,9 +9,16 @@ a bar chart that counted a dropped row, and -- in ``radarplot`` -- a *different 
 value for '남'``. Nothing in 4,007 tests compared the two (#257).
 
 So the assertion here is parity, across the whole chart family rather than one chart: rendering
-with a ``float`` NaN and rendering with each numpy NaN must produce the same result, where
-"result" is the SVG, or the exception, or the warning -- all three, because each of the three is
-where a width difference actually surfaced.
+with a ``float`` NaN and rendering with each numpy NaN -- or with ``None`` -- must produce the
+same result, where "result" is the SVG, or the exception, or the warning: all three, because each
+of the three is where a width difference actually surfaced.
+
+Two of the checks below were added after a review measured what this file did *not* cover.
+``None`` joined :data:`_MISSING_VALUES` because deleting ``is_missing``'s ``None`` branch turned
+72 tests red and none of them were here. And :func:`test_the_answer_is_a_bool_and_not_a_numpy_one`
+exists because dropping the ``bool(...)`` conversion left all 4,169 tests green -- which then
+found a live defect the review had not: ``numpy.float64`` subclasses ``float``, so it takes the
+fast path, which had no conversion at all and was returning ``numpy.bool_``.
 
 Skipped without numpy, which is the ordinary case: it is in the ``numpy-parity`` extra and
 nothing in ``src/`` imports it. ``test_data.py`` carries the stdlib half of the same rule
@@ -37,6 +44,16 @@ _NAN_WIDTHS = {
 }
 """Every float numpy offers. ``float64`` is the one that *did* work -- it subclasses ``float`` --
 and it stays in the table so a fix that special-cases the three by name still fails."""
+
+_MISSING_VALUES = {"None": None, **_NAN_WIDTHS}
+"""Every value the charts must treat as missing, keyed by what to call it in a failure.
+
+``None`` is here because the parity claim this file makes is "sixteen charts, every missing
+value" and a review measured that it was not: deleting ``is_missing``'s ``None`` branch turned
+72 tests red and **none of them were in this file**, so the ``None`` half of the predicate was
+defended entirely by tests that predate it. The two are one predicate and one sentence in its
+docstring -- "``None`` or NaN" -- so they are checked by one table.
+"""
 
 _MISSING_AT = 2
 """Which row of :func:`_frame` is replaced by the missing value."""
@@ -116,13 +133,14 @@ def _render(name: str, missing: object) -> tuple[str, tuple[str, ...]]:
     return result, tuple(f"{w.category.__name__}: {w.message}" for w in caught)
 
 
-@pytest.mark.parametrize("width", sorted(_NAN_WIDTHS))
+@pytest.mark.parametrize("width", sorted(_MISSING_VALUES))
 @pytest.mark.parametrize("name", _CHARTS)
-def test_a_chart_reads_a_numpy_nan_the_same_as_a_python_one(name: str, width: str) -> None:
-    """The whole point of the file. Parity, per chart, per float width."""
-    assert _render(name, _NAN_WIDTHS[width]) == _render(
+def test_a_chart_reads_every_missing_value_the_same_way(name: str, width: str) -> None:
+    """The whole point of the file. Parity, per chart, per float width -- and for ``None``,
+    which is the same predicate answering the same question about the same row."""
+    assert _render(name, _MISSING_VALUES[width]) == _render(
         name, float("nan")
-    ), f"{name} draws a {width} NaN differently from a python float NaN"
+    ), f"{name} draws {width} differently from a python float NaN"
 
 
 @pytest.mark.parametrize("width", sorted(_NAN_WIDTHS))
@@ -194,9 +212,28 @@ def test_a_missing_hue_value_never_becomes_a_group_of_its_own(width: str) -> Non
     assert "nan" not in svg, f"a {width} NaN reached the rendered chart as a hue group"
 
 
-@pytest.mark.parametrize("width", sorted(_NAN_WIDTHS))
-def test_every_numpy_nan_is_missing(width: str) -> None:
-    assert is_missing(_NAN_WIDTHS[width])
+@pytest.mark.parametrize("value", sorted(_MISSING_VALUES))
+def test_every_missing_value_is_missing(value: str) -> None:
+    assert is_missing(_MISSING_VALUES[value])
+
+
+@pytest.mark.parametrize("value", sorted(_MISSING_VALUES))
+def test_the_answer_is_a_bool_and_not_a_numpy_one(value: str) -> None:
+    """``is`` rather than ``==``, and it is not pedantry -- it is the only thing that fails when
+    the ``bool(...)`` around the comparison is dropped.
+
+    A numpy scalar comparison returns ``numpy.bool_``, which is truthy, compares equal to
+    ``True``, and works in every ``if`` and comprehension this predicate's answer currently
+    reaches. A review measured that: removing the wrapper left all 4,169 tests green. So the
+    wrapper was real code with no guard, and the guard has to ask the one question the callers
+    do not -- what type came back -- because a ``numpy.bool_`` leaking out of a ``data`` module
+    puts numpy in the return type of a package that has no runtime dependency on it, and it
+    only stops being invisible somewhere far from here (``json.dumps``, an ``is True`` test,
+    a C extension expecting a real bool).
+    """
+    assert is_missing(_MISSING_VALUES[value]) is True
+    assert is_missing(1.5) is False
+    assert type(is_missing(_MISSING_VALUES[value])) is bool
 
 
 @pytest.mark.parametrize("width", sorted(_NAN_WIDTHS))

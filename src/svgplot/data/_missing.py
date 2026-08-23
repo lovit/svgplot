@@ -35,11 +35,15 @@ def is_missing(value: object) -> bool:
     ``numpy.datetime64("NaT")`` is *not* covered: it is not a ``Number``, and a missing
     timestamp needs a decision about the time axis rather than this predicate's answer.
     """
+    # ``bool(...)`` on both comparisons: a numpy scalar's ``!=`` answers ``numpy.bool_``, not
+    # ``bool``, and ``numpy.float64`` *is* a ``float`` subclass -- so the fast path needs the
+    # conversion just as much as the general one. Without it a ``data`` module in a package with
+    # no runtime dependency on numpy returns a numpy type, which stays invisible (``numpy.bool_``
+    # is truthy and compares equal to ``True``) until something far from here asks ``is True``.
     if isinstance(value, float):  # the common case, and a subclass check is enough for it
-        return value != value
+        return bool(value != value)
     if value is None:
         return True
-    # ``bool(...)``: a numpy scalar comparison returns ``numpy.bool_``, not ``bool``.
     return isinstance(value, numbers.Number) and bool(value != value)
 
 
