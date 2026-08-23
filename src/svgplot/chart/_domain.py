@@ -172,6 +172,7 @@ def _require_finite_pair(value: object) -> tuple[float, float]:
     if not isinstance(value, tuple | list) or len(value) != 2:
         raise ValueError(f"axis limits must be a (low, high) pair, got {value!r}")
     low, high = value
+    bounds: list[float] = []
     for bound in (low, high):
         # ``numbers.Real``, for the reason ``charts/_layout._finite`` gives and this shared the
         # gap with: a limit comes from the same array library the data did, so
@@ -187,11 +188,16 @@ def _require_finite_pair(value: object) -> tuple[float, float]:
         # this function broke its own documented contract of raising ``ValueError`` (#274).
         try:
             finite = math.isfinite(bound)
+            bounds.append(float(bound))
         except (OverflowError, TypeError, ValueError) as error:
             raise ValueError(f"axis limits must be finite numbers, got {value!r}") from error
         if not finite:
             raise ValueError(f"axis limits must be finite numbers, got {value!r}")
-    return (float(low), float(high))
+    # Converted inside the ``try`` and reused, rather than converted again on the way out: a
+    # ``Real`` whose ``__float__`` succeeds once and raises the second time would otherwise leak
+    # an ``OverflowError`` past the guard that exists to turn it into a ``ValueError``. Same
+    # shape as ``palette/normalize``'s, which does the conversion once for the same reason.
+    return (bounds[0], bounds[1])
 
 
 def require_categories(value: object) -> tuple[str, ...]:

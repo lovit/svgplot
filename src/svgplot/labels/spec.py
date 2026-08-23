@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import datetime
 import math
+import numbers
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -258,7 +259,12 @@ def _format_plain(value: object) -> str:
 
 
 def _require_finite_number(value: object, *, context: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float):
+    # ``numbers.Real``, the width every numeric check in this package uses -- see
+    # ``charts/_layout._finite``. The narrow test made ``info=[("Day", "@day{0.0}")]`` over a
+    # ``numpy.float32`` column fail *silently*: ``charts/_tooltip`` catches the ValueError and
+    # falls back to the default channel clause, so the caller's format string was dropped with
+    # no message, while ``to_markdown()`` on the same chart raised (#274).
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
         raise ValueError(f"{context} requires a real number, got {value!r}")
     try:
         # An int too large to represent as a float (e.g. 10**400) makes
