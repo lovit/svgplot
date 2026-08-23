@@ -224,12 +224,45 @@ def test_the_same_shape_of_data_gets_the_same_axis_at_every_unit(base: float) ->
 def test_a_genuine_difference_below_the_branch_still_rounds_down() -> None:
     """The rounding must erase the division error, not the data.
 
-    Ten significant digits: a residual that is *really* below a branch by more than ``1e-10``
-    has to stay below it. ``6.9999999999`` is nine nines -- larger than the error being
-    corrected by six orders of magnitude, and still on the ``nice=5`` side.
+    A residual more than ``1e-10`` below a branch has to stay below it. Both values here are
+    exactly ten decimal places, so ``round(..., 10)`` is a no-op on them -- which is the point:
+    they pin that the rounding leaves data alone, and they pass on the unrounded implementation
+    too. What they cannot do is prove the rounding *happens*; that is the job of the ladder test
+    above, and stating the division of labour here keeps this one from being mistaken for a
+    guard it is not.
     """
     assert _nice_step(6.9999999999) == pytest.approx(5.0)
     assert _nice_step(1.4999999999) == pytest.approx(1.0)
+
+
+def test_the_rounding_goes_to_nearest_and_not_always_upward() -> None:
+    """``round``, not ``ceil``. A review found that scaling and taking the ceiling passed all
+    thirty-four checks in this file while behaving differently: ``1.49999999994`` is nearer to
+    ``1.4999999999`` than to ``1.5``, so rounding leaves it on the ``nice=1`` side and ceiling
+    pushes it over. Always-upward would drag every residual just under a branch across it, which
+    is a much wider change than the one this fix intends."""
+    assert _nice_step(1.49999999994) == pytest.approx(1.0)
+    assert _nice_step(1.49999999996) == pytest.approx(2.0)
+
+
+def test_a_domain_at_a_branch_point_gets_the_same_axis_however_it_was_written() -> None:
+    """The trade the rounding costs, recorded as the improvement it actually is.
+
+    ``_nice_step(6.999999999999999)`` used to answer 5 and now answers 10 -- a review flagged
+    that as a regression, because that residual is *genuinely* that value when it arrives at
+    magnitude 1 rather than out of ``0.7 / 0.1``. The two are the same bit pattern, so no
+    rounding can tell them apart.
+
+    Measured, the direction is the coherent one. On ``main`` these four domains split two ways
+    at ``count=1`` -- ``0.7`` and ``6.999999999999999`` drew two ticks, ``7.0`` and ``70.0`` drew
+    one -- although a caller cannot distinguish a domain topping out at ``6.999999999999999``
+    from one topping out at 7. They now all answer alike.
+    """
+    counts = {
+        top: len(make_ticks(LinearScale((0.0, top), (0.0, 100.0)), count=1)) for top in (0.7, 6.999999999999999, 7.0, 70.0)
+    }
+
+    assert len(set(counts.values())) == 1, f"a branch-point domain still depends on how it is written: {counts}"
 
 
 # ---------------------------------------------------------------------------
