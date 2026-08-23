@@ -45,7 +45,7 @@ from svgplot.charts._layout import (
 from svgplot.charts._legend import render_legend
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
-from svgplot.data._missing import is_missing
+from svgplot.data._missing import is_missing, require_number
 from svgplot.data.ingest import ingest_longform
 from svgplot.palette._color import hex_to_rgb01
 from svgplot.palette.diverging import DIVERGING_PALETTES, diverging
@@ -181,7 +181,7 @@ def _cell_values(columns: dict[str, list], x: str, y: str, values: str) -> dict[
         key = (str(xv), str(yv))
         if key in cells:
             raise ValueError(f"duplicate cell for x={key[0]!r}, y={key[1]!r}: heatmap needs one value per cell")
-        cells[key] = float(value)
+        cells[key] = require_number(value, values)
     return cells
 
 

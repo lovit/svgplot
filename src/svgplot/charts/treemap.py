@@ -39,7 +39,7 @@ from svgplot.charts._textwidth import needs_full_text, truncate_to_width
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
 from svgplot.data._columns import column_length, extract_columns
-from svgplot.data._missing import is_missing
+from svgplot.data._missing import is_missing, require_number
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
 
@@ -282,7 +282,7 @@ def treemap(
     raw_values = columns[values]
     raw_labels = columns[labels] if labels is not None else [str(index + 1) for index in range(length)]
     pairs = [
-        (str(label), float(value))
+        (str(label), require_number(value, values))
         for label, value in zip(raw_labels, raw_values, strict=True)
         if not is_missing(label) and not is_missing(value)
     ]

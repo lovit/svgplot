@@ -293,8 +293,8 @@ def scatterplot(
             indices,
             strict=True,
         ):
-            xn, yn = numeric_or_none(xv), numeric_or_none(yv)
-            sn = numeric_or_none(sv) if size is not None else None
+            xn, yn = numeric_or_none(xv, x), numeric_or_none(yv, y)
+            sn = numeric_or_none(sv, size) if size is not None else None
             if xn is None or yn is None or (size is not None and sn is None):
                 continue
             rows.append((xn, yn, sn, index))

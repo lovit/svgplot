@@ -13,7 +13,7 @@ that neither chart owns them, so neither can drift them for its own convenience.
 
 from __future__ import annotations
 
-from svgplot.data._missing import is_missing
+from svgplot.data._missing import is_missing, require_number
 
 NO_HUE = ""
 """The single hue slot a chart drawn without ``hue=`` has.
@@ -44,5 +44,5 @@ def group_by_category(columns: dict[str, list], x: str, y: str, hue: str | None 
         hue_value = NO_HUE if hues is None else hues[index]
         if is_missing(hue_value):
             continue
-        groups.setdefault((str(xv), str(hue_value)), []).append(float(yv))
+        groups.setdefault((str(xv), str(hue_value)), []).append(require_number(yv, y))
     return groups

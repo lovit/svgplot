@@ -27,7 +27,7 @@ from svgplot.charts._legend import render_legend
 from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
-from svgplot.data._missing import is_missing
+from svgplot.data._missing import is_missing, require_number
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import CategoricalScale, LinearScale
 from svgplot.theme.base import Theme
@@ -61,7 +61,7 @@ def _category_values(columns: dict[str, list], x: str, y: str) -> dict[str, list
     for xv, yv in zip(columns[x], columns[y], strict=True):
         if is_missing(xv) or is_missing(yv):
             continue
-        values.setdefault(str(xv), []).append(float(yv))
+        values.setdefault(str(xv), []).append(require_number(yv, y))
     return values
 
 

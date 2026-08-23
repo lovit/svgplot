@@ -28,7 +28,7 @@ from svgplot.charts._legend import render_legend
 from svgplot.charts._polar import label_anchor, polar_point
 from svgplot.charts._series import series_items as build_series
 from svgplot.charts._theme_resolve import resolve_theme
-from svgplot.data._missing import is_missing
+from svgplot.data._missing import is_missing, require_number
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import CategoricalScale, LinearScale, make_ticks
 from svgplot.theme.base import Theme
@@ -69,13 +69,10 @@ def _category_values(columns: dict[str, list], x: str, y: str) -> dict[str, list
     for xv, yv in zip(columns[x], columns[y], strict=True):
         if is_missing(xv) or is_missing(yv):
             continue
-        try:
-            value = float(yv)
-        except (TypeError, ValueError) as error:
-            # Same reason _validate_radius_values checks here rather than leaving it to
-            # LinearScale: the bare message names neither the category nor the column.
-            raise ValueError(f"radar values must be numbers, got {yv!r} for {str(xv)!r}") from error
-        values.setdefault(str(xv), []).append(value)
+        # Both halves: the column every chart owes the caller, and the category this chart can
+        # add. It used to say only the category, which meant a forty-column frame told the
+        # reader which spoke broke and left them to find the column (#256).
+        values.setdefault(str(xv), []).append(require_number(yv, y, context=f"category {str(xv)!r}"))
     return values
 
 

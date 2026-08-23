@@ -23,7 +23,7 @@ from svgplot.charts._layout import (
 )
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.charts._tooltip import add_tooltip, clause, format_number
-from svgplot.data._missing import is_missing
+from svgplot.data._missing import is_missing, require_number
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import LinearScale
 from svgplot.stats.regression import RegressionBand, confidence_band, fit_curve
@@ -38,7 +38,7 @@ here because it also fixes how many vertices the emitted path carries."""
 def _xy_pairs(columns: dict[str, list], x: str, y: str) -> tuple[list[float], list[float]]:
     """Rows where both channels are present, in input order."""
     pairs = [
-        (float(xv), float(yv))
+        (require_number(xv, x), require_number(yv, y))
         for xv, yv in zip(columns[x], columns[y], strict=True)
         if not is_missing(xv) and not is_missing(yv)
     ]

@@ -6,6 +6,16 @@
 
 ### Fixed
 
+- **수치 컬럼이 문자열을 만나면 어느 컬럼인지 말한다.** `scales.py` 가 이 패키지의 유일한 입력 규칙을 선언한다 — *"마스킹하거나 클리핑하지 않고 **이름을 대고 거부한다**"*. 그런데 **열여섯 차트 중 열다섯**이 맨 `float()` 를 불러 `ValueError: could not convert string to float: 'a'` 를 냈다 — 예외는 `radarplot` 하나뿐이었고 그마저 컬럼이 아니라 카테고리를 댔다. 값이 무엇이었는지는 말하고 **어디서 왔는지는 안 말하는** 문구이고, 40컬럼 프레임을 쥔 사용자는 컬럼을 스스로 찾아야 했다.
+
+  갈라짐은 함수 **안**에도 있었다. `lineplot` 은 x 를 지키면서(`column 'x' holds str, which has no position on an x axis`) y 는 `float()` 로 흘려보냈다 — 같은 차트가 같은 실수에 채널에 따라 두 가지로 답했다.
+
+  `data/_missing.require_number` 하나로 모았다. 값이 아니라 **타입 이름**을 말한다 — 긴 문자열 컬럼이면 사용자 데이터가 예외에 그대로 실리고, 무엇이 잘못됐는지는 종류가 말해 준다(값은 chained cause 에 남는다). `radarplot` 은 카테고리도 함께 대던 것을 잃지 않는다: `context=` 로 덧붙여 `column 'v' holds str, which is not a number (category '다')` 가 된다 — 컬럼은 모든 차트가 갚아야 할 몫이고, 더 말할 수 있는 차트가 그것을 포기할 이유는 없다.
+
+- **`sparkline` 이 자기가 받지도 않는 인자를 지목하던 것을 고친다.** `sparkline(data, y="nope")` 이 `KeyError: "x column not found in data: 'nope'"` 를 냈다. 이 차트에는 `x=` 가 없고 docstring 이 그렇게 적고 있다 — `ingest_longform` 의 첫 필수 채널 이름이 `x` 라서 새어 나온 것이다. 사용자는 자기 코드에 없는 인자를 찾아 헤맸다. 이제 `y column not found in data: 'nope'` 다.
+
+- **`gaugeplot`·`pieplot` 이 `width=` 와 같은 타입 범위를 받는다.** `charts/_layout._finite` 는 `numbers.Real` 로 검사해 numpy dtype 을 받고, 열여섯 차트의 `width=`/`height=` 가 전부 그 경로다. 그런데 `gauge.py` 와 `pie.py` 는 `int | float` 로 검사하는 사본을 따로 갖고 있어서, **같은 호출 안에서** `width=np.float32(400)` 은 통과하고 `vmax=np.float32(100)` 은 거부됐다. `np.float64` 는 `float` 의 서브클래스라 우연히 통과해 좁은 dtype 에서만 갈라짐이 보였다. 사본 둘을 지우고 공용 검사를 쓴다 — `bool` 거부와 유한성 요구는 그대로다.
+
 - **변이 여섯 개가 4,007개를 통과하던 것을 닫는다.** 셋은 **아무것도** 안 잡았고 셋은 갤러리 바이트 비교만 잡았다 — 그 실패 문구는 `stale: ['boxplot.html', 'index.html']` 뿐이라 *무엇이* 바뀌었는지 말하지 않으므로, `git diff` 를 안 읽고 빌드를 다시 돌린 리뷰어는 회귀를 그대로 커밋한다.
 
   다섯의 공통점은 값이 **문턱이거나 비율**인데 기존 테스트가 전부 그 한쪽에 편하게 앉아 있었다는 것이다. 새 검사는 반대로 짠다 — 현재 값과 변이된 값이 **다른 답**을 내는 입력을 골라, 기록된 문자열이 아니라 산술을 단언한다. `data/semantic.py` 의 `any`(다중 채널에 부분 결측), `charts/_polar.py` 의 `FULL_CIRCLE_TOLERANCE`(`pi + 2e-9`), `scales.py` 의 `_nice_step` 분기점 넷, `stats/box.py` 의 1.5×IQR(fence 안팎 양쪽에 표본 하나씩), `charts/box.py` 의 `_BOX_WIDTH_FRACTION`(그려진 폭 ÷ 밴드 폭).

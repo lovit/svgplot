@@ -24,6 +24,7 @@ from svgplot.charts._describe import describe, group, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
     MARGIN_WITH_SIDE_LEGEND,
+    _finite,
     fit_margin,
     format_coord,
     format_value_label,
@@ -35,7 +36,7 @@ from svgplot.charts._polar import label_anchor, polar_point, ring_path
 from svgplot.charts._theme_resolve import resolve_theme
 from svgplot.charts._tooltip import add_tooltip, clause, format_label, format_number
 from svgplot.data._columns import column_length, extract_columns
-from svgplot.data._missing import is_missing
+from svgplot.data._missing import is_missing, require_number
 from svgplot.scales import LinearScale, make_ticks
 from svgplot.theme.base import Theme
 from svgplot.theme.css import render_theme_style
@@ -82,8 +83,12 @@ def _resolve_bounds(values: list[float], vmin: float | None, vmax: float | None)
         ValueError: if a supplied bound isn't a finite number, if the two are so far apart
             that their difference overflows, or if the resulting range is empty or inverted.
     """
-    low = _require_finite_bound(vmin, field="vmin") if vmin is not None else min(0.0, *values)
-    high = _require_finite_bound(vmax, field="vmax") if vmax is not None else max(values)
+    # ``_finite`` rather than a local copy: it is the same question ``width=``/``height=`` ask
+    # of the same caller, and the copy answered it with ``int | float``, which refuses
+    # ``numpy.float32`` while ``width=`` accepts it -- the same value rejected or not
+    # depending on which parameter it was passed to (#256).
+    low = _finite(vmin, "vmin") if vmin is not None else min(0.0, *values)
+    high = _finite(vmax, "vmax") if vmax is not None else max(values)
     if low >= high:
         raise ValueError(
             f"gauge range must be non-empty and increasing, got vmin={low!r} >= vmax={high!r}"
@@ -97,12 +102,6 @@ def _resolve_bounds(values: list[float], vmin: float | None, vmax: float | None)
         # the value check above does not defer to format_coord.
         raise ValueError(f"gauge range is too wide to measure: vmax - vmin overflows for vmin={low!r}, vmax={high!r}")
     return low, high
-
-
-def _require_finite_bound(value: object, *, field: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
-        raise ValueError(f"{field} must be a finite number, got {value!r}")
-    return float(value)
 
 
 def _ring_radii(count: int, outer_radius: float) -> list[tuple[float, float]]:
@@ -263,7 +262,7 @@ def gaugeplot(
 
     raw_labels = columns[labels] if labels is not None else [str(index + 1) for index in range(length)]
     pairs = [
-        (str(label), float(magnitude))
+        (str(label), require_number(magnitude, values))
         for label, magnitude in zip(raw_labels, columns[values], strict=True)
         if not is_missing(label) and not is_missing(magnitude)
     ]

@@ -550,12 +550,19 @@ def test_a_missing_y_still_names_its_spoke_and_is_refused() -> None:
 
 
 @pytest.mark.parametrize("bad", ["oops", object(), [1.0]])
-def test_a_non_numeric_value_is_refused_with_its_category_named(bad: object) -> None:
-    """``float()`` raises here anyway, but with a message naming neither the category nor
-    the column -- the same reason the finite/non-negative checks live in this module."""
+def test_a_non_numeric_value_is_refused_with_both_its_column_and_its_category_named(bad: object) -> None:
+    """``float()`` raises here anyway, but with a message naming neither -- the same reason the
+    finite/non-negative checks live in this module.
+
+    Both halves, and the second one is this chart's own addition. The message used to name only
+    the category, which on a forty-column frame told the reader which spoke broke and left them
+    to find the column; the shared refusal names the column, and ``radarplot`` passes the
+    category through ``require_number``'s ``context`` so it keeps saying more rather than
+    trading one for the other (#256).
+    """
     data = {"stat": CATEGORIES, "v": [1.0, bad, 3.0, 4.0, 5.0]}
 
-    with pytest.raises(ValueError, match=r"radar values must be numbers.*for 'b'"):
+    with pytest.raises(ValueError, match=r"column 'v' holds \w+, which is not a number \(category 'b'\)"):
         radarplot(data, x="stat", y="v")
 
 
