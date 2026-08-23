@@ -213,8 +213,17 @@ def corner_radius_attr(radius: float) -> str | None:
     belongs. This stays as the single expression of the rendering half: it is what makes the
     three charts *agree*, and it still holds if a radius arrives by some route that skips the
     constructor -- ``Theme`` is frozen, but ``object.__setattr__`` is not locked away.
+
+    The answer is read back rather than returned straight from :func:`format_coord`, because
+    "greater than zero" and "rounds to something" are not the same question at six decimals: a
+    radius of ``1e-10`` is positive, formats to ``"0"``, and would ship an ``rx="0"`` that draws
+    exactly what no ``rx`` draws. Two spellings of "square corners" is the asymmetry this
+    function exists to remove.
     """
-    return format_coord(radius) if radius > 0 else None
+    if radius <= 0:
+        return None
+    attribute = format_coord(radius)
+    return attribute if attribute != "0" else None
 
 
 MARGIN_WITH_SIDE_LEGEND = (30.0, 180.0, 30.0, 30.0)

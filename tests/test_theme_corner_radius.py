@@ -161,9 +161,13 @@ def test_a_legend_swatch_does_not_share_its_marks_rounding(name: str) -> None:
     fails and its replacement records that decision.
     """
     svg = getattr(sp, name)(_DATA, theme=Theme(corner_radius=4.0), hue="행", **_CALLS[name]).to_string()
-    swatches = [rect for rect in re.findall(r"<rect[^>]*>", svg) if 'class="series-' in rect and "legend" not in rect]
-    marks = [rect for rect in swatches if 'rx="4"' in rect]
-    squares = [rect for rect in swatches if "rx=" not in rect]
+    # Every ``<rect>`` in a series class: the marks and the legend swatches together. There is no
+    # attribute separating the two -- ``render_legend`` gives a swatch the same class its marks
+    # carry, which is the whole reason a reader is meant to connect them -- so ``rx`` is what
+    # tells them apart here, and that is exactly the difference under test.
+    in_series = [rect for rect in re.findall(r"<rect[^>]*>", svg) if 'class="series-' in rect]
+    marks = [rect for rect in in_series if 'rx="4"' in rect]
+    squares = [rect for rect in in_series if "rx=" not in rect]
     assert marks, f"{name} rounded nothing, so this test is not comparing marks to swatches"
     assert squares, f"{name} now rounds its legend swatch too -- decide and update this test"
 
@@ -177,6 +181,29 @@ def test_the_shared_helper_is_what_the_charts_ask() -> None:
     # Reachable only past the constructor -- ``Theme`` is frozen, but ``object.__setattr__``
     # is not locked away, and this is the half of the fix that holds when it is used.
     assert corner_radius_attr(-5.0) is None
+
+
+@pytest.mark.parametrize("radius", [1e-10, 1e-7, 5e-7])
+def test_a_radius_too_small_to_survive_formatting_writes_no_rx(radius: float) -> None:
+    """ "Greater than zero" and "rounds to something" are different questions at six decimals.
+
+    ``format_coord`` rounds a coordinate to six places, so a positive radius below half a
+    millionth of a pixel formats to ``"0"``. Returning that would ship ``rx="0"``, which draws
+    precisely what no ``rx`` draws -- two spellings of square corners, differing in bytes only.
+    ``1e-6`` is the first radius that survives the rounding, and it is checked below as the
+    other side of the boundary.
+    """
+    assert corner_radius_attr(radius) is None
+    for name in _ROUNDS:
+        assert _radii(name, radius) == [], f"{name} wrote an rx for a radius that formats to zero"
+
+
+def test_the_smallest_radius_that_formats_to_something_still_rounds() -> None:
+    """The boundary from the other side, so the check above cannot be satisfied by a helper
+    that simply stopped rounding small values -- or by one that stopped rounding at all."""
+    assert corner_radius_attr(1e-6) == "0.000001"
+    for name in _ROUNDS:
+        assert _radii(name, 1e-6) == ["0.000001"], f"{name} dropped a radius that does format"
 
 
 @pytest.mark.parametrize(("name", "module"), [("barplot", "bar"), ("boxplot", "box"), ("histplot", "histogram")])
