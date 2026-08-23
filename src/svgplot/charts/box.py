@@ -5,7 +5,7 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 
 from svgplot._svg import SvgDocument
-from svgplot.chart._domain import Domains, apply_limit, require_categories
+from svgplot.chart._domain import Domains, apply_limit, narrows, require_categories
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, fit_rotated_labels, render_x_axis, render_y_axis
 from svgplot.charts._categorical import NO_HUE, group_by_category
@@ -201,6 +201,7 @@ def boxplot(
     all_high = [s.whisker_high for s in stats_by_category.values()] + [
         o for s in stats_by_category.values() for o in s.outliers
     ]
+    clipped = narrows((min(all_low), max(all_high)), ylim)
     y_domain = apply_limit((min(all_low), max(all_high)), ylim)
 
     canvas_width, canvas_height = resolve_size(width, height)
@@ -250,7 +251,7 @@ def boxplot(
     box_half_width = slot_width * _BOX_WIDTH_FRACTION / 2
     cap_half_width = slot_width * _WHISKER_CAP_FRACTION / 2
 
-    viewport = marks_viewport(document, area, clipped=ylim is not None)
+    viewport = marks_viewport(document, area, clipped=clipped)
     series_classes: list[str] = []
     # One class per *hue value*, or a single class for the whole chart when there is no
     # ``hue=``. Colour means one thing in this package and that thing is ``hue=``: a category

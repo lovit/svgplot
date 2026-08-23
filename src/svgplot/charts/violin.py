@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from svgplot.chart._domain import Domains, apply_limit, require_categories
+from svgplot.chart._domain import Domains, apply_limit, narrows, require_categories
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, fit_rotated_labels, render_x_axis, render_y_axis
 from svgplot.charts._categorical import NO_HUE, group_by_category
@@ -277,6 +277,7 @@ def violinplot(
         raise ValueError("no rows with both x and y present after dropping missing values")
 
     grid_range = shared_grid_range(groups, bandwidth)
+    clipped = narrows(grid_range, ylim)
     y_domain = apply_limit(grid_range, ylim)
     curves = {key: _density(values, key[0], bandwidth, grid_range) for key, values in groups.items()}
     peak = max(value for curve in curves.values() for value in curve.y)
@@ -332,7 +333,7 @@ def violinplot(
     slot_width = x_scale.bandwidth / len(hue_values)
     band = x_scale.step / len(hue_values)
     half_width = slot_width / 2 / peak
-    viewport = marks_viewport(document, area, clipped=ylim is not None)
+    viewport = marks_viewport(document, area, clipped=clipped)
     series_classes: list[str] = []
     # One class per *hue value*, or a single class for the whole chart when there is no
     # ``hue=``. Colour means one thing in this package and that thing is ``hue=``: a category

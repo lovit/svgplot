@@ -8,7 +8,7 @@ grid across every group for the same reason.
 
 from __future__ import annotations
 
-from svgplot.chart._domain import Domains, apply_limit
+from svgplot.chart._domain import Domains, apply_limit, narrows
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._density_grid import union_grid_range
@@ -177,6 +177,7 @@ def kdeplot(
     series_curves = [(label, _curve_of(values, label, bandwidth, grid_range)) for label, values in series_values]
     peak = max(value for _, curve in series_curves for value in curve.y)
 
+    clipped = narrows(grid_range, xlim) or narrows((0.0, peak), ylim)
     x_domain = apply_limit(grid_range, xlim)
     y_domain = apply_limit((0.0, peak), ylim)
     canvas_width, canvas_height = resolve_size(width, height)
@@ -214,7 +215,7 @@ def kdeplot(
         font_size=resolved_theme.tick_label_font_size,
     )
 
-    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
+    viewport = marks_viewport(document, area, clipped=clipped)
     mark_style = "outlined" if fill else "stroke"
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []

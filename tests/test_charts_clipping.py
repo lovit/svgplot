@@ -354,3 +354,75 @@ def test_a_limit_a_chart_discards_draws_no_clip() -> None:
         assert with_discarded == plain, f"{options}: {discarded}= is discarded but changed the output"
         assert CLIP_CLASS not in with_discarded, f"{options}: {discarded}= is discarded but drew a clip"
         assert CLIP_CLASS in with_used, f"{options}: {used}= is the limit this chart applies and drew no clip"
+
+
+@pytest.mark.parametrize("name", sorted(CHARTS))
+def test_a_limit_that_narrows_nothing_draws_no_clip(name: str) -> None:
+    """A limit equal to what the chart computed for itself is not a request to cut anything.
+
+    The distinction is the whole of ``narrows``. Keying on "was a limit passed" instead put a
+    clip on every faceted panel -- ``facet`` shares an axis by handing each panel the union of
+    the panels' domains, which covers each panel's data by construction -- and the clip took the
+    outer radius off whatever sat on the boundary. A caller who passed no limit at all got
+    half-height markers.
+
+    Byte identity, not just "no clip": the viewport was the only thing that changed, so its
+    absence has to restore the exact output.
+    """
+    chart = CHARTS[name]()
+    computed = chart.domains.y
+    assert computed is not None, f"{name} records no y domain to reuse"
+
+    identical = CHARTS[name](ylim=computed).to_string()
+    wider = CHARTS[name](ylim=(computed[0] - 1000.0, computed[1] + 1000.0)).to_string()
+
+    assert CLIP_CLASS not in identical, f"{name}: a limit equal to the computed domain drew a clip"
+    assert CLIP_CLASS not in wider, f"{name}: a widening limit drew a clip"
+    assert identical == chart.to_string(), f"{name}: a limit that narrows nothing changed the output"
+
+
+def test_faceting_alone_does_not_clip() -> None:
+    """``facet`` is the path that made this visible, so it gets its own guard.
+
+    Sharing an axis passes every panel a limit, and before ``narrows`` that was enough to wrap
+    each panel's marks in a viewport sized to its plot area -- cutting the markers that sit on
+    the shared maximum, in a call that mentions no limit anywhere.
+    """
+    faceted = sp.facet(sp.scatterplot, DATA, col="group", x="x", y="y").to_string()
+
+    assert CLIP_CLASS not in faceted
+    assert faceted == sp.facet(sp.scatterplot, DATA, col="group", x="x", y="y").to_string()
+
+
+_X_WINDOWS = {
+    "areaplot": (2.0, 3.0),
+    "ecdfplot": (15.0, 25.0),
+    "kdeplot": (15.0, 25.0),
+    "lineplot": (2.0, 3.0),
+    "regplot": (2.0, 3.0),
+    "scatterplot": (2.0, 3.0),
+}
+"""``xlim=`` windows for the charts whose x axis carries data and whose ``xlim=`` is a *window*.
+
+``ecdfplot`` and ``kdeplot`` put the measured column on x, so their window is in the same units
+as ``DATA["y"]``; the rest measure ``x``. ``boxplot`` and ``violinplot`` take no ``xlim=`` --
+their x is the category axis -- and ``barplot``'s is covered by the ``orient="h"`` variant.
+
+``histplot`` is absent on purpose: its ``xlim=`` decides the *bin range* (``histogram.py``), so
+the edges are computed inside the window and a value outside it is dropped rather than drawn
+past the axis. ``narrows`` therefore reports nothing to cut, and measuring the figure agrees --
+zero bars leave the plot area. A clip there would be an element that cuts nothing, which is the
+whole defect this table's test exists to prevent."""
+
+
+@pytest.mark.parametrize("name", sorted(_X_WINDOWS))
+def test_narrowing_only_the_x_axis_still_clips(name: str) -> None:
+    """Both axes have to be consulted, and only ``ylim=`` was being exercised.
+
+    ``VARIANTS`` passes ``ylim=`` everywhere except ``barplot(orient="h")``, so a chart that
+    forgot to ask whether ``xlim=`` narrows -- ``clipped = narrows(y_domain, ylim)`` alone --
+    kept every test green while drawing its marks past the left and right spines.
+    """
+    svg = CHARTS[name](xlim=_X_WINDOWS[name]).to_string()
+
+    assert CLIP_CLASS in svg, f"{name}: a narrowing xlim= drew no clip"

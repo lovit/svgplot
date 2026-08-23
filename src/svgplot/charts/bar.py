@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from svgplot.chart._domain import Domains, apply_limit, require_categories
+from svgplot.chart._domain import Domains, apply_limit, narrows, require_categories
 from svgplot.chart.base import Chart
 from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator, warn_rows_discarded
 from svgplot.charts._axes import fit_left_margin, fit_rotated_labels, render_x_axis, render_y_axis
@@ -248,7 +248,9 @@ def barplot(
     value_max = value_max or 1.0  # an all-zero chart still needs a non-degenerate axis
     # xlim/ylim name the axis on screen, not the data role: a horizontal bar's values run
     # along x. Taking ylim there would mean "share the y axis" moved the bars sideways.
-    value_domain = apply_limit((0.0, value_max), xlim if orient == "h" else ylim)
+    value_limit = xlim if orient == "h" else ylim
+    clipped = narrows((0.0, value_max), value_limit)
+    value_domain = apply_limit((0.0, value_max), value_limit)
 
     canvas_width, canvas_height = resolve_size(width, height)
     fitted = fit_left_margin(
@@ -323,7 +325,7 @@ def barplot(
     # The same rule ``value_domain`` is built by: a horizontal bar's values run along x, so
     # ``ylim`` there names the category axis and is discarded. Clipping on it would emit a
     # viewport for an argument this chart threw away.
-    viewport = marks_viewport(document, area, clipped=(xlim if orient == "h" else ylim) is not None)
+    viewport = marks_viewport(document, area, clipped=clipped)
     series_classes = [document.semantic_class("series") for _ in group_items]
     corner_radius = format_coord(resolved_theme.corner_radius) if resolved_theme.corner_radius > 0 else None
 

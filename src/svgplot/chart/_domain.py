@@ -108,6 +108,23 @@ def union(domains: list[Domains]) -> Domains:
     )
 
 
+def narrows(computed: tuple[float, float], override: tuple[float, float] | None) -> bool:
+    """Whether ``override`` makes the domain smaller than the chart computed for itself.
+
+    Only a narrowing override can put a mark outside the plot area, so only a narrowing one
+    needs a clip. The distinction is not pedantry: ``facet`` shares an axis by handing every
+    panel the *union* of the panels' domains, which by construction covers each panel's data,
+    and treating that as a reason to clip cut the extreme markers of an unfaceted-looking chart
+    in half -- a caller who passed no limit at all seeing marks lose their outer radius.
+
+    Equal bounds are not narrowing. Widening on one side and narrowing on the other is.
+    """
+    if override is None:
+        return False
+    low, high = override
+    return low > computed[0] or high < computed[1]
+
+
 def apply_limit(computed: tuple[float, float], override: tuple[float, float] | None) -> tuple[float, float]:
     """The domain a chart should draw against, given its own and a caller's override.
 
@@ -115,7 +132,8 @@ def apply_limit(computed: tuple[float, float], override: tuple[float, float] | N
     impossible to narrow, and a caller who asks for ``(0, 100)`` on data spanning 0..300
     means to clip the view, not to be told 300. *Clip* is meant literally: the marks that
     fall outside the window are cut at the plot area rather than drawn past it, which is
-    ``charts/_layout.marks_viewport``'s job and happens only when an override reaches here.
+    ``charts/_layout.marks_viewport``'s job and happens only when :func:`narrows` says this
+    override actually made the domain smaller.
 
     Raises:
         ValueError: if ``override`` isn't an increasing pair of finite numbers. A reversed

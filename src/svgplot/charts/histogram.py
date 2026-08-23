@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import bisect
 
-from svgplot.chart._domain import Domains, apply_limit
+from svgplot.chart._domain import Domains, apply_limit, narrows
 from svgplot.chart.base import Chart
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
 from svgplot.charts._describe import describe, over, plural, span
@@ -214,6 +214,7 @@ def histplot(
         # separates "your window is empty" from a picture that looks like a rendering bug.
         raise ValueError(f"xlim={xlim!r} leaves no values in range, so there is nothing to bin")
 
+    clipped = narrows((edges[0], edges[-1]), xlim) or narrows((0.0, float(max_count)), ylim)
     x_domain = apply_limit((edges[0], edges[-1]), xlim)
     y_domain = apply_limit((0.0, float(max_count)), ylim)
     canvas_width, canvas_height = resolve_size(width, height)
@@ -251,7 +252,7 @@ def histplot(
         font_size=resolved_theme.tick_label_font_size,
     )
 
-    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
+    viewport = marks_viewport(document, area, clipped=clipped)
     corner_radius = format_coord(resolved_theme.corner_radius) if resolved_theme.corner_radius else None
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []

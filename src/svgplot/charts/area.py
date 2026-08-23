@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from svgplot.chart._domain import Domains, apply_limit
+from svgplot.chart._domain import Domains, apply_limit, narrows
 from svgplot.chart.base import Chart
 from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator
 from svgplot.charts._axes import fit_left_margin, render_x_axis, render_y_axis
@@ -226,6 +226,7 @@ def areaplot(
         y_domain_values = [0.0, *all_y]
 
     y_domain = (min(y_domain_values), max(y_domain_values))
+    clipped = narrows(x_domain, xlim) or narrows(y_domain, ylim)
     x_domain = apply_limit(x_domain, xlim)
     y_domain = apply_limit(y_domain, ylim)
 
@@ -269,7 +270,7 @@ def areaplot(
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
 
-    viewport = marks_viewport(document, area, clipped=xlim is not None or ylim is not None)
+    viewport = marks_viewport(document, area, clipped=clipped)
     if do_stack:
         for label, xs, bottoms, tops in stacked_bands:
             series_class = document.semantic_class("series")
