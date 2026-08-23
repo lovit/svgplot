@@ -97,7 +97,7 @@
       <li>
         <a href="areaplot.html">
           <span class="thumb" aria-hidden="true">
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-areaplot-1" role="img" aria-label="기본">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-areaplot-1" role="img" aria-label="기본 — 채움이 데이터가 아니라 0 까지 닫히므로 y 축이 0 을 포함한다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="760" y2="550" class="spine" />
   <line x1="60" y1="30" x2="60" y2="550" class="grid-line" />
@@ -148,7 +148,7 @@
 :where(.svgplot-areaplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
 :where(.svgplot-areaplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-areaplot-1) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
-  <title>기본</title>
+  <title>기본 — 채움이 데이터가 아니라 0 까지 닫히므로 y 축이 0 을 포함한다</title>
   <desc>Area chart, 6 points, x 1 to 6, y 0 to 300.</desc>
 </svg>
           </span>
@@ -159,7 +159,7 @@
       <li>
         <a href="barplot.html">
           <span class="thumb" aria-hidden="true">
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-barplot-1" role="img" aria-label="기본 — 카테고리당 한 행">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-barplot-1" role="img" aria-label="기본 — 카테고리마다 막대 하나를 세운다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="760" y2="550" class="spine" />
   <line x1="147.5" y1="30" x2="147.5" y2="550" class="grid-line" />
@@ -198,7 +198,7 @@
 :where(.svgplot-barplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
 :where(.svgplot-barplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-barplot-1) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
-  <title>기본 — 카테고리당 한 행</title>
+  <title>기본 — 카테고리마다 막대 하나를 세운다</title>
   <desc>Bar chart, 4 categories (1분기, 2분기, 3분기, 4분기), values 98 to 176.</desc>
 </svg>
           </span>
@@ -382,7 +382,7 @@
       <li>
         <a href="heatmap.html">
           <span class="thumb" aria-hidden="true">
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-1" role="img" aria-label="기본 — sequential 컬러맵">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-heatmap-1" role="img" aria-label="기본 — cmap= 기본값은 순차 컬러맵 &quot;blues&quot; 다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="640" y2="550" class="spine" />
   <line x1="118" y1="30" x2="118" y2="550" class="grid-line" />
@@ -458,7 +458,7 @@
 :where(.svgplot-heatmap-1) .level-7 { fill: #0c79e8; stroke: none; opacity: 1; }
 :where(.svgplot-heatmap-1) .level-8 { fill: #0a65c2; stroke: none; opacity: 1; }
 :where(.svgplot-heatmap-1) .level-9 { fill: #08519c; stroke: none; opacity: 1; }</style>
-  <title>기본 — sequential 컬러맵</title>
+  <title>기본 — cmap= 기본값은 순차 컬러맵 "blues" 다</title>
   <desc>Heatmap, 5 columns (09시, 12시, 15시, 18시, 21시), 3 rows (월, 수, 금), 15 of 15 cells filled, values 12 to 82, quantised into 9 levels.</desc>
 </svg>
           </span>
@@ -535,7 +535,7 @@
       <li>
         <a href="kdeplot.html">
           <span class="thumb" aria-hidden="true">
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-kdeplot-1" role="img" aria-label="기본">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-kdeplot-1" role="img" aria-label="기본 — fill= 없이 곡선만, 그리드는 데이터 양끝 밖까지 잡는다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="760" y2="550" class="spine" />
   <line x1="171.109853" y1="30" x2="171.109853" y2="550" class="grid-line" />
@@ -581,7 +581,7 @@
 :where(.svgplot-kdeplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-kdeplot-1) .series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
 :where(.svgplot-kdeplot-1) .series-1-marker { fill: #E69F00; stroke: none; }</style>
-  <title>기본</title>
+  <title>기본 — fill= 없이 곡선만, 그리드는 데이터 양끝 밖까지 잡는다</title>
   <desc>Density plot, 300 observations, x -4.583645 to 24.293645, density 0 to 0.111256.</desc>
 </svg>
           </span>
@@ -592,7 +592,7 @@
       <li>
         <a href="lineplot.html">
           <span class="thumb" aria-hidden="true">
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-lineplot-1" role="img" aria-label="기본">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-lineplot-1" role="img" aria-label="기본 — hue= 가 없으면 열 행이 전부 한 선이고, interpolate= 기본값은 직선이다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="760" y2="550" class="spine" />
   <line x1="60" y1="30" x2="60" y2="550" class="grid-line" />
@@ -632,7 +632,7 @@
 :where(.svgplot-lineplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-lineplot-1) .series-1 { stroke: #E69F00; fill: none; stroke-width: 2; opacity: 1; }
 :where(.svgplot-lineplot-1) .series-1-marker { fill: #E69F00; stroke: none; }</style>
-  <title>기본</title>
+  <title>기본 — hue= 가 없으면 열 행이 전부 한 선이고, interpolate= 기본값은 직선이다</title>
   <desc>Line chart, 10 points, x 1 to 5, y 4 to 20.</desc>
 </svg>
           </span>
@@ -687,7 +687,7 @@
       <li>
         <a href="radarplot.html">
           <span class="thumb" aria-hidden="true">
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-radarplot-1" role="img" aria-label="기본 — 시리즈 하나">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-radarplot-1" role="img" aria-label="기본 — hue= 가 없으면 다각형 하나를 채워 그린다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <path d="M 400,240.97561 L 451.116621,270.487805 L 451.116621,329.512195 L 400,359.02439 L 348.883379,329.512195 L 348.883379,270.487805 Z" class="grid-line" />
   <path d="M 400,181.95122 L 502.233243,240.97561 L 502.233243,359.02439 L 400,418.04878 L 297.766757,359.02439 L 297.766757,240.97561 Z" class="grid-line" />
@@ -713,7 +713,7 @@
 :where(.svgplot-radarplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
 :where(.svgplot-radarplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-radarplot-1) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }</style>
-  <title>기본 — 시리즈 하나</title>
+  <title>기본 — hue= 가 없으면 다각형 하나를 채워 그린다</title>
   <desc>Radar chart, 6 spokes (속도, 내구성, 연비, 정숙성, 적재량, 가격), values 0 to 82.</desc>
 </svg>
           </span>
@@ -724,7 +724,7 @@
       <li>
         <a href="regplot.html">
           <span class="thumb" aria-hidden="true">
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-regplot-1" role="img" aria-label="기본 — 95% 신뢰대역과 산점도">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-regplot-1" role="img" aria-label="기본 — ci= 기본값 0.95 의 대역과 관측 점을 함께 그린다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="760" y2="550" class="spine" />
   <line x1="166.228766" y1="30" x2="166.228766" y2="550" class="grid-line" />
@@ -821,7 +821,7 @@
 :where(.svgplot-regplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
 :where(.svgplot-regplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-regplot-1) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }</style>
-  <title>기본 — 95% 신뢰대역과 산점도</title>
+  <title>기본 — ci= 기본값 0.95 의 대역과 관측 점을 함께 그린다</title>
   <desc>Regression plot, fitted over 60 points, x 6.6 to 94.9, y 7.3 to 229.9, with a 95% confidence band.</desc>
 </svg>
           </span>
@@ -832,7 +832,7 @@
       <li>
         <a href="scatterplot.html">
           <span class="thumb" aria-hidden="true">
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-1" role="img" aria-label="기본">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-scatterplot-1" role="img" aria-label="기본 — 행 하나가 점 하나, 반지름은 테마의 marker_size 다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <line x1="60" y1="550" x2="760" y2="550" class="spine" />
   <line x1="151.304348" y1="30" x2="151.304348" y2="550" class="grid-line" />
@@ -889,7 +889,7 @@
 :where(.svgplot-scatterplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
 :where(.svgplot-scatterplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-scatterplot-1) .series-1 { fill: #E69F00; stroke: none; opacity: 0.75; }</style>
-  <title>기본</title>
+  <title>기본 — 행 하나가 점 하나, 반지름은 테마의 marker_size 다</title>
   <desc>Scatter plot, 10 points, x 25 to 140, y 6 to 38.</desc>
 </svg>
           </span>

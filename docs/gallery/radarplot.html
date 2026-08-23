@@ -115,7 +115,7 @@
     <p class="summary">카테고리를 원 둘레의 스포크에 놓고 값을 반지름으로 삼아 닫힌 다각형을 그린다.</p>
     <dl class="meta">
       <dt>데이터</dt>
-      <dd>x: 카테고리(3개 이상) · y: 수치(음수 불가, 전부 0 불가) · hue(선택): 시리즈</dd>
+      <dd>x: 카테고리(3개 이상) · y: 수치(음수 불가, 전부 0 불가) · hue(선택): 아무 타입</dd>
     </dl>
     <h2>데이터</h2>
     <pre><code>import svgplot as sp
@@ -128,9 +128,9 @@ SPEC = {
 }</code></pre>
     <h2>예시</h2>
     <p class="interaction-note">체크를 끄면 시리즈가 사라지지 않고 흐려진다. 축·눈금·카테고리 밴드는 그릴 때 한 번 정해지고 다시 계산되지 않으므로, 감추면 남은 그림이 자기보다 넓은 축 위에 서게 된다. 흐리게 하는 것은 &quot;이건 지금 보지 말라&quot;는 말이고, 감추는 것은 &quot;이 값은 없다&quot;는 말이다 — 뒤쪽은 사실이 아니다.</p>
-    <h3>기본 — 시리즈 하나</h3>
+    <h3>기본 — hue= 가 없으면 다각형 하나를 채워 그린다</h3>
     <figure>
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-radarplot-1" role="img" aria-label="기본 — 시리즈 하나">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" class="svgplot-radarplot-1" role="img" aria-label="기본 — hue= 가 없으면 다각형 하나를 채워 그린다">
   <rect x="0" y="0" width="800" height="600" class="plot-background" />
   <path d="M 400,240.97561 L 451.116621,270.487805 L 451.116621,329.512195 L 400,359.02439 L 348.883379,329.512195 L 348.883379,270.487805 Z" class="grid-line" />
   <path d="M 400,181.95122 L 502.233243,240.97561 L 502.233243,359.02439 L 400,418.04878 L 297.766757,359.02439 L 297.766757,240.97561 Z" class="grid-line" />
@@ -156,7 +156,7 @@ SPEC = {
 :where(.svgplot-radarplot-1) .tick-label { fill: #111111; font-family: sans-serif; font-size: 10px; }
 :where(.svgplot-radarplot-1) .legend-text { fill: #111111; font-family: sans-serif; font-size: 11px; }
 :where(.svgplot-radarplot-1) .series-1 { stroke: #E69F00; stroke-width: 2; fill: #E69F00; fill-opacity: 0.75; opacity: 1; }</style>
-  <title>기본 — 시리즈 하나</title>
+  <title>기본 — hue= 가 없으면 다각형 하나를 채워 그린다</title>
   <desc>Radar chart, 6 spokes (속도, 내구성, 연비, 정숙성, 적재량, 가격), values 0 to 82.</desc>
 </svg>
     </figure>
