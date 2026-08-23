@@ -121,8 +121,12 @@ def test_the_cubic_curve_matches_an_independent_solve_away_from_the_knots(query:
     this defect, and it is the same cancellation that makes a ``/6`` -> ``/3`` mutation invisible
     (#262).
 
-    ``1.5`` is in the list as a control: on a fixture symmetric about it, the wrong answer and
-    the right one coincide there. A single sample at a symmetric point would have proved nothing.
+    Five samples rather than one because a single one can land where the wrong answer and the
+    right one coincide. That is not a hypothetical: on ``x=[0,1,2,3], y=[0,1,0,1]`` -- symmetric
+    about ``x=1.5`` -- both the halved and the correct spline answer ``0.5`` there, and
+    :func:`test_a_symmetric_midpoint_cannot_tell_the_two_apart` pins that so the reason for
+    spreading the samples stays on the record. On *this* fixture all five separate the two
+    (e.g. ``x=0.5``: 0.59375 halved, 0.6875 correct).
     """
     xs, ys = [0.0, 1.0, 2.0, 3.0, 4.0], [0.0, 1.0, 0.0, -1.0, 0.0]
     curve = interpolate(xs, ys, method="cubic", precision=1601)
@@ -132,14 +136,38 @@ def test_the_cubic_curve_matches_an_independent_solve_away_from_the_knots(query:
     assert curve.y[index] == pytest.approx(_natural_spline_reference(xs, ys, query), abs=1e-9)
 
 
+def test_a_symmetric_midpoint_agrees_with_the_reference_for_the_wrong_reason() -> None:
+    """The sample that proves nothing, kept as an executable fact about why the checks above
+    spread out instead of picking one point.
+
+    ``x=[0,1,2,3], y=[0,1,0,1]`` is symmetric about ``x=1.5``, and **both** splines answer
+    ``0.5`` there -- measured on the defective implementation as well as this one. So this
+    assertion passing is not evidence the curve is right; a reviewer who verified the fix at
+    this one point would have seen agreement either way.
+
+    It is deliberately the only assertion here. An earlier draft added an off-centre sample
+    alongside it, which made the whole test fail under the original defect -- and a test that
+    catches the bug cannot also be the record of a sample that does not. The catching is
+    :func:`test_the_cubic_curve_matches_an_independent_solve_away_from_the_knots`'s job, which
+    is why its ``query`` list has five entries and none of them is this one.
+    """
+    xs, ys = [0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 0.0, 1.0]
+    curve = interpolate(xs, ys, method="cubic", precision=1601)
+    midpoint = min(range(len(curve.x)), key=lambda i: abs(curve.x[i] - 1.5))
+
+    assert curve.x[midpoint] == pytest.approx(1.5, abs=1e-9), "the grid must land on the midpoint"
+    assert curve.y[midpoint] == pytest.approx(0.5, abs=1e-9)
+    assert curve.y[midpoint] == pytest.approx(_natural_spline_reference(xs, ys, 1.5), abs=1e-9)
+
+
 def test_the_cubic_curve_has_a_continuous_first_derivative_at_its_knots() -> None:
     """The property that *defines* a cubic spline, and the one a knot check cannot see.
 
-    Measured as the gap between the finite-difference slopes just either side of a knot. At
-    ``precision=1601`` the grid step is 0.0025, so a smooth curve leaves a gap of order 0.01
-    from the discretisation alone; the defect left ``1.01`` at the same spacing. The threshold
-    is set to separate those two by two orders of magnitude rather than to certify smoothness
-    to any particular tolerance.
+    Measured as the gap between the finite-difference slopes just either side of a knot. The
+    fixture spans 3 units at ``precision=1601``, so the grid step is ``3/1600 = 0.001875`` and a
+    smooth curve leaves a gap of ``0.022`` from the discretisation alone; the defect left
+    ``1.011`` at the same spacing. The ``0.1`` threshold sits between them with roughly a factor
+    of 4 below and 10 above -- it separates the two states, and is not a smoothness tolerance.
     """
     xs, ys = [0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 0.0, 1.0]
     curve = interpolate(xs, ys, method="cubic", precision=1601)
