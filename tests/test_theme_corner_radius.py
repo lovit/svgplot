@@ -20,6 +20,7 @@ even if its own per-chart test is updated to match.
 from __future__ import annotations
 
 import dataclasses
+import math
 import re
 from importlib import import_module
 
@@ -201,7 +202,7 @@ def test_a_radius_too_small_to_survive_formatting_writes_no_rx(radius: float) ->
         assert _radii(name, radius) == [], f"{name} wrote an rx for a radius that formats to zero"
 
 
-@pytest.mark.parametrize("radius", [5.0000001e-7, 6e-7, 9.999999e-7, 1e-6])
+@pytest.mark.parametrize("radius", [math.nextafter(5e-7, math.inf), 5.0000001e-7, 6e-7, 9.999999e-7, 1e-6])
 def test_a_radius_that_survives_formatting_still_rounds(radius: float) -> None:
     """The boundary from the other side, so the check above cannot be satisfied by a helper that
     simply stopped rounding small values -- or by one that stopped rounding at all.
@@ -210,7 +211,10 @@ def test_a_radius_that_survives_formatting_still_rounds(radius: float) -> None:
     survives the rounding". A review measured that and it is false: everything from just above
     ``5e-7`` already survives, and ``1e-6`` is merely the smallest **output** six-decimal
     rounding can produce -- a grid point, not a threshold. The two are a thousandfold apart, and
-    a single sample at ``1e-6`` could not tell them apart. Hence the samples across the gap.
+    a single sample at ``1e-6`` could not tell them apart. Hence the samples across the gap -- and
+    ``nextafter(5e-7, inf)`` first, which is the threshold itself rather than a value near it:
+    it is one ULP above the largest radius that formats to zero, so nothing can sit between the
+    two and the boundary is pinned exactly rather than bracketed.
     """
     assert corner_radius_attr(radius) == "0.000001"
     for name in _ROUNDS:
