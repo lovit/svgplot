@@ -440,9 +440,9 @@ def test_faceting_alone_leaves_its_markers_whole() -> None:
 def test_a_malformed_limit_is_refused_by_name(override: object, message: str) -> None:
     """The refusal a caller sees has to name the argument, not the line that tripped over it.
 
-    ``narrows`` runs *before* ``apply_limit`` for seventeen of the eighteen chart-and-axis pairs
-    (``histplot``'s ``xlim=`` settles the bin range first), so it usually meets a malformed
-    override first. Unpacking it there answered ``too many values to unpack (expected 2)`` and, for a
+    ``narrows`` runs *before* ``apply_limit`` for sixteen of the eighteen chart-and-axis pairs,
+    so it usually meets a malformed override first. (The other two: ``histplot``'s ``xlim=``
+    reaches ``apply_limit`` first, and ``barplot``'s discarded axis reaches neither.) Unpacking it there answered ``too many values to unpack (expected 2)`` and, for a
     string, a ``TypeError`` from comparing ``str`` to ``float`` -- the failure mode
     ``_require_finite_pair`` exists to prevent, and which ``require_categories``' docstring
     cites as its reason for validating early. Nothing asserted the chart-level message before
