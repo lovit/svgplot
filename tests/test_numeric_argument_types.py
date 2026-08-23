@@ -18,9 +18,12 @@ them in step -- the same shape as ``test_charts_numeric_refusal.py``, one layer 
 
 from __future__ import annotations
 
+from fractions import Fraction
+
 import pytest
 
 import svgplot as sp
+from svgplot.theme.base import Theme
 
 numpy = pytest.importorskip("numpy", reason="install the numpy-parity extra to check this")
 
@@ -47,11 +50,22 @@ def _accepts(argument: str, value: object) -> None:
         sp.lineplot(_XY, x="가로", y="세로", ylim=(0.0, value))  # type: ignore[arg-type]
     elif argument == "vmax":
         sp.gaugeplot({"이름": ["가"], "값": [1.0]}, values="값", labels="이름", vmax=value)  # type: ignore[arg-type]
+    elif argument in ("opacity", "fill_opacity", "corner_radius"):
+        Theme(**{argument: value})  # type: ignore[arg-type]
     else:  # pragma: no cover - the table below is the only caller
         raise AssertionError(argument)
 
 
-_VALID: dict[str, float] = {"width": 400.0, "center": 2.0, "xlim": 2.0, "ylim": 2.0, "vmax": 2.0}
+_VALID: dict[str, float] = {
+    "width": 400.0,
+    "center": 2.0,
+    "xlim": 2.0,
+    "ylim": 2.0,
+    "vmax": 2.0,
+    "opacity": 0.5,
+    "fill_opacity": 0.5,
+    "corner_radius": 2.0,
+}
 """A value each argument accepts outright, used as the reference in every comparison below.
 
 Per argument because "an ordinary number" is not the same number everywhere: ``width=2`` is
@@ -65,7 +79,10 @@ _ARGUMENTS = list(_VALID)
 
 ``width`` is ``charts/_layout._finite``; ``center`` is ``palette/normalize._require_finite_number``;
 ``xlim``/``ylim`` are ``chart/_domain._require_finite_pair``; ``vmax`` is ``gauge``'s use of
-``_finite`` after #256 removed its own copy.
+``_finite`` after #256 removed its own copy. The last three are ``Theme.__post_init__``, which a
+review found still narrow after this file's first draft claimed the count was complete -- the
+third time that count has been wrong (#256 fixed two, #271's review found two more, #276's found
+these). Hence a table built to be added to rather than a number written in prose.
 """
 
 
@@ -213,3 +230,26 @@ def test_every_validator_accepts_a_numpy_scalar_itself(name: str, dtype: str) ->
     """The widening, at the level it was written. The chart-level comparison above says the
     three agree; this says what they agree *on*."""
     assert _validators()[name](numpy.dtype(dtype).type(2)) is not None  # type: ignore[operator]
+
+
+@pytest.mark.parametrize("name", sorted(_validators()))
+def test_every_validator_turns_an_unfloatable_real_into_a_value_error(name: str) -> None:
+    """A ``Real`` too large to become a float raises ``OverflowError`` from ``math.isfinite``,
+    and every one of these documents ``ValueError``.
+
+    This is the hole widening the type test opened: before it, ``Fraction(10**400)`` failed the
+    ``int | float`` check and was refused cleanly; after it, the value reached ``isfinite`` and
+    the ``OverflowError`` came out raw. ``_layout._finite`` already had the ``try``/``except``
+    and its docstring already named this exact case -- the two new sites had to copy the whole
+    pattern, not half of it (#274).
+    """
+    with pytest.raises(ValueError):
+        _validators()[name](Fraction(10**400))  # type: ignore[operator]
+
+
+@pytest.mark.parametrize("name", sorted(_validators()))
+def test_every_validator_accepts_a_real_that_is_not_int_or_float(name: str) -> None:
+    """Non-vacuity for the check above, and the point of widening in the first place: an
+    ordinary ``Fraction`` is a perfectly good number and has to get through, so the guard cannot
+    be satisfied by refusing the whole type."""
+    assert _validators()[name](Fraction(3, 2)) is not None  # type: ignore[operator]

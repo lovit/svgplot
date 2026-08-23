@@ -16,7 +16,13 @@
 
 - **`center=`·`xlim=`·`ylim=` 이 `width=` 와 같은 타입 범위를 받는다.** #256 이 `gauge.py`·`pie.py` 의 `int | float` 사본 둘을 지웠는데 같은 사본이 두 개 더 남아 있었다 — `palette/normalize._require_finite_number` 와 `chart/_domain._require_finite_pair`. **같은 호출 안에서** `heatmap(..., width=np.float32(400), center=np.float32(1.5))` 이 앞 인자는 받고 뒤 인자는 거부했다. `np.float64` 는 `float` 의 서브클래스라 양쪽을 다 통과해서, 좁은 dtype 에서만 갈라짐이 보였다.
 
-  둘 다 `numbers.Real` 로 넓힌다. **넓히는 것이지 여는 것이 아니다** — `bool` 은 `Real` 이지만 계속 거부한다(`center=True` 는 1 을 달라는 게 아니다). 공용 함수를 import 하지는 **않는다**: `palette` 와 `chart` 는 `charts` 아래 계층이라 거기에 의존하면 안 된다. 셋을 맞춰 두는 것은 **셋에게 같은 질문을 하는 테스트**다.
+  **`Theme` 의 `opacity`·`fill_opacity`·`corner_radius` 도 같은 패턴이었다.** 리뷰가 찾았고, 개수를 놓친 것이 이번이 세 번째다(#256 이 둘, #271 리뷰가 둘, #276 리뷰가 이 셋). `Theme` 은 공개 API 이고 모든 렌더 호출에 넘어가므로 `Theme(opacity=np.float32(0.8))` 이 거부되는 것은 같은 결함이 한 층 위에 있는 것이다.
+
+  전부 `numbers.Real` 로 넓힌다. **넓히는 것이지 여는 것이 아니다** — `bool` 은 `Real` 이지만 계속 거부한다(`center=True` 는 1 을 달라는 게 아니다).
+
+  **넓히면서 회귀를 하나 만들었고 리뷰가 잡았다.** `Fraction(10**400)` 은 `int | float` 검사에서 깨끗이 거부되던 것이, `Real` 이 되면서 `math.isfinite` 까지 도달해 `OverflowError` 를 **그대로 흘렸다** — 두 함수가 문서에 적은 `Raises: ValueError` 계약 위반이다. `_layout._finite` 는 이미 그 `try`/`except` 를 갖고 있고 docstring 이 이 경우를 이름까지 대며 적어 두었는데, 나는 패턴의 절반만 베꼈다. 이제 셋 다 같은 방식으로 잡는다.
+
+  공용 함수를 import 하지는 **않는다**: `palette` 는 `charts` 에서 아무것도 import 하지 않고 그 상태를 유지하는 편이 네 줄을 공유하는 것보다 낫다. (`chart` 는 더 약한 근거다 — `chart/composition.py` 가 이미 `format_coord` 를 거기서 가져오므로 그쪽은 제약이 아니라 선택이다.) 셋을 맞춰 두는 것은 **셋에게 같은 질문을 하는 테스트**다.
 
   그 테스트를 쓰다 두 번 고쳐야 했다. 첫 판은 에러 **문구**로 판정했는데 세 변이가 통과했다 — `_finite` 를 좁히면 `"width must be a finite number"` 가 나오는데 그 판이 찾던 두 문구 중 어느 것도 아니었고, `bool` 이 타입 검사를 통과해도 `(1.0, 1.0)` 이 zero-width 라 나중에 죽어서 "예외가 났다" 는 만족됐다. **같은 값을 파이썬 `float` 로 넣었을 때와 결과가 같은가**로 바꿨다 — 문구를 안 읽으므로 다시 쓰기로 뚫을 수 없다. 두 번째로, 유한성 검사를 지우는 변이는 차트 경로로는 여전히 안 잡혔다(`nan` 이 통과해도 스케일에서 죽어 결과가 달라진다). 세 검증기를 **직접 호출**하는 단위 가드를 따로 뒀다.
 
