@@ -23,6 +23,7 @@ than raw string concatenation — see ``_svg.py``'s own "escape chokepoint" docs
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from svgplot.palette.colorblind import DEFAULT_PALETTE
@@ -213,3 +214,16 @@ class Theme:
             # and inf fails the upper bound), so no separate isfinite() call is needed.
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{field} must be a number in [0, 1], got {value!r}")
+        # Same argument as the two above, one field further on: a corner_radius that is not a
+        # non-negative finite number reaches ``rx`` on a ``<rect>``, where a negative value is
+        # invalid SVG and ``inf``/``nan`` cannot be written at all. It used to fail three
+        # different ways depending on which chart was drawn -- ``rx="-5"`` from ``boxplot`` and
+        # ``histplot``, no ``rx`` at all from ``barplot``, and for ``nan`` a ValueError from two
+        # of the three (#258). Bounded only from below: there is no largest sensible rounding,
+        # and a radius past half the rect's side is already clamped by SVG itself.
+        if not isinstance(self.corner_radius, int | float) or isinstance(self.corner_radius, bool):
+            raise ValueError(f"corner_radius must be a real number, got {self.corner_radius!r}")
+        # ``>= 0.0`` is false for nan and true for inf, so inf needs the explicit finiteness
+        # test that the [0, 1] range check above got for free.
+        if not (self.corner_radius >= 0.0 and math.isfinite(self.corner_radius)):
+            raise ValueError(f"corner_radius must be a non-negative finite number, got {self.corner_radius!r}")
