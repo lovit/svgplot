@@ -13,6 +13,8 @@ Private/internal — not re-exported from ``svgplot.charts``.
 
 from __future__ import annotations
 
+import math
+
 from svgplot._svg import SvgDocument
 from svgplot.charts._layout import corner_radius_attr, format_coord
 from svgplot.charts._textwidth import needs_full_text, truncate_to_width
@@ -112,6 +114,36 @@ def legend_text_room(gutter: float) -> float:
     return gutter - _SWATCH_WIDTH - _LABEL_GAP
 
 
+_SWATCH_RADIUS_FRACTION = 0.25
+"""How much of the swatch's short side its corner radius may take.
+
+Half the short side is a full ellipse -- that is where SVG's own clamp lands -- so a quarter is
+the midpoint of "visibly rounded" and "no longer a rectangle". The swatch has to keep reading as
+the same *kind* of shape as the mark it names; matching the mark's radius in pixels does the
+opposite once the two differ in size by an order of magnitude, which is what they do (#265).
+"""
+
+
+def _swatch_radius(corner_radius: float) -> float:
+    """The mark's corner radius, expressed on a swatch.
+
+    Proportional rather than absolute: a theme asking for a barely-rounded bar should get a
+    barely-rounded swatch, and one asking for a lozenge should get one as far as a swatch can.
+    The cap keeps an extreme radius from turning the swatch into an ellipse while the bars it
+    names are still rectangles.
+
+    Zero and negative need no guard -- ``min`` passes them through and
+    :func:`~svgplot.charts._layout.corner_radius_attr` answers ``None`` for anything undrawable.
+    ``inf`` does: ``min(inf, 2.5)`` is ``2.5``, a perfectly drawable number, so the cap turned a
+    radius the mark itself refuses into one the swatch accepts -- a square bar beside a rounded
+    swatch, which is this defect wearing its own fix inside out. Reachable only past ``Theme``'s
+    constructor, and pinned there.
+    """
+    if not math.isfinite(corner_radius):
+        return corner_radius
+    return min(corner_radius, _SWATCH_HEIGHT * _SWATCH_RADIUS_FRACTION)
+
+
 def render_legend(
     document: SvgDocument,
     entries: list[tuple[str, str]],
@@ -194,13 +226,17 @@ def render_legend(
                     "y": format_coord(row_y - _SWATCH_HEIGHT / 2),
                     "width": format_coord(_SWATCH_WIDTH),
                     "height": format_coord(_SWATCH_HEIGHT),
-                    # The mark's own radius, unscaled. A swatch is a key to a mark, and a key
-                    # shaped differently from what it names reads as "not that one" -- a rounded
-                    # bar pointed at by a square rectangle (#265). Not reduced for the swatch's
-                    # size either: SVG clamps ``rx`` at half the shorter side, so a radius large
-                    # enough to make a 16x10 swatch a lozenge is one that has already made the
-                    # bars lozenges, and the two still agree.
-                    **({"rx": rounding} if (rounding := corner_radius_attr(corner_radius)) else {}),
+                    # Scaled to the swatch, not copied from the mark. A key shaped differently
+                    # from what it names reads as "not that one" (#265) -- but "the same radius"
+                    # is not "the same shape" when the two rectangles are different sizes.
+                    #
+                    # An earlier version passed the radius through unchanged, arguing that SVG
+                    # clamps ``rx`` at half the shorter side so anything big enough to round the
+                    # swatch away had already done the same to the bars. Measured, that is false
+                    # over a wide and ordinary range: a bar's short side is ~100px, a swatch's is
+                    # 10, so at radius 8 the swatch is a full ellipse while the bar is plainly
+                    # still a bar. The rounding *has* to be relative to the shape it is on.
+                    **({"rx": rounding} if (rounding := corner_radius_attr(_swatch_radius(corner_radius))) else {}),
                 },
                 classes=[css_class],
             )
