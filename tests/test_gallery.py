@@ -379,9 +379,9 @@ written a new way is audited by default, and an ordinal that counts something el
 until someone decides which it is. The two here count x slots and the things this chart adds to
 another; both sit in range today only because their pages happen to be long enough.
 
-**Which of the two an entry is cannot be decided by a test.** Four rounds tried and each was
-defeated by respelling the phrase -- see the comment beside the length assertion below. The test
-pins the list's length instead, so growing it is a visible decision rather than a passing diff.
+**Which of the two an entry is cannot be decided by a test.** Four predicates tried; see the
+comment beside the assertion below for how each failed. What is pinned instead is the set of
+figures each page cites, so a changed exception has to show up as a changed page.
 """
 
 
@@ -412,6 +412,56 @@ def test_no_note_points_past_the_last_figure() -> None:
     assert not [row for row in overflowing if row[1]], f"notes citing figures that do not exist: {overflowing}"
 
 
+_CITED = {
+    "areaplot": {2, 3},
+    "barplot": {2, 3, 5},
+    "boxplot": {4, 5},
+    "ecdfplot": {4, 5},
+    "gaugeplot": {2, 3, 4},
+    "heatmap": {4},
+    "histplot": {4, 5},
+    "kdeplot": {3, 5},
+    "lineplot": {2, 3, 5, 6},
+    "pieplot": {5},
+    "radarplot": {2, 3},
+    "regplot": {5},
+    "scatterplot": {2, 5, 6},
+    "sparkline": set(),
+    "treemap": {4},
+    "violinplot": {4, 5, 6},
+}
+"""Which figures each page's NOTES point at, as the audit reads them.
+
+Written down so that the exception list cannot quietly change what is audited. ``sparkline`` is
+empty because its notes cite no figure at all -- it has no controls and its NOTES describe the
+chart rather than any one picture."""
+
+
+_CITED = {
+    "areaplot": {2, 3},
+    "barplot": {2, 3, 5},
+    "boxplot": {4, 5},
+    "ecdfplot": {4, 5},
+    "gaugeplot": {2, 3, 4},
+    "heatmap": {4},
+    "histplot": {4, 5},
+    "kdeplot": {3, 5},
+    "lineplot": {2, 3, 5, 6},
+    "pieplot": {5},
+    "radarplot": {2, 3},
+    "regplot": {5},
+    "scatterplot": {2, 5, 6},
+    "sparkline": set(),
+    "treemap": {4},
+    "violinplot": {4, 5, 6},
+}
+"""Which figures each page's NOTES point at, as the audit reads them.
+
+Written down so the exception list cannot quietly change what is audited. ``sparkline`` is empty
+because its notes cite no figure at all -- it draws no control and its NOTES describe the chart
+rather than any one picture."""
+
+
 def test_every_exception_to_the_ordinal_audit_is_still_in_use() -> None:
     """An exclusion list is only safe while every entry earns its place. One left behind after
     its sentence is rewritten silently exempts whatever text drifts into the same shape."""
@@ -420,27 +470,33 @@ def test_every_exception_to_the_ordinal_audit_is_still_in_use() -> None:
 
     assert not unused, f"exceptions no longer on the page that justifies them: {unused}"
 
-    # And each must be the *whole* phrase that makes it a non-reference: an ordinal followed by
-    # the noun it counts (``다섯 번째 슬롯``) or closed off as a predicate (``그 두 번째다``).
-    # An entry ending at a particle -- ``다섯 번째가`` -- is a real reference, and adding one
-    # would re-create the regression this list exists to avoid, from the other direction.
+    # And what the audit *sees* is pinned page by page, rather than how the exceptions are
+    # spelled.
     #
-    # The list is pinned at its length instead of its spelling. Four rounds of predicates tried
-    # to decide by shape whether a phrase is a figure reference, and every one was defeated by
-    # rewriting the phrase: first a lookahead over particles (which dropped five real
-    # references), then "must contain a noun after the ordinal" (``세 번째 그림`` satisfies it),
-    # then a word limit over ``endswith("다")`` -- and that one fell to deleting a single
-    # character, since ``다섯 번째 그`` is not ``그림``, is three words, and still deletes the
-    # ordinal. Twelve such truncations emptied three pages' audits with the whole suite green.
+    # Four predicates tried to decide by shape whether a phrase is a figure reference, and they
+    # failed in two different ways.
+    #
+    # The first, a lookahead over particles, was not defeated by anyone: it simply never matched
+    # five references that were already in the notes, and dropped them from the audit on the day
+    # it was written. The other three were defeated by respelling the phrase -- ``세 번째 그림``
+    # satisfies "must contain a noun after the ordinal"; deleting one character from it,
+    # ``다섯 번째 그``, clears a ``그림`` substring ban while still removing the ordinal from the
+    # note, and twelve such truncations emptied three pages' audits with the suite green; a word
+    # limit over ``endswith("다")`` went the same way.
+    #
+    # Pinning the list's *length* then closed additions and left edits open: one replacement
+    # keeping the count at two -- ``("pieplot", "번째")`` suffices -- deletes a page's only
+    # reference, and editing an entry is the likelier maintenance move anyway.
     #
     # Nothing mechanical can read a Korean sentence and say whether its ordinal counts figures;
-    # that is a judgement, and judgements belong in review. What a test *can* do is make the
-    # judgement visible: an entry cannot be added without also changing this number, and a diff
-    # that changes it is a diff that says "I am exempting one more thing".
-    assert len(_NOT_A_FIGURE) == 2, (
-        f"the exception list is {len(_NOT_A_FIGURE)} entries, not 2 -- every entry is a figure "
-        "reference this audit will no longer see, so adding one is a decision to be read, not a fix"
-    )
+    # that is a judgement and it belongs in review. A table of what each page cites is what makes
+    # the judgement visible: respell an exception, replace one, or add one, and some page's set
+    # shrinks, so the diff has to name the page and the figure it stopped auditing. Dropping an
+    # entry can pass -- ``histplot``'s exempts a ``다섯 번째`` that another note on the same page
+    # cites anyway -- and that is the safe direction: a lost exception widens the audit rather
+    # than narrowing it. It is not a restatement of the computation: the left side is read out of
+    # the notes, the right side is written here.
+    assert {page.name: _cited_figures(page.notes, page.name) for page in discover()} == _CITED
 
 
 def test_every_ordinal_in_the_gallery_is_classified() -> None:
