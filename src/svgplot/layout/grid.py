@@ -22,6 +22,10 @@ from __future__ import annotations
 from svgplot.chart.base import Chart
 from svgplot.chart.composition import TITLE_HEIGHT, Composition, Placement, chart_size, compose
 
+_EPSILON = 1e-9
+"""Slack for comparing track sizes while filling. Sizes are pixel lengths built from chart
+dimensions, so differences this small are float noise rather than layout."""
+
 _TupleCell = tuple[Chart | Composition, int, int, int, int]
 """A span-aware cell. The first element is a ``Chart`` **or** a ``Composition``: the matrix
 form has always accepted either -- it never asks, it calls ``chart_size`` -- and the span form
@@ -136,29 +140,106 @@ def _tuple_placements(
 
     fallback_width = max(chart_size(cell[0])[0] for cell in cells)
     fallback_height = max(chart_size(cell[0])[1] for cell in cells)
-    # Size tracks from single-track children only; a spanning child's size is
-    # satisfied by the tracks it covers plus the spacing between them, so letting
-    # it drive a single track's size would over-size every other cell in it.
-    #
-    # Collected first and *replaced*, not folded into the fallback with ``max``. Doing the
-    # latter made ``fallback_width`` -- the widest cell anywhere in the grid -- a floor under
-    # every column, so a narrow chart beside a wide one was given the wide one's width and the
-    # figure came out 4812px where the matrix form of the same two charts is 3212px. The matrix
-    # form has always replaced (see :func:`_matrix_placements`), and the two forms differing on
-    # what a column is worth is the same class of defect as their differing on what a cell may
-    # hold, fixed alongside it (#260).
-    single_track_widths: dict[int, list[float]] = {}
-    single_track_heights: dict[int, list[float]] = {}
+
+    def _grow(tracks: list[float], covered: range, extra: float) -> None:
+        """Add ``extra`` across ``covered``, filling the smallest tracks first.
+
+        Not ``extra / len(covered)`` each. Even division is order-dependent once two spans share
+        a track: whichever ran first leaves its share behind, the second sees a larger ``have``,
+        and the same cells listed in a different order produce a different figure -- measured at
+        132px on a five-column grid before this was written that way (#270).
+
+        Filling low tracks up to the next level, then raising that level together, converges on
+        one answer regardless of who asked. It also makes spans that share tracks agree about
+        them rather than stack their demands.
+        """
+        remaining = extra
+        # A span that already fits asks for nothing: ``extra`` is zero or negative and the loop
+        # below never runs. That is the only place this decision is made -- callers hand over the
+        # shortfall whatever its sign.
+        #
+        # Bounded, not ``while remaining > 0``. Each pass either exhausts ``remaining`` or merges
+        # the lowest tracks into the next level up, so ``len(covered)`` passes reach the state
+        # where every track is level and the last shares out whatever is left -- one more than
+        # that is slack. An unbounded loop *hangs* rather than terminating when a step comes out
+        # too small to move a float, which a mutation of the span ordering actually produced.
+        for _ in range(len(covered) + 1):
+            if remaining <= _EPSILON:
+                break
+            floor_size = min(tracks[track] for track in covered)
+            lowest = [track for track in covered if tracks[track] <= floor_size + _EPSILON]
+            above = [tracks[track] for track in covered if tracks[track] > floor_size + _EPSILON]
+            # Raise the lowest tracks to the next distinct level, or share out what is left.
+            headroom = (min(above) - floor_size) if above else remaining
+            step = min(headroom, remaining / len(lowest))
+            for track in lowest:
+                tracks[track] += step
+            remaining -= step * len(lowest)
+
+    def _tracks(
+        sizes: dict[int, list[float]], spans: list[tuple[int, int, float]], count: int, fallback: float
+    ) -> list[float]:
+        """Track sizes: each track takes its own members, then spans top up what they cover.
+
+        Three rules, in this order.
+
+        **A track is as big as its largest single-track member.** A spanning child has no size
+        *for one track* -- its size is satisfied by all the tracks it covers plus the gutters
+        between them -- so letting it drive one track would over-size every other cell in that
+        track. (Folding it in with ``max`` did exactly that until #260: ``fallback_width``, the
+        widest cell anywhere, became a floor under every column and a narrow chart beside a wide
+        one was given the wide one's width.)
+
+        **Then each span tops up its own tracks, shortest span first, and only if they fall
+        short.** A track covered only by spans starts at zero and is sized entirely by them --
+        giving it "the widest cell anywhere" instead is what made a 1612px header across two
+        columns produce a 2424px figure (#270). Shortest first because a shorter span constrains
+        fewer tracks, so settling it leaves the longer one a fixed floor to measure against.
+
+        A track that **nothing** reaches -- no member, no span, which ``ncols=`` can produce --
+        keeps ``fallback``. That is the one case the old rule was right about, and it is the same
+        answer :func:`_matrix_placements` gives an all-empty track.
+
+        This resembles CSS Grid's "distribute extra space across spanned tracks" and is **not** a
+        port of it -- the spec freezes tracks at growth limits, which this has no concept of. An
+        earlier version of this comment claimed it *was* what CSS Grid does, and that was wrong
+        in the way that mattered: the spec fills the smallest tracks first and the code divided
+        evenly, which is exactly the difference that made the result depend on cell order.
+        """
+        reached = set(sizes) | {track for start, length, _ in spans for track in range(start, start + length)}
+        tracks = [max(sizes.get(track, [0.0])) if track in reached else fallback for track in range(count)]
+        # Sorted by the span's own numbers, not by where it sat in cells: a key of just
+        # length leaves ties in caller order, and a tie is exactly where two spans compete
+        # for the same tracks. (length, start, needed) makes two spans that sort equal
+        # indistinguishable in every way that matters here, so the result cannot depend on which
+        # was listed first -- measured at 15 of 400 random layouts before this (#270).
+        for start, length, needed in sorted(spans, key=lambda span: (span[1], span[0], span[2])):
+            covered = range(start, start + length)
+            have = sum(tracks[track] for track in covered) + spacing * (length - 1)
+            # No ``if needed > have`` -- :func:`_grow` returns immediately on a non-positive
+            # amount, so the outer test was a second copy of the same decision. Removed after a
+            # mutation showed it could go without changing an answer; the rule it expressed now
+            # lives in one place, stated in ``_grow``'s own first line.
+            _grow(tracks, covered, needed - have)
+        return tracks
+
+    width_members: dict[int, list[float]] = {}
+    height_members: dict[int, list[float]] = {}
+    width_spans: list[tuple[int, int, float]] = []
+    height_spans: list[tuple[int, int, float]] = []
     for chart, row_index, col, rowspan, colspan in cells:
         chart_width, chart_height = chart_size(chart)
         if colspan == 1:
-            single_track_widths.setdefault(col, []).append(chart_width)
+            width_members.setdefault(col, []).append(chart_width)
+        else:
+            width_spans.append((col, colspan, chart_width))
         if rowspan == 1:
-            single_track_heights.setdefault(row_index, []).append(chart_height)
-    # A track holding nothing but spanning children keeps the fallback: it has no member whose
-    # width it is, and the same reasoning gives an all-empty track its fallback in the matrix form.
-    col_widths = [max(single_track_widths.get(col, [fallback_width])) for col in range(inferred_ncols)]
-    row_heights = [max(single_track_heights.get(row_index, [fallback_height])) for row_index in range(nrows)]
+            height_members.setdefault(row_index, []).append(chart_height)
+        else:
+            height_spans.append((row_index, rowspan, chart_height))
+
+    col_widths = _tracks(width_members, width_spans, inferred_ncols, fallback_width)
+    row_heights = _tracks(height_members, height_spans, nrows, fallback_height)
 
     row_title_heights = [0.0] * nrows
     for index, (_, row_index, _, _, _) in enumerate(cells):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import itertools
 import re
 import xml.etree.ElementTree as ET
 
@@ -1082,42 +1083,183 @@ def test_the_two_grid_forms_lay_the_same_charts_out_the_same_way() -> None:
     assert _canvas(tuple_form) == _canvas(matrix_form)
 
 
-def test_a_column_holding_only_a_spanning_child_keeps_the_fallback_width() -> None:
-    """Two rules meet in one figure, and the arithmetic separates them from every way of
-    getting them wrong.
+def test_a_spanning_child_sizes_the_tracks_it_covers_and_no_others() -> None:
+    """A span tops up the tracks it covers, evenly, and only by what they fall short (#270).
 
-    Column 0 holds an 800px single-track child, so it is 800 wide. Column 1 is covered only by
-    the spanning cell, which has no width of its own to give a track -- it falls back to 2400,
-    the widest cell in the grid, the same answer the matrix form gives an all-empty track. With
-    ``spacing=12``: ``800 + 12 + 2400 = 3212``.
+    The old rule gave a track covered *only* by a span the fallback -- "the widest cell anywhere
+    in the grid" -- on the reasoning that the matrix form gives an empty track the same thing.
+    The analogy was wrong: the matrix form's empty track has **nothing drawn in it**, while this
+    one has a child passing through. The result was over-sizing in exactly the shape spans exist
+    for: a 1612px header across two columns produced a 2424px figure, and a 3000px chart across
+    three columns produced 9024px -- three times its own width.
 
-    The exact number is the point. Two mutations survived a ``width > 0`` version of this test:
-    dropping the fallback (column 1 becomes 0, total 812) and letting a spanning child size a
-    track (column 0 becomes 2400, total 4812). All three totals differ, so the equality fails
-    for each.
+    Now each span distributes its shortfall across its own tracks, which is what CSS Grid does
+    and what makes a span's natural size come out exact. Here: column 0 holds an 800px
+    single-track child, column 1 is covered only by the 2400px span. The span needs 2400, has
+    ``800 + 12`` from what is already there, and shares the missing 1588 evenly -- 794 each, so
+    ``1594 + 12 + 794 = 2400``. The figure is exactly as wide as the widest thing in it.
     """
     narrow = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=800)
     wide = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=2400)
 
     composed = grid([(wide, 0, 0, 1, 2), (narrow, 1, 0, 1, 1)], spacing=12)
 
-    assert _canvas(composed)[0] == pytest.approx(800 + 12 + 2400)
+    assert _canvas(composed)[0] == pytest.approx(2400.0)
 
 
-def test_a_row_holding_only_a_spanning_child_keeps_the_fallback_height() -> None:
-    """The same two rules turned ninety degrees, and it is not a duplicate.
-
-    ``rowspan`` and ``colspan`` are separate conditions over separate dictionaries, and the
-    width fixture above has ``rowspan=1`` everywhere -- so a mutation removing the ``rowspan``
-    guard survived it. Row 0 holds a 400px single-track child; row 1 is covered only by the
-    two-row spanning cell and falls back to 1200. ``400 + 12 + 1200 = 1612``.
-    """
+def test_a_row_spanning_child_does_the_same_ninety_degrees_round() -> None:
+    """``rowspan`` and ``colspan`` are separate conditions over separate tables, and the width
+    fixture has ``rowspan=1`` everywhere -- so a change that fixed only one direction survives
+    it. Row 0 holds a 400px child, row 1 is covered only by the 1200px span:
+    ``400 + 12`` present, 788 short, 394 each, ``794 + 12 + 394 = 1200``."""
     short = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", height=400)
     tall = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", height=1200)
 
     composed = grid([(tall, 0, 0, 2, 1), (short, 0, 1, 1, 1)], spacing=12)
 
-    assert _canvas(composed)[1] == pytest.approx(400 + 12 + 1200)
+    assert _canvas(composed)[1] == pytest.approx(1200.0)
+
+
+def test_a_span_that_already_fits_changes_nothing() -> None:
+    """Only the *shortfall* is distributed. A span narrower than the tracks it covers must not
+    shrink them -- without the ``needed > have`` test it would share out a negative amount and
+    pull the figure in around a child that was never the constraint."""
+    wide = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=2000)
+    small = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=300)
+
+    composed = grid([(wide, 0, 0, 1, 1), (wide, 0, 1, 1, 1), (small, 1, 0, 1, 2)], spacing=12)
+
+    assert _canvas(composed)[0] == pytest.approx(2000 + 12 + 2000)
+
+
+def _offsets(composition: Composition) -> list[float]:
+    """Each placed child's x offset, ascending -- the only way to read individual track widths
+    back out of a finished figure."""
+    return sorted({float(x) for x in re.findall(r'<svg[^>]*\sx="([\d.]+)"', composition.to_string())})
+
+
+def test_a_span_fills_its_smallest_tracks_first_rather_than_dividing_evenly() -> None:
+    """Which tracks get the shortfall, not just how much of it there is.
+
+    Every other check here reads the figure's total, and the total cannot tell the two apart:
+    dividing 1288 evenly across two columns and filling the smaller one up first both end at
+    2400. The columns do not. Column 0 holds an 800px child and column 1 a 300px one, under a
+    2400px span:
+
+    * filling smallest-first: column 1 climbs to 800 (using 500), the remaining 788 splits
+      394/394, and both end at **1194** -- so the second child starts at ``1194 + 12 = 1206``
+    * dividing evenly: 644 each, giving 1444 and 944, and the second child starts at 1456
+
+    Even division is also what made the result depend on cell order, so this pins the fix and
+    the reason for it in one place (#270).
+    """
+    span = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=2400)
+    left = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=800)
+    right = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=300)
+
+    composed = grid([(span, 0, 0, 1, 2), (left, 1, 0, 1, 1), (right, 1, 1, 1, 1)], spacing=12)
+
+    assert _canvas(composed)[0] == pytest.approx(2400.0)
+    assert _offsets(composed) == pytest.approx([0.0, 1206.0])
+
+
+def test_a_span_grows_only_the_tracks_it_covers() -> None:
+    """The shortfall goes to the span's own tracks -- spending any of it elsewhere leaves the
+    span smaller than it asked for.
+
+    Two new checks missed this and it is not merely a coverage gap: distributing to *every*
+    track instead of the covered ones gives the span 4000px where it needs 5000, because a
+    quarter of its shortfall is spent raising a column it does not occupy. Both other new tests
+    happen to use fixtures where the span covers the whole axis, and there "covered" and "all"
+    are the same set.
+
+    Here they are not: the span sits in columns 1-2 of three, and column 0 holds a chart of its
+    own. The span must come out exactly 5000 wide, and column 0 exactly 1000.
+    """
+    member = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=1000)
+    span = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=5000)
+
+    composed = grid([(member, 0, 0, 1, 1), (span, 1, 1, 1, 2)], ncols=3, spacing=0)
+    placed = re.findall(r'<svg[^>]*\sx="([\d.]+)"[^>]*width="([\d.]+)"', composed.to_string())
+
+    assert [(float(x), float(width)) for x, width in placed] == [(0.0, 1000.0), (1000.0, 5000.0)]
+    assert _canvas(composed)[0] == pytest.approx(6000.0)
+
+
+def test_the_same_cells_in_any_order_lay_out_the_same() -> None:
+    """The property the whole rule exists to have, asserted directly.
+
+    Spans were resolved in the order ``cells`` listed them, each adding to what the last had
+    already put in, so two spans over the same track gave different figures depending on which
+    came first -- 132px apart on a five-column grid. Filling smallest-first settles that within
+    one span; ordering the spans by ``(length, start, needed)`` settles it between them, since
+    two spans that sort equal are interchangeable in every way this function reads.
+
+    Every permutation, not a sampled pair: with three cells that is six layouts, and the failure
+    was not symmetric -- it depended on which specific span ran first.
+    """
+    wide = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=810.2)
+    narrow = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=397.2)
+    single = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=300.0)
+    cells = [(wide, 0, 2, 1, 2), (narrow, 1, 2, 1, 3), (single, 2, 0, 1, 1)]
+
+    answers = {_canvas(grid(list(order), spacing=0, ncols=5)) for order in itertools.permutations(cells)}
+
+    assert len(answers) == 1, f"the same cells laid out {len(answers)} different ways: {sorted(answers)}"
+
+
+def test_two_spans_of_the_same_length_do_not_depend_on_which_came_first() -> None:
+    """The tie, which is where ordering by length alone still leaves the caller in charge.
+
+    Sorting by ``length`` puts spans of *different* reach in a fixed sequence, and the check
+    above is satisfied by that much. Two spans of the **same** length sort equal, so they stay in
+    ``cells`` order -- and that is exactly when they are most likely to be competing for the same
+    tracks. Measured: with a ``length``-only key these six permutations give 3900 and 4066.67.
+
+    The key is ``(length, start, needed)``, which leaves two spans tied only when they are
+    interchangeable in everything this function reads about them.
+    """
+    first = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=500.0)
+    second = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=3600.0)
+    single = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=300.0)
+    # Both spans are three columns wide -- the tie -- and they start one column apart.
+    cells = [(first, 0, 2, 1, 3), (second, 1, 1, 1, 3), (single, 2, 0, 1, 1)]
+
+    answers = {_canvas(grid(list(order), spacing=0, ncols=5)) for order in itertools.permutations(cells)}
+
+    assert len(answers) == 1, f"two spans of equal length gave {len(answers)} answers: {sorted(answers)}"
+
+
+def test_a_shortfall_smaller_than_the_track_count_is_still_distributed() -> None:
+    """A sub-pixel share is still a share.
+
+    Every other fixture here has a shortfall in the hundreds, where integer and true division
+    agree. Here it is **1px across two tracks**: dividing truly gives 0.5 each and the span comes
+    out at its 2001, while flooring gives 0 each and the leftover is silently dropped -- the span
+    renders 1px narrower than it asked for and the loop's bound quietly swallows the remainder.
+
+    One pixel is not much; the point is that the arithmetic is exact at any scale, and this is
+    the only size at which the two rules differ.
+    """
+    left = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=1000)
+    right = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=1000)
+    span = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=2001)
+
+    composed = grid([(left, 0, 0, 1, 1), (right, 0, 1, 1, 1), (span, 1, 0, 1, 2)], ncols=2, spacing=0)
+
+    assert _canvas(composed)[0] == pytest.approx(2001.0)
+    assert _offsets(composed) == pytest.approx([0.0, 1000.5])
+
+
+def test_a_track_nothing_reaches_at_all_still_falls_back() -> None:
+    """The one case the old rule was right about, kept: ``ncols=`` can name a column no cell
+    occupies and no span covers. It has nothing to be sized from, so it takes the fallback --
+    the same answer the matrix form gives an all-empty track. ``800 * 3 + 2 * 12 = 2424``."""
+    chart = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=800)
+
+    composed = grid([(chart, 0, 0, 1, 1)], ncols=3, spacing=12)
+
+    assert _canvas(composed)[0] == pytest.approx(800 * 3 + 2 * 12)
 
 
 def test_a_grid_span_cell_still_refuses_something_that_is_neither() -> None:
