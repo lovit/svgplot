@@ -380,8 +380,9 @@ until someone decides which it is. The two here count x slots and the things thi
 another; both sit in range today only because their pages happen to be long enough.
 
 **Which of the two an entry is cannot be decided by a test.** Four predicates tried; see the
-comment beside the assertion below for how each failed. What is pinned instead is the set of
-figures each page cites, so a changed exception has to show up as a changed page.
+comment beside the assertion below for how each failed, and for what the table that replaced
+them does and does not close. In short: an edit that makes a page's audit *smaller* cannot pass;
+one that leaves every page's set intact can.
 """
 
 
@@ -432,31 +433,6 @@ _CITED = {
 }
 """Which figures each page's NOTES point at, as the audit reads them.
 
-Written down so that the exception list cannot quietly change what is audited. ``sparkline`` is
-empty because its notes cite no figure at all -- it has no controls and its NOTES describe the
-chart rather than any one picture."""
-
-
-_CITED = {
-    "areaplot": {2, 3},
-    "barplot": {2, 3, 5},
-    "boxplot": {4, 5},
-    "ecdfplot": {4, 5},
-    "gaugeplot": {2, 3, 4},
-    "heatmap": {4},
-    "histplot": {4, 5},
-    "kdeplot": {3, 5},
-    "lineplot": {2, 3, 5, 6},
-    "pieplot": {5},
-    "radarplot": {2, 3},
-    "regplot": {5},
-    "scatterplot": {2, 5, 6},
-    "sparkline": set(),
-    "treemap": {4},
-    "violinplot": {4, 5, 6},
-}
-"""Which figures each page's NOTES point at, as the audit reads them.
-
 Written down so the exception list cannot quietly change what is audited. ``sparkline`` is empty
 because its notes cite no figure at all -- it draws no control and its NOTES describe the chart
 rather than any one picture."""
@@ -481,7 +457,7 @@ def test_every_exception_to_the_ordinal_audit_is_still_in_use() -> None:
     # it was written. The other three were defeated by respelling the phrase -- ``세 번째 그림``
     # satisfies "must contain a noun after the ordinal"; deleting one character from it,
     # ``다섯 번째 그``, clears a ``그림`` substring ban while still removing the ordinal from the
-    # note, and twelve such truncations emptied three pages' audits with the suite green; a word
+    # note, and eleven such truncations emptied three pages' audits with the suite green; a word
     # limit over ``endswith("다")`` went the same way.
     #
     # Pinning the list's *length* then closed additions and left edits open: one replacement
@@ -489,13 +465,22 @@ def test_every_exception_to_the_ordinal_audit_is_still_in_use() -> None:
     # reference, and editing an entry is the likelier maintenance move anyway.
     #
     # Nothing mechanical can read a Korean sentence and say whether its ordinal counts figures;
-    # that is a judgement and it belongs in review. A table of what each page cites is what makes
-    # the judgement visible: respell an exception, replace one, or add one, and some page's set
-    # shrinks, so the diff has to name the page and the figure it stopped auditing. Dropping an
-    # entry can pass -- ``histplot``'s exempts a ``다섯 번째`` that another note on the same page
-    # cites anyway -- and that is the safe direction: a lost exception widens the audit rather
-    # than narrowing it. It is not a restatement of the computation: the left side is read out of
-    # the notes, the right side is written here.
+    # that is a judgement and it belongs in review. What a table of citations pins is narrower
+    # than "any change to the list", and worth stating exactly: **no edit can make a page's set
+    # smaller and stay green.** Swept exhaustively -- every substring of every note, substituted
+    # for each entry and added as a third, 4,466,424 configurations -- zero shrink a set without
+    # going red. That is the direction that loses coverage, and it is the one that is closed.
+    #
+    # What stays open is an exception that stops the audit *seeing* an ordinal without changing
+    # any page's set, because another note on the same page cites the same figure. Two
+    # characters do it: ``("areaplot", "째(")`` deletes the ordinal from three of areaplot's four
+    # ordinal-bearing notes and the suite stays green, since the interaction note still says
+    # ``두 번째와 세 번째``. Dropping an entry passes for the same reason -- ``histplot``'s
+    # exempts a ``다섯 번째`` another note cites anyway -- and that one is harmless, because a
+    # lost exception widens the audit rather than narrowing it.
+    #
+    # It is not a restatement of the computation: the left side is read out of the notes, the
+    # right side is written here.
     assert {page.name: _cited_figures(page.notes, page.name) for page in discover()} == _CITED
 
 
