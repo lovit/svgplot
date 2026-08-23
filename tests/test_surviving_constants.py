@@ -181,45 +181,55 @@ def test_the_tick_step_scales_with_the_magnitude() -> None:
 
 
 @pytest.mark.parametrize(
-    ("rough", "step", "mathematically"),
+    ("rough", "step"),
     [
-        (0.15, 0.1, 0.2),  # residual 1.4999999999999998, should be 1.5 -> 2
-        (0.3, 0.2, 0.5),  # residual 2.9999999999999996, should be 3 -> 5
-        (0.7, 0.5, 1.0),  # residual 6.999999999999999,  should be 7 -> 10
+        (0.15, 0.2),  # residual was 1.4999999999999998, should be (and now is) 1.5 -> 2
+        (0.3, 0.5),  # residual was 2.9999999999999996 -> 3 -> 5
+        (0.7, 1.0),  # residual was 6.999999999999999  -> 7 -> 10
+        (0.015, 0.02),  # divided exactly all along -- the error is not "everything below 1"
+        (0.07, 0.1),  # erred *upward* (7.000000000000001) -- and not one-directional either
     ],
 )
-def test_the_residual_is_off_by_an_ulp_at_magnitude_a_tenth(rough: float, step: float, mathematically: float) -> None:
-    """Current behaviour, pinned as a **defect** rather than as a rule (#273).
+def test_the_ladder_branches_on_the_arithmetic_and_not_on_the_division_error(rough: float, step: float) -> None:
+    """``rough / magnitude`` is rounded before it reaches the ladder (#273).
 
-    ``rough / magnitude`` is not exact in binary floating point, so a value sitting
-    mathematically *on* a branch point can fall below it: ``0.7 / 0.1`` is
-    ``6.999999999999999``, which takes the ``< 7`` branch and yields ``nice=5`` where the
-    arithmetic says 10. The visible consequence is that the same data at a different unit gets a
-    different axis -- ``(0, 3.5)`` draws 8 ticks and ``(0, 35)`` draws 4.
+    These five were pinned as a **defect** by #262, with the answer the arithmetic says recorded
+    in a third column, so that fixing it would fail the pin. It did; this is the pin turned
+    around, and the third column is now the assertion.
 
-    An earlier version of this test called that "nothing to fix", generalising from the single
-    ``0.15`` sample to "a decimal literal below 1 is not exactly a tenth". A review swept it and
-    the generalisation is false in both directions: ``0.015`` divides exactly, and ``0.07``
-    errs *upward* (``7.000000000000001``). It is specific to ``magnitude == 0.1`` and its
-    direction varies by branch -- which is what makes it a bug rather than a property.
-
-    Kept as a pin, not deleted, so #273 has a test that fails the moment it is fixed. The third
-    column records what the answer *should* be.
+    Why the samples are these five: the first three are where the division fell *below* a branch
+    point, and the last two are what killed the tempting explanation. An earlier draft called
+    this "nothing to fix -- a decimal literal below 1 is not exactly a tenth"; ``0.015`` divides
+    exactly and ``0.07`` errs *upward*, so the error is neither universal below 1 nor
+    one-directional, and could not have been corrected by nudging the branch constants.
     """
-    assert _nice_step(rough) == pytest.approx(step), "current (defective) behaviour changed -- see #273"
-    assert step != mathematically, "this sample no longer separates the defect from the correct answer"
+    assert _nice_step(rough) == pytest.approx(step)
 
 
-def test_the_same_shape_of_data_gets_a_different_axis_at_a_different_unit() -> None:
-    """The user-visible half of #273, so the defect is recorded as an outcome and not only as an
-    arithmetic curiosity. Delete this with the fix, not before."""
-    ticks_per_domain = {
-        top: len(make_ticks(LinearScale((0.0, top), (0.0, 100.0)), count=5)) for top in (0.35, 3.5, 35.0, 350.0)
+@pytest.mark.parametrize("base", [1.5, 3.0, 7.0, 2.4, 6.8])
+def test_the_same_shape_of_data_gets_the_same_axis_at_every_unit(base: float) -> None:
+    """The user-visible half. A chart's tick density must not depend on the unit its data is in.
+
+    Before the fix ``(0, 3.5)`` drew 8 ticks and ``(0, 35)`` drew 4 -- same shape, same chart,
+    different unit. The bases here are the three branch points plus two ordinary values, and the
+    exponent range spans the magnitudes a real column plausibly holds.
+    """
+    counts = {
+        exponent: len(make_ticks(LinearScale((0.0, base * 10**exponent), (0.0, 100.0)), count=5)) for exponent in range(-4, 5)
     }
 
-    assert ticks_per_domain[0.35] == ticks_per_domain[3.5]
-    assert ticks_per_domain[35.0] == ticks_per_domain[350.0]
-    assert ticks_per_domain[3.5] != ticks_per_domain[35.0], "unit-invariance restored -- #273 is fixed, drop this test"
+    assert len(set(counts.values())) == 1, f"tick count varies with the unit for base {base}: {counts}"
+
+
+def test_a_genuine_difference_below_the_branch_still_rounds_down() -> None:
+    """The rounding must erase the division error, not the data.
+
+    Ten significant digits: a residual that is *really* below a branch by more than ``1e-10``
+    has to stay below it. ``6.9999999999`` is nine nines -- larger than the error being
+    corrected by six orders of magnitude, and still on the ``nice=5`` side.
+    """
+    assert _nice_step(6.9999999999) == pytest.approx(5.0)
+    assert _nice_step(1.4999999999) == pytest.approx(1.0)
 
 
 # ---------------------------------------------------------------------------

@@ -183,7 +183,31 @@ def _nice_step(rough_step: float) -> float:
         # int this large can later overflow converting *back* to float with a confusing
         # "int too large to convert to float" instead of a clean, expected ValueError.
         magnitude = 10.0 ** math.floor(math.log10(rough_step))
-        residual = rough_step / magnitude
+        # Rounded before it reaches the ladder below, so that the ladder answers the same way
+        # for the same data at any unit. Without it ``(0, 3.5)`` drew 8 ticks and ``(0, 35)``
+        # drew 4: ``3.5 / 5`` gives ``0.7``, whose residual ``0.7 / 0.1`` is
+        # ``6.999999999999999`` and takes the ``< 7`` branch, while ``35 / 5`` gives ``7.0``
+        # with an exact residual that does not (#273).
+        #
+        # **Not** because "the arithmetic says 7" -- it does not, and an earlier version of this
+        # comment claimed it did. The double written ``0.7`` is *below* decimal 0.7, so the exact
+        # quotient is ``6.99999999999999916...`` however it is computed; ``Decimal``, ``Fraction``
+        # and multiplying by ``10 ** -exponent`` all agree it is under 7. There is no arithmetic
+        # that recovers "the user meant 0.7" from a value that arrived as ``span / count``.
+        #
+        # The requirement is unit-invariance, and this is the trade it costs. A residual within
+        # ``1e-10`` of a branch point now takes the upper branch whether it got there by division
+        # error or by being that value -- ``_nice_step(6.999999999999999)`` answers 10 where it
+        # used to answer 5. That direction is the coherent one: to a caller, a domain topping out
+        # at ``6.999999999999999`` is a domain topping out at 7, and it now gets 7's axis. Before,
+        # ``0.7``, ``6.999999999999999``, ``7.0`` and ``70.0`` split two ways; they no longer do.
+        #
+        # Ten digits: ``residual`` lies in ``[1, 10)`` for every reachable input, where a double's
+        # ULP runs from ``2.2e-16`` to ``1.8e-15``. Rounding at the tenth significant digit
+        # therefore sits 4.75 to 5.05 orders of magnitude above the error it absorbs -- narrowest
+        # at the top of the range, which is where the ``< 7`` branch lives. Differences larger
+        # than ``1e-10`` are preserved; the trade above is what happens to smaller ones.
+        residual = round(rough_step / magnitude, 10)
     except (OverflowError, ZeroDivisionError, ValueError) as error:
         raise ValueError(f"cannot compute a tick step for rough_step={rough_step!r}") from error
     if residual < 1.5:
