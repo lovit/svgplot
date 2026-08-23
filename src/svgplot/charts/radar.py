@@ -12,8 +12,10 @@ never calls ``charts/_axes``.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 
 from svgplot.chart.base import Chart
+from svgplot.charts._aggregate import Estimator, apply_estimator, resolve_estimator, warn_rows_discarded
 from svgplot.charts._describe import describe, group, span
 from svgplot.charts._layout import (
     LEGEND_X_OFFSET,
@@ -50,23 +52,42 @@ _LABEL_GAP = 18.0
 from the text, because this package measures no glyphs."""
 
 
-def _values_by_category(columns: dict[str, list], x: str, y: str) -> dict[str, float]:
-    """One value per category, later rows winning -- radar has a single spoke per label.
+def _category_values(columns: dict[str, list], x: str, y: str) -> dict[str, list[float]]:
+    """Map category -> every value under it in one series, dropping missing rows.
 
-    Same rule as ``barplot``'s category lookup, for the same reason: one category owns one
-    mark, so a repeated row can only replace the previous one.
+    Kept as a list rather than folded here for the two reasons ``barplot``'s twin gives: the
+    caller applies ``estimator=`` to it, and the default path counts what it is about to throw
+    away so it can say so.
+
+    Deliberately still a copy of ``bar.py``'s ``_category_values`` rather than a shared helper.
+    The two differ in one line that matters -- this one names the category and the chart when
+    ``float()`` fails, ``barplot``'s lets the bare ``ValueError`` out -- so merging them today
+    would either lose this message or change ``barplot``'s. That is #256's question, and the
+    merge belongs to whichever change answers it.
     """
-    values: dict[str, float] = {}
+    values: dict[str, list[float]] = {}
     for xv, yv in zip(columns[x], columns[y], strict=True):
         if is_missing(xv) or is_missing(yv):
             continue
         try:
-            values[str(xv)] = float(yv)
+            value = float(yv)
         except (TypeError, ValueError) as error:
             # Same reason _validate_radius_values checks here rather than leaving it to
             # LinearScale: the bare message names neither the category nor the column.
             raise ValueError(f"radar values must be numbers, got {yv!r} for {str(xv)!r}") from error
+        values.setdefault(str(xv), []).append(value)
     return values
+
+
+def _fold(values: dict[str, list[float]], estimate: Callable[[list[float]], float] | None) -> dict[str, float]:
+    """One value per spoke: the estimator's answer, or the last row.
+
+    The default is the rule this chart has always used, kept so that no existing call moves a
+    byte. It is also the rule that discards data, which is why the caller warns about it.
+    """
+    if estimate is None:
+        return {category: group[-1] for category, group in values.items()}
+    return {category: apply_estimator(estimate, group, group=category) for category, group in values.items()}
 
 
 def _validate_radius_values(label: object, values: dict[str, float]) -> None:
@@ -118,6 +139,7 @@ def radarplot(
     hue: str | None = None,
     *,
     fill: bool = True,
+    estimator: Estimator | None = None,
     width: float | None = None,
     height: float | None = None,
     theme: Theme | str | None = None,
@@ -136,7 +158,9 @@ def radarplot(
     smaller one, so a missing value is refused rather than silently dropping the axis. A row
     whose ``x`` or ``hue`` is missing is not usable and names no spoke; a row whose ``y`` is
     missing still names one, and is what that refusal is about. Repeating a category within
-    one series replaces the earlier row, as ``barplot`` does.
+    one series folds those rows into one value: ``estimator=None`` (the default) keeps the last
+    of them, as ``barplot`` does, and says so with an
+    :class:`~svgplot.warnings.AggregationWarning` because that rule discards data.
 
     Values are distances from the centre, so they must be finite and non-negative: a
     negative radius reflects its vertex onto the opposite spoke, where it reads as another
@@ -157,10 +181,15 @@ def radarplot(
     drawn in between.
 
     ``data`` is long-form, with ``x`` naming the category column that becomes the spokes and
-    ``y`` the numeric column plotted along them. One row per spoke, or per spoke and series,
-    is the shape this expects: rows sharing a spoke within one series are silently collapsed
-    to one value, with no ``AggregationWarning`` -- unlike ``barplot``, which folds the same
-    shape and says so.
+    ``y`` the numeric column plotted along them. One row per spoke, or per spoke and series, is
+    the shape this expects.
+
+    ``estimator=`` folds rows that share a spoke within one series: ``"mean"``, ``"median"``,
+    ``"sum"``, or any callable taking a list of floats and returning one. It works per (series,
+    spoke) pair rather than per spoke, so two series with different numbers of observations each
+    fold their own. It cannot create or remove a spoke, so the no-gaps rule above is unaffected
+    by it -- the gap check runs on the folded values either way. ``None`` (the default) keeps the
+    last row, which is what this chart has always done, so no existing call moves a byte.
 
     **There is no ``tooltip=``.** Ten charts have one; these six do not, and the reason is the
     same for all six: a series is drawn as **one** mark, so the only thing a ``<title>`` on it
@@ -180,8 +209,11 @@ def radarplot(
         ValueError: if ``data`` has no rows, if its columns have different lengths, if no
             row has a non-missing ``hue``, if fewer than three categories remain, if a
             series is missing a value for some category (a radar polygon has no meaning
-            with a gap in it), if a value isn't a number, isn't finite, or is negative, or
-            if every value is zero.
+            with a gap in it), if a value isn't a number, isn't finite, or is negative, if
+            every value is zero, or if ``estimator`` is an unknown name or returns a value
+            that can't be plotted. The radius checks read the **folded** value, so an
+            estimator's own answer is refused on the same terms a raw row would be.
+        TypeError: if ``estimator`` is neither a name, a callable, nor ``None``.
     """
     resolved_theme = resolve_theme(theme)
     longform = ingest_longform(data, x, y)
@@ -190,7 +222,15 @@ def radarplot(
 
     series_items = build_series(data, longform.columns, hue)
 
-    series_values = [(label, _values_by_category(columns, x, y)) for label, columns in series_items]
+    estimate = resolve_estimator(estimator)
+    series_groups = [(label, _category_values(columns, x, y)) for label, columns in series_items]
+    series_values = [(label, _fold(groups, estimate)) for label, groups in series_groups]
+    if estimate is None:
+        warn_rows_discarded(
+            "radarplot",
+            rows=sum(len(group) for _, groups in series_groups for group in groups.values()),
+            marks=sum(len(groups) for _, groups in series_groups),
+        )
     # Every category named by a row that belongs to some series is a spoke, whether or not
     # a *value* reached it. Two rules meet here and they are not the same rule:
     #

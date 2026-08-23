@@ -22,11 +22,12 @@ Everything else is out of scope for a reason, not by omission:
 - ``heatmap`` **refuses** two rows naming the same cell rather than folding them, and
   that refusal is load-bearing: a heatmap cell is an identity, not an accumulator.
 - ``pieplot``/``treemap``/``gaugeplot`` are one row = one mark by construction.
-- ``radarplot`` does fold, with ``barplot``'s last-row-wins rule. It is left out of this
-  issue's scope deliberately rather than quietly: its folding happens per (series,
-  category) pair inside a polygon that must have no gaps, so the aggregation and the
-  gap check interact in a way that deserves its own change. Noted here so the omission
-  is a decision on the record, not a chart someone forgot.
+
+``radarplot`` was the fourth, added later (#259). It folds per (series, category) pair
+inside a polygon that must have no gaps, which is why it was held back for its own change --
+and the answer turned out to be that the two do not interact: an estimator folds the values
+standing on a spoke and can neither create nor remove one, so the gap check reads the folded
+values and is untouched. It warns on the default path for the same reason ``barplot`` does.
 
 Why the default stays ``None``
 ==============================
@@ -39,9 +40,10 @@ one more argument.
 
 What that trade would have left unfixed is the *silence*, so that is fixed separately:
 :class:`~svgplot.warnings.AggregationWarning` fires when a chart actually discards rows,
-i.e. only for ``barplot``. ``areaplot`` sums (nothing is lost) and ``lineplot`` draws
-both vertices (nothing is lost), so neither warns — a warning that fired whenever rows
-merely shared an x would be advice about nothing.
+i.e. for ``barplot`` and ``radarplot`` — the two whose default keeps the last row.
+``areaplot`` sums (nothing is lost) and ``lineplot`` draws both vertices (nothing is lost),
+so neither warns — a warning that fired whenever rows merely shared an x would be advice
+about nothing.
 
 Error bars are **not** in this module's scope, and the geometry decision is recorded
 rather than acted on: were one added, it would be a capped T bar rather than a plain line

@@ -24,6 +24,10 @@ import pytest
 import svgplot as sp
 from svgplot.charts._aggregate import ESTIMATORS, apply_estimator, resolve_estimator
 from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITH_LEGEND, MARGIN_WITHOUT_LEGEND, plot_area
+from svgplot.charts.radar import (
+    _MARGIN_WITH_LEGEND as RADAR_MARGIN_WITH_LEGEND,
+    _MARGIN_WITHOUT_LEGEND as RADAR_MARGIN_WITHOUT_LEGEND,
+)
 from svgplot.layout import facet
 
 # "a" is the group under test; "anchor" is a single row, and the largest value, so it pins
@@ -311,6 +315,147 @@ def test_areaplot_never_warns_because_it_never_discards() -> None:
         sp.areaplot({"x": [1.0, 1.0, 2.0], "y": [1.0, 2.0, 3.0]}, x="x", y="y")
 
 
+# --- radarplot -----------------------------------------------------------------------
+
+# Same shape as DUPLICATED, plus the third spoke a radar needs. "anchor" is a single row and
+# the largest value, so it sets the outer ring and every other vertex's distance from the
+# centre divides by it. TOTAL (90) stays below it, which is what keeps the ruler fixed across
+# all four estimators -- were the sum to overtop it the axis itself would move.
+RADAR = {"x": ["a", "a", "a", "anchor", "other"], "y": [10.0, 20.0, 60.0, ANCHOR_VALUE, 50.0]}
+
+
+def _spoke_values(svg: str) -> dict[str, float]:
+    """Read each spoke's value back out of the drawn polygon.
+
+    The polygon's vertices are ``(centre + radius(value) at the spoke's angle)``, in category
+    order, so a vertex's distance from the centre is proportional to its value. Dividing by the
+    anchor's distance recovers the value without asking the chart what it thought it drew --
+    the rule this file is built on.
+    """
+    points = _path_points(svg, "radar-series")
+    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=RADAR_MARGIN_WITHOUT_LEGEND)
+    centre = ((area.left + area.right) / 2, (area.top + area.bottom) / 2)
+    categories = list(dict.fromkeys(RADAR["x"]))
+    assert len(points) == len(categories), f"{len(points)} vertices for {len(categories)} spokes"
+    distances = {
+        category: math.hypot(px - centre[0], py - centre[1]) for category, (px, py) in zip(categories, points, strict=True)
+    }
+    return {category: distance / distances["anchor"] * ANCHOR_VALUE for category, distance in distances.items()}
+
+
+def test_radarplot_keeps_the_last_row_by_default() -> None:
+    """The rule this chart has always had, now stated as a value rather than as a byte count."""
+    assert _spoke_values(sp.radarplot(RADAR, x="x", y="y").to_string())["a"] == pytest.approx(LAST)
+
+
+@pytest.mark.parametrize(("estimator", "expected"), [("mean", MEAN), ("median", MEDIAN), ("sum", TOTAL)])
+def test_radarplot_folds_with_the_estimator_it_is_given(estimator: str, expected: float) -> None:
+    values = _spoke_values(sp.radarplot(RADAR, x="x", y="y", estimator=estimator).to_string())
+
+    assert values["a"] == pytest.approx(expected)
+    # The single-row spokes are untouched by the fold, which is what says the estimator ran
+    # per spoke rather than over the column.
+    assert values["other"] == pytest.approx(50.0)
+    assert values["anchor"] == pytest.approx(ANCHOR_VALUE)
+
+
+def test_a_radar_callable_receives_the_spoke_s_values_in_row_order() -> None:
+    """Row order, not sorted order -- the same contract ``barplot``'s callable has. A caller
+    folding with ``lambda values: values[0]`` is asking for the first row, and would get the
+    smallest instead if this were sorted."""
+    seen: list[list[float]] = []
+
+    def record(values: list[float]) -> float:
+        seen.append(list(values))
+        return values[0]
+
+    assert _spoke_values(sp.radarplot(RADAR, x="x", y="y", estimator=record).to_string())["a"] == pytest.approx(10.0)
+    assert [10.0, 20.0, 60.0] in seen
+
+
+def test_radarplot_folds_within_each_series_not_across_them() -> None:
+    """Per (series, spoke), which is the pair this chart folds on and the reason it was held
+    back from #119. Both series repeat spoke ``a``; each must fold only its own rows."""
+    data = {
+        "x": ["a", "a", "anchor", "other"] * 2,
+        "y": [10.0, 20.0, ANCHOR_VALUE, 50.0, 80.0, 90.0, ANCHOR_VALUE, 50.0],
+        "g": ["1"] * 4 + ["2"] * 4,
+    }
+    svg = sp.radarplot(data, x="x", y="y", hue="g", estimator="mean").to_string()
+    # radarplot owns its margins rather than taking the shared presets -- see radar.py, which
+    # explains why a pie's single fixed margin is not the precedent for a chart that only draws
+    # a legend with hue=. Importing them keeps this ruler honest if they ever move.
+    area = plot_area(DEFAULT_WIDTH, DEFAULT_HEIGHT, margin=RADAR_MARGIN_WITH_LEGEND)
+    centre = ((area.left + area.right) / 2, (area.top + area.bottom) / 2)
+
+    folded = []
+    for series in ("series-1", "series-2"):
+        match = re.search(rf'<path d="([^"]*)"[^>]*class="{series} radar-series"', svg)
+        assert match is not None, f"no polygon for {series}"
+        points = [
+            (float(pair.split(",")[0]), float(pair.split(",")[1]))
+            for pair in re.findall(r"[ML] ([\d.-]+,[\d.-]+)", match.group(1))
+        ]
+        distances = [math.hypot(px - centre[0], py - centre[1]) for px, py in points]
+        folded.append(distances[0] / distances[1] * ANCHOR_VALUE)
+
+    # 15 is mean([10, 20]) and 85 is mean([80, 90]); a fold across both series would give 50.
+    assert folded[0] == pytest.approx(15.0)
+    assert folded[1] == pytest.approx(85.0)
+
+
+def test_radarplot_says_out_loud_how_many_rows_it_dropped() -> None:
+    """The gap this issue is about: the same rule as ``barplot`` and, until now, no warning."""
+    with pytest.warns(sp.AggregationWarning, match=r"radarplot kept 3 of 5 rows"):
+        sp.radarplot(RADAR, x="x", y="y")
+
+
+def test_nothing_is_warned_about_once_a_radar_estimator_is_chosen() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", sp.AggregationWarning)
+        sp.radarplot(RADAR, x="x", y="y", estimator="mean")
+
+
+def test_a_radar_with_one_row_per_spoke_is_not_warned_about() -> None:
+    """No chart should tell a caller about a fold that folded nothing."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", sp.AggregationWarning)
+        sp.radarplot({"x": ["a", "b", "c"], "y": [1.0, 2.0, 3.0]}, x="x", y="y")
+
+
+def test_a_radar_estimator_cannot_open_a_gap_in_the_polygon() -> None:
+    """Why this chart was held back from #119, answered: the two rules do not interact.
+
+    An estimator folds the values standing on a spoke; it can neither create a spoke nor empty
+    one, so the no-gaps check reads the folded values and refuses exactly what it refused
+    before. Here series ``2`` never names spoke ``other`` at all, and an estimator does not
+    change that.
+    """
+    data = {
+        "x": ["a", "anchor", "other", "a", "a", "anchor"],
+        "y": [10.0, ANCHOR_VALUE, 50.0, 80.0, 90.0, ANCHOR_VALUE],
+        "g": ["1", "1", "1", "2", "2", "2"],
+    }
+    for estimator in (None, "mean", "sum"):
+        with pytest.raises(ValueError, match="cannot have a gap"):
+            sp.radarplot(data, x="x", y="y", hue="g", estimator=estimator)
+
+
+def test_a_radar_estimator_returning_a_negative_value_is_still_refused() -> None:
+    """The radius validation runs on what the estimator produced, not on the raw rows -- a
+    negative radius reflects its vertex onto the opposite spoke whatever produced it."""
+    with pytest.raises(ValueError, match="non-negative"):
+        sp.radarplot(RADAR, x="x", y="y", estimator=lambda values: -sum(values))
+
+
+def test_the_default_radar_output_is_unchanged_by_this_argument_existing() -> None:
+    """``estimator=None`` is the default and is the historical rule, so a call written before
+    this argument existed draws the same bytes as one written after."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", sp.AggregationWarning)
+        assert sp.radarplot(RADAR, x="x", y="y").to_string() == sp.radarplot(RADAR, x="x", y="y", estimator=None).to_string()
+
+
 # --- lineplot ------------------------------------------------------------------------
 
 
@@ -392,7 +537,6 @@ def test_lineplot_still_accepts_each_of_them_alone() -> None:
         pytest.param(lambda: sp.histplot(DUPLICATED, x="y", estimator="mean"), id="histplot"),
         pytest.param(lambda: sp.kdeplot(DUPLICATED, x="y", estimator="mean"), id="kdeplot"),
         pytest.param(lambda: sp.ecdfplot(DUPLICATED, x="y", estimator="mean"), id="ecdfplot"),
-        pytest.param(lambda: sp.radarplot(DUPLICATED, x="x", y="y", estimator="mean"), id="radarplot"),
         pytest.param(lambda: sp.pieplot(DUPLICATED, values="y", labels="x", estimator="mean"), id="pieplot"),
         pytest.param(lambda: sp.treemap(DUPLICATED, values="y", labels="x", estimator="mean"), id="treemap"),
         pytest.param(lambda: sp.gaugeplot(DUPLICATED, values="y", estimator="mean"), id="gaugeplot"),
