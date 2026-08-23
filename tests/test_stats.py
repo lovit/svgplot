@@ -150,6 +150,16 @@ def test_a_symmetric_midpoint_agrees_with_the_reference_for_the_wrong_reason() -
     catches the bug cannot also be the record of a sample that does not. The catching is
     :func:`test_the_cubic_curve_matches_an_independent_solve_away_from_the_knots`'s job, which
     is why its ``query`` list has five entries and none of them is this one.
+
+    The blindness is structural, not luck, and it has a boundary. With ``m0 = m3 = 0`` and
+    uniform spacing the system forces ``m2 = -m1`` for *any* scaling of ``alpha`` -- the
+    right-hand side is antisymmetric and the coefficient matrix is symmetric -- and ``x=1.5``
+    is the midpoint of its segment, where ``(a^3-a)`` and ``(b^3-b)`` are equal. So the
+    curvature term is ``-0.375*(m1 + m2) = 0`` whatever the coefficients are scaled by, which
+    is exactly why every ``alpha`` and ``/6`` mutation is invisible here. Break the *symmetry*
+    instead -- a mutation to the Thomas recurrence itself -- and ``m2 = -m1`` no longer holds,
+    so this point does start failing. Blind to the scale of the coefficients, not to their
+    structure.
     """
     xs, ys = [0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 0.0, 1.0]
     curve = interpolate(xs, ys, method="cubic", precision=1601)
