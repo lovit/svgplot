@@ -185,9 +185,13 @@ def render_theme_style(
 
     rules = [
         f".plot-background {{ fill: {background}; }}",
-        f".grid-line {{ stroke: {grid_color}; stroke-width: {grid_width}; }}",
+        # ``fill: none`` for the same reason ``.spine`` below has it, and it was missed here.
+        # Fifteen charts put this class on ``<line>``, which has no interior to paint, so the
+        # omission was invisible; ``radarplot`` puts it on the closed ``<path>`` of a concentric
+        # ring, and SVG's initial ``fill`` is black -- the rings painted over the whole plot.
+        f".grid-line {{ stroke: {grid_color}; stroke-width: {grid_width}; fill: none; }}",
         f".spine {{ stroke: {spine_color}; stroke-width: {spine_width}; fill: none; }}",
-        f".tick-line {{ stroke: {tick_color}; }}",
+        f".tick-line {{ stroke: {tick_color}; fill: none; }}",
         f".tick-label {{ fill: {foreground}; font-family: {font_family}; font-size: {tick_label_size}px; }}",
         f".legend-text {{ fill: {foreground}; font-family: {font_family}; font-size: {legend_size}px; }}",
     ]

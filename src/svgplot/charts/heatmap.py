@@ -63,9 +63,13 @@ middle level with the same number of steps either side."""
 _BYTES_PER_CELL = 85
 """Marginal output cost of one drawn cell -- fitted, see ``_BYTES_PER_TICK``."""
 
-_BYTES_FIXED = 2879
+_BYTES_FIXED = 2903
 """Output cost that does not scale with the grid: the ``<style>`` block, the axes, the
 legend, the accessibility nodes.
+
+Moved 2879 -> 2903 when ``.grid-line`` and ``.tick-line`` gained ``fill: none`` (#255):
+twenty-four bytes in the ``<style>`` block, which is exactly the kind of constant this term
+exists to hold.
 
 Added when document scoping (#182) started wrapping every rule in ``:where(.svgplot-fXXXXXXXX)``.
 That is ~27 bytes times the rule count -- a constant, and a two-term model has nowhere to put

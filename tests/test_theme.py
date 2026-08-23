@@ -254,3 +254,38 @@ def test_parametric_theme_achromatic_seed_still_produces_a_distinguishable_palet
     theme = parametric_theme(seed)
 
     assert len(set(theme.palette)) == len(theme.palette)
+
+
+# ------------------------------------------------------- what a stroke class may not paint
+#
+# ``.grid-line`` shipped without ``fill``, and SVG's initial ``fill`` is black. Fifteen charts
+# put that class on ``<line>``, which has no interior, so nothing showed. ``radarplot`` puts it
+# on the closed ``<path>`` of a concentric ring, and the rings painted over the whole plot -- in
+# the gallery too. ``tests/test_charts_radar.py`` checked those paths' coordinates and angles;
+# the geometry was right and nobody looked at the paint.
+
+_STROKE_ONLY = ("grid-line", "spine", "tick-line")
+"""Classes that draw a line and never a filled area.
+
+Any of them can land on a closed ``<path>`` -- a polar chart's ring, a boundary, a frame -- and
+then the initial ``fill`` becomes visible. Declaring ``fill: none`` costs nothing on a ``<line>``
+and is the difference between a hairline and a black polygon on a ``<path>``."""
+
+
+@pytest.mark.parametrize("css_class", _STROKE_ONLY)
+@pytest.mark.parametrize("preset", sorted(PRESETS))
+def test_a_stroke_only_class_declares_no_fill_of_its_own(css_class: str, preset: str) -> None:
+    """Read out of the rendered ``<style>``, not out of the source: the rule is assembled from
+    theme fields, so what matters is what a browser is handed."""
+    import re
+
+    import svgplot as sp
+
+    svg = sp.lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", theme=preset).to_string()
+    rule = re.search(rf":where\(\.[\w-]+\) \.{re.escape(css_class)} \{{([^}}]*)\}}", svg)
+
+    assert rule, f"{preset}: no .{css_class} rule in the rendered stylesheet"
+    assert "fill: none" in rule[1], (
+        f"{preset}: .{css_class} does not declare `fill: none`, so a closed <path> carrying it "
+        f"is painted with SVG's initial black -- rule was {rule[1].strip()!r}"
+    )
