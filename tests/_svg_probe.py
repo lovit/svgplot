@@ -169,12 +169,13 @@ CLIP_CLASS = "plot-clip"
 def placed_panels(svg: str) -> list[str]:
     """Every child a composition placed, as markup, in document order.
 
-    Not every nested ``<svg>`` is a panel. A chart handed ``xlim=``/``ylim=`` wraps its marks
-    in one to clip them, and sharing an axis is exactly how ``facet`` hands a panel a limit --
-    so three test modules that split on ``<svg x=`` began counting each panel's clip as a panel
-    of its own, and the text split cut a panel in half at the clip so its remaining ticks were
-    read as yet another. Panels are the composition root's own children; a clip is a
-    grandchild inside one of them.
+    Not every nested ``<svg>`` is a panel. A chart handed an ``xlim=``/``ylim=`` that *narrows*
+    its domain wraps its marks in one to clip them, and for a while sharing an axis was enough
+    to trigger that -- so three test modules that split on ``<svg x=`` began counting each
+    panel's clip as a panel of its own, and the text split cut a panel in half at the clip so
+    its remaining ticks were read as yet another. ``facet``'s shared union narrows nothing and
+    no longer produces a clip, but a faceted composition given a narrowing limit still does.
+    Panels are the composition root's own children; a clip is a grandchild inside one of them.
     """
     root = ET.fromstring(svg)
     return [

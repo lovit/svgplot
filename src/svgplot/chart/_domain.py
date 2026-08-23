@@ -111,17 +111,29 @@ def union(domains: list[Domains]) -> Domains:
 def narrows(computed: tuple[float, float], override: tuple[float, float] | None) -> bool:
     """Whether ``override`` makes the domain smaller than the chart computed for itself.
 
-    Only a narrowing override can put a mark outside the plot area, so only a narrowing one
-    needs a clip. The distinction is not pedantry: ``facet`` shares an axis by handing every
+    Only a narrowing override can put a mark outside the plot area *because of the override*.
+    Marks overhang the edge anyway -- a marker at the domain's maximum always spills its outer
+    radius past the spine, with or without a limit -- and that is not something to cut; a clip
+    exists for the values a narrowed window pushed out of view, not for the geometry of a mark
+    sitting on the boundary. The distinction is not pedantry: ``facet`` shares an axis by handing every
     panel the *union* of the panels' domains, which by construction covers each panel's data,
     and treating that as a reason to clip cut the extreme markers of an unfaceted-looking chart
     in half -- a caller who passed no limit at all seeing marks lose their outer radius.
 
     Equal bounds are not narrowing. Widening on one side and narrowing on the other is.
+
+    Validates through :func:`_require_finite_pair` rather than unpacking, because every chart
+    asks this *before* it calls :func:`apply_limit` -- so a bare ``low, high = override`` here
+    reaches a malformed argument first and answers it with ``too many values to unpack`` instead
+    of the message that names the parameter.
+
+    Raises:
+        ValueError: if ``override`` isn't a pair of finite numbers -- the same refusal
+            :func:`apply_limit` makes, raised at whichever of the two the chart reaches first.
     """
     if override is None:
         return False
-    low, high = override
+    low, high = _require_finite_pair(override)
     return low > computed[0] or high < computed[1]
 
 

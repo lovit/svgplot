@@ -72,9 +72,11 @@ counts and then re-divides the x axis underneath it, so a bin can pick up a valu
 division had split in two -- measured, panels peaking at 9 and 8 drew a bar of 10 against a
 ``ylim`` of 9, which put it 57.8px above the plot area. Nothing later notices: a chart handed
 a ``ylim`` records the ``ylim``, not what it drew, so the union cannot see the overflow. What
-*has* changed since this was written is what a reader sees -- a chart given a limit now clips
-its marks to the plot area (``charts/_layout.marks_viewport``), so the extra 57.8px is cut
-rather than drawn over the axis. That makes the wrong division quieter, not right: the bar is
+*has* changed since this was written is what a reader sees -- a chart given a limit that
+*narrows* its domain clips its marks to the plot area (``charts/_layout.marks_viewport``), so
+the extra 57.8px is cut rather than drawn over the axis. The union these three passes compute
+narrows nothing, so the panels themselves draw no clip; it is the mis-divided ``ylim`` above
+that would. That makes the wrong division quieter, not right: the bar is
 still taller than the axis it is measured against, and these three passes are what stops it
 happening.
 

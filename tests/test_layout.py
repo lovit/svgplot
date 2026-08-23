@@ -66,11 +66,11 @@ def nested_rects(svg: str) -> list[tuple[float, float, float, float]]:
     """(x, y, width, height) of every placed child, in document order.
 
     Finds the panels with ``placed_panels`` and reads their attributes here. A nested
-    ``<svg x= y=>`` is not always a placed child: a chart handed ``xlim=``/``ylim=`` wraps its
-    marks in one to clip them. Every call site in this file *except the last* builds its charts
-    without a limit, so reading the raw shape returned the right answer by luck; the last one
-    faceted, and on a faceted composition -- where sharing an axis *is* passing each panel a
-    limit -- the raw shape returns six rects for three panels.
+    ``<svg x= y=>`` is not always a placed child: a chart handed an ``xlim=``/``ylim=`` that
+    *narrows* its domain wraps its marks in one to clip them. Every call site in this file
+    *except the last* builds its charts without a limit, so reading the raw shape returned the
+    right answer by luck; the last one facets *with* a narrowing ``ylim=``, and there the raw
+    shape returns six rects for three panels.
     """
     return [
         (float(match["x"]), float(match["y"]), float(match["w"]), float(match["h"]))

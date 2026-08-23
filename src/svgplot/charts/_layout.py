@@ -270,9 +270,11 @@ def marks_viewport(document: SvgDocument, area: PlotArea, *, clipped: bool) -> E
     so a marker whose centre is the last point *inside a narrowed window* loses the half of its
     radius that hangs past the axis, and a stroke loses half its width. That is what clipping
     means and what matplotlib's ``clip_on=True`` does; the caller asked for a smaller view and
-    the edge of that view is where the picture stops. What changed is that this now happens only
-    where it was asked for -- ``facet``'s shared union narrows nothing, so it no longer produces
-    a clip and its extreme markers are whole again.
+    the edge of that view is where the picture stops. What changed is that a chart no longer
+    clips when nothing was narrowed -- ``facet``'s shared union narrows nothing, so it produces
+    no clip and its extreme markers are whole again. The viewport is still one rect over both
+    axes, so narrowing *one* axis also trims the marks overhanging the other; splitting it per
+    axis is a separate question this does not answer.
 
     ``overflow="hidden"`` is the initial value for a nested viewport and is written anyway: it
     is the one attribute that says what this element is for, in a file this package intends to
