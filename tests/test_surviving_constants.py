@@ -25,7 +25,7 @@ from svgplot.charts._layout import DEFAULT_HEIGHT, DEFAULT_WIDTH, MARGIN_WITHOUT
 from svgplot.charts._polar import FULL_CIRCLE_TOLERANCE, _large_arc_flag
 from svgplot.charts.box import _BOX_WIDTH_FRACTION
 from svgplot.data.semantic import extract_channels
-from svgplot.scales import _nice_step
+from svgplot.scales import LinearScale, _nice_step, make_ticks
 from svgplot.stats.box import box_stats
 
 # ---------------------------------------------------------------------------
@@ -63,6 +63,31 @@ def test_a_row_missing_every_channel_is_dropped_too() -> None:
     data = {"지역": ["동", None], "분기": ["1Q", None], "값": [1.0, 2.0]}
 
     assert set(extract_channels(data, hue="지역", col="분기")) == {("동", "1Q")}
+
+
+@pytest.mark.parametrize("hole", ["지역", "분기", "행"])
+def test_every_one_of_three_channels_can_be_the_missing_one(hole: str) -> None:
+    """The filter reads *all* the key parts, not the first two.
+
+    ``extract_channels`` takes ``hue``/``col``/``row`` and the two-channel check above leaves the
+    third unexercised: a review measured that narrowing the predicate to ``key_parts[:2]`` --
+    ignoring the third channel's missing values entirely -- passed all 4,304 tests. That is the
+    same defect this file exists to close, hiding one channel further along.
+
+    Parametrized over which channel holds the hole so no position is the covered one by accident.
+    """
+    data = {
+        "지역": ["동", "동"],
+        "분기": ["1Q", "1Q"],
+        "행": ["위", "위"],
+        "값": [1.0, 2.0],
+    }
+    data[hole] = [data[hole][0], None]
+
+    groups = extract_channels(data, hue="지역", col="분기", row="행")
+
+    assert len(groups) == 1, f"a row with a missing {hole} became its own group: {sorted(map(str, groups))}"
+    assert all(None not in key for key in groups), f"a key holds a missing value: {sorted(map(str, groups))}"
 
 
 def test_a_single_channel_still_drops_its_missing_rows() -> None:
@@ -155,22 +180,46 @@ def test_the_tick_step_scales_with_the_magnitude() -> None:
     assert _nice_step(150.0) == pytest.approx(200.0)
 
 
-def test_the_branch_is_on_the_computed_residual_not_the_decimal_one() -> None:
-    """Below 1 the ladder shifts by one representation step, and it is worth stating rather
-    than discovering.
+@pytest.mark.parametrize(
+    ("rough", "step", "mathematically"),
+    [
+        (0.15, 0.1, 0.2),  # residual 1.4999999999999998, should be 1.5 -> 2
+        (0.3, 0.2, 0.5),  # residual 2.9999999999999996, should be 3 -> 5
+        (0.7, 0.5, 1.0),  # residual 6.999999999999999,  should be 7 -> 10
+    ],
+)
+def test_the_residual_is_off_by_an_ulp_at_magnitude_a_tenth(rough: float, step: float, mathematically: float) -> None:
+    """Current behaviour, pinned as a **defect** rather than as a rule (#273).
 
-    ``0.15`` looks like it sits exactly on the first branch, and it does not: ``0.15 / 0.1`` is
-    ``1.4999999999999998`` in binary floating point, so it rounds *down* to ``0.1`` where
-    ``1.5`` and ``15.0`` round up. The next representable value above it, ``0.1500000001``,
-    crosses.
+    ``rough / magnitude`` is not exact in binary floating point, so a value sitting
+    mathematically *on* a branch point can fall below it: ``0.7 / 0.1`` is
+    ``6.999999999999999``, which takes the ``< 7`` branch and yields ``nice=5`` where the
+    arithmetic says 10. The visible consequence is that the same data at a different unit gets a
+    different axis -- ``(0, 3.5)`` draws 8 ticks and ``(0, 35)`` draws 4.
 
-    This is the implementation's real behaviour and there is nothing to fix -- the residual is
-    what the branch is defined on, and a decimal literal below 1 is not exactly a tenth. Pinned
-    so the next person to reach for ``0.15`` as an obvious boundary sample finds the answer here
-    instead of a puzzling failure.
+    An earlier version of this test called that "nothing to fix", generalising from the single
+    ``0.15`` sample to "a decimal literal below 1 is not exactly a tenth". A review swept it and
+    the generalisation is false in both directions: ``0.015`` divides exactly, and ``0.07``
+    errs *upward* (``7.000000000000001``). It is specific to ``magnitude == 0.1`` and its
+    direction varies by branch -- which is what makes it a bug rather than a property.
+
+    Kept as a pin, not deleted, so #273 has a test that fails the moment it is fixed. The third
+    column records what the answer *should* be.
     """
-    assert _nice_step(0.15) == pytest.approx(0.1)
-    assert _nice_step(0.1500000001) == pytest.approx(0.2)
+    assert _nice_step(rough) == pytest.approx(step), "current (defective) behaviour changed -- see #273"
+    assert step != mathematically, "this sample no longer separates the defect from the correct answer"
+
+
+def test_the_same_shape_of_data_gets_a_different_axis_at_a_different_unit() -> None:
+    """The user-visible half of #273, so the defect is recorded as an outcome and not only as an
+    arithmetic curiosity. Delete this with the fix, not before."""
+    ticks_per_domain = {
+        top: len(make_ticks(LinearScale((0.0, top), (0.0, 100.0)), count=5)) for top in (0.35, 3.5, 35.0, 350.0)
+    }
+
+    assert ticks_per_domain[0.35] == ticks_per_domain[3.5]
+    assert ticks_per_domain[35.0] == ticks_per_domain[350.0]
+    assert ticks_per_domain[3.5] != ticks_per_domain[35.0], "unit-invariance restored -- #273 is fixed, drop this test"
 
 
 # ---------------------------------------------------------------------------
@@ -210,13 +259,11 @@ def test_a_value_past_the_fence_is_still_an_outlier() -> None:
 
 
 def test_the_fence_is_not_wider_than_one_and_a_half_iqrs_either() -> None:
-    """The multiplier is bounded from *both* sides, and the second one needed its own sample.
+    """The multiplier is bounded from *both* sides, and the second side needed its own sample.
 
-    ``120`` above separates 1.5 from 1.0; it cannot separate 1.5 from anything larger, because a
-    value inside the real fence is inside a wider one too. ``150`` is the mirror: past the real
-    fence at ``130`` and inside a 3x fence at ``190``, so it is an outlier only while the
-    multiplier is 1.5 or below. Measured -- with only ``120`` and ``200`` in the file, raising
-    the constant to ``3.0`` survived.
+    ``120`` above separates 1.5 from 1.0; it cannot separate 1.5 from anything *larger*, because
+    a value inside the real fence is inside a wider one too. Measured -- with only ``120`` and
+    ``200`` in the file, raising the constant to ``3.0`` survived.
     """
     values = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 150.0]
 
@@ -224,6 +271,26 @@ def test_the_fence_is_not_wider_than_one_and_a_half_iqrs_either() -> None:
 
     assert stats.outliers == [150.0], "150 is past a 1.5xIQR fence of 130 and must be an outlier"
     assert stats.whisker_high == pytest.approx(80.0)
+
+
+def test_the_fence_multiplier_is_pinned_close_enough_to_exclude_a_plausible_typo() -> None:
+    """Both sides again, and much nearer the value -- because "bounded" is not the same as
+    "bounded usefully".
+
+    ``120`` and ``150`` bound the multiplier to ``[1.25, 2.0)``: a review measured that ``1.4``
+    and ``1.6`` both survive, which are exactly the shapes a typo takes. These two samples sit
+    one IQR-tenth either side of the real fence at ``130``:
+
+    * ``127`` is inside at 1.5 (fence 130) and an outlier at 1.4 (fence 126)
+    * ``132`` is an outlier at 1.5 and inside at 1.6 (fence 134)
+
+    Together they admit only ``[1.425, 1.55)``.
+    """
+    inside = box_stats([10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 127.0], mode="1.5IQR")
+    outside = box_stats([10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 132.0], mode="1.5IQR")
+
+    assert inside.outliers == [], "127 is inside a fence of 130 -- the multiplier is below 1.425"
+    assert outside.outliers == [132.0], "132 is past a fence of 130 -- the multiplier is 1.55 or more"
 
 
 # ---------------------------------------------------------------------------
