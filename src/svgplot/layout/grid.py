@@ -136,17 +136,29 @@ def _tuple_placements(
 
     fallback_width = max(chart_size(cell[0])[0] for cell in cells)
     fallback_height = max(chart_size(cell[0])[1] for cell in cells)
-    col_widths = [fallback_width] * inferred_ncols
-    row_heights = [fallback_height] * nrows
     # Size tracks from single-track children only; a spanning child's size is
     # satisfied by the tracks it covers plus the spacing between them, so letting
     # it drive a single track's size would over-size every other cell in it.
+    #
+    # Collected first and *replaced*, not folded into the fallback with ``max``. Doing the
+    # latter made ``fallback_width`` -- the widest cell anywhere in the grid -- a floor under
+    # every column, so a narrow chart beside a wide one was given the wide one's width and the
+    # figure came out 4812px where the matrix form of the same two charts is 3212px. The matrix
+    # form has always replaced (see :func:`_matrix_placements`), and the two forms differing on
+    # what a column is worth is the same class of defect as their differing on what a cell may
+    # hold, fixed alongside it (#260).
+    single_track_widths: dict[int, list[float]] = {}
+    single_track_heights: dict[int, list[float]] = {}
     for chart, row_index, col, rowspan, colspan in cells:
         chart_width, chart_height = chart_size(chart)
         if colspan == 1:
-            col_widths[col] = max(col_widths[col], chart_width)
+            single_track_widths.setdefault(col, []).append(chart_width)
         if rowspan == 1:
-            row_heights[row_index] = max(row_heights[row_index], chart_height)
+            single_track_heights.setdefault(row_index, []).append(chart_height)
+    # A track holding nothing but spanning children keeps the fallback: it has no member whose
+    # width it is, and the same reasoning gives an all-empty track its fallback in the matrix form.
+    col_widths = [max(single_track_widths.get(col, [fallback_width])) for col in range(inferred_ncols)]
+    row_heights = [max(single_track_heights.get(row_index, [fallback_height])) for row_index in range(nrows)]
 
     row_title_heights = [0.0] * nrows
     for index, (_, row_index, _, _, _) in enumerate(cells):

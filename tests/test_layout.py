@@ -1057,6 +1057,69 @@ def test_a_grid_span_cell_takes_a_composition() -> None:
     assert len(placed_panels(composed.to_string())) >= 2
 
 
+def _canvas(composition: Composition) -> tuple[float, float]:
+    box = re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', composition.to_string())
+    assert box is not None
+    return float(box[1]), float(box[2])
+
+
+def test_the_two_grid_forms_lay_the_same_charts_out_the_same_way() -> None:
+    """Accepting the same figures is half of "the two forms agree"; sizing them the same is the
+    half that makes the acceptance worth anything.
+
+    A review pointed out that checking only ``is not None`` proves the tuple form stopped
+    *raising*, not that it lays anything out -- and measuring it found it does not. Its column
+    widths were folded into ``fallback_width`` with ``max``, making the widest cell **anywhere
+    in the grid** a floor under every column: a 2400px chart beside an 800px one produced a
+    4812px figure where the matrix form of the same two produces 3212px.
+    """
+    wide = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=2400)
+    narrow = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=800)
+
+    matrix_form = grid([[wide, narrow]])
+    tuple_form = grid([(wide, 0, 0, 1, 1), (narrow, 0, 1, 1, 1)])
+
+    assert _canvas(tuple_form) == _canvas(matrix_form)
+
+
+def test_a_column_holding_only_a_spanning_child_keeps_the_fallback_width() -> None:
+    """Two rules meet in one figure, and the arithmetic separates them from every way of
+    getting them wrong.
+
+    Column 0 holds an 800px single-track child, so it is 800 wide. Column 1 is covered only by
+    the spanning cell, which has no width of its own to give a track -- it falls back to 2400,
+    the widest cell in the grid, the same answer the matrix form gives an all-empty track. With
+    ``spacing=12``: ``800 + 12 + 2400 = 3212``.
+
+    The exact number is the point. Two mutations survived a ``width > 0`` version of this test:
+    dropping the fallback (column 1 becomes 0, total 812) and letting a spanning child size a
+    track (column 0 becomes 2400, total 4812). All three totals differ, so the equality fails
+    for each.
+    """
+    narrow = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=800)
+    wide = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=2400)
+
+    composed = grid([(wide, 0, 0, 1, 2), (narrow, 1, 0, 1, 1)], spacing=12)
+
+    assert _canvas(composed)[0] == pytest.approx(800 + 12 + 2400)
+
+
+def test_a_row_holding_only_a_spanning_child_keeps_the_fallback_height() -> None:
+    """The same two rules turned ninety degrees, and it is not a duplicate.
+
+    ``rowspan`` and ``colspan`` are separate conditions over separate dictionaries, and the
+    width fixture above has ``rowspan=1`` everywhere -- so a mutation removing the ``rowspan``
+    guard survived it. Row 0 holds a 400px single-track child; row 1 is covered only by the
+    two-row spanning cell and falls back to 1200. ``400 + 12 + 1200 = 1612``.
+    """
+    short = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", height=400)
+    tall = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", height=1200)
+
+    composed = grid([(tall, 0, 0, 2, 1), (short, 0, 1, 1, 1)], spacing=12)
+
+    assert _canvas(composed)[1] == pytest.approx(400 + 12 + 1200)
+
+
 def test_a_grid_span_cell_still_refuses_something_that_is_neither() -> None:
     """Widened, not opened: the check now names both accepted types, and the message says so."""
     with pytest.raises(ValueError, match="must be a Chart or Composition, got int"):
