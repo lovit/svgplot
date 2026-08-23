@@ -228,7 +228,19 @@ class Theme:
         # and a radius past half the rect's side is already clamped by SVG itself.
         if not isinstance(self.corner_radius, numbers.Real) or isinstance(self.corner_radius, bool):
             raise ValueError(f"corner_radius must be a real number, got {self.corner_radius!r}")
-        # ``>= 0.0`` is false for nan and true for inf, so inf needs the explicit finiteness
-        # test that the [0, 1] range check above got for free.
-        if not (self.corner_radius >= 0.0 and math.isfinite(self.corner_radius)):
+        # Converted first, then asked -- the shape the other four validators in this package use
+        # (``charts/_layout._finite``, ``chart/_domain``, ``palette/normalize``, ``labels/spec``).
+        # ``math.isfinite`` on the original object converts too, and on a ``Real`` too large for a
+        # float it raises instead of answering: widening the type test above to ``numbers.Real``
+        # is exactly what let ``Fraction(10**400)`` reach this line, so the two changes belong
+        # together. This was the *fifth* site of that pattern and the only one this change itself
+        # opened (#274).
+        #
+        # ``>= 0.0`` is false for nan and true for inf, so inf needs the explicit finiteness test
+        # that the [0, 1] range check above got for free.
+        try:
+            radius = float(self.corner_radius)
+        except (OverflowError, TypeError, ValueError) as error:
+            raise ValueError(f"corner_radius must be a non-negative finite number, got {self.corner_radius!r}") from error
+        if not (radius >= 0.0 and math.isfinite(radius)):
             raise ValueError(f"corner_radius must be a non-negative finite number, got {self.corner_radius!r}")
