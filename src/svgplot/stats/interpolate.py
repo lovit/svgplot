@@ -184,7 +184,7 @@ def _natural_cubic_spline_coeffs(x: list[float], y: list[float]) -> list[float]:
     # second derivatives (m[0] = m[n-1] = 0 boundary condition).
     alpha = [0.0] * n
     for i in range(1, n - 1):
-        alpha[i] = 3 * ((y[i + 1] - y[i]) / h[i] - (y[i] - y[i - 1]) / h[i - 1])
+        alpha[i] = 6 * ((y[i + 1] - y[i]) / h[i] - (y[i] - y[i - 1]) / h[i - 1])
     ell = [1.0] * n
     mu = [0.0] * n
     z = [0.0] * n
