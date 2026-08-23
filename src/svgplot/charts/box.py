@@ -16,6 +16,7 @@ from svgplot.charts._layout import (
     MARGIN_WITHOUT_LEGEND,
     TICK_SPACING_X,
     TICK_SPACING_Y,
+    corner_radius_attr,
     fit_margin,
     format_coord,
     marks_viewport,
@@ -371,8 +372,9 @@ def _render_box(
         "width": format_coord(right - left),
         "height": format_coord(abs(y_q1 - y_q3)),
     }
-    if corner_radius:
-        box_attrib["rx"] = format_coord(corner_radius)
+    rx = corner_radius_attr(corner_radius)
+    if rx is not None:
+        box_attrib["rx"] = rx
     marks = [document.add_node(viewport, "rect", attrib=box_attrib, classes=[marker_class])]
     marks.append(
         document.add_node(

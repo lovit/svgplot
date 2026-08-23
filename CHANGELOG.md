@@ -6,6 +6,12 @@
 
 ### Fixed
 
+- **음수 `corner_radius` 가 더 이상 유효하지 않은 `rx` 를 만들지 않는다.** 같은 규칙("0 보다 클 때만 둥글린다")을 세 차트가 각자 썼고 둘이 다른 질문을 물었다 — `barplot` 은 `> 0`, `histplot`·`boxplot` 은 진리값이었다. `-5.0` 은 truthy 라 뒤의 둘이 `rx="-5"` 를 냈다. 뷰어에 따라 무시되거나 오류가 되는 값이고, 아무 예외도 안 나므로 조용히 잘못된 파일이 나갔다. `nan` 은 셋을 **세 갈래**로 갈랐다: truthy 라 `format_coord` 까지 가서 예외가 난 둘, `> 0` 이 거짓이라 말없이 각진 모서리를 그린 하나.
+
+  `Theme.__post_init__` 이 음수·`inf`·`nan`·`bool`·비수치를 이름을 대고 거부한다 — `opacity` 검증이 거기 있는 것과 같은 이유로, 실패는 렌더 시점이 아니라 그 `Theme` 을 만든 자리에서 나야 한다. 위쪽 한계는 두지 않는다: 사각형 변의 절반을 넘는 반지름은 SVG 자신이 클램프하므로 이 검증이 추측할 최대값이 없다. 렌더 쪽 규칙은 `charts/_layout.corner_radius_attr` 하나로 모았다 — 생성자를 우회해 값이 도달하는 경로에서도 음수는 `rx` 가 되지 않는다.
+
+  가드는 세 차트를 **서로** 비교한다. 차트별로 기대 문자열을 적는 방식이 애초에 이 결함을 살려 둔 방식이었다 — 각 차트의 테스트가 그 차트의 동작을 보고 쓰였으니 셋 다 통과했다. 여기에 "결정이 한 곳에 있다" 를 실제로 실패시키는 검사를 더했다: 헬퍼를 차트 네임스페이스에서 갈아 끼우고 차트가 그 답을 따르는지 본다. 결과만 비교하는 검사로는 이것을 볼 수 없다 — `bar.py` 를 원래 표현으로 되돌려도 오늘은 헬퍼와 의미가 같아서 나머지 전부가 초록불이었다.
+
 - **결측값 판정이 컬럼의 dtype 에 좌우되지 않는다.** `is_missing` 의 타입 검사가 `float` 이었는데, `numpy.float64` 는 `float` 의 서브클래스이고 `numpy.float32`·`float16`·`longdouble` 은 아니다. 같은 숫자를 담은 컬럼이 `float32` 라는 이유만으로 NaN 이 결측으로 안 세어졌다 — `hue` 컬럼에서는 `nan` 이라는 범례 항목이 하나 더 생겼고, 수치 채널에서는 `ValueError: value must be finite, got nan` 이 스케일에서 튀어나왔으며, `radarplot` 은 **다른 예외**를 냈다(`radar values must be finite` vs `the series has no value for '남'`). 판정 기준을 `numbers.Number` 로 넓혔다 — 모든 numpy 스칼라와 `Decimal`·`Fraction` 이 포함되고, `str`·`numpy.str_` 은 비교에 들어가지도 않는다. `numpy.datetime64("NaT")` 는 의도적으로 제외한다(`Number` 가 아니고, 결측 시각은 시간축에 대한 결정을 먼저 필요로 한다).
 
   `charts/ecdf.py`·`charts/histogram.py`·`charts/area.py` 가 이 판정을 각자 손으로 베껴 갖고 있어서 공유 헬퍼를 고쳐도 안 따라왔다. 셋 다 `is_missing` 을 부르게 했고, 그 과정에서 `areaplot` 이 x 컬럼의 NaN 에서 `ValueError` 로 죽던 것이 `lineplot` 과 같이 그 행을 버리는 것으로 바뀐다 — 두 차트가 같은 데이터에 다르게 답할 이유가 없었다.

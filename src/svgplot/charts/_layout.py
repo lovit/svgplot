@@ -198,6 +198,38 @@ def format_coord(value: float) -> str:
     return text
 
 
+def corner_radius_attr(radius: float) -> str | None:
+    """The ``rx`` a rectangle should carry for ``theme.corner_radius``, or ``None`` for none.
+
+    One function because the rule -- "round only for a radius greater than zero" -- was written
+    three times and two of the three were wrong. ``barplot`` asked ``> 0``; ``histplot`` and
+    ``boxplot`` asked for truthiness, which is a different question: ``-5.0`` is truthy, so both
+    emitted ``rx="-5"``, an invalid SVG attribute that renders as nothing in some viewers and as
+    an error in others. ``nan`` split them a third way -- truthy, so it reached
+    :func:`format_coord` and raised, while ``> 0`` is false for ``nan`` and ``barplot`` drew
+    square corners in silence (#258).
+
+    ``Theme.__post_init__`` now refuses those values at construction, which is where the failure
+    belongs. This stays as the single expression of the rendering half: it is what makes the
+    three charts *agree*, and it holds for every value, including one that arrives by a route
+    skipping the constructor -- ``Theme`` is frozen, but ``object.__setattr__`` is not locked
+    away. Hence ``isfinite`` rather than a bare ``radius > 0``: ``nan`` and ``inf`` are neither
+    accepted nor refused by an ordering comparison, and a review measured both of them reaching
+    :func:`format_coord` and raising there. A radius that cannot be drawn draws nothing; it does
+    not fail at render time, which is the thing the constructor check exists to prevent.
+
+    The answer is also read back rather than returned straight from :func:`format_coord`, because
+    "greater than zero" and "rounds to something" are not the same question at six decimals: a
+    radius of ``1e-10`` is positive, formats to ``"0"``, and would ship an ``rx="0"`` that draws
+    exactly what no ``rx`` draws. Two spellings of "square corners" is the asymmetry this
+    function exists to remove.
+    """
+    if not (radius > 0 and math.isfinite(radius)):
+        return None
+    attribute = format_coord(radius)
+    return attribute if attribute != "0" else None
+
+
 MARGIN_WITH_SIDE_LEGEND = (30.0, 180.0, 30.0, 30.0)
 """Margin for a chart that has no axes but does have a legend down the right side.
 

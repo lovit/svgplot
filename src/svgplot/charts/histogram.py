@@ -14,6 +14,7 @@ from svgplot.charts._layout import (
     MARGIN_WITHOUT_LEGEND,
     TICK_SPACING_X,
     TICK_SPACING_Y,
+    corner_radius_attr,
     fit_margin,
     format_coord,
     marks_viewport,
@@ -254,7 +255,7 @@ def histplot(
     )
 
     viewport = marks_viewport(document, area, clipped=clipped)
-    corner_radius = format_coord(resolved_theme.corner_radius) if resolved_theme.corner_radius else None
+    corner_radius = corner_radius_attr(resolved_theme.corner_radius)
     series_classes: list[str] = []
     legend_entries: list[tuple[str, str]] = []
     for label, counts in series_counts:
