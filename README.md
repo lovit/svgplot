@@ -88,7 +88,7 @@ sp.lineplot(data, x="일차", y="매출", hue="지역").save("sales.svg")
   from svgplot.theme import Theme
 
   brand = Theme(palette=["#003f5c", "#bc5090", "#ffa600"])
-  sp.barplot(data, x="분기", y="매출", hue="지역", theme=brand)
+  sp.barplot(data, x="일차", y="매출", hue="지역", theme=brand)
   ```
 - **접근성** — `role="img"` · `aria-label` · `<title>` · `<desc>` 를 내보낸다. `<desc>` 는 제목을 되풀이하지 않고 차트 종류·데이터 규모·값 범위를 말한다
 
