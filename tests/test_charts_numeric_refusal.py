@@ -1,10 +1,15 @@
 """A non-numeric value in a numeric column is refused **by name**, in every chart.
 
 ``scales.py`` states the package's one stance on bad input -- it "refuses by name rather than
-masking or clipping" -- and nine charts broke it in the least helpful way available. A bare
-``float()`` raises ``ValueError: could not convert string to float: 'a'``, which says what the
-value was and nothing about where it came from; a caller with a forty-column frame has to find
-the column themselves, and the same sentence came out of nine different charts (#256).
+masking or clipping" -- and **fifteen of the sixteen charts** broke it in the least helpful way
+available. A bare ``float()`` raises ``ValueError: could not convert string to float: 'a'``,
+which says what the value was and nothing about where it came from; a caller with a forty-column
+frame has to find the column themselves, and the same sentence came out of all fifteen (#256).
+
+``radarplot`` was the one exception, and only half of one: it named the *category* and not the
+column, so a forty-column frame still left the reader searching. Measured on the base commit,
+not counted from the issue -- the issue said "at least 11 places", which was a count of call
+sites rather than of charts, and a first draft of this file repeated "nine" from neither.
 
 The split was inside single functions, not just across them: ``lineplot`` guarded its ``x``
 (``column 'x' holds str, which has no position on an x axis``) and let ``y`` fall through to
