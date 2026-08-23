@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import inspect
 import re
+import textwrap
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from pathlib import Path
@@ -23,6 +24,8 @@ from svgplot.chart.base import Chart
 from svgplot.charts._layout import DEFAULT_WIDTH, SPARKLINE_WIDTH, format_coord
 from svgplot.charts._legend import _SWATCH_HEIGHT, _SWATCH_WIDTH
 from svgplot.theme.presets import PRESETS
+
+ROOT = Path(__file__).resolve().parent.parent
 
 _ROW_SPACING = 12.0
 """``layout.grid.row``'s default gap. A literal, so the width arithmetic below fails if the
@@ -468,3 +471,40 @@ def test_a_mixed_composition_of_shape_charts_keeps_its_namespaces() -> None:
     # already knew about.
     assert any(rule.startswith("c0-level-") and rule.endswith("-annotation") for rule in rules)
     ET.fromstring(svg)
+
+
+# ---------------------------------------------------------------------------
+# the README's own code, run as the README (#260)
+# ---------------------------------------------------------------------------
+
+
+def test_every_python_block_in_the_readme_runs_in_order(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The README's ``python`` blocks, executed as a reader would: in order, sharing a namespace.
+
+    This file already checks several things the README *claims*; nothing checked that its code
+    runs. A block added to the "``theme=``" bullet called ``sp.barplot(data, x="분기", ...)``
+    against the Quick Start's ``data``, which has no ``분기`` column, so a reader following the
+    page hit ``KeyError: "x column not found in data: '분기'"`` on the second block. It shipped
+    because the check performed was an equivalent written by hand, with its own fixture, rather
+    than the document itself -- and an equivalent is exactly the thing that cannot catch this.
+
+    Sharing one namespace across the blocks is the point, not an implementation shortcut: a
+    later block relying on an earlier block's names is how the page reads, so a block that
+    defines everything it needs would pass a per-block runner and still be wrong in context.
+
+    ``tmp_path`` because the Quick Start ends in ``.save("sales.svg")``; without it the suite
+    writes that file into the repository root.
+    """
+    monkeypatch.chdir(tmp_path)
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    blocks = re.findall(r"```python\n(.*?)```", readme, re.DOTALL)
+
+    assert len(blocks) >= 2, f"expected the README to hold python blocks, found {len(blocks)}"
+
+    namespace: dict[str, object] = {}
+    for index, block in enumerate(blocks, start=1):
+        source = textwrap.dedent(block)
+        try:
+            exec(compile(source, f"README.md block {index}", "exec"), namespace)
+        except Exception as error:
+            pytest.fail(f"README.md python block {index} raised {type(error).__name__}: {error}\n\n{source}")
