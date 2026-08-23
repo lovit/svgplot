@@ -256,7 +256,7 @@ def test_the_registry_is_not_empty() -> None:
     parametrized case below into zero cases and the file into a green no-op."""
     assert len(_PUBLIC) >= 20, _PUBLIC
     assert len(_CLASSES) >= 4, _CLASSES
-    assert len(_METHODS) == 19, _METHODS
+    assert len(_METHODS) == 18, _METHODS
 
 
 @pytest.mark.parametrize("name", _PUBLIC)

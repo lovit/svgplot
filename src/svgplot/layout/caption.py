@@ -10,8 +10,10 @@ visual unity Bokeh got from a shared toolbar.
 from __future__ import annotations
 
 from svgplot._svg import SvgDocument
+from svgplot.chart.base import Chart
 from svgplot.chart.composition import CAPTION_HEIGHT, Composition, composition_document, composition_title
 from svgplot.charts._layout import format_coord
+from svgplot.layout.grid import row
 
 _CAPTION_CLASS = "composition-caption"
 _CAPTION_LOCATIONS = ("above", "below")
@@ -53,15 +55,24 @@ def _validate_caption_text(text: str) -> None:
     scratch.add_text(None, text, **_caption_node_kwargs(0.0, 0.0))
 
 
-def add_caption(composition: Composition, text: str, location: str = "below") -> Composition:
-    """Attach a shared caption/title to a Composition (replaces Bokeh's shared-toolbar unity cue).
+def add_caption(figure: Chart | Composition, text: str, location: str = "below") -> Composition:
+    """Attach a shared caption/title to a figure (replaces Bokeh's shared-toolbar unity cue).
 
     Grows the canvas by one caption band and writes ``text`` into it. With
     ``location="above"`` every existing child is shifted down to make room, so
     the caption never overlaps the charts.
 
-    Mutates ``composition`` in place and returns it, matching
-    :meth:`svgplot.chart.base.Chart.set_title`'s chaining convention.
+    **A lone ``Chart`` is accepted** and is wrapped in a one-cell :func:`~svgplot.layout.row`
+    first, so captioning one chart does not require knowing that a caption is a composition
+    feature. It used to raise ``AttributeError: 'Chart' object has no attribute
+    '_resolved_title'`` -- a private name from another class, which told the caller nothing
+    about the wrapping they were missing, and the wrapping was in no docstring or README (#260).
+
+    The return is therefore always a ``Composition``. Given one, it is the same object, mutated
+    in place and returned, matching :meth:`svgplot.chart.base.Chart.set_title`'s chaining
+    convention. Given a ``Chart``, it is the new wrapper -- the chart itself is untouched, so
+    ``chart`` and ``add_caption(chart, ...)`` are two different figures and only the latter has
+    the caption.
 
     Also adopts ``text`` as the composition's accessible name unless one was already
     set explicitly — a caption *is* the figure's name, so announcing the generic
@@ -83,6 +94,17 @@ def add_caption(composition: Composition, text: str, location: str = "below") ->
     if not text.strip():
         raise ValueError(f"caption text must not be empty: {text!r}")
     _validate_caption_text(text)
+
+    # After the validation only to avoid building a wrapper this call is about to reject. Unlike
+    # the canvas mutation below, the order here is not observable: wrapping allocates a new
+    # ``Composition`` and touches nothing the caller holds, so a rejected caption leaves the
+    # argument untouched either way. Stated because the tempting comment -- "so a rejected
+    # caption wraps nothing, same reason the checks precede the mutation" -- is a false analogy,
+    # and a mutation moving this line above the checks stays green, correctly.
+    #
+    # ``row`` rather than ``grid([[chart]])``: one cell has no gutter either way, and ``row`` is
+    # the name a reader already has for "these, side by side", of which one is the degenerate case.
+    composition = row([figure]) if isinstance(figure, Chart) else figure
 
     document = composition_document(composition)
     width, height = float(document.width), float(document.height)

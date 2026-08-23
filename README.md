@@ -81,6 +81,15 @@ sp.lineplot(data, x="일차", y="매출", hue="지역").save("sales.svg")
 
 - **`width=` / `height=`** — 기본 캔버스는 800x600, `sparkline` 만 120x24. 240x180 아래는 거부되고 여기서 면제되는 것도 `sparkline` 뿐이다(에러 문구는 "for an axed chart" 라고 하지만 축을 그리지 않는 `pieplot`·`treemap` 에도 적용된다)
 - **`theme=`** — 프리셋 5종(`light` `dark` `minimal` `print` `high_contrast`), 컨텍스트 4종(`paper` `notebook` `talk` `poster`), `sp.parametric_theme("#3366cc")` 로 시드 컬러에서 팔레트 생성. 기본 팔레트는 색맹 안전(Okabe-Ito)
+
+  브랜드 색을 직접 지정하려면 `Theme(palette=...)` 다 — 차트의 색을 정하는 유일한 경로다.
+
+  ```python
+  from svgplot.theme import Theme
+
+  brand = Theme(palette=["#003f5c", "#bc5090", "#ffa600"])
+  sp.barplot(data, x="일차", y="매출", hue="지역", theme=brand)
+  ```
 - **접근성** — `role="img"` · `aria-label` · `<title>` · `<desc>` 를 내보낸다. `<desc>` 는 제목을 되풀이하지 않고 차트 종류·데이터 규모·값 범위를 말한다
 
 일부:

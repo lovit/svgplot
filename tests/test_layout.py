@@ -939,3 +939,197 @@ def test_nested_rects_counts_panels_not_clips() -> None:
 
     assert CLIP_CLASS in svg, "this fixture is meant to produce clips"
     assert len(nested_rects(svg)) == len(placed_panels(svg)) == 3
+
+
+# ---------------------------------------------------------------------------
+# the public layout surface: what these four functions accept (#260)
+# ---------------------------------------------------------------------------
+
+
+def _chart() -> Chart:
+    return lineplot({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0]}, x="x", y="y")
+
+
+def test_spacing_is_keyword_only_in_all_three_layout_functions() -> None:
+    """One argument, one kind, three functions.
+
+    ``row``/``column`` took ``spacing`` positionally while ``grid`` -- which their own
+    docstrings call the place "where their rules live", and to which they hand the value
+    straight through -- took it keyword-only. So ``row([a, b], 30)`` worked and
+    ``grid([[a, b]], 30)`` raised ``TypeError``, for the same argument with the same meaning.
+
+    Keyword-only is the direction because it is the package's own convention: every one of the
+    sixteen charts makes everything but its data channels keyword-only, and
+    ``test_api_shape.py`` enforces it there. This is the same rule reaching the layout
+    functions, which were the exception.
+    """
+    for function in (row, column, grid):
+        parameters = inspect.signature(function).parameters
+        assert parameters["spacing"].kind is inspect.Parameter.KEYWORD_ONLY, f"{function.__name__} takes spacing positionally"
+
+
+@pytest.mark.parametrize("function", [row, column])
+def test_a_positional_spacing_is_refused_rather_than_read_as_a_cell(function: object) -> None:
+    """The half the signature check cannot see: that the refusal actually happens.
+
+    Worth stating separately because the failure mode of getting this wrong is not a
+    ``TypeError`` -- a second positional could be silently absorbed by a future signature and
+    read as something else entirely.
+    """
+    with pytest.raises(TypeError, match="positional"):
+        function([_chart()], 30)  # type: ignore[operator]
+
+
+def test_the_three_functions_agree_on_what_a_keyword_spacing_does() -> None:
+    """Non-vacuity for the two checks above, which three functions that all ignored ``spacing``
+    would satisfy: the value has to reach the layout and move something."""
+    charts = [_chart(), _chart()]
+    tight = row(charts, spacing=0).to_string()
+    loose = row([_chart(), _chart()], spacing=40).to_string()
+
+    assert tight != loose
+    assert column([_chart(), _chart()], spacing=40) is not None
+    assert grid([[_chart(), _chart()]], spacing=40) is not None
+
+
+def test_add_caption_accepts_a_lone_chart_and_wraps_it() -> None:
+    """It used to raise ``AttributeError: 'Chart' object has no attribute '_resolved_title'`` --
+    a private name belonging to a different class, which named neither the problem nor the
+    ``row([chart])`` wrapping that was the workaround, and that wrapping was in no docstring."""
+    chart = _chart()
+
+    captioned = add_caption(chart, "분기별 매출")
+
+    assert isinstance(captioned, Composition)
+    assert "분기별 매출" in captioned.to_string()
+
+
+def test_captioning_a_chart_leaves_the_chart_alone() -> None:
+    """The consequence of wrapping, stated so a caller is not surprised by it: given a
+    ``Composition`` this function mutates in place, but a ``Chart`` cannot be mutated into a
+    composition, so the caption lives on the returned wrapper only."""
+    chart = _chart()
+
+    captioned = add_caption(chart, "분기별 매출")
+
+    assert "분기별 매출" not in chart.to_string()
+    assert captioned is not chart
+
+
+def test_captioning_a_composition_still_returns_the_same_object() -> None:
+    """The pre-existing contract, unchanged by the ``Chart`` branch -- and the reason that
+    branch is a wrap rather than a rewrite of this function."""
+    composition = row([_chart(), _chart()])
+
+    assert add_caption(composition, "둘") is composition
+
+
+def test_a_rejected_caption_leaves_the_chart_untouched() -> None:
+    """A refused caption must leave the caller with exactly what they had.
+
+    Named for what it observes. An earlier version was called ``..._wraps_nothing`` and claimed
+    the validation runs before the wrap -- which is true and is **not observable**: wrapping
+    allocates a new ``Composition`` and touches nothing the caller holds, so moving the wrap
+    above the checks passes this test, correctly. The order is only there to avoid building
+    something about to be thrown away.
+    """
+    chart = _chart()
+    before = chart.to_string()
+
+    with pytest.raises(ValueError, match="must not be empty"):
+        add_caption(chart, "   ")
+
+    assert chart.to_string() == before
+
+
+def test_a_grid_span_cell_takes_a_composition() -> None:
+    """The matrix form has always accepted one -- it never asks, it calls ``chart_size`` -- so
+    the span form refusing it split the two forms on a question neither is really about.
+
+    And it split them at the feature spans exist for: "put this facet across the top two
+    columns" is the reason to reach for the tuple form at all.
+    """
+    inner = row([_chart(), _chart()])
+
+    composed = grid([(inner, 0, 0, 1, 2), (_chart(), 1, 0, 1, 1)])
+
+    assert isinstance(composed, Composition)
+    assert len(placed_panels(composed.to_string())) >= 2
+
+
+def _canvas(composition: Composition) -> tuple[float, float]:
+    box = re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', composition.to_string())
+    assert box is not None
+    return float(box[1]), float(box[2])
+
+
+def test_the_two_grid_forms_lay_the_same_charts_out_the_same_way() -> None:
+    """Accepting the same figures is half of "the two forms agree"; sizing them the same is the
+    half that makes the acceptance worth anything.
+
+    A review pointed out that checking only ``is not None`` proves the tuple form stopped
+    *raising*, not that it lays anything out -- and measuring it found it does not. Its column
+    widths were folded into ``fallback_width`` with ``max``, making the widest cell **anywhere
+    in the grid** a floor under every column: a 2400px chart beside an 800px one produced a
+    4812px figure where the matrix form of the same two produces 3212px.
+    """
+    wide = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=2400)
+    narrow = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=800)
+
+    matrix_form = grid([[wide, narrow]])
+    tuple_form = grid([(wide, 0, 0, 1, 1), (narrow, 0, 1, 1, 1)])
+
+    assert _canvas(tuple_form) == _canvas(matrix_form)
+
+
+def test_a_column_holding_only_a_spanning_child_keeps_the_fallback_width() -> None:
+    """Two rules meet in one figure, and the arithmetic separates them from every way of
+    getting them wrong.
+
+    Column 0 holds an 800px single-track child, so it is 800 wide. Column 1 is covered only by
+    the spanning cell, which has no width of its own to give a track -- it falls back to 2400,
+    the widest cell in the grid, the same answer the matrix form gives an all-empty track. With
+    ``spacing=12``: ``800 + 12 + 2400 = 3212``.
+
+    The exact number is the point. Two mutations survived a ``width > 0`` version of this test:
+    dropping the fallback (column 1 becomes 0, total 812) and letting a spanning child size a
+    track (column 0 becomes 2400, total 4812). All three totals differ, so the equality fails
+    for each.
+    """
+    narrow = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=800)
+    wide = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", width=2400)
+
+    composed = grid([(wide, 0, 0, 1, 2), (narrow, 1, 0, 1, 1)], spacing=12)
+
+    assert _canvas(composed)[0] == pytest.approx(800 + 12 + 2400)
+
+
+def test_a_row_holding_only_a_spanning_child_keeps_the_fallback_height() -> None:
+    """The same two rules turned ninety degrees, and it is not a duplicate.
+
+    ``rowspan`` and ``colspan`` are separate conditions over separate dictionaries, and the
+    width fixture above has ``rowspan=1`` everywhere -- so a mutation removing the ``rowspan``
+    guard survived it. Row 0 holds a 400px single-track child; row 1 is covered only by the
+    two-row spanning cell and falls back to 1200. ``400 + 12 + 1200 = 1612``.
+    """
+    short = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", height=400)
+    tall = lineplot({"x": [1.0, 2.0], "y": [1.0, 2.0]}, x="x", y="y", height=1200)
+
+    composed = grid([(tall, 0, 0, 2, 1), (short, 0, 1, 1, 1)], spacing=12)
+
+    assert _canvas(composed)[1] == pytest.approx(400 + 12 + 1200)
+
+
+def test_a_grid_span_cell_still_refuses_something_that_is_neither() -> None:
+    """Widened, not opened: the check now names both accepted types, and the message says so."""
+    with pytest.raises(ValueError, match="must be a Chart or Composition, got int"):
+        grid([(3, 0, 0, 1, 1)])  # type: ignore[list-item]
+
+
+def test_both_grid_forms_accept_the_same_things() -> None:
+    """The rule this pair of tests is really about: which form you write should not change
+    which figures you may place."""
+    inner = row([_chart(), _chart()])
+
+    assert grid([[inner]]) is not None
+    assert grid([(inner, 0, 0, 1, 1)]) is not None

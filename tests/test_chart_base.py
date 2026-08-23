@@ -38,25 +38,39 @@ def test_to_string_is_idempotent() -> None:
     assert chart.to_string() == chart.to_string()
 
 
-def test_set_title_and_palette_return_self_for_chaining() -> None:
+def test_set_title_returns_self_for_chaining() -> None:
     chart = _sample_chart()
 
-    result = chart.set_title("My Chart").palette(["#e69f00", "#56b4e9"])
+    result = chart.set_title("My Chart")
 
     assert result is chart
     assert chart._title == "My Chart"
-    assert chart._palette == ["#e69f00", "#56b4e9"]
 
 
-def test_set_title_reaches_the_rendered_output_but_palette_does_not_yet() -> None:
-    """set_title is applied at render time (issue #29); palette is still record-only —
-    resolving a spec into colors remains theme/palette's job in a later issue."""
+def test_set_title_reaches_the_rendered_output() -> None:
     chart = _sample_chart()
 
-    chart.set_title("My Chart").palette(["#e69f00"])
+    chart.set_title("My Chart")
 
     assert "My Chart" in chart.to_string()
-    assert "#e69f00" not in chart.to_string()
+
+
+def test_a_chart_offers_no_palette_method() -> None:
+    """``Chart.palette`` existed, recorded its argument, and was read by nothing -- calling it
+    changed no output byte while its first docstring line said "Record a palette override".
+
+    Removed rather than wired up: a ``Chart`` is a finished document, and a setter that
+    re-renders one would have to be joined by ``theme()``, ``title()`` and the rest to be
+    coherent. ``Theme(palette=...)`` is the way to choose colours and is now in the README.
+
+    Pinned as an absence so the name cannot come back without a decision -- and because
+    ``getattr`` on a missing method raises where a no-op silently succeeded (#260).
+    """
+    chart = _sample_chart()
+
+    assert not hasattr(chart, "palette")
+    with pytest.raises(AttributeError):
+        chart.palette(["#e69f00"])  # type: ignore[attr-defined]
 
 
 def test_repr_svg_returns_compact_svg_string() -> None:

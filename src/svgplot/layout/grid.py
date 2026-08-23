@@ -22,7 +22,11 @@ from __future__ import annotations
 from svgplot.chart.base import Chart
 from svgplot.chart.composition import TITLE_HEIGHT, Composition, Placement, chart_size, compose
 
-_TupleCell = tuple[Chart, int, int, int, int]
+_TupleCell = tuple[Chart | Composition, int, int, int, int]
+"""A span-aware cell. The first element is a ``Chart`` **or** a ``Composition``: the matrix
+form has always accepted either -- it never asks, it calls ``chart_size`` -- and the span form
+refusing one made "put this facet across the top two columns of a dashboard" fail at exactly
+the feature spans exist for (#260)."""
 
 
 def _is_tuple_form(cells: object) -> bool:
@@ -111,8 +115,8 @@ def _tuple_placements(
         if len(cell) != 5:
             raise ValueError(f"grid tuple cells must be (chart, row, col, rowspan, colspan), got {cell!r}")
         chart, row_index, col, rowspan, colspan = cell
-        if not isinstance(chart, Chart):
-            raise ValueError(f"grid tuple cell's first element must be a Chart, got {type(chart).__name__}")
+        if not isinstance(chart, Chart | Composition):
+            raise ValueError(f"grid tuple cell's first element must be a Chart or Composition, got {type(chart).__name__}")
         if row_index < 0 or col < 0:
             raise ValueError(f"grid cell row/col must be non-negative, got row={row_index}, col={col}")
         if rowspan < 1 or colspan < 1:
@@ -132,17 +136,29 @@ def _tuple_placements(
 
     fallback_width = max(chart_size(cell[0])[0] for cell in cells)
     fallback_height = max(chart_size(cell[0])[1] for cell in cells)
-    col_widths = [fallback_width] * inferred_ncols
-    row_heights = [fallback_height] * nrows
     # Size tracks from single-track children only; a spanning child's size is
     # satisfied by the tracks it covers plus the spacing between them, so letting
     # it drive a single track's size would over-size every other cell in it.
+    #
+    # Collected first and *replaced*, not folded into the fallback with ``max``. Doing the
+    # latter made ``fallback_width`` -- the widest cell anywhere in the grid -- a floor under
+    # every column, so a narrow chart beside a wide one was given the wide one's width and the
+    # figure came out 4812px where the matrix form of the same two charts is 3212px. The matrix
+    # form has always replaced (see :func:`_matrix_placements`), and the two forms differing on
+    # what a column is worth is the same class of defect as their differing on what a cell may
+    # hold, fixed alongside it (#260).
+    single_track_widths: dict[int, list[float]] = {}
+    single_track_heights: dict[int, list[float]] = {}
     for chart, row_index, col, rowspan, colspan in cells:
         chart_width, chart_height = chart_size(chart)
         if colspan == 1:
-            col_widths[col] = max(col_widths[col], chart_width)
+            single_track_widths.setdefault(col, []).append(chart_width)
         if rowspan == 1:
-            row_heights[row_index] = max(row_heights[row_index], chart_height)
+            single_track_heights.setdefault(row_index, []).append(chart_height)
+    # A track holding nothing but spanning children keeps the fallback: it has no member whose
+    # width it is, and the same reasoning gives an all-empty track its fallback in the matrix form.
+    col_widths = [max(single_track_widths.get(col, [fallback_width])) for col in range(inferred_ncols)]
+    row_heights = [max(single_track_heights.get(row_index, [fallback_height])) for row_index in range(nrows)]
 
     row_title_heights = [0.0] * nrows
     for index, (_, row_index, _, _, _) in enumerate(cells):
@@ -243,7 +259,7 @@ def grid(
     return Composition(document, [placement.chart for placement in placements])
 
 
-def row(charts: list[Chart | None], spacing: int = 12, *, titles: list[str | None] | None = None) -> Composition:
+def row(charts: list[Chart | None], *, spacing: int = 12, titles: list[str | None] | None = None) -> Composition:
     """Arrange charts in a single horizontal row. ``None`` entries render as empty cells.
 
     ``spacing`` is the gutter in pixels between neighbouring cells, and ``titles`` supplies one
@@ -260,7 +276,7 @@ def row(charts: list[Chart | None], spacing: int = 12, *, titles: list[str | Non
     return grid([list(charts)], spacing=spacing, titles=titles)
 
 
-def column(charts: list[Chart | None], spacing: int = 12, *, titles: list[str | None] | None = None) -> Composition:
+def column(charts: list[Chart | None], *, spacing: int = 12, titles: list[str | None] | None = None) -> Composition:
     """Arrange charts in a single vertical column. ``None`` entries render as empty cells.
 
     ``titles`` renders a heading above each chart — the default "Tabs 대체" idiom

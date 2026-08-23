@@ -63,7 +63,6 @@ class Chart:
     ) -> None:
         self._svg_document = svg_document
         self._title: str | None = None
-        self._palette: str | list[str] | None = None
         self._labels = labels
         self._description = description
         self._table_id = self.DEFAULT_TABLE_ID
@@ -179,24 +178,6 @@ class Chart:
         return render_table(
             self._labels.columns, self._labels.spec, format="html", missing=MISSING_TEXT, table_id=self._table_id
         )
-
-    def palette(self, spec: str | list[str]) -> Chart:
-        """Record a palette override. Returns self for chaining.
-
-        **Not wired up.** ``spec`` is stored and never read: no render path consults it, so
-        calling this changes no output byte, and a ``spec`` that is not a palette at all is
-        accepted in silence rather than refused. It is documented that way instead of being
-        described by what the name promises, because a caller who reads "override the color
-        palette" and sees their chart unchanged has no way to tell which half is broken.
-
-        The intended meaning is either a list of ``#rrggbb`` colours or one of the
-        mini-language specs :func:`~svgplot.palette.minilang.parse_palette_spec` parses
-        (``"light:#rrggbb"``, ``"dark:#rrggbb"``, ``"blend:#rrggbb,#rrggbb"``,
-        ``"ch:start=…,rot=…"``, or a registered qualitative palette name). Until this reads
-        it, ``theme=`` with a ``Theme(palette=…)`` is the way to change a chart's colours.
-        """
-        self._palette = spec
-        return self
 
     def _accessible_document(self, *, describedby: bool = True) -> SvgDocument:
         """Return a copy of the document with role/aria/title/desc applied.
