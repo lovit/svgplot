@@ -184,7 +184,7 @@ _CHART_OPTIONS = {
     "kdeplot": {"bandwidth", "fill"},
     "lineplot": {"interpolate", "estimator"},
     "pieplot": {"inner_radius"},
-    "radarplot": {"fill"},
+    "radarplot": {"fill", "estimator"},
     "regplot": {"ci", "n_boot", "seed", "scatter"},
     "scatterplot": set(),
     "sparkline": set(),
