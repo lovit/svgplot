@@ -21,7 +21,7 @@ from svgplot.chart.base import Chart
 from svgplot.charts._describe import describe, plural, span
 from svgplot.charts._layout import SPARKLINE_HEIGHT, SPARKLINE_WIDTH, _finite, format_coord, plot_area
 from svgplot.charts._theme_resolve import resolve_theme
-from svgplot.data._missing import is_missing
+from svgplot.data._missing import is_missing, require_number
 from svgplot.data.ingest import ingest_longform
 from svgplot.scales import LinearScale
 from svgplot.theme.base import Theme
@@ -95,11 +95,17 @@ def sparkline(
     # minus `float` and `width=nan` as one about an SVG literal, neither naming the argument.
     canvas_width, canvas_height = _finite(width, "width"), _finite(height, "height")
     resolved_theme = resolve_theme(theme)
-    longform = ingest_longform(data, y)
+    # ``ingest_longform``'s first required channel is spelled ``x`` and this chart has no
+    # ``x=`` -- its docstring says so out loud -- so its KeyError named a parameter the caller
+    # could not have passed, and they had nothing to search their own code for (#256).
+    try:
+        longform = ingest_longform(data, y)
+    except KeyError as error:
+        raise KeyError(f"y column not found in data: {y!r}") from error
     if len(longform) == 0:
         raise ValueError("data must contain at least one row")
 
-    values = [float(value) for value in longform.columns[y] if not is_missing(value)]
+    values = [require_number(value, y) for value in longform.columns[y] if not is_missing(value)]
     if not values:
         raise ValueError("no rows with a non-missing y value after dropping missing values")
 
