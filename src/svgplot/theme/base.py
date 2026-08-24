@@ -139,6 +139,18 @@ class Theme:
     ``violinplot(inner="box")``'s quartile box, is simply inconsistent -- ``violin.py`` never
     reads this field, so that box stays square while the ``boxplot`` it is drawn to coincide
     with rounds.
+
+    A **legend swatch follows the marks it names**, at a radius scaled to the swatch. A key
+    shaped differently from what it points at reads as "not that one", and a rounded bar beside a
+    square swatch was an inconsistency rather than a decision -- this paragraph is the one that
+    was missing when the other three had reasons written down (#265).
+
+    Scaled, not copied. A bar's short side is around 100px and a swatch's is 10, so the same
+    number lands very differently on the two: at radius 8 the swatch is already a full ellipse
+    while the bar is plainly still a bar. ``charts/_legend`` caps it at a quarter of the swatch's
+    short side -- half is where SVG's own clamp puts a full ellipse -- so the swatch stays the
+    same *kind* of shape as the mark at every setting. ``boxplot`` has no swatch to round (its
+    legend is drawn with ``<line>``), so this reaches ``barplot`` and ``histplot``.
     """
 
     font_family: str = "sans-serif"

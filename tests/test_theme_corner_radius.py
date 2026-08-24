@@ -27,7 +27,8 @@ from importlib import import_module
 import pytest
 
 import svgplot as sp
-from svgplot.charts._layout import corner_radius_attr
+from svgplot.charts._layout import corner_radius_attr, format_coord
+from svgplot.charts._legend import _SWATCH_HEIGHT, _SWATCH_WIDTH
 from svgplot.theme.base import Theme
 
 _ROUNDS = ("barplot", "boxplot", "histplot")
@@ -147,30 +148,146 @@ def test_no_chart_outside_the_table_rounds_anything() -> None:
 
 
 @pytest.mark.parametrize("name", ["barplot", "histplot"])
-def test_a_legend_swatch_does_not_share_its_marks_rounding(name: str) -> None:
-    """Recorded as it is, not as it arguably should be.
+def test_a_legend_swatch_is_rounded_when_its_marks_are(name: str) -> None:
+    """A key shaped differently from what it names reads as "not that one".
 
-    With ``hue=``, ``barplot`` and ``histplot`` draw rounded bars and then a legend swatch --
-    another ``<rect>``, in the same series class, naming the same colour -- with square corners.
-    A reader gets a rounded bar pointed at by a square key. Nothing in :attr:`Theme.corner_radius`'s
-    docstring mentions swatches either way, so this is an inconsistency rather than a decision,
-    and it is out of scope for #258, which is about a radius that cannot be written at all.
+    This test used to assert the opposite, and said so: ``Theme.corner_radius``'s docstring named
+    the three rectangles that ignore the field and gave a reason for each, but said nothing about
+    swatches either way -- so the square swatch beside a rounded bar was an inconsistency rather
+    than a decision, and #258 pinned it as it was with a note that the day it changed, this was
+    where the decision would be written. #265 made it, and this is it.
 
-    It is pinned rather than left unmentioned because the parity work above is exactly what would
-    otherwise make it invisible: the three charts agree with *each other* about their marks while
-    all three disagree with their own legends. If swatches are later made to round, this test
-    fails and its replacement records that decision.
+    The assertion is that the swatch is rounded at all, not that it carries the mark's number:
+    the radius is scaled to the swatch, for the reason the companion test measures.
     """
     svg = getattr(sp, name)(_DATA, theme=Theme(corner_radius=4.0), hue="행", **_CALLS[name]).to_string()
-    # Every ``<rect>`` in a series class: the marks and the legend swatches together. There is no
-    # attribute separating the two -- ``render_legend`` gives a swatch the same class its marks
-    # carry, which is the whole reason a reader is meant to connect them -- so ``rx`` is what
-    # tells them apart here, and that is exactly the difference under test.
     in_series = [rect for rect in re.findall(r"<rect[^>]*>", svg) if 'class="series-' in rect]
-    marks = [rect for rect in in_series if 'rx="4"' in rect]
-    squares = [rect for rect in in_series if "rx=" not in rect]
-    assert marks, f"{name} rounded nothing, so this test is not comparing marks to swatches"
-    assert squares, f"{name} now rounds its legend swatch too -- decide and update this test"
+
+    assert in_series, f"{name} drew no series rectangles"
+    assert all(
+        "rx=" in rect for rect in in_series
+    ), f"{name} left a series rectangle square while the others round: {[r for r in in_series if 'rx=' not in r]}"
+
+
+@pytest.mark.parametrize("radius", [1.0, 2.0, 2.5])
+def test_a_small_radius_reaches_the_swatch_unchanged(radius: float) -> None:
+    """Below the cap the swatch takes the mark's radius exactly -- the scaling is a ceiling, not
+    a constant reduction, so an almost-square theme gives an almost-square swatch."""
+    svg = sp.barplot(_DATA, theme=Theme(corner_radius=radius), hue="행", **_CALLS["barplot"]).to_string()
+    radii = {re.search(r'rx="([^"]*)"', rect)[1] for rect in re.findall(r"<rect[^>]*>", svg) if "rx=" in rect}  # type: ignore[index]
+
+    assert radii == {format_coord(radius)}, f"mark and swatch disagree at radius {radius}: {radii}"
+
+
+@pytest.mark.parametrize("radius", [8.0, 20.0, 100.0])
+def test_a_large_radius_does_not_turn_the_swatch_into_an_ellipse(radius: float) -> None:
+    """Why the radius is scaled rather than copied, measured.
+
+    A first version passed the mark's radius through unchanged, arguing that SVG clamps ``rx`` at
+    half the shorter side so anything big enough to round the swatch away had already done the
+    same to the bars. A review measured that and it is false: the swatch is a fixed 16x10, so its
+    clamp sits at a constant 5px, and **every** radius from 5 up turned it into a full ellipse --
+    at radius 8 the bar was plainly still a bar at every figure size measured. The mismatch this
+    change exists to remove, in a new shape.
+
+    Half the short side is where SVG's clamp lands, so staying strictly under it is what keeps
+    the swatch a rectangle at any theme setting. The companion below measures what that does
+    *not* buy.
+    """
+    svg = sp.barplot(_DATA, theme=Theme(corner_radius=radius), hue="행", **_CALLS["barplot"]).to_string()
+    swatches = [
+        rect
+        for rect in re.findall(r"<rect[^>]*>", svg)
+        if f'width="{_SWATCH_WIDTH:g}"' in rect and f'height="{_SWATCH_HEIGHT:g}"' in rect
+    ]
+
+    assert swatches, "no swatch found -- the fixture stopped drawing a legend"
+    for swatch in swatches:
+        drawn = float(re.search(r'rx="([\d.]+)"', swatch)[1])  # type: ignore[index]
+        assert drawn < _SWATCH_HEIGHT / 2, f"swatch radius {drawn} reaches SVG's clamp at {_SWATCH_HEIGHT / 2}"
+
+
+def test_the_cap_gives_a_floor_and_not_parity() -> None:
+    """What a constant fraction cannot do, pinned so it stays a decision.
+
+    The swatch is a fixed 16x10; a bar is whatever the figure size and the category count leave
+    it. Crowd a small figure and the bars come out **thinner than the swatch** -- so the bar hits
+    its own clamp and turns into a lozenge while the swatch, capped at a quarter, stays a rounded
+    rectangle. That is the reverse of the mismatch #265 set out to remove, and no single fraction
+    can close both ends: parity would need the swatch to know the mark's size.
+
+    What is guaranteed is the floor -- the swatch never stops reading as a rounded rectangle.
+    This test measures the far end so that "the swatch always matches the mark" is never written
+    down as if it were true.
+    """
+    crowded = {
+        "열": [f"c{i}" for i in range(20) for _ in range(5)],
+        "행": [f"h{j}" for _ in range(20) for j in range(5)],
+        "값": [1 + ((i * 5 + j) % 7) for i in range(20) for j in range(5)],
+    }
+    svg = sp.barplot(crowded, x="열", y="값", hue="행", theme=Theme(corner_radius=8.0), width=320, height=240).to_string()
+    rects = re.findall(r"<rect[^>]*>", svg)
+    swatch_box = (f'width="{_SWATCH_WIDTH:g}"', f'height="{_SWATCH_HEIGHT:g}"')
+    swatches = [rect for rect in rects if all(part in rect for part in swatch_box)]
+    bars = [rect for rect in rects if 'class="series-' in rect and not all(part in rect for part in swatch_box)]
+
+    assert swatches and bars, "the crowded fixture stopped drawing a legend or its bars"
+    thinnest = min(
+        min(float(re.search(r'width="([\d.]+)"', bar)[1]), float(re.search(r'height="([\d.]+)"', bar)[1]))  # type: ignore[index]
+        for bar in bars
+    )
+    assert thinnest < _SWATCH_HEIGHT, f"the fixture stopped crowding: thinnest bar {thinnest} is not under {_SWATCH_HEIGHT}"
+
+    drawn = float(re.search(r'rx="([\d.]+)"', swatches[0])[1])  # type: ignore[index]
+    assert drawn < _SWATCH_HEIGHT / 2, f"swatch radius {drawn} reaches SVG's clamp at {_SWATCH_HEIGHT / 2}"
+    assert (
+        thinnest / 2 < drawn
+    ), f"the fixture no longer shows the reverse case: bar clamps at {thinnest / 2}, swatch draws {drawn}"
+
+
+@pytest.mark.parametrize("name", ["barplot", "histplot"])
+def test_a_legend_swatch_stays_square_when_the_marks_do(name: str) -> None:
+    """The other half, and the one that keeps the default untouched: at ``corner_radius=0`` the
+    swatch must carry no ``rx`` at all -- not ``rx="0"`` -- so every existing chart is byte for
+    byte what it was."""
+    svg = getattr(sp, name)(_DATA, theme=Theme(corner_radius=0.0), hue="행", **_CALLS[name]).to_string()
+    in_series = [rect for rect in re.findall(r"<rect[^>]*>", svg) if 'class="series-' in rect]
+
+    assert in_series, f"{name} drew no series rectangles"
+    assert all("rx=" not in rect for rect in in_series), f"{name} wrote an rx at corner_radius=0"
+
+
+@pytest.mark.parametrize("bad", [-5.0, float("nan"), float("inf"), float("-inf")], ids=["negative", "nan", "inf", "-inf"])
+def test_a_swatch_refuses_what_its_marks_refuse(bad: float) -> None:
+    """The scaling must not accept a radius the mark rejects.
+
+    ``inf`` found this: ``min(inf, 2.5)`` is ``2.5``, a perfectly drawable number, so capping
+    turned a value ``corner_radius_attr`` refuses into one the swatch took -- a **square bar
+    beside a rounded swatch**, this defect wearing its own fix inside out. The cap has to come
+    after the finiteness question, not before it.
+
+    Reachable only past ``Theme``'s constructor, which refuses all four -- the same route
+    :func:`test_a_theme_smuggled_past_the_constructor_still_draws_square_corners` uses.
+    """
+    smuggled = Theme()
+    object.__setattr__(smuggled, "corner_radius", bad)
+
+    svg = sp.barplot(_DATA, theme=smuggled, hue="행", **_CALLS["barplot"]).to_string()
+
+    assert "rx=" not in svg, f"a swatch rounded for {bad!r} while its marks stayed square"
+
+
+def test_a_chart_whose_legend_is_drawn_with_lines_is_unaffected() -> None:
+    """``boxplot`` takes ``hue=`` and rounds its boxes, and has no swatch to round: its legend
+    is ``mark_style="stroke"``, so ``render_legend`` draws a ``<line>`` per entry. Pinned so the
+    scope of the change above is a measured fact rather than an assumption about which charts
+    have swatches."""
+    svg = sp.boxplot(_DATA, theme=Theme(corner_radius=4.0), hue="행", **_CALLS["boxplot"]).to_string()
+
+    assert "<line" in svg
+    assert all(
+        "-marker" in rect for rect in re.findall(r'<rect[^>]*class="series-[^"]*"[^>]*>', svg)
+    ), "boxplot grew a rect swatch -- decide whether it rounds and extend the tests above"
 
 
 def test_the_shared_helper_is_what_the_charts_ask() -> None:
