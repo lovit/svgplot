@@ -185,13 +185,14 @@ def test_a_large_radius_does_not_turn_the_swatch_into_an_ellipse(radius: float) 
 
     A first version passed the mark's radius through unchanged, arguing that SVG clamps ``rx`` at
     half the shorter side so anything big enough to round the swatch away had already done the
-    same to the bars. A review measured that and it is false over a wide, ordinary range: a bar's
-    short side is around 100px and a swatch's is 10, so at radius 8 the swatch is a **full
-    ellipse** while the bar is plainly still a bar -- the very mismatch this change exists to
-    remove, in a new shape.
+    same to the bars. A review measured that and it is false: the swatch is a fixed 16x10, so its
+    clamp sits at a constant 5px, and **every** radius from 5 up turned it into a full ellipse --
+    at radius 8 the bar was plainly still a bar at every figure size measured. The mismatch this
+    change exists to remove, in a new shape.
 
     Half the short side is where SVG's clamp lands, so staying strictly under it is what keeps
-    the swatch a rectangle at any theme setting.
+    the swatch a rectangle at any theme setting. The companion below measures what that does
+    *not* buy.
     """
     svg = sp.barplot(_DATA, theme=Theme(corner_radius=radius), hue="행", **_CALLS["barplot"]).to_string()
     swatches = [
@@ -204,6 +205,44 @@ def test_a_large_radius_does_not_turn_the_swatch_into_an_ellipse(radius: float) 
     for swatch in swatches:
         drawn = float(re.search(r'rx="([\d.]+)"', swatch)[1])  # type: ignore[index]
         assert drawn < _SWATCH_HEIGHT / 2, f"swatch radius {drawn} reaches SVG's clamp at {_SWATCH_HEIGHT / 2}"
+
+
+def test_the_cap_gives_a_floor_and_not_parity() -> None:
+    """What a constant fraction cannot do, pinned so it stays a decision.
+
+    The swatch is a fixed 16x10; a bar is whatever the figure size and the category count leave
+    it. Crowd a small figure and the bars come out **thinner than the swatch** -- so the bar hits
+    its own clamp and turns into a lozenge while the swatch, capped at a quarter, stays a rounded
+    rectangle. That is the reverse of the mismatch #265 set out to remove, and no single fraction
+    can close both ends: parity would need the swatch to know the mark's size.
+
+    What is guaranteed is the floor -- the swatch never stops reading as a rounded rectangle.
+    This test measures the far end so that "the swatch always matches the mark" is never written
+    down as if it were true.
+    """
+    crowded = {
+        "열": [f"c{i}" for i in range(20) for _ in range(5)],
+        "행": [f"h{j}" for _ in range(20) for j in range(5)],
+        "값": [1 + ((i * 5 + j) % 7) for i in range(20) for j in range(5)],
+    }
+    svg = sp.barplot(crowded, x="열", y="값", hue="행", theme=Theme(corner_radius=8.0), width=320, height=240).to_string()
+    rects = re.findall(r"<rect[^>]*>", svg)
+    swatch_box = (f'width="{_SWATCH_WIDTH:g}"', f'height="{_SWATCH_HEIGHT:g}"')
+    swatches = [rect for rect in rects if all(part in rect for part in swatch_box)]
+    bars = [rect for rect in rects if 'class="series-' in rect and not all(part in rect for part in swatch_box)]
+
+    assert swatches and bars, "the crowded fixture stopped drawing a legend or its bars"
+    thinnest = min(
+        min(float(re.search(r'width="([\d.]+)"', bar)[1]), float(re.search(r'height="([\d.]+)"', bar)[1]))  # type: ignore[index]
+        for bar in bars
+    )
+    assert thinnest < _SWATCH_HEIGHT, f"the fixture stopped crowding: thinnest bar {thinnest} is not under {_SWATCH_HEIGHT}"
+
+    drawn = float(re.search(r'rx="([\d.]+)"', swatches[0])[1])  # type: ignore[index]
+    assert drawn < _SWATCH_HEIGHT / 2, f"swatch radius {drawn} reaches SVG's clamp at {_SWATCH_HEIGHT / 2}"
+    assert (
+        thinnest / 2 < drawn
+    ), f"the fixture no longer shows the reverse case: bar clamps at {thinnest / 2}, swatch draws {drawn}"
 
 
 @pytest.mark.parametrize("name", ["barplot", "histplot"])
