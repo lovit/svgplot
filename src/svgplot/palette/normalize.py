@@ -20,6 +20,7 @@ Scope: only the plain and two-slope mappings. Log/power/symlog normalizations ar
 from __future__ import annotations
 
 import math
+import numbers
 from dataclasses import dataclass
 
 
@@ -27,11 +28,32 @@ def _require_finite_number(value: object, *, field: str) -> float:
     """Reject non-real / non-finite input before it can become a silent ``nan`` fraction
     and, downstream, a nonsense level index.
     """
-    if isinstance(value, bool) or not isinstance(value, int | float):
+    # ``numbers.Real`` rather than ``int | float``, matching ``charts/_layout._finite``: a
+    # centre very often arrives from the same array library the data did, and
+    # ``numpy.float32``/``numpy.int64`` are neither of those two while being perfectly good
+    # numbers. The narrower test meant ``heatmap(..., width=np.float32(400), center=np.float32(1.5))``
+    # accepted one argument and refused the other on the same call (#274). ``bool`` stays out
+    # even though it is ``Real`` -- ``center=True`` is a mistake, not a request for 1.
+    #
+    # Not imported from ``charts/_layout``: ``palette`` imports nothing from ``charts`` and
+    # keeping it that way is worth more than sharing four lines. (``chart`` is a weaker case --
+    # ``chart/composition.py`` already imports ``format_coord`` from there, so for *that* copy
+    # this is a choice rather than a constraint, and ``labels/spec.py`` shows the deferred-import
+    # idiom that would work.) What keeps them in step is a test that asks all of them the same
+    # question, the way this package already pins rules that span a family.
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
         raise ValueError(f"{field} must be a real number, got {value!r}")
-    if not math.isfinite(value):
+    # Behind try/except for the reason ``_layout._finite`` gives: a ``Real`` too large to be a
+    # float (``Fraction(10**400)``) makes ``isfinite`` raise ``OverflowError`` rather than
+    # answer, and this function documents ``ValueError``. Widening the type test above is what
+    # let such a value get here (#274).
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError) as error:
+        raise ValueError(f"{field} must be finite, got {value!r}") from error
+    if not math.isfinite(number):
         raise ValueError(f"{field} must be finite, got {value!r}")
-    return float(value)
+    return number
 
 
 @dataclass(frozen=True)

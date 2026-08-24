@@ -29,6 +29,7 @@ ordering rather than imposing alphabetical.
 
 from __future__ import annotations
 
+import numbers
 from dataclasses import dataclass
 
 
@@ -171,10 +172,33 @@ def _require_finite_pair(value: object) -> tuple[float, float]:
     if not isinstance(value, tuple | list) or len(value) != 2:
         raise ValueError(f"axis limits must be a (low, high) pair, got {value!r}")
     low, high = value
+    bounds: list[float] = []
     for bound in (low, high):
-        if isinstance(bound, bool) or not isinstance(bound, int | float) or not math.isfinite(bound):
+        # ``numbers.Real``, for the reason ``charts/_layout._finite`` gives and this shared the
+        # gap with: a limit comes from the same array library the data did, so
+        # ``xlim=(np.float32(0), np.float32(3))`` was refused on a call whose ``width=`` accepted
+        # the same dtype (#274). ``numpy.float64`` slipped through both -- it subclasses
+        # ``float`` -- so only the narrower dtypes showed the split.
+        if isinstance(bound, bool) or not isinstance(bound, numbers.Real):
             raise ValueError(f"axis limits must be finite numbers, got {value!r}")
-    return (float(low), float(high))
+        # ``math.isfinite`` behind try/except, the way ``_layout._finite`` already does it: a
+        # ``Real`` too large to be a float -- ``Fraction(10**400)`` -- raises ``OverflowError``
+        # there rather than answering. Widening the type test to ``numbers.Real`` is what let
+        # such a value reach this line at all, so the two changes belong together; without it
+        # this function broke its own documented contract of raising ``ValueError`` (#274).
+        # Convert first, then ask ``isfinite`` of the ``float`` -- the shape ``_layout._finite``
+        # uses. Asking ``math.isfinite(bound)`` directly converts too, so testing finiteness
+        # before converting calls ``__float__`` twice: once inside this guard and once outside
+        # it, where whatever the second call raises escapes the ``ValueError`` this function
+        # documents. One conversion, one guard (#274).
+        try:
+            number = float(bound)
+        except (OverflowError, TypeError, ValueError) as error:
+            raise ValueError(f"axis limits must be finite numbers, got {value!r}") from error
+        if not math.isfinite(number):
+            raise ValueError(f"axis limits must be finite numbers, got {value!r}")
+        bounds.append(number)
+    return (bounds[0], bounds[1])
 
 
 def require_categories(value: object) -> tuple[str, ...]:

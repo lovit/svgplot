@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import datetime
 import math
+import numbers
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -258,17 +259,29 @@ def _format_plain(value: object) -> str:
 
 
 def _require_finite_number(value: object, *, context: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float):
+    # ``numbers.Real``, the width every numeric check in this package uses -- see
+    # ``charts/_layout._finite``. The narrow test made ``info=[("Day", "@day{0.0}")]`` over a
+    # ``numpy.float32`` column fail *silently*: ``charts/_tooltip`` catches the ValueError and
+    # falls back to the default channel clause, so the caller's format string was dropped with
+    # no message, while ``to_markdown()`` on the same chart raised (#274).
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
         raise ValueError(f"{context} requires a real number, got {value!r}")
     try:
-        # An int too large to represent as a float (e.g. 10**400) makes
-        # math.isfinite/float() itself raise OverflowError rather than
-        # returning False — the docstring only promises ValueError, so
-        # this must be caught and re-raised as one, not left to leak.
-        if not math.isfinite(value):
+        # An int too large to represent as a float (e.g. 10**400) makes float() itself raise
+        # OverflowError rather than returning a number — the docstring only promises ValueError,
+        # so this must be caught and re-raised as one, not left to leak. Converted *before* the
+        # finiteness test because ``math.isfinite`` converts too, and doing it in both places
+        # calls ``__float__`` twice with only one of the calls guarded.
+        number = float(value)
+        if not math.isfinite(number):
             raise ValueError(f"{context} requires a finite number, got {value!r}")
-        return float(value)
-    except OverflowError as e:
+        return number
+    except (OverflowError, TypeError, ValueError) as e:
+        # The same tuple the other three validators catch. ``OverflowError`` alone is what a huge
+        # ``Fraction`` raises and so is all this needed in practice, but a ``Real`` whose
+        # ``__float__`` fails another way leaked past it while the other three turned it into the
+        # ``ValueError`` they all document -- four expressions of one rule have to fail the same
+        # way as well as accept the same things (#274).
         raise ValueError(f"{context} requires a finite number, got {value!r}") from e
 
 
